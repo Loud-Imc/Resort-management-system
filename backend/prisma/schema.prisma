@@ -1,0 +1,490 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT & AUTHENTICATION
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  roles         UserRole[]
+  bookings      Booking[]
+  agentBookings Booking[] @relation("AgentBookings")
+  auditLogs     AuditLog[]
+  createdBlocks RoomBlock[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // SuperAdmin, Admin, Manager, Staff, Customer
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., "bookings.create", "rooms.edit"
+  description String?
+  module      String // e.g., "bookings", "rooms", "users"
+  createdAt   DateTime @default(now())
+
+  // Relations
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+// Many-to-Many: User <-> Role
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// Many-to-Many: Role <-> Permission
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================
+// ROOM MANAGEMENT
+// ============================================
+
+model RoomType {
+  id          String  @id @default(uuid())
+  name        String  @unique // Standard, Deluxe, Pool Villa
+  description String?
+  amenities   String[] // Array of amenities
+
+  // Pricing Configuration
+  basePrice         Decimal @db.Decimal(10, 2) // Base price for 1 adult per night
+  extraAdultPrice   Decimal @db.Decimal(10, 2) // Price per extra adult
+  extraChildPrice   Decimal @db.Decimal(10, 2) // Price per extra child
+  freeChildrenCount Int     @default(0) // Number of children free
+  maxAdults         Int     @default(2)
+  maxChildren       Int     @default(2)
+
+  // Visibility
+  isPubliclyVisible Boolean @default(true) // Show on public booking site
+
+  // Images
+  images String[] // Array of image URLs
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  rooms         Room[]
+  bookings      Booking[]
+  pricingRules  PricingRule[]
+
+  @@map("room_types")
+}
+
+model Room {
+  id         String      @id @default(uuid())
+  roomNumber String      @unique
+  floor      Int?
+  status     RoomStatus  @default(AVAILABLE)
+  isEnabled  Boolean     @default(true)
+  notes      String?
+
+  roomTypeId String
+  roomType   RoomType @relation(fields: [roomTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  bookings Booking[]
+  blocks   RoomBlock[]
+
+  @@map("rooms")
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  BLOCKED
+}
+
+model RoomBlock {
+  id        String   @id @default(uuid())
+  reason    String // Maintenance, Owner Use, etc.
+  startDate DateTime
+  endDate   DateTime
+  notes     String?
+
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("room_blocks")
+}
+
+// ============================================
+// BOOKING SYSTEM
+// ============================================
+
+model Booking {
+  id              String        @id @default(uuid())
+  bookingNumber   String        @unique // Auto-generated: BK-YYYYMMDD-XXXX
+  checkInDate     DateTime
+  checkOutDate    DateTime
+  numberOfNights  Int
+  
+  // Guest Information
+  adultsCount     Int
+  childrenCount   Int
+  
+  // Pricing
+  baseAmount      Decimal       @db.Decimal(10, 2)
+  extraAdultAmount Decimal      @db.Decimal(10, 2) @default(0)
+  extraChildAmount Decimal      @db.Decimal(10, 2) @default(0)
+  taxAmount       Decimal       @db.Decimal(10, 2) @default(0)
+  discountAmount  Decimal       @db.Decimal(10, 2) @default(0)
+  totalAmount     Decimal       @db.Decimal(10, 2)
+  
+  // Pricing override (for manual bookings)
+  isPriceOverridden Boolean     @default(false)
+  overrideReason    String?
+  
+  // Status
+  status          BookingStatus @default(PENDING_PAYMENT)
+  
+  // Special Requests
+  specialRequests String?
+  
+  // Booking Type
+  isManualBooking Boolean       @default(false) // Staff created vs online
+  
+  // Relations
+  roomId         String
+  room           Room          @relation(fields: [roomId], references: [id])
+  
+  roomTypeId     String
+  roomType       RoomType      @relation(fields: [roomTypeId], references: [id])
+  
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  
+  bookingSourceId String?
+  bookingSource   BookingSource? @relation(fields: [bookingSourceId], references: [id])
+  
+  agentId        String?
+  agent          User?         @relation("AgentBookings", fields: [agentId], references: [id])
+  
+  commissionAmount Decimal      @db.Decimal(10, 2) @default(0)
+  
+  couponId       String?
+  coupon         Coupon?       @relation(fields: [couponId], references: [id])
+  
+  // Timestamps
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  confirmedAt    DateTime?
+  checkedInAt    DateTime?
+  checkedOutAt   DateTime?
+  cancelledAt    DateTime?
+  
+  // Relations
+  guests         BookingGuest[]
+  payments       Payment[]
+  income         Income[]
+  auditLogs      AuditLog[]
+
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+  REFUNDED
+}
+
+model BookingGuest {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  age       Int?
+  idType    String? // Passport, Aadhar, etc.
+  idNumber  String?
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("booking_guests")
+}
+
+model BookingSource {
+  id          String   @id @default(uuid())
+  name        String   @unique // Booking.com, Agoda, Direct, Online, Broker
+  description String?
+  commission  Decimal? @db.Decimal(5, 2) // Commission percentage
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  bookings Booking[]
+
+  @@map("booking_sources")
+}
+
+// ============================================
+// PRICING & DISCOUNTS
+// ============================================
+
+model PricingRule {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  
+  // Date Range
+  startDate   DateTime
+  endDate     DateTime
+  
+  // Pricing Adjustment
+  adjustmentType  PricingAdjustmentType // PERCENTAGE, FIXED_AMOUNT
+  adjustmentValue Decimal               @db.Decimal(10, 2)
+  
+  // Applicability
+  roomTypeId String?
+  roomType   RoomType? @relation(fields: [roomTypeId], references: [id])
+  
+  isActive   Boolean   @default(true)
+  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("pricing_rules")
+}
+
+enum PricingAdjustmentType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+model Coupon {
+  id          String      @id @default(uuid())
+  code        String      @unique
+  description String?
+  
+  // Discount
+  discountType  DiscountType
+  discountValue Decimal      @db.Decimal(10, 2)
+  
+  // Validity
+  validFrom   DateTime
+  validUntil  DateTime
+  
+  // Usage Limits
+  maxUses     Int?
+  usedCount   Int          @default(0)
+  
+  // Minimum booking amount
+  minBookingAmount Decimal? @db.Decimal(10, 2)
+  
+  isActive    Boolean      @default(true)
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  bookings    Booking[]
+
+  @@map("coupons")
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+// ============================================
+// PAYMENT SYSTEM
+// ============================================
+
+model Payment {
+  id              String        @id @default(uuid())
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("INR")
+  status          PaymentStatus @default(PENDING)
+  
+  // Razorpay Integration
+  razorpayOrderId   String?     @unique
+  razorpayPaymentId String?     @unique
+  razorpaySignature String?
+  
+  // Payment Details
+  paymentMethod   String? // card, netbanking, upi, wallet
+  paymentDate     DateTime?
+  
+  // Refund
+  refundAmount    Decimal?      @db.Decimal(10, 2)
+  refundDate      DateTime?
+  refundReason    String?
+  
+  bookingId       String
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+// ============================================
+// FINANCIAL MANAGEMENT
+// ============================================
+
+model Income {
+  id          String      @id @default(uuid())
+  amount      Decimal     @db.Decimal(10, 2)
+  source      IncomeSource
+  description String?
+  date        DateTime    @default(now())
+  
+  bookingId   String?
+  booking     Booking?    @relation(fields: [bookingId], references: [id])
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("income")
+}
+
+enum IncomeSource {
+  ROOM_BOOKING
+  EXTRA_GUEST_CHARGES
+  ONLINE_BOOKING
+  OTHER
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  amount      Decimal         @db.Decimal(10, 2)
+  description String
+  date        DateTime        @default(now())
+  
+  categoryId  String
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
+  
+  // Attachments
+  receipts    String[] // Array of receipt URLs
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("expenses")
+}
+
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique // Maintenance, Operations, Utilities, etc.
+  description String?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  expenses    Expense[]
+
+  @@map("expense_categories")
+}
+
+// ============================================
+// AUDIT & LOGGING
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String // CREATE, UPDATE, DELETE, STATUS_CHANGE, etc.
+  entity      String // Booking, Payment, Room, etc.
+  entityId    String
+  
+  // Changes
+  oldValue    Json? // Previous state
+  newValue    Json? // New state
+  
+  // Context
+  ipAddress   String?
+  userAgent   String?
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  bookingId   String?
+  booking     Booking? @relation(fields: [bookingId], references: [id])
+  
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
