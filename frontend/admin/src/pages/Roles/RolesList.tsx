@@ -3,12 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rolesService } from '../../services/roles';
 import { Plus, Edit2, Trash2, Shield, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
+import { Role } from '../../types/user';
 
 export default function RolesList() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
-    const { data: roles, isLoading } = useQuery({
+    const { data: roles, isLoading } = useQuery<Role[]>({
         queryKey: ['roles'],
         queryFn: rolesService.getAll,
     });

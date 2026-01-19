@@ -1,5 +1,5 @@
 import api from './api';
-import { BookingSearchParams, AvailabilityResponse, CreateBookingDto } from '../types';
+import { BookingSearchParams, CreateBookingDto } from '../types';
 
 export const bookingService = {
     checkAvailability: async (params: BookingSearchParams) => {

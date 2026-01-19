@@ -31,7 +31,7 @@ export default function Financials() {
         endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     });
 
-    const { data: report, isLoading, error } = useQuery({
+    const { data: report, isLoading, error } = useQuery<any>({
         queryKey: ['financialReport', dateRange],
         queryFn: () => reportsService.getFinancialReport(dateRange.startDate, dateRange.endDate),
     });
@@ -160,7 +160,7 @@ export default function Financials() {
                                     cx="50%"
                                     cy="50%"
                                     labelLine={false}
-                                    label={({ name, percent }: { name: string; percent?: number }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
+                                    label={({ name, percent }: any) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                                     outerRadius={100}
                                     fill="#8884d8"
                                     dataKey="value"
@@ -169,7 +169,7 @@ export default function Financials() {
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, 'Amount']} />
+                                <Tooltip formatter={(value: any) => [`$${Number(value || 0).toLocaleString()}`, 'Amount']} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
@@ -188,7 +188,7 @@ export default function Financials() {
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                 <XAxis type="number" tickFormatter={(value: number) => `$${value}`} />
                                 <YAxis dataKey="name" type="category" width={100} />
-                                <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, 'Amount']} />
+                                <Tooltip formatter={(value: any) => [`$${Number(value || 0).toLocaleString()}`, 'Amount']} />
                                 <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} />
                             </BarChart>
                         </ResponsiveContainer>

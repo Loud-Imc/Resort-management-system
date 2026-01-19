@@ -12,12 +12,13 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
+import type { User } from '../../types/user';
 
 export default function UsersList() {
     const [search, setSearch] = useState('');
     const queryClient = useQueryClient();
 
-    const { data: users, isLoading } = useQuery({
+    const { data: users, isLoading } = useQuery<User[]>({
         queryKey: ['users'],
         queryFn: usersService.getAll,
     });

@@ -4,6 +4,7 @@ import { bookingsService } from '../../services/bookings';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Loader2, Calendar } from 'lucide-react';
+import type { Booking } from '../../types/booking';
 
 
 export default function Reports() {
@@ -15,12 +16,12 @@ export default function Reports() {
     // Let's assume we fetch all bookings for now or just mock the aggregation as the backend endpoint might not exist yet.
 
     // fetching booking sources to map IDs to Names if needed
-    const { data: sources } = useQuery({
+    const { data: sources } = useQuery<any[]>({
         queryKey: ['bookingSources'],
         queryFn: bookingSourcesService.getAll,
     });
 
-    const { data: bookings, isLoading } = useQuery({
+    const { data: bookings, isLoading } = useQuery<Booking[]>({
         queryKey: ['bookings', 'all'], // Fetch all for reporting (not ideal for prod, but okay for MVP)
         queryFn: () => bookingsService.getAll(),
     });
@@ -28,13 +29,13 @@ export default function Reports() {
     if (isLoading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin h-8 w-8 text-primary-600" /></div>;
 
     // Calculate details
-    const totalRevenue = bookings?.reduce((acc, b) => acc + (b.status === 'CONFIRMED' || b.status === 'CHECKED_IN' || b.status === 'CHECKED_OUT' ? Number(b.totalAmount) : 0), 0) || 0;
+    const totalRevenue = bookings?.reduce((acc: number, b: Booking) => acc + (b.status === 'CONFIRMED' || b.status === 'CHECKED_IN' || b.status === 'CHECKED_OUT' ? Number(b.totalAmount) : 0), 0) || 0;
     const totalBookings = bookings?.filter(b => b.status !== 'CANCELLED').length || 0;
 
     // Revenue by Source Calculation
     const revenueBySource = sources?.map(source => {
         const sourceBookings = bookings?.filter(b => b.bookingSourceId === source.id && b.status !== 'CANCELLED') || [];
-        const revenue = sourceBookings.reduce((acc, b) => acc + Number(b.totalAmount), 0);
+        const revenue = sourceBookings.reduce((acc: number, b: Booking) => acc + Number(b.totalAmount), 0);
         return {
             name: source.name,
             value: revenue
@@ -42,8 +43,8 @@ export default function Reports() {
     }).filter(d => d.value > 0) || [];
 
     // Add Direct Bookings (no source or manual)
-    const directRevenue = bookings?.filter(b => !b.bookingSourceId && b.status !== 'CANCELLED')
-        .reduce((acc, b) => acc + Number(b.totalAmount), 0) || 0;
+    const directRevenue = bookings?.filter((b: Booking) => !b.bookingSourceId && b.status !== 'CANCELLED')
+        .reduce((acc: number, b: Booking) => acc + Number(b.totalAmount), 0) || 0;
 
     if (directRevenue > 0) {
         revenueBySource.push({ name: 'Direct/Manual', value: directRevenue });

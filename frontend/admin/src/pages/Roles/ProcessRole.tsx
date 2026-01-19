@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { rolesService } from '../../services/roles';
-import { Loader2, ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, AlertCircle, Shield } from 'lucide-react';
 import clsx from 'clsx';
 import { useEffect } from 'react';
+import { Role } from '../../types/user';
 
 // Common permissions list for now (should ideally come from backend)
 const AVAILABLE_PERMISSIONS = [
@@ -46,9 +47,9 @@ export default function ProcessRole() {
         },
     });
 
-    const selectedPermissions = watch('permissions');
+    const selectedPermissions = watch('permissions') || [];
 
-    const { data: role, isLoading: isLoadingRole } = useQuery({
+    const { data: role, isLoading: isLoadingRole } = useQuery<Role>({
         queryKey: ['role', id],
         queryFn: () => rolesService.getById(id!),
         enabled: isEditing,

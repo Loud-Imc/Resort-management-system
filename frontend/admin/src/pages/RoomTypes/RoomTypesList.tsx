@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
+import type { RoomType } from '../../types/room';
 import {
     Loader2,
     Plus,
@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom';
 export default function RoomTypesList() {
     const queryClient = useQueryClient();
 
-    const { data: roomTypes, isLoading } = useQuery({
+    const { data: roomTypes, isLoading } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
         queryFn: roomTypesService.getAll,
     });

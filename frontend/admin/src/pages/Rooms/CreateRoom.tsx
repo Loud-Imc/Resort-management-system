@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import type { RoomType } from '../../types/room';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +13,7 @@ const roomSchema = z.object({
     floor: z.number().optional(),
     roomTypeId: z.string().min(1, 'Room type is required'),
     notes: z.string().optional(),
-    isEnabled: z.boolean().default(true),
+    isEnabled: z.boolean(),
 });
 
 type RoomFormData = z.infer<typeof roomSchema>;
@@ -20,7 +21,7 @@ type RoomFormData = z.infer<typeof roomSchema>;
 export default function CreateRoom() {
     const navigate = useNavigate();
 
-    const { data: roomTypes, isLoading: loadingTypes } = useQuery({
+    const { data: roomTypes, isLoading: loadingTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
         queryFn: roomTypesService.getAll,
     });

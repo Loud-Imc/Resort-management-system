@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Loader2 } from 'lucide-react';
 import { uploadService } from '../services/uploads';
 
 interface ImageUploadProps {
@@ -30,7 +30,7 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
                     continue;
                 }
 
-                const response = await uploadService.upload(file);
+                const response: any = await uploadService.upload(file);
                 newImages.push(response.url);
             }
 

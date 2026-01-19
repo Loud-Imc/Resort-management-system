@@ -8,7 +8,6 @@ import {
     Loader2,
     Search,
     Filter,
-    Eye,
     CheckCircle,
     LogOut,
     XCircle,
@@ -21,7 +20,7 @@ export default function BookingsList() {
     const [statusFilter, setStatusFilter] = useState<string>('');
     const queryClient = useQueryClient();
 
-    const { data: bookings, isLoading, error } = useQuery({
+    const { data: bookings, isLoading, error } = useQuery<Booking[]>({
         queryKey: ['bookings', statusFilter],
         queryFn: () => bookingsService.getAll({ status: statusFilter || undefined }),
     });

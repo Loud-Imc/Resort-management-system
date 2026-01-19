@@ -36,7 +36,7 @@ export default function SearchForm({ className = "" }: { className?: string }) {
                     </label>
                     <DatePicker
                         selected={checkIn}
-                        onChange={(date) => setCheckIn(date)}
+                        onChange={(date: Date | null) => setCheckIn(date)}
                         selectsStart
                         startDate={checkIn}
                         endDate={checkOut}
@@ -53,7 +53,7 @@ export default function SearchForm({ className = "" }: { className?: string }) {
                     </label>
                     <DatePicker
                         selected={checkOut}
-                        onChange={(date) => setCheckOut(date)}
+                        onChange={(date: Date | null) => setCheckOut(date)}
                         selectsEnd
                         startDate={checkIn}
                         endDate={checkOut}

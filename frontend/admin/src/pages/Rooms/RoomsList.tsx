@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { format } from 'date-fns';
+
 
 export default function RoomsList() {
     const [statusFilter, setStatusFilter] = useState<string>('');
@@ -25,7 +25,7 @@ export default function RoomsList() {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
-    const { data: rooms, isLoading, error } = useQuery({
+    const { data: rooms, isLoading, error } = useQuery<Room[]>({
         queryKey: ['rooms', statusFilter],
         queryFn: () => roomsService.getAll({ status: statusFilter || undefined }),
     });

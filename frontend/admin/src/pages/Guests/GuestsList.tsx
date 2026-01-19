@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { usersService } from '../../services/users';
+import type { User } from '../../types/user';
 import {
     Loader2,
     Search,
-    User,
+    User as UserIcon,
     Calendar,
     Mail,
     Phone
@@ -14,7 +15,7 @@ import { Link } from 'react-router-dom';
 export default function GuestsList() {
     const [search, setSearch] = useState('');
 
-    const { data: users, isLoading } = useQuery({
+    const { data: users, isLoading } = useQuery<User[]>({
         queryKey: ['users'],
         queryFn: usersService.getAll,
     });
@@ -66,7 +67,7 @@ export default function GuestsList() {
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-lg">
-                                {guest.firstName.charAt(0)}
+                                {guest.firstName ? guest.firstName.charAt(0) : <UserIcon className="h-6 w-6" />}
                             </div>
                             <div>
                                 <h3 className="text-lg font-semibold text-gray-900">{guest.firstName} {guest.lastName}</h3>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { bookingSourcesService, CreateBookingSourceDto, UpdateBookingSourceDto } from '../../services/bookingSources';
+import { bookingSourcesService, UpdateBookingSourceDto } from '../../services/bookingSources';
 import { Loader2, Plus, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
@@ -9,7 +9,7 @@ export default function BookingSourcesList() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSource, setEditingSource] = useState<any>(null);
 
-    const { data: sources, isLoading } = useQuery({
+    const { data: sources, isLoading } = useQuery<any[]>({
         queryKey: ['bookingSources'],
         queryFn: bookingSourcesService.getAll,
     });
@@ -124,7 +124,7 @@ export default function BookingSourcesList() {
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
                     initialData={editingSource}
-                    onSubmit={(data) => {
+                    onSubmit={(data: any) => {
                         if (editingSource) {
                             updateMutation.mutate({ id: editingSource.id, data });
                         } else {
@@ -137,8 +137,15 @@ export default function BookingSourcesList() {
     );
 }
 
-function BookingSourceModal({ isOpen, onClose, initialData, onSubmit }: any) {
-    const { register, handleSubmit, reset } = useForm({
+interface BookingSourceModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    initialData: any;
+    onSubmit: (data: any) => void;
+}
+
+function BookingSourceModal({ onClose, initialData, onSubmit }: BookingSourceModalProps) {
+    const { register, handleSubmit } = useForm({
         defaultValues: initialData || { isActive: true },
     });
 

@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import SearchForm from '../components/booking/SearchForm';
-import { ArrowRight, Star, Coffee, Leaf, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Star, Coffee, Leaf } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
 
 function HeroCarousel() {
     const slides = [
-        "/public/images/hero-slide-1.png",
-        "/public/images/hero-slide-2.png"
+        "/images/hero-slide-1.png",
+        "/images/hero-slide-2.png"
     ];
     const [current, setCurrent] = useState(0);
 
@@ -104,7 +104,7 @@ export default function Home() {
             <section className="relative h-[60vh] flex items-center bg-gray-900 overflow-hidden">
                 <div className="absolute inset-0 opacity-70">
                     <img
-                        src="/public/images/secondary-banner.png"
+                        src="/images/secondary-banner.png"
                         alt="Resort Interior View"
                         className="w-full h-full object-cover"
                     />

@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
+import type { Room, RoomType } from '../../types/room';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,7 +14,7 @@ const roomSchema = z.object({
     floor: z.number().optional(),
     roomTypeId: z.string().min(1, 'Room type is required'),
     notes: z.string().optional(),
-    isEnabled: z.boolean().default(true),
+    isEnabled: z.boolean(),
 });
 
 type RoomFormData = z.infer<typeof roomSchema>;
@@ -23,12 +24,12 @@ export default function EditRoom() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
-    const { data: roomTypes, isLoading: loadingTypes } = useQuery({
+    const { data: roomTypes, isLoading: loadingTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
         queryFn: roomTypesService.getAll,
     });
 
-    const { data: room, isLoading: loadingRoom } = useQuery({
+    const { data: room, isLoading: loadingRoom } = useQuery<Room>({
         queryKey: ['room', id],
         queryFn: () => roomsService.getById(id!),
         enabled: !!id,

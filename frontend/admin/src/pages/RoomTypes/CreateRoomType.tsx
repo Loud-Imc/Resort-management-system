@@ -60,28 +60,24 @@ export default function CreateRoomType() {
         },
     });
 
-    const { append: appendAmenity, remove: removeAmenity } = useFieldArray({
-        control,
+    const { fields: amenitiesFields, append: appendAmenity, remove: removeAmenity } = useFieldArray({
+        control: control as any,
         name: 'amenities' as any,
     });
 
-    const amenitiesInput = watch('amenities');
+    // const amenitiesInput = watch('amenities');
 
     const handleAddAmenity = () => {
-        const current = watch('amenities');
-        setValue('amenities', [...current, '']);
+        appendAmenity('');
     };
 
     const handleRemoveAmenity = (index: number) => {
-        const current = watch('amenities');
-        setValue('amenities', current.filter((_, i) => i !== index));
+        removeAmenity(index);
     };
 
-    const handleAmenityChange = (index: number, value: string) => {
-        const current = [...watch('amenities')];
-        current[index] = value;
-        setValue('amenities', current);
-    };
+    // const handleAmenityChange = (index: number, value: string) => {
+    //     setValue(`amenities.${index}`, value);
+    // };
 
     useEffect(() => {
         if (existingType) {
@@ -101,10 +97,14 @@ export default function CreateRoomType() {
 
     const mutation = useMutation({
         mutationFn: (data: RoomTypeFormData) => {
+            const submitData: any = {
+                ...data,
+                images: data.images || []
+            };
             if (isEditMode) {
-                return roomTypesService.update(id!, data);
+                return roomTypesService.update(id!, submitData);
             }
-            return roomTypesService.create(data);
+            return roomTypesService.create(submitData);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
@@ -272,11 +272,10 @@ export default function CreateRoomType() {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                            {amenitiesInput && amenitiesInput.map((amenity, index) => (
-                                <div key={index} className="flex items-center gap-2">
+                            {amenitiesFields.map((field, index) => (
+                                <div key={field.id} className="flex items-center gap-2">
                                     <input
-                                        value={amenity}
-                                        onChange={(e) => handleAmenityChange(index, e.target.value)}
+                                        {...register(`amenities.${index}`)}
                                         className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
                                         placeholder="e.g. WiFi"
                                     />

@@ -1,5 +1,5 @@
 import { useLocation, Link, Navigate } from 'react-router-dom';
-import { CheckCircle, Calendar, Download } from 'lucide-react';
+import { CheckCircle, Download } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Confirmation() {

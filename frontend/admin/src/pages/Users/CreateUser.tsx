@@ -8,6 +8,7 @@ import { usersService } from '../../services/users';
 import { rolesService } from '../../services/roles';
 import { Loader2, ArrowLeft, Save, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
+import { Role, User } from '../../types/user';
 
 const userSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
@@ -28,12 +29,12 @@ export default function CreateUser() {
     const queryClient = useQueryClient();
     const [showPassword, setShowPassword] = useState(false);
 
-    const { data: roles } = useQuery({
+    const { data: roles } = useQuery<Role[]>({
         queryKey: ['roles'],
         queryFn: rolesService.getAll,
     });
 
-    const { data: existingUser, isLoading: loadingUser } = useQuery({
+    const { data: existingUser, isLoading: loadingUser } = useQuery<User>({
         queryKey: ['user', id],
         queryFn: () => usersService.getById(id!),
         enabled: isEditMode,
@@ -58,8 +59,7 @@ export default function CreateUser() {
         },
     });
 
-    // Watch roles to conditionally render UI if needed, or simply for debugging
-    const selectedRoles = watch('roleIds');
+    // const selectedRoles = watch('roleIds');
 
     useEffect(() => {
         if (existingUser) {
@@ -68,7 +68,7 @@ export default function CreateUser() {
             setValue('email', existingUser.email);
             setValue('phone', existingUser.phone || '');
             setValue('isActive', existingUser.isActive);
-            setValue('roleIds', existingUser.roles.map(ur => ur.role.id));
+            setValue('roleIds', existingUser.roles.map((ur: any) => ur.role.id));
         }
     }, [existingUser, setValue]);
 
@@ -99,7 +99,7 @@ export default function CreateUser() {
     };
 
     const toggleRole = (roleId: string) => {
-        const currentRoles = watch('roleIds');
+        const currentRoles = watch('roleIds') || [];
         if (currentRoles.includes(roleId)) {
             setValue('roleIds', currentRoles.filter(id => id !== roleId));
         } else {
@@ -192,7 +192,7 @@ export default function CreateUser() {
                                         key={role.id}
                                         className={`
                                     border rounded-lg p-3 cursor-pointer transition-colors flex items-center gap-3
-                                    ${watch('roleIds').includes(role.id)
+                                    ${(watch('roleIds') || []).includes(role.id)
                                                 ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500'
                                                 : 'border-gray-200 hover:border-primary-200'
                                             }
@@ -202,7 +202,7 @@ export default function CreateUser() {
                                         <input
                                             type="checkbox"
                                             value={role.id}
-                                            checked={watch('roleIds').includes(role.id)}
+                                            checked={(watch('roleIds') || []).includes(role.id)}
                                             className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                                             readOnly
                                         />

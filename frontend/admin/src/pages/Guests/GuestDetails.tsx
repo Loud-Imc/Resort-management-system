@@ -1,17 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { usersService } from '../../services/users';
+import type { User } from '../../types/user';
 import {
     Loader2,
     ArrowLeft,
     Mail,
     Phone,
-    Calendar,
-    MapPin,
-    Clock,
-    CheckCircle,
-    XCircle,
-    AlertCircle
+    Calendar
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -19,7 +15,7 @@ export default function GuestDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    const { data: user, isLoading } = useQuery({
+    const { data: user, isLoading } = useQuery<User>({
         queryKey: ['user', id],
         queryFn: () => usersService.getById(id!),
         enabled: !!id,

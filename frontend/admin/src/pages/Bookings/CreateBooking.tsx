@@ -12,6 +12,8 @@ import { usersService } from '../../services/users';
 import { Loader2, Calendar, Users, DollarSign, CheckCircle, AlertCircle, ArrowLeft, Briefcase } from 'lucide-react';
 import clsx from 'clsx';
 import type { PriceCalculationResult } from '../../types/booking';
+import type { RoomType } from '../../types/room';
+import type { User } from '../../types/user';
 
 // Schema for form validation
 const bookingSchema = z.object({
@@ -41,32 +43,31 @@ export default function CreateBooking() {
     const [checkingAvailability, setCheckingAvailability] = useState(false);
 
     // Fetch Room Types
-    const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery({
+    const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
         queryFn: roomTypesService.getAll,
     });
 
     // Fetch Booking Sources
-    const { data: bookingSources } = useQuery({
+    const { data: bookingSources } = useQuery<any[]>({
         queryKey: ['bookingSources'],
         queryFn: bookingSourcesService.getAll,
     });
 
     // Fetch Users for Agent selection
-    const { data: users } = useQuery({
+    const { data: users } = useQuery<User[]>({
         queryKey: ['users'],
         queryFn: usersService.getAll,
     });
 
     // Filter users who have 'Agent' role (assuming logic or just listing all for now and user filters)
     // Ideally backend should provide a filter for this, or we filter on frontend if roles are populated
-    const agents = users?.filter(u => u.roles?.some(r => r.name === 'Agent' || r.name === 'Manager')) || [];
+    const agents = users?.filter(u => u.roles?.some(r => r.role.name === 'Agent' || r.role.name === 'Manager')) || [];
 
     const {
         register,
         control,
         handleSubmit,
-        watch,
         formState: { errors },
         getValues,
     } = useForm<BookingFormData>({

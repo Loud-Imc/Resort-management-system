@@ -13,12 +13,13 @@ import {
     Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
+import type { Payment } from '../../types/payment';
 
 export default function PaymentsList() {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<'ALL' | 'PAID' | 'PENDING' | 'FAILED' | 'REFUNDED'>('ALL');
 
-    const { data: payments, isLoading } = useQuery({
+    const { data: payments, isLoading } = useQuery<Payment[]>({
         queryKey: ['payments'],
         queryFn: paymentsService.getAll,
     });

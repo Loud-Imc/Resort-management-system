@@ -2,7 +2,8 @@ export interface Role {
     id: string;
     name: string;
     description?: string;
-    permissions?: unknown[];
+    permissions?: string[];
+    isSystem?: boolean;
 }
 
 export interface User {
@@ -13,6 +14,7 @@ export interface User {
     phone?: string;
     isActive: boolean;
     roles: { role: Role }[];
+    bookings?: any[];
     lastLogin?: string;
 }
 

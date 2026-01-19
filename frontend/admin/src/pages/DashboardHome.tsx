@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { reportsService } from '../services/reports';
+import { reportsService, DashboardStats } from '../services/reports';
 import { Loader2, DollarSign, Users, CalendarCheck, BedDouble } from 'lucide-react';
 
 export default function DashboardHome() {
-    const { data: stats, isLoading, error } = useQuery({
+    const { data: stats, isLoading, error } = useQuery<DashboardStats>({
         queryKey: ['dashboardStats'],
         queryFn: reportsService.getDashboardStats,
     });
