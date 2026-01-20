@@ -13,6 +13,13 @@ export declare class ReportsService {
         };
         revenue: number | import("@prisma/client/runtime/library").Decimal;
         bookingsCreated: number;
+        roomStatusSummary: {
+            AVAILABLE: number;
+            RESERVED: number;
+            OCCUPIED: number;
+            MAINTENANCE: number;
+            BLOCKED: number;
+        };
     }>;
     getFinancialReport(startDate: Date, endDate: Date): Promise<{
         period: {

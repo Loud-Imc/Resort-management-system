@@ -86,7 +86,13 @@ export default function Checkout() {
                 guestName: `${userData.firstName} ${userData.lastName}`,
                 guestEmail: userData.email,
                 guestPhone: userData.phone,
-                specialRequests: userData.specialRequests
+                specialRequests: userData.specialRequests,
+                guests: [{
+                    firstName: userData.firstName,
+                    lastName: userData.lastName,
+                    email: userData.email,
+                    phone: userData.phone
+                }]
             });
 
             // 2. Initiate Payment (Create Razorpay Order)
@@ -107,8 +113,7 @@ export default function Checkout() {
                         await paymentService.verifyPayment({
                             razorpayOrderId: response.razorpay_order_id,
                             razorpayPaymentId: response.razorpay_payment_id,
-                            razorpaySignature: response.razorpay_signature,
-                            bookingId: booking.id
+                            razorpaySignature: response.razorpay_signature
                         });
 
                         // 5. Navigate to confirmation

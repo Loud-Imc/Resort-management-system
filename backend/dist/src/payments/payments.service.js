@@ -55,9 +55,12 @@ let PaymentsService = class PaymentsService {
     constructor(prisma, configService) {
         this.prisma = prisma;
         this.configService = configService;
+        const keyId = this.configService.get('RAZORPAY_KEY_ID');
+        const keySecret = this.configService.get('RAZORPAY_KEY_SECRET');
+        console.log(`[PaymentsService] Loading Razorpay Key ID: ${keyId?.substring(0, 8)}...`);
         this.razorpay = new Razorpay({
-            key_id: this.configService.get('RAZORPAY_KEY_ID'),
-            key_secret: this.configService.get('RAZORPAY_KEY_SECRET'),
+            key_id: keyId,
+            key_secret: keySecret,
         });
     }
     async initiatePayment(bookingId) {

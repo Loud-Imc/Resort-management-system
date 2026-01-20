@@ -45,6 +45,11 @@ export class CreateBookingDto {
     @IsNotEmpty()
     roomTypeId: string;
 
+    @ApiProperty({ example: 'room-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    roomId?: string;
+
     @ApiProperty({ example: '2026-02-01' })
     @IsDateString()
     @IsNotEmpty()

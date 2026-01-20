@@ -144,7 +144,7 @@ export default function PaymentsList() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-bold text-gray-900">
-                                            ₹ {payment.amount.toFixed(2)}
+                                            ₹ {Number(payment.amount).toFixed(2)}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">

@@ -49,6 +49,7 @@ export interface Room {
     roomType: RoomType;
     createdAt: string;
     updatedAt: string;
+    bookings?: any[]; // For dashboard reserved status
 }
 
 export interface CreateRoomDto {

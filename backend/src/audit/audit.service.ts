@@ -9,7 +9,7 @@ export class AuditService {
         action: string;
         entity: string;
         entityId: string;
-        userId: string;
+        userId?: string;
         oldValue?: any;
         newValue?: any;
         ipAddress?: string;

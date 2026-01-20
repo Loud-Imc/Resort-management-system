@@ -57,6 +57,8 @@ let RoomsService = class RoomsService {
         return room;
     }
     async findAll(filters) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         return this.prisma.room.findMany({
             where: {
                 roomTypeId: filters?.roomTypeId,
@@ -66,6 +68,14 @@ let RoomsService = class RoomsService {
             },
             include: {
                 roomType: true,
+                bookings: {
+                    where: {
+                        status: 'CONFIRMED',
+                        checkInDate: { lte: today },
+                        checkOutDate: { gt: today },
+                    },
+                    take: 1,
+                },
                 blocks: {
                     where: {
                         endDate: { gte: new Date() },

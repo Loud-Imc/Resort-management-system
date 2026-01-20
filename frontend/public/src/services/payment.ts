@@ -17,7 +17,6 @@ export const paymentService = {
         razorpayOrderId: string;
         razorpayPaymentId: string;
         razorpaySignature: string;
-        bookingId?: string;
     }) => {
         const { data } = await api.post('/payments/verify', verificationData);
         return data;

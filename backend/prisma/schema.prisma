@@ -478,8 +478,8 @@ model AuditLog {
   ipAddress   String?
   userAgent   String?
   
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
   
   bookingId   String?
   booking     Booking? @relation(fields: [bookingId], references: [id])

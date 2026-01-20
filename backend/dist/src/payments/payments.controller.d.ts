@@ -35,9 +35,9 @@ export declare class PaymentsController {
         success: boolean;
         payment: {
             id: string;
+            status: import(".prisma/client").$Enums.PaymentStatus;
             createdAt: Date;
             updatedAt: Date;
-            status: import(".prisma/client").$Enums.PaymentStatus;
             bookingId: string;
             amount: import("@prisma/client/runtime/library").Decimal;
             currency: string;
@@ -65,9 +65,9 @@ export declare class PaymentsController {
     }>;
     getPaymentDetails(bookingId: string): Promise<{
         id: string;
+        status: import(".prisma/client").$Enums.PaymentStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.PaymentStatus;
         bookingId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         currency: string;
@@ -82,23 +82,12 @@ export declare class PaymentsController {
     }[]>;
     findAll(): Promise<({
         booking: {
-            user: {
-                id: string;
-                createdAt: Date;
-                updatedAt: Date;
-                email: string;
-                password: string;
-                firstName: string;
-                lastName: string;
-                phone: string | null;
-                isActive: boolean;
-            };
             roomType: {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
                 updatedAt: Date;
+                description: string | null;
+                name: string;
                 amenities: string[];
                 basePrice: import("@prisma/client/runtime/library").Decimal;
                 extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -109,16 +98,21 @@ export declare class PaymentsController {
                 isPubliclyVisible: boolean;
                 images: string[];
             };
+            user: {
+                id: string;
+                createdAt: Date;
+                updatedAt: Date;
+                isActive: boolean;
+                firstName: string;
+                lastName: string;
+                email: string;
+                phone: string | null;
+                password: string;
+            };
         } & {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            userId: string;
-            status: import(".prisma/client").$Enums.BookingStatus;
-            roomTypeId: string;
-            checkInDate: Date;
-            roomId: string;
             bookingNumber: string;
+            checkInDate: Date;
             checkOutDate: Date;
             numberOfNights: number;
             adultsCount: number;
@@ -131,22 +125,28 @@ export declare class PaymentsController {
             totalAmount: import("@prisma/client/runtime/library").Decimal;
             isPriceOverridden: boolean;
             overrideReason: string | null;
+            status: import(".prisma/client").$Enums.BookingStatus;
             specialRequests: string | null;
             isManualBooking: boolean;
-            bookingSourceId: string | null;
-            agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
-            couponId: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             confirmedAt: Date | null;
             checkedInAt: Date | null;
             checkedOutAt: Date | null;
             cancelledAt: Date | null;
+            roomId: string;
+            roomTypeId: string;
+            userId: string;
+            bookingSourceId: string | null;
+            agentId: string | null;
+            couponId: string | null;
         };
     } & {
         id: string;
+        status: import(".prisma/client").$Enums.PaymentStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.PaymentStatus;
         bookingId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         currency: string;

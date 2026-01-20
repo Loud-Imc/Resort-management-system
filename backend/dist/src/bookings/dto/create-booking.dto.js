@@ -67,6 +67,7 @@ __decorate([
 ], GuestInfoDto.prototype, "idNumber", void 0);
 class CreateBookingDto {
     roomTypeId;
+    roomId;
     checkInDate;
     checkOutDate;
     adultsCount;
@@ -90,6 +91,12 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CreateBookingDto.prototype, "roomTypeId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'room-uuid', required: false }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBookingDto.prototype, "roomId", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ example: '2026-02-01' }),
     (0, class_validator_1.IsDateString)(),

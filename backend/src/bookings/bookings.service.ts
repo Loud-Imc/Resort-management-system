@@ -25,13 +25,17 @@ export class BookingsService {
             adultsCount,
             childrenCount,
             guests,
+            roomId,
             specialRequests,
             couponCode,
-            bookingSourceId,
+            bookingSourceId: rawBookingSourceId,
             isManualBooking = false,
             overrideTotal,
             overrideReason,
         } = createBookingDto;
+
+        const bookingSourceId = rawBookingSourceId || undefined;
+        const agentId = createBookingDto.agentId || undefined;
 
         const checkIn = new Date(checkInDate);
         const checkOut = new Date(checkOutDate);
@@ -113,17 +117,32 @@ export class BookingsService {
         }
 
         // 4. Get an available room
-        const availableRooms = await this.availabilityService.getAvailableRooms(
-            roomTypeId,
-            checkIn,
-            checkOut,
-        );
+        let selectedRoom: any;
 
-        if (availableRooms.length === 0) {
-            throw new BadRequestException('No rooms available');
+        if (roomId) {
+            // Verify the specific room is available
+            const availableRooms = await this.availabilityService.getAvailableRooms(
+                roomTypeId,
+                checkIn,
+                checkOut,
+            );
+            selectedRoom = availableRooms.find(r => r.id === roomId);
+
+            if (!selectedRoom) {
+                throw new BadRequestException('Selected room is not available for these dates');
+            }
+        } else {
+            const availableRooms = await this.availabilityService.getAvailableRooms(
+                roomTypeId,
+                checkIn,
+                checkOut,
+            );
+
+            if (availableRooms.length === 0) {
+                throw new BadRequestException('No rooms available');
+            }
+            selectedRoom = availableRooms[0];
         }
-
-        const selectedRoom = availableRooms[0];
 
         // 5. Generate booking number
         const bookingNumber = await this.generateBookingNumber();
@@ -139,7 +158,6 @@ export class BookingsService {
 
         // 6.5 Calculate Commission
         let commissionAmount = 0;
-        let agentId = createBookingDto.agentId;
 
         // If booking source is provided, check for default commission
         if (bookingSourceId) {
@@ -217,7 +235,7 @@ export class BookingsService {
             action: 'CREATE',
             entity: 'Booking',
             entityId: booking.id,
-            userId,
+            userId: userId === 'GUEST_USER' ? bookingUserId : userId,
             newValue: booking,
             bookingId: booking.id,
         });

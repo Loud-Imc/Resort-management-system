@@ -27,7 +27,9 @@ let BookingsService = class BookingsService {
         this.auditService = auditService;
     }
     async create(createBookingDto, userId) {
-        const { roomTypeId, checkInDate, checkOutDate, adultsCount, childrenCount, guests, specialRequests, couponCode, bookingSourceId, isManualBooking = false, overrideTotal, overrideReason, } = createBookingDto;
+        const { roomTypeId, checkInDate, checkOutDate, adultsCount, childrenCount, guests, roomId, specialRequests, couponCode, bookingSourceId: rawBookingSourceId, isManualBooking = false, overrideTotal, overrideReason, } = createBookingDto;
+        const bookingSourceId = rawBookingSourceId || undefined;
+        const agentId = createBookingDto.agentId || undefined;
         const checkIn = new Date(checkInDate);
         const checkOut = new Date(checkOutDate);
         let bookingUserId = userId;
@@ -74,11 +76,21 @@ let BookingsService = class BookingsService {
             finalTotal = overrideTotal;
             isPriceOverridden = true;
         }
-        const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId, checkIn, checkOut);
-        if (availableRooms.length === 0) {
-            throw new common_1.BadRequestException('No rooms available');
+        let selectedRoom;
+        if (roomId) {
+            const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId, checkIn, checkOut);
+            selectedRoom = availableRooms.find(r => r.id === roomId);
+            if (!selectedRoom) {
+                throw new common_1.BadRequestException('Selected room is not available for these dates');
+            }
         }
-        const selectedRoom = availableRooms[0];
+        else {
+            const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId, checkIn, checkOut);
+            if (availableRooms.length === 0) {
+                throw new common_1.BadRequestException('No rooms available');
+            }
+            selectedRoom = availableRooms[0];
+        }
         const bookingNumber = await this.generateBookingNumber();
         let couponId;
         if (couponCode) {
@@ -88,7 +100,6 @@ let BookingsService = class BookingsService {
             couponId = coupon?.id;
         }
         let commissionAmount = 0;
-        let agentId = createBookingDto.agentId;
         if (bookingSourceId) {
             const source = await this.prisma.bookingSource.findUnique({
                 where: { id: bookingSourceId }
@@ -154,7 +165,7 @@ let BookingsService = class BookingsService {
             action: 'CREATE',
             entity: 'Booking',
             entityId: booking.id,
-            userId,
+            userId: userId === 'GUEST_USER' ? bookingUserId : userId,
             newValue: booking,
             bookingId: booking.id,
         });

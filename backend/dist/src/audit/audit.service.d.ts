@@ -6,7 +6,7 @@ export declare class AuditService {
         action: string;
         entity: string;
         entityId: string;
-        userId: string;
+        userId?: string;
         oldValue?: any;
         newValue?: any;
         ipAddress?: string;
@@ -15,7 +15,7 @@ export declare class AuditService {
     }): Promise<{
         id: string;
         createdAt: Date;
-        userId: string;
+        userId: string | null;
         action: string;
         entity: string;
         entityId: string;
@@ -36,11 +36,11 @@ export declare class AuditService {
             lastName: string;
             phone: string | null;
             isActive: boolean;
-        };
+        } | null;
     } & {
         id: string;
         createdAt: Date;
-        userId: string;
+        userId: string | null;
         action: string;
         entity: string;
         entityId: string;

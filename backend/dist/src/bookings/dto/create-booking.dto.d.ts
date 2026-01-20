@@ -9,6 +9,7 @@ export declare class GuestInfoDto {
 }
 export declare class CreateBookingDto {
     roomTypeId: string;
+    roomId?: string;
     checkInDate: string;
     checkOutDate: string;
     adultsCount: number;

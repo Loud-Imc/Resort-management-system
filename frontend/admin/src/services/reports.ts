@@ -11,6 +11,13 @@ export interface DashboardStats {
     };
     revenue: number;
     bookingsCreated: number;
+    roomStatusSummary: {
+        AVAILABLE: number;
+        RESERVED: number;
+        OCCUPIED: number;
+        MAINTENANCE: number;
+        BLOCKED: number;
+    };
 }
 
 export const reportsService = {

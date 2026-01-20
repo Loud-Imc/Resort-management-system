@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
 import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
@@ -25,6 +25,8 @@ const bookingSchema = z.object({
     couponCode: z.string().optional(),
     bookingSourceId: z.string().optional(),
     agentId: z.string().optional(),
+    roomId: z.string().optional(),
+    isManualBooking: z.boolean().optional(),
     guests: z.array(z.object({
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
@@ -38,9 +40,13 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 
 export default function CreateBooking() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
+
+    const preSelectedRoomId = searchParams.get('roomId');
+    const preSelectedRoomTypeId = searchParams.get('roomTypeId');
 
     // Fetch Room Types
     const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
@@ -77,9 +83,19 @@ export default function CreateBooking() {
             checkOutDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
             adultsCount: 1,
             childrenCount: 0,
+            roomTypeId: preSelectedRoomTypeId || '',
+            roomId: preSelectedRoomId || undefined,
+            isManualBooking: true,
             guests: [{ firstName: '', lastName: '' }],
         },
     });
+
+    // Auto-check availability if pre-selected
+    useEffect(() => {
+        if (preSelectedRoomId && preSelectedRoomTypeId) {
+            handleCheckAvailability();
+        }
+    }, [preSelectedRoomId, preSelectedRoomTypeId]);
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -138,7 +154,16 @@ export default function CreateBooking() {
             alert('Please check availability first');
             return;
         }
-        createBookingMutation.mutate(data);
+
+        // Sanitize relational IDs
+        const sanitizedData = {
+            ...data,
+            bookingSourceId: data.bookingSourceId || undefined,
+            agentId: data.agentId || undefined,
+            roomId: data.roomId || undefined,
+        };
+
+        createBookingMutation.mutate(sanitizedData);
     };
 
     if (loadingRoomTypes) {
@@ -429,41 +454,41 @@ export default function CreateBooking() {
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-600">
-                                        {priceDetails.breakdown.nights} Nights x ${priceDetails.breakdown.pricePerNight}
+                                        {priceDetails.numberOfNights} Nights x ₹{priceDetails.pricePerNight}
                                     </span>
-                                    <span className="font-medium">${(priceDetails.breakdown.nights * priceDetails.breakdown.pricePerNight).toFixed(2)}</span>
+                                    <span className="font-medium">₹{priceDetails.baseAmount.toFixed(2)}</span>
                                 </div>
 
-                                {priceDetails.breakdown.extraAdultCharge > 0 && (
+                                {priceDetails.extraAdultAmount > 0 && (
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-600">Extra Adult Charges</span>
-                                        <span className="font-medium">${priceDetails.breakdown.extraAdultCharge.toFixed(2)}</span>
+                                        <span className="font-medium">₹{priceDetails.extraAdultAmount.toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                {priceDetails.breakdown.extraChildCharge > 0 && (
+                                {priceDetails.extraChildAmount > 0 && (
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-600">Extra Child Charges</span>
-                                        <span className="font-medium">${priceDetails.breakdown.extraChildCharge.toFixed(2)}</span>
+                                        <span className="font-medium">₹{priceDetails.extraChildAmount.toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                {priceDetails.discount > 0 && (
+                                {priceDetails.discountAmount > 0 && (
                                     <div className="flex justify-between text-sm text-green-600">
                                         <span>Discount</span>
-                                        <span>-${priceDetails.discount.toFixed(2)}</span>
+                                        <span>-₹{priceDetails.discountAmount.toFixed(2)}</span>
                                     </div>
                                 )}
 
                                 <div className="flex justify-between text-sm border-b border-gray-100 pb-3">
                                     <span className="text-gray-600">Taxes</span>
-                                    <span className="font-medium">${priceDetails.tax.toFixed(2)}</span>
+                                    <span className="font-medium">₹{priceDetails.taxAmount.toFixed(2)}</span>
                                 </div>
 
                                 <div className="flex justify-between items-center pt-2">
                                     <span className="font-bold text-lg">Total</span>
                                     <span className="font-bold text-2xl text-primary-600">
-                                        ${priceDetails.totalPrice.toFixed(2)}
+                                        ₹{priceDetails.totalAmount.toFixed(2)}
                                     </span>
                                 </div>
                             </div>

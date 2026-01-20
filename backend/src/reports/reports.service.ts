@@ -58,6 +58,37 @@ export class ReportsService {
             }
         })
 
+        // 3.5 Room Status Summary
+        const rawAvailableCount = await this.prisma.room.count({
+            where: { isEnabled: true, status: 'AVAILABLE' }
+        });
+
+        const reservedCount = await this.prisma.room.count({
+            where: {
+                isEnabled: true,
+                status: 'AVAILABLE',
+                bookings: {
+                    some: {
+                        status: 'CONFIRMED',
+                        checkInDate: { lte: today },
+                        checkOutDate: { gt: today }
+                    }
+                }
+            }
+        });
+
+        const availableCount = rawAvailableCount - reservedCount;
+
+        const occupiedCount = await this.prisma.room.count({
+            where: { isEnabled: true, status: 'OCCUPIED' }
+        });
+        const maintenanceCount = await this.prisma.room.count({
+            where: { isEnabled: true, status: 'MAINTENANCE' }
+        });
+        const blockedCount = await this.prisma.room.count({
+            where: { isEnabled: true, status: 'BLOCKED' }
+        });
+
         // 4. Today's Revenue (Income created today)
         const incomeToday = await this.prisma.income.aggregate({
             where: {
@@ -81,7 +112,14 @@ export class ReportsService {
                 percentage: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
             },
             revenue: incomeToday._sum.amount || 0,
-            bookingsCreated: bookedToday
+            bookingsCreated: bookedToday,
+            roomStatusSummary: {
+                AVAILABLE: availableCount,
+                RESERVED: reservedCount,
+                OCCUPIED: occupiedCount,
+                MAINTENANCE: maintenanceCount,
+                BLOCKED: blockedCount
+            }
         };
     }
 

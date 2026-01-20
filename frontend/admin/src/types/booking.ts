@@ -72,6 +72,8 @@ export interface CreateBookingDto {
         age?: number;
     }[];
     couponCode?: string;
+    roomId?: string;
+    isManualBooking?: boolean;
 }
 
 export interface CheckAvailabilityDto {
@@ -90,14 +92,13 @@ export interface PriceCalculationDto {
 }
 
 export interface PriceCalculationResult {
-    basePrice: number;
-    totalPrice: number;
-    tax: number;
-    discount: number;
-    breakdown: {
-        nights: number;
-        pricePerNight: number;
-        extraAdultCharge: number;
-        extraChildCharge: number;
-    };
+    baseAmount: number;
+    extraAdultAmount: number;
+    extraChildAmount: number;
+    taxAmount: number;
+    discountAmount: number;
+    totalAmount: number;
+    numberOfNights: number;
+    pricePerNight: number;
+    taxRate: number;
 }
