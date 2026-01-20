@@ -20,7 +20,13 @@ let AuditService = class AuditService {
     async createLog(data) {
         return this.prisma.auditLog.create({
             data: {
-                ...data,
+                action: data.action,
+                entity: data.entity,
+                entityId: data.entityId,
+                userId: data.userId,
+                ipAddress: data.ipAddress,
+                userAgent: data.userAgent,
+                bookingId: data.bookingId,
                 oldValue: data.oldValue ? JSON.parse(JSON.stringify(data.oldValue)) : null,
                 newValue: data.newValue ? JSON.parse(JSON.stringify(data.newValue)) : null,
             },

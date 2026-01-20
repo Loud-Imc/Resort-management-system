@@ -8,16 +8,16 @@ export declare class ExpensesService {
     create(createExpenseDto: CreateExpenseDto, userId: string): Promise<{
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -30,16 +30,16 @@ export declare class ExpensesService {
     }): Promise<({
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -48,16 +48,16 @@ export declare class ExpensesService {
     findOne(id: string): Promise<{
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -66,16 +66,16 @@ export declare class ExpensesService {
     update(id: string, updateExpenseDto: UpdateExpenseDto, userId: string): Promise<{
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -91,16 +91,16 @@ export declare class ExpensesService {
         expenses: ({
             category: {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
+                name: string;
                 updatedAt: Date;
+                description: string | null;
             };
         } & {
             id: string;
-            description: string;
             createdAt: Date;
             updatedAt: Date;
+            description: string;
             amount: import("@prisma/client/runtime/library").Decimal;
             date: Date;
             categoryId: string;
@@ -109,10 +109,10 @@ export declare class ExpensesService {
     }>;
     createCategory(createCategoryDto: CreateExpenseCategoryDto, userId: string): Promise<{
         id: string;
-        name: string;
-        description: string | null;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
+        description: string | null;
     }>;
     findAllCategories(): Promise<({
         _count: {
@@ -120,17 +120,17 @@ export declare class ExpensesService {
         };
     } & {
         id: string;
-        name: string;
-        description: string | null;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
+        description: string | null;
     })[]>;
     findOneCategory(id: string): Promise<{
         expenses: {
             id: string;
-            description: string;
             createdAt: Date;
             updatedAt: Date;
+            description: string;
             amount: import("@prisma/client/runtime/library").Decimal;
             date: Date;
             categoryId: string;
@@ -138,10 +138,10 @@ export declare class ExpensesService {
         }[];
     } & {
         id: string;
-        name: string;
-        description: string | null;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
+        description: string | null;
     }>;
     removeCategory(id: string, userId: string): Promise<{
         message: string;

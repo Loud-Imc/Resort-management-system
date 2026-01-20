@@ -6,16 +6,16 @@ export declare class ExpensesController {
     create(createExpenseDto: CreateExpenseDto, req: any): Promise<{
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -24,16 +24,16 @@ export declare class ExpensesController {
     findAll(categoryId?: string, startDate?: string, endDate?: string): Promise<({
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -46,16 +46,16 @@ export declare class ExpensesController {
         expenses: ({
             category: {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
+                name: string;
                 updatedAt: Date;
+                description: string | null;
             };
         } & {
             id: string;
-            description: string;
             createdAt: Date;
             updatedAt: Date;
+            description: string;
             amount: import("@prisma/client/runtime/library").Decimal;
             date: Date;
             categoryId: string;
@@ -65,16 +65,16 @@ export declare class ExpensesController {
     findOne(id: string): Promise<{
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -83,16 +83,16 @@ export declare class ExpensesController {
     update(id: string, updateExpenseDto: UpdateExpenseDto, req: any): Promise<{
         category: {
             id: string;
-            name: string;
-            description: string | null;
             createdAt: Date;
+            name: string;
             updatedAt: Date;
+            description: string | null;
         };
     } & {
         id: string;
-        description: string;
         createdAt: Date;
         updatedAt: Date;
+        description: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         categoryId: string;
@@ -103,10 +103,10 @@ export declare class ExpensesController {
     }>;
     createCategory(createCategoryDto: CreateExpenseCategoryDto, req: any): Promise<{
         id: string;
-        name: string;
-        description: string | null;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
+        description: string | null;
     }>;
     findAllCategories(): Promise<({
         _count: {
@@ -114,17 +114,17 @@ export declare class ExpensesController {
         };
     } & {
         id: string;
-        name: string;
-        description: string | null;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
+        description: string | null;
     })[]>;
     findOneCategory(id: string): Promise<{
         expenses: {
             id: string;
-            description: string;
             createdAt: Date;
             updatedAt: Date;
+            description: string;
             amount: import("@prisma/client/runtime/library").Decimal;
             date: Date;
             categoryId: string;
@@ -132,10 +132,10 @@ export declare class ExpensesController {
         }[];
     } & {
         id: string;
-        name: string;
-        description: string | null;
         createdAt: Date;
+        name: string;
         updatedAt: Date;
+        description: string | null;
     }>;
     removeCategory(id: string, req: any): Promise<{
         message: string;

@@ -11,10 +11,10 @@ export declare class IncomeService {
         } | null;
     } & {
         id: string;
-        description: string | null;
         createdAt: Date;
-        updatedAt: Date;
         bookingId: string | null;
+        updatedAt: Date;
+        description: string | null;
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
@@ -34,10 +34,10 @@ export declare class IncomeService {
         } | null;
     } & {
         id: string;
-        description: string | null;
         createdAt: Date;
-        updatedAt: Date;
         bookingId: string | null;
+        updatedAt: Date;
+        description: string | null;
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
@@ -55,10 +55,10 @@ export declare class IncomeService {
         } & {
             id: string;
             createdAt: Date;
-            updatedAt: Date;
             userId: string;
-            status: import(".prisma/client").$Enums.BookingStatus;
+            updatedAt: Date;
             roomTypeId: string;
+            status: import(".prisma/client").$Enums.BookingStatus;
             checkInDate: Date;
             roomId: string;
             bookingNumber: string;
@@ -87,20 +87,20 @@ export declare class IncomeService {
         }) | null;
     } & {
         id: string;
-        description: string | null;
         createdAt: Date;
-        updatedAt: Date;
         bookingId: string | null;
+        updatedAt: Date;
+        description: string | null;
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
     }>;
     update(id: string, updateIncomeDto: UpdateIncomeDto, userId: string): Promise<{
         id: string;
-        description: string | null;
         createdAt: Date;
-        updatedAt: Date;
         bookingId: string | null;
+        updatedAt: Date;
+        description: string | null;
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
@@ -114,10 +114,10 @@ export declare class IncomeService {
         bySource: Record<string, number>;
         incomes: {
             id: string;
-            description: string | null;
             createdAt: Date;
-            updatedAt: Date;
             bookingId: string | null;
+            updatedAt: Date;
+            description: string | null;
             amount: import("@prisma/client/runtime/library").Decimal;
             source: import(".prisma/client").$Enums.IncomeSource;
             date: Date;
