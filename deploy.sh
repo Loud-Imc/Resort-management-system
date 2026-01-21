@@ -10,10 +10,11 @@ set -e
 echo "🚀 Starting Deployment..."
 
 # 1. Update Codebase
-echo "📥 Pulling latest changes..."
+echo "📥 Syncing with GitHub (Hard Reset)..."
 # Ensure we are in the project root
 cd "$(dirname "$0")"
-git pull origin main
+git fetch origin main
+git reset --hard origin/main
 
 # 2. Deploy Backend
 echo "🏗️ Building Backend..."
