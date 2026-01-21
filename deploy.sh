@@ -11,6 +11,8 @@ echo "🚀 Starting Deployment..."
 
 # 1. Update Codebase
 echo "📥 Pulling latest changes..."
+# Ensure we are in the project root
+cd "$(dirname "$0")"
 git pull origin main
 
 # 2. Deploy Backend
