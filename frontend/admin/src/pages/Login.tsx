@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
+import logo from '../assets/routeguide.svg';
 
 const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
@@ -57,8 +58,9 @@ export default function Login() {
     return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
             <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Nature Haven Admin</h1>
+                <div className="text-center mb-8 flex flex-col items-center">
+                    <img src={logo} alt="Route Guide" className="h-50 w-auto mb-1" />
+                    <h1 className="text-3xl font-bold text-gray-900">Route Guide Admin</h1>
                     <p className="text-gray-500 mt-2">Sign in to manage your resort</p>
                 </div>
 

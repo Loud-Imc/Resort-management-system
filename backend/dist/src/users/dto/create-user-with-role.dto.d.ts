@@ -6,4 +6,5 @@ export declare class CreateUserWithRoleDto {
     phone?: string;
     isActive?: boolean;
     roleIds?: string[];
+    commissionPercentage?: number;
 }

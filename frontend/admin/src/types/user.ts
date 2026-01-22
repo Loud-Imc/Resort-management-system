@@ -6,6 +6,13 @@ export interface Role {
     isSystem?: boolean;
 }
 
+export interface Permission {
+    id: string;
+    name: string;
+    module: string;
+    description: string;
+}
+
 export interface User {
     id: string;
     email: string;
@@ -16,6 +23,7 @@ export interface User {
     roles: { role: Role }[];
     bookings?: any[];
     lastLogin?: string;
+    commissionPercentage?: string | number | null;
 }
 
 export interface CreateUserDto {
@@ -26,6 +34,7 @@ export interface CreateUserDto {
     phone?: string;
     roleIds: string[];
     isActive?: boolean;
+    commissionPercentage?: number | null;
 }
 
 export interface UpdateUserDto extends Partial<CreateUserDto> { }

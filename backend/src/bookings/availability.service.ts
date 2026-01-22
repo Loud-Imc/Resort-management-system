@@ -166,6 +166,7 @@ export class AvailabilityService {
             },
             include: {
                 rooms: true, // Need rooms to check availability
+                property: true, // Needed for grouping by property
             },
         });
 

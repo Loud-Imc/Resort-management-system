@@ -52,25 +52,66 @@ async function main() {
         },
     });
 
+    const marketingRole = await prisma.role.upsert({
+        where: { name: 'Marketing' },
+        update: {},
+        create: {
+            name: 'Marketing',
+            description: 'Marketing staff access',
+        },
+    });
+
     console.log('✅ Roles created');
 
     // Create Permissions
     const permissions = [
-        { name: 'users.view', module: 'users', description: 'View users' },
-        { name: 'users.create', module: 'users', description: 'Create users' },
-        { name: 'users.edit', module: 'users', description: 'Edit users' },
-        { name: 'users.delete', module: 'users', description: 'Delete users' },
-        { name: 'rooms.view', module: 'rooms', description: 'View rooms' },
-        { name: 'rooms.create', module: 'rooms', description: 'Create rooms' },
-        { name: 'rooms.edit', module: 'rooms', description: 'Edit rooms' },
-        { name: 'rooms.delete', module: 'rooms', description: 'Delete rooms' },
-        { name: 'bookings.view', module: 'bookings', description: 'View bookings' },
-        { name: 'bookings.create', module: 'bookings', description: 'Create bookings' },
-        { name: 'bookings.edit', module: 'bookings', description: 'Edit bookings' },
-        { name: 'bookings.delete', module: 'bookings', description: 'Delete bookings' },
-        { name: 'payments.view', module: 'payments', description: 'View payments' },
-        { name: 'payments.refund', module: 'payments', description: 'Process refunds' },
-        { name: 'reports.view', module: 'reports', description: 'View reports' },
+        // Users
+        { name: 'users.view', module: 'Users', description: 'View system users' },
+        { name: 'users.create', module: 'Users', description: 'Create new users' },
+        { name: 'users.edit', module: 'Users', description: 'Edit existing users' },
+        { name: 'users.delete', module: 'Users', description: 'Delete users' },
+        { name: 'users.manage', module: 'Users', description: 'Manage user access' },
+
+        // Properties
+        { name: 'properties.view', module: 'Properties', description: 'View properties' },
+        { name: 'properties.create', module: 'Properties', description: 'Add new properties' },
+        { name: 'properties.edit', module: 'Properties', description: 'Edit property details' },
+        { name: 'properties.delete', module: 'Properties', description: 'Delete properties' },
+
+        // Room Types
+        { name: 'roomTypes.view', module: 'Room Types', description: 'View room types' },
+        { name: 'roomTypes.create', module: 'Room Types', description: 'Create room types' },
+        { name: 'roomTypes.edit', module: 'Room Types', description: 'Edit room types' },
+        { name: 'roomTypes.delete', module: 'Room Types', description: 'Delete room types' },
+
+        // Rooms
+        { name: 'rooms.view', module: 'Rooms', description: 'View rooms' },
+        { name: 'rooms.create', module: 'Rooms', description: 'Add individual rooms' },
+        { name: 'rooms.edit', module: 'Rooms', description: 'Edit room status/details' },
+        { name: 'rooms.delete', module: 'Rooms', description: 'Delete rooms' },
+
+        // Bookings
+        { name: 'bookings.view', module: 'Bookings', description: 'View bookings' },
+        { name: 'bookings.create', module: 'Bookings', description: 'Create manual bookings' },
+        { name: 'bookings.edit', module: 'Bookings', description: 'Edit bookings' },
+        { name: 'bookings.delete', module: 'Bookings', description: 'Cancel/Delete bookings' },
+
+        // Payments & Financials
+        { name: 'payments.view', module: 'Financials', description: 'View transaction history' },
+        { name: 'payments.process', module: 'Financials', description: 'Process payments/refunds' },
+        { name: 'financials.view', module: 'Financials', description: 'View financial reports' },
+        { name: 'financials.manage', module: 'Financials', description: 'Manage expenses & pricing' },
+
+        // Marketing
+        { name: 'marketing.view', module: 'Marketing', description: 'View marketing dashboard' },
+        { name: 'marketing.manage', module: 'Marketing', description: 'Manage campaigns & commissions' },
+
+        // Settings
+        { name: 'settings.view', module: 'Settings', description: 'View system settings' },
+        { name: 'settings.manage', module: 'Settings', description: 'Modify system configuration' },
+
+        // Reports
+        { name: 'reports.view', module: 'Reports', description: 'Access system reports' },
     ];
 
     for (const permission of permissions) {

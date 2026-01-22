@@ -119,6 +119,17 @@ export class ReportsService {
                 OCCUPIED: occupiedCount,
                 MAINTENANCE: maintenanceCount,
                 BLOCKED: blockedCount
+            },
+            // Super Admin Stats
+            superAdmin: {
+                totalProperties: await this.prisma.property.count(),
+                activeProperties: await this.prisma.property.count({ where: { isActive: true } }),
+                totalChannelPartners: await this.prisma.channelPartner.count(),
+                activeChannelPartners: await this.prisma.channelPartner.count({ where: { isActive: true } }),
+                pendingCPCommissions: await this.prisma.cPTransaction.aggregate({
+                    where: { type: 'COMMISSION' }, // Simplified for now, real pending logic might differ
+                    _sum: { amount: true }
+                }).then(res => res._sum.amount || 0)
             }
         };
     }

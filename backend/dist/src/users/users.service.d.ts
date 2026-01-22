@@ -1,6 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 export declare class UsersService {
     private prisma;
     constructor(prisma: PrismaService);
@@ -10,95 +11,152 @@ export declare class UsersService {
                 permissions: ({
                     permission: {
                         id: string;
+                        createdAt: Date;
                         name: string;
                         description: string | null;
-                        createdAt: Date;
                         module: string;
                     };
                 } & {
                     roleId: string;
-                    permissionId: string;
                     assignedAt: Date;
+                    permissionId: string;
                 })[];
             } & {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
                 updatedAt: Date;
+                name: string;
+                description: string | null;
             };
         } & {
+            userId: string;
             roleId: string;
             assignedAt: Date;
-            userId: string;
         })[];
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         email: string;
         password: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     }>;
     createWithRoles(createUserDto: CreateUserWithRoleDto): Promise<{
         roles: ({
             role: {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
                 updatedAt: Date;
+                name: string;
+                description: string | null;
             };
         } & {
+            userId: string;
             roleId: string;
             assignedAt: Date;
-            userId: string;
         })[];
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         email: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     }>;
-    findAll(): Promise<({
+    update(id: string, updateUserDto: UpdateUserDto): Promise<{
         roles: ({
             role: {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
                 updatedAt: Date;
+                name: string;
+                description: string | null;
             };
         } & {
+            userId: string;
             roleId: string;
             assignedAt: Date;
-            userId: string;
         })[];
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         email: string;
         password: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
+    }>;
+    findAll(): Promise<({
+        roles: ({
+            role: {
+                id: string;
+                createdAt: Date;
+                updatedAt: Date;
+                name: string;
+                description: string | null;
+            };
+        } & {
+            userId: string;
+            roleId: string;
+            assignedAt: Date;
+        })[];
+    } & {
+        id: string;
+        email: string;
+        password: string;
+        firstName: string;
+        lastName: string;
+        phone: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     })[]>;
     findOne(id: string): Promise<{
+        roles: ({
+            role: {
+                permissions: ({
+                    permission: {
+                        id: string;
+                        createdAt: Date;
+                        name: string;
+                        description: string | null;
+                        module: string;
+                    };
+                } & {
+                    roleId: string;
+                    assignedAt: Date;
+                    permissionId: string;
+                })[];
+            } & {
+                id: string;
+                createdAt: Date;
+                updatedAt: Date;
+                name: string;
+                description: string | null;
+            };
+        } & {
+            userId: string;
+            roleId: string;
+            assignedAt: Date;
+        })[];
         bookings: ({
             roomType: {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
                 updatedAt: Date;
+                name: string;
+                description: string | null;
+                propertyId: string | null;
                 amenities: string[];
                 basePrice: import("@prisma/client/runtime/library").Decimal;
                 extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -114,11 +172,8 @@ export declare class UsersService {
             createdAt: Date;
             updatedAt: Date;
             userId: string;
-            status: import(".prisma/client").$Enums.BookingStatus;
-            roomTypeId: string;
-            checkInDate: Date;
-            roomId: string;
             bookingNumber: string;
+            checkInDate: Date;
             checkOutDate: Date;
             numberOfNights: number;
             adultsCount: number;
@@ -131,54 +186,35 @@ export declare class UsersService {
             totalAmount: import("@prisma/client/runtime/library").Decimal;
             isPriceOverridden: boolean;
             overrideReason: string | null;
+            status: import(".prisma/client").$Enums.BookingStatus;
             specialRequests: string | null;
             isManualBooking: boolean;
+            propertyId: string | null;
+            roomId: string;
+            roomTypeId: string;
             bookingSourceId: string | null;
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
             couponId: string | null;
+            channelPartnerId: string | null;
+            cpCommission: import("@prisma/client/runtime/library").Decimal | null;
+            cpDiscount: import("@prisma/client/runtime/library").Decimal | null;
             confirmedAt: Date | null;
             checkedInAt: Date | null;
             checkedOutAt: Date | null;
             cancelledAt: Date | null;
         })[];
-        roles: ({
-            role: {
-                permissions: ({
-                    permission: {
-                        id: string;
-                        name: string;
-                        description: string | null;
-                        createdAt: Date;
-                        module: string;
-                    };
-                } & {
-                    roleId: string;
-                    permissionId: string;
-                    assignedAt: Date;
-                })[];
-            } & {
-                id: string;
-                name: string;
-                description: string | null;
-                createdAt: Date;
-                updatedAt: Date;
-            };
-        } & {
-            roleId: string;
-            assignedAt: Date;
-            userId: string;
-        })[];
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         email: string;
         password: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     }>;
     findByEmail(email: string): Promise<({
         roles: ({
@@ -186,47 +222,48 @@ export declare class UsersService {
                 permissions: ({
                     permission: {
                         id: string;
+                        createdAt: Date;
                         name: string;
                         description: string | null;
-                        createdAt: Date;
                         module: string;
                     };
                 } & {
                     roleId: string;
-                    permissionId: string;
                     assignedAt: Date;
+                    permissionId: string;
                 })[];
             } & {
                 id: string;
-                name: string;
-                description: string | null;
                 createdAt: Date;
                 updatedAt: Date;
+                name: string;
+                description: string | null;
             };
         } & {
+            userId: string;
             roleId: string;
             assignedAt: Date;
-            userId: string;
         })[];
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         email: string;
         password: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     }) | null>;
     assignRole(userId: string, roleId: string): Promise<{
+        userId: string;
         roleId: string;
         assignedAt: Date;
-        userId: string;
     }>;
     removeRole(userId: string, roleId: string): Promise<{
+        userId: string;
         roleId: string;
         assignedAt: Date;
-        userId: string;
     }>;
 }

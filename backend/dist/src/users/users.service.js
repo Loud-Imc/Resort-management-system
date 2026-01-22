@@ -85,13 +85,50 @@ let UsersService = class UsersService {
         if (existingUser) {
             throw new common_1.ConflictException('Email already exists');
         }
-        const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-        const { roleIds, ...userData } = createUserDto;
-        const user = await this.prisma.user.create({
+        try {
+            const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+            const { roleIds, ...userData } = createUserDto;
+            const user = await this.prisma.user.create({
+                data: {
+                    ...userData,
+                    password: hashedPassword,
+                    roles: roleIds && roleIds.length > 0 ? {
+                        create: roleIds.map(roleId => ({
+                            role: { connect: { id: roleId } }
+                        }))
+                    } : undefined,
+                    commissionPercentage: userData.commissionPercentage,
+                },
+                include: {
+                    roles: {
+                        include: { role: true }
+                    }
+                }
+            });
+            const { password, ...result } = user;
+            return result;
+        }
+        catch (error) {
+            console.error('Error creating user:', error);
+            throw error;
+        }
+    }
+    async update(id, updateUserDto) {
+        const user = await this.prisma.user.findUnique({ where: { id } });
+        if (!user) {
+            throw new common_1.NotFoundException('User not found');
+        }
+        const { roleIds, password, ...userData } = updateUserDto;
+        const updateData = { ...userData };
+        if (password) {
+            updateData.password = await bcrypt.hash(password, 10);
+        }
+        return this.prisma.user.update({
+            where: { id },
             data: {
-                ...userData,
-                password: hashedPassword,
-                roles: roleIds && roleIds.length > 0 ? {
+                ...updateData,
+                roles: roleIds ? {
+                    deleteMany: {},
                     create: roleIds.map(roleId => ({
                         role: { connect: { id: roleId } }
                     }))
@@ -103,8 +140,6 @@ let UsersService = class UsersService {
                 }
             }
         });
-        const { password, ...result } = user;
-        return result;
     }
     async findAll() {
         return this.prisma.user.findMany({

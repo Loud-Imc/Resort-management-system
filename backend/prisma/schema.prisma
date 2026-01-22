@@ -28,9 +28,16 @@ model User {
   // Relations
   roles         UserRole[]
   bookings      Booking[]
-  agentBookings Booking[] @relation("AgentBookings")
+  agentBookings Booking[]   @relation("AgentBookings")
   auditLogs     AuditLog[]
   createdBlocks RoomBlock[]
+
+  // Multi-tenant relations
+  ownedProperties Property[]      @relation("PropertyOwner")
+  channelPartner  ChannelPartner?
+  propertyStaff   PropertyStaff[]
+  addedProperties Property[]      @relation("PropertyAddedBy")
+  commissionPercentage Decimal?   @db.Decimal(5, 2) // Fixed commission % for this user (e.g., 10.00)
 
   @@map("users")
 }
@@ -95,8 +102,8 @@ model RolePermission {
 // ============================================
 
 model RoomType {
-  id          String  @id @default(uuid())
-  name        String  @unique // Standard, Deluxe, Pool Villa
+  id          String   @id @default(uuid())
+  name        String // Standard, Deluxe, Pool Villa (unique per property)
   description String?
   amenities   String[] // Array of amenities
 
@@ -117,24 +124,33 @@ model RoomType {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  rooms         Room[]
-  bookings      Booking[]
-  pricingRules  PricingRule[]
+  // Multi-tenant: Property relation
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
 
+  // Relations
+  rooms        Room[]
+  bookings     Booking[]
+  pricingRules PricingRule[]
+
+  @@unique([propertyId, name])
   @@map("room_types")
 }
 
 model Room {
-  id         String      @id @default(uuid())
-  roomNumber String      @unique
+  id         String     @id @default(uuid())
+  roomNumber String // Room number (unique per property)
   floor      Int?
-  status     RoomStatus  @default(AVAILABLE)
-  isEnabled  Boolean     @default(true)
+  status     RoomStatus @default(AVAILABLE)
+  isEnabled  Boolean    @default(true)
   notes      String?
 
   roomTypeId String
   roomType   RoomType @relation(fields: [roomTypeId], references: [id])
+
+  // Multi-tenant: Property relation
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -143,6 +159,7 @@ model Room {
   bookings Booking[]
   blocks   RoomBlock[]
 
+  @@unique([propertyId, roomNumber])
   @@map("rooms")
 }
 
@@ -177,71 +194,81 @@ model RoomBlock {
 // ============================================
 
 model Booking {
-  id              String        @id @default(uuid())
-  bookingNumber   String        @unique // Auto-generated: BK-YYYYMMDD-XXXX
-  checkInDate     DateTime
-  checkOutDate    DateTime
-  numberOfNights  Int
-  
+  id             String   @id @default(uuid())
+  bookingNumber  String   @unique // Auto-generated: BK-YYYYMMDD-XXXX
+  checkInDate    DateTime
+  checkOutDate   DateTime
+  numberOfNights Int
+
   // Guest Information
-  adultsCount     Int
-  childrenCount   Int
-  
+  adultsCount   Int
+  childrenCount Int
+
   // Pricing
-  baseAmount      Decimal       @db.Decimal(10, 2)
-  extraAdultAmount Decimal      @db.Decimal(10, 2) @default(0)
-  extraChildAmount Decimal      @db.Decimal(10, 2) @default(0)
-  taxAmount       Decimal       @db.Decimal(10, 2) @default(0)
-  discountAmount  Decimal       @db.Decimal(10, 2) @default(0)
-  totalAmount     Decimal       @db.Decimal(10, 2)
-  
+  baseAmount       Decimal @db.Decimal(10, 2)
+  extraAdultAmount Decimal @default(0) @db.Decimal(10, 2)
+  extraChildAmount Decimal @default(0) @db.Decimal(10, 2)
+  taxAmount        Decimal @default(0) @db.Decimal(10, 2)
+  discountAmount   Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount      Decimal @db.Decimal(10, 2)
+
   // Pricing override (for manual bookings)
-  isPriceOverridden Boolean     @default(false)
+  isPriceOverridden Boolean @default(false)
   overrideReason    String?
-  
+
   // Status
-  status          BookingStatus @default(PENDING_PAYMENT)
-  
+  status BookingStatus @default(PENDING_PAYMENT)
+
   // Special Requests
   specialRequests String?
-  
+
   // Booking Type
-  isManualBooking Boolean       @default(false) // Staff created vs online
-  
+  isManualBooking Boolean @default(false) // Staff created vs online
+
+  // Multi-tenant: Property relation
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+
   // Relations
-  roomId         String
-  room           Room          @relation(fields: [roomId], references: [id])
-  
-  roomTypeId     String
-  roomType       RoomType      @relation(fields: [roomTypeId], references: [id])
-  
-  userId         String
-  user           User          @relation(fields: [userId], references: [id])
-  
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id])
+
+  roomTypeId String
+  roomType   RoomType @relation(fields: [roomTypeId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   bookingSourceId String?
   bookingSource   BookingSource? @relation(fields: [bookingSourceId], references: [id])
-  
-  agentId        String?
-  agent          User?         @relation("AgentBookings", fields: [agentId], references: [id])
-  
-  commissionAmount Decimal      @db.Decimal(10, 2) @default(0)
-  
-  couponId       String?
-  coupon         Coupon?       @relation(fields: [couponId], references: [id])
-  
+
+  agentId String?
+  agent   User?   @relation("AgentBookings", fields: [agentId], references: [id])
+
+  commissionAmount Decimal @default(0) @db.Decimal(10, 2)
+
+  couponId String?
+  coupon   Coupon? @relation(fields: [couponId], references: [id])
+
+  // Channel Partner Referral
+  channelPartnerId String?
+  channelPartner   ChannelPartner? @relation("CPReferrals", fields: [channelPartnerId], references: [id])
+  cpCommission     Decimal?        @db.Decimal(10, 2)
+  cpDiscount       Decimal?        @db.Decimal(10, 2)
+
   // Timestamps
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  confirmedAt    DateTime?
-  checkedInAt    DateTime?
-  checkedOutAt   DateTime?
-  cancelledAt    DateTime?
-  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  confirmedAt  DateTime?
+  checkedInAt  DateTime?
+  checkedOutAt DateTime?
+  cancelledAt  DateTime?
+
   // Relations
-  guests         BookingGuest[]
-  payments       Payment[]
-  income         Income[]
-  auditLogs      AuditLog[]
+  guests    BookingGuest[]
+  payments  Payment[]
+  income    Income[]
+  auditLogs AuditLog[]
 
   @@map("bookings")
 }
@@ -257,7 +284,7 @@ enum BookingStatus {
 }
 
 model BookingGuest {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   firstName String
   lastName  String
   email     String?
@@ -295,26 +322,26 @@ model BookingSource {
 // ============================================
 
 model PricingRule {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
   description String?
-  
+
   // Date Range
-  startDate   DateTime
-  endDate     DateTime
-  
+  startDate DateTime
+  endDate   DateTime
+
   // Pricing Adjustment
   adjustmentType  PricingAdjustmentType // PERCENTAGE, FIXED_AMOUNT
   adjustmentValue Decimal               @db.Decimal(10, 2)
-  
+
   // Applicability
   roomTypeId String?
   roomType   RoomType? @relation(fields: [roomTypeId], references: [id])
-  
-  isActive   Boolean   @default(true)
-  
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("pricing_rules")
 }
@@ -325,32 +352,32 @@ enum PricingAdjustmentType {
 }
 
 model Coupon {
-  id          String      @id @default(uuid())
-  code        String      @unique
+  id          String  @id @default(uuid())
+  code        String  @unique
   description String?
-  
+
   // Discount
   discountType  DiscountType
   discountValue Decimal      @db.Decimal(10, 2)
-  
+
   // Validity
-  validFrom   DateTime
-  validUntil  DateTime
-  
+  validFrom  DateTime
+  validUntil DateTime
+
   // Usage Limits
-  maxUses     Int?
-  usedCount   Int          @default(0)
-  
+  maxUses   Int?
+  usedCount Int  @default(0)
+
   // Minimum booking amount
   minBookingAmount Decimal? @db.Decimal(10, 2)
-  
-  isActive    Boolean      @default(true)
-  
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  bookings    Booking[]
+  bookings Booking[]
 
   @@map("coupons")
 }
@@ -365,30 +392,30 @@ enum DiscountType {
 // ============================================
 
 model Payment {
-  id              String        @id @default(uuid())
-  amount          Decimal       @db.Decimal(10, 2)
-  currency        String        @default("INR")
-  status          PaymentStatus @default(PENDING)
-  
+  id       String        @id @default(uuid())
+  amount   Decimal       @db.Decimal(10, 2)
+  currency String        @default("INR")
+  status   PaymentStatus @default(PENDING)
+
   // Razorpay Integration
-  razorpayOrderId   String?     @unique
-  razorpayPaymentId String?     @unique
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String? @unique
   razorpaySignature String?
-  
+
   // Payment Details
-  paymentMethod   String? // card, netbanking, upi, wallet
-  paymentDate     DateTime?
-  
+  paymentMethod String? // card, netbanking, upi, wallet
+  paymentDate   DateTime?
+
   // Refund
-  refundAmount    Decimal?      @db.Decimal(10, 2)
-  refundDate      DateTime?
-  refundReason    String?
-  
-  bookingId       String
-  booking         Booking       @relation(fields: [bookingId], references: [id])
-  
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  refundAmount Decimal?  @db.Decimal(10, 2)
+  refundDate   DateTime?
+  refundReason String?
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("payments")
 }
@@ -406,17 +433,17 @@ enum PaymentStatus {
 // ============================================
 
 model Income {
-  id          String      @id @default(uuid())
-  amount      Decimal     @db.Decimal(10, 2)
+  id          String       @id @default(uuid())
+  amount      Decimal      @db.Decimal(10, 2)
   source      IncomeSource
   description String?
-  date        DateTime    @default(now())
-  
-  bookingId   String?
-  booking     Booking?    @relation(fields: [bookingId], references: [id])
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  date        DateTime     @default(now())
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("income")
 }
@@ -429,33 +456,33 @@ enum IncomeSource {
 }
 
 model Expense {
-  id          String          @id @default(uuid())
-  amount      Decimal         @db.Decimal(10, 2)
+  id          String   @id @default(uuid())
+  amount      Decimal  @db.Decimal(10, 2)
   description String
-  date        DateTime        @default(now())
-  
-  categoryId  String
-  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
-  
+  date        DateTime @default(now())
+
+  categoryId String
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+
   // Attachments
-  receipts    String[] // Array of receipt URLs
-  
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  receipts String[] // Array of receipt URLs
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("expenses")
 }
 
 model ExpenseCategory {
-  id          String    @id @default(uuid())
-  name        String    @unique // Maintenance, Operations, Utilities, etc.
+  id          String  @id @default(uuid())
+  name        String  @unique // Maintenance, Operations, Utilities, etc.
   description String?
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  expenses    Expense[]
+  expenses Expense[]
 
   @@map("expense_categories")
 }
@@ -465,26 +492,175 @@ model ExpenseCategory {
 // ============================================
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  action      String // CREATE, UPDATE, DELETE, STATUS_CHANGE, etc.
-  entity      String // Booking, Payment, Room, etc.
-  entityId    String
-  
+  id       String @id @default(uuid())
+  action   String // CREATE, UPDATE, DELETE, STATUS_CHANGE, etc.
+  entity   String // Booking, Payment, Room, etc.
+  entityId String
+
   // Changes
-  oldValue    Json? // Previous state
-  newValue    Json? // New state
-  
+  oldValue Json? // Previous state
+  newValue Json? // New state
+
   // Context
-  ipAddress   String?
-  userAgent   String?
-  
-  userId      String?
-  user        User?     @relation(fields: [userId], references: [id])
-  
-  bookingId   String?
-  booking     Booking? @relation(fields: [bookingId], references: [id])
-  
-  createdAt   DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+// ============================================
+// MULTI-TENANT: PROPERTY MANAGEMENT
+// ============================================
+
+model Property {
+  id          String       @id @default(uuid())
+  name        String
+  slug        String       @unique // URL-friendly identifier
+  type        PropertyType // RESORT, HOMESTAY, HOTEL, VILLA
+  description String?
+  address     String
+  city        String
+  state       String
+  country     String       @default("India")
+  pincode     String?
+  latitude    Decimal?     @db.Decimal(10, 8)
+  longitude   Decimal?     @db.Decimal(11, 8)
+
+  // Contact
+  email String
+  phone String
+
+  // Media
+  images     String[]
+  coverImage String?
+
+  // Amenities & Features
+  amenities String[]
+  policies  Json? // Check-in/out times, cancellation, etc.
+
+  // Rating
+  rating      Decimal? @db.Decimal(2, 1)
+  reviewCount Int      @default(0)
+
+  // Status
+  isActive   Boolean @default(true)
+  isVerified Boolean @default(false)
+
+  // Owner
+  ownerId String
+  owner   User   @relation("PropertyOwner", fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  roomTypes RoomType[]
+  rooms     Room[]
+  bookings  Booking[]
+  staff     PropertyStaff[]
+
+  // Marketing Fields
+  addedById           String?
+  addedBy             User?            @relation("PropertyAddedBy", fields: [addedById], references: [id])
+  marketingCommission Decimal          @default(0) @db.Decimal(10, 2)
+  commissionStatus    CommissionStatus @default(PENDING)
+
+  @@map("properties")
+}
+
+enum PropertyType {
+  RESORT
+  HOMESTAY
+  HOTEL
+  VILLA
+  OTHER
+}
+
+model PropertyStaff {
+  id   String @id @default(uuid())
+  role String // manager, receptionist, housekeeping, etc.
+
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([propertyId, userId])
+  @@map("property_staff")
+}
+
+// ============================================
+// CHANNEL PARTNER SYSTEM
+// ============================================
+
+model ChannelPartner {
+  id           String @id @default(uuid())
+  referralCode String @unique // Auto-generated: CP-XXXXXX
+
+  // Commission Settings
+  commissionRate Decimal @default(5.00) @db.Decimal(5, 2) // Default 5%
+
+  // Points & Balance
+  totalPoints     Int     @default(0)
+  availablePoints Int     @default(0)
+  totalEarnings   Decimal @default(0) @db.Decimal(12, 2)
+  paidOut         Decimal @default(0) @db.Decimal(12, 2)
+
+  // Status
+  isActive Boolean @default(true)
+
+  // User Relation
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  referrals    Booking[]       @relation("CPReferrals")
+  transactions CPTransaction[]
+
+  @@map("channel_partners")
+}
+
+model CPTransaction {
+  id          String            @id @default(uuid())
+  type        CPTransactionType
+  amount      Decimal           @db.Decimal(10, 2)
+  points      Int               @default(0)
+  description String?
+
+  channelPartnerId String
+  channelPartner   ChannelPartner @relation(fields: [channelPartnerId], references: [id])
+
+  bookingId String?
+
+  createdAt DateTime @default(now())
+
+  @@map("cp_transactions")
+}
+
+enum CPTransactionType {
+  COMMISSION
+  POINTS_EARNED
+  POINTS_REDEEMED
+  PAYOUT
+}
+
+enum CommissionStatus {
+  PENDING
+  PAID
+  CANCELLED
 }

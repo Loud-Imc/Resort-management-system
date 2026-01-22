@@ -112,6 +112,16 @@ let ReportsService = class ReportsService {
                 OCCUPIED: occupiedCount,
                 MAINTENANCE: maintenanceCount,
                 BLOCKED: blockedCount
+            },
+            superAdmin: {
+                totalProperties: await this.prisma.property.count(),
+                activeProperties: await this.prisma.property.count({ where: { isActive: true } }),
+                totalChannelPartners: await this.prisma.channelPartner.count(),
+                activeChannelPartners: await this.prisma.channelPartner.count({ where: { isActive: true } }),
+                pendingCPCommissions: await this.prisma.cPTransaction.aggregate({
+                    where: { type: 'COMMISSION' },
+                    _sum: { amount: true }
+                }).then(res => res._sum.amount || 0)
             }
         };
     }

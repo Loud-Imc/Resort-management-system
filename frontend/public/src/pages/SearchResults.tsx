@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
 import SearchForm from '../components/booking/SearchForm';
-import RoomCard from '../components/booking/RoomCard';
+import PropertyCard from '../components/PropertyCard';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { format, addDays } from 'date-fns';
+import { Property } from '../types';
 
 export default function SearchResults() {
     const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
+    // const navigate = useNavigate(); // Not using navigate for direct booking anymore
 
     // Use state to hold stable default dates that don't change on re-renders
     const [defaults] = useState(() => {
@@ -27,7 +28,7 @@ export default function SearchResults() {
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['availability', checkIn, checkOut, adults, children],
-        queryFn: () => bookingService.checkAvailability({
+        queryFn: () => bookingService.searchRooms({ // Use searchRooms which returns available types
             checkInDate: checkIn,
             checkOutDate: checkOut,
             adults,
@@ -36,30 +37,37 @@ export default function SearchResults() {
         enabled: !!checkIn && !!checkOut,
     });
 
-    const handleBook = (roomId: string) => {
-        // Navigate to checkout with selected room and search params
-        const params = new URLSearchParams({
-            checkIn,
-            checkOut,
-            adults: adults.toString(),
-            children: children.toString(),
-            roomId
+    // Group available room types by property
+    const availableProperties = useMemo(() => {
+        if (!data?.availableRoomTypes) return [];
+
+        const propertyMap = new Map<string, Property>();
+
+        data.availableRoomTypes.forEach((roomType: any) => {
+            if (roomType.property && !propertyMap.has(roomType.property.id)) {
+                // Attach the room type info or just use the property info
+                propertyMap.set(roomType.property.id, {
+                    ...roomType.property,
+                });
+            }
         });
-        navigate(`/book?${params.toString()}`);
-    };
+
+        return Array.from(propertyMap.values());
+    }, [data]);
+
 
     if (isLoading) {
         return (
             <div className="min-h-[70vh] flex items-center justify-center bg-gray-50 px-4 py-12 pt-28">
                 <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
-                <p className="text-gray-500">Finding the perfect room for you...</p>
+                <p className="text-gray-500">Finding the perfect stay for you...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="max-w-4xl mx-auto px-4 py-12 text-center">
+            <div className="max-w-4xl mx-auto px-4 py-12 text-center pt-28">
                 <div className="bg-red-50 text-red-800 p-4 rounded-lg inline-flex items-center gap-2 mb-4">
                     <AlertCircle className="h-5 w-5" />
                     Unable to load availability. Please try again later.
@@ -72,15 +80,15 @@ export default function SearchResults() {
         <div className="max-w-7xl mx-auto px-4 py-8 pt-28">
             {/* Modify Search */}
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">Select Your Room</h1>
+                <h1 className="text-2xl font-bold text-gray-900 mb-6 font-serif">Select Your Destination</h1>
                 <SearchForm className="shadow-sm border-gray-200" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Filters Sidebar (Placeholder) */}
                 <div className="hidden lg:block space-y-6">
-                    <div className="bg-white p-4 rounded-xl border border-gray-100">
-                        <h3 className="font-semibold mb-4">Your Stay</h3>
+                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <h3 className="font-semibold mb-4 text-gray-900">Your Stay</h3>
                         <div className="space-y-3 text-sm">
                             <div className="flex justify-between">
                                 <span className="text-gray-500">Check In</span>
@@ -100,19 +108,28 @@ export default function SearchResults() {
 
                 {/* Results List */}
                 <div className="lg:col-span-3 space-y-6">
-                    {data?.availableRoomTypes?.length === 0 ? (
-                        <div className="bg-yellow-50 p-8 text-center rounded-xl border border-yellow-100">
-                            <p className="text-yellow-800 font-medium">No rooms available for these dates.</p>
-                            <p className="text-yellow-600 text-sm mt-1">Please try changing your travel dates or guest count.</p>
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-gray-900">
+                            {availableProperties.length} Properties Available
+                        </h2>
+                    </div>
+
+                    {availableProperties.length === 0 ? (
+                        <div className="bg-white p-8 rounded-xl text-center border border-gray-100">
+                            <p className="text-gray-500 mb-4">No properties found for your selected dates and guest count.</p>
+                            <p className="text-sm text-gray-400">Try changing your dates or number of guests.</p>
+                            {/* Debug info if needed 
+                            <p className="text-xs text-gray-300 mt-4">Debug: {data?.availableRoomTypes?.length || 0} rooms found</p>
+                            */}
                         </div>
                     ) : (
-                        data?.availableRoomTypes.map(room => (
-                            <RoomCard
-                                key={room.id}
-                                room={room}
-                                onBook={handleBook}
-                            />
-                        ))
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {availableProperties.map((property) => (
+                                <div key={property.id} className="relative">
+                                    <PropertyCard property={property} />
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>

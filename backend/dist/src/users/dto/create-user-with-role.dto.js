@@ -20,6 +20,7 @@ class CreateUserWithRoleDto {
     phone;
     isActive;
     roleIds;
+    commissionPercentage;
 }
 exports.CreateUserWithRoleDto = CreateUserWithRoleDto;
 __decorate([
@@ -64,4 +65,10 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Array)
 ], CreateUserWithRoleDto.prototype, "roleIds", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateUserWithRoleDto.prototype, "commissionPercentage", void 0);
 //# sourceMappingURL=create-user-with-role.dto.js.map

@@ -6,10 +6,10 @@ export declare class RoomsController {
     create(createRoomDto: CreateRoomDto, req: any): Promise<{
         roomType: {
             id: string;
-            createdAt: Date;
             name: string;
-            updatedAt: Date;
             description: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             amenities: string[];
             basePrice: import("@prisma/client/runtime/library").Decimal;
             extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -19,17 +19,19 @@ export declare class RoomsController {
             maxChildren: number;
             isPubliclyVisible: boolean;
             images: string[];
+            propertyId: string | null;
         };
     } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        propertyId: string | null;
         roomNumber: string;
         floor: number | null;
-        roomTypeId: string;
-        notes: string | null;
-        isEnabled: boolean;
         status: import(".prisma/client").$Enums.RoomStatus;
+        isEnabled: boolean;
+        notes: string | null;
+        roomTypeId: string;
     }>;
     bulkCreate(roomTypeId: string, startNumber: number, count: number, floor: number, req: any): Promise<{
         created: number;
@@ -39,10 +41,11 @@ export declare class RoomsController {
         bookings: {
             id: string;
             createdAt: Date;
-            userId: string;
             updatedAt: Date;
-            roomTypeId: string;
+            userId: string;
+            propertyId: string | null;
             status: import(".prisma/client").$Enums.BookingStatus;
+            roomTypeId: string;
             checkInDate: Date;
             roomId: string;
             bookingNumber: string;
@@ -64,6 +67,9 @@ export declare class RoomsController {
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
             couponId: string | null;
+            channelPartnerId: string | null;
+            cpCommission: import("@prisma/client/runtime/library").Decimal | null;
+            cpDiscount: import("@prisma/client/runtime/library").Decimal | null;
             confirmedAt: Date | null;
             checkedInAt: Date | null;
             checkedOutAt: Date | null;
@@ -71,10 +77,10 @@ export declare class RoomsController {
         }[];
         roomType: {
             id: string;
-            createdAt: Date;
             name: string;
-            updatedAt: Date;
             description: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             amenities: string[];
             basePrice: import("@prisma/client/runtime/library").Decimal;
             extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -84,6 +90,7 @@ export declare class RoomsController {
             maxChildren: number;
             isPubliclyVisible: boolean;
             images: string[];
+            propertyId: string | null;
         };
         blocks: {
             id: string;
@@ -100,12 +107,13 @@ export declare class RoomsController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        propertyId: string | null;
         roomNumber: string;
         floor: number | null;
-        roomTypeId: string;
-        notes: string | null;
-        isEnabled: boolean;
         status: import(".prisma/client").$Enums.RoomStatus;
+        isEnabled: boolean;
+        notes: string | null;
+        roomTypeId: string;
     })[]>;
     findOne(id: string): Promise<{
         bookings: ({
@@ -118,10 +126,11 @@ export declare class RoomsController {
         } & {
             id: string;
             createdAt: Date;
-            userId: string;
             updatedAt: Date;
-            roomTypeId: string;
+            userId: string;
+            propertyId: string | null;
             status: import(".prisma/client").$Enums.BookingStatus;
+            roomTypeId: string;
             checkInDate: Date;
             roomId: string;
             bookingNumber: string;
@@ -143,6 +152,9 @@ export declare class RoomsController {
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
             couponId: string | null;
+            channelPartnerId: string | null;
+            cpCommission: import("@prisma/client/runtime/library").Decimal | null;
+            cpDiscount: import("@prisma/client/runtime/library").Decimal | null;
             confirmedAt: Date | null;
             checkedInAt: Date | null;
             checkedOutAt: Date | null;
@@ -150,10 +162,10 @@ export declare class RoomsController {
         })[];
         roomType: {
             id: string;
-            createdAt: Date;
             name: string;
-            updatedAt: Date;
             description: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             amenities: string[];
             basePrice: import("@prisma/client/runtime/library").Decimal;
             extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -163,6 +175,7 @@ export declare class RoomsController {
             maxChildren: number;
             isPubliclyVisible: boolean;
             images: string[];
+            propertyId: string | null;
         };
         blocks: {
             id: string;
@@ -179,20 +192,21 @@ export declare class RoomsController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        propertyId: string | null;
         roomNumber: string;
         floor: number | null;
-        roomTypeId: string;
-        notes: string | null;
-        isEnabled: boolean;
         status: import(".prisma/client").$Enums.RoomStatus;
+        isEnabled: boolean;
+        notes: string | null;
+        roomTypeId: string;
     }>;
     update(id: string, updateRoomDto: UpdateRoomDto, req: any): Promise<{
         roomType: {
             id: string;
-            createdAt: Date;
             name: string;
-            updatedAt: Date;
             description: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             amenities: string[];
             basePrice: import("@prisma/client/runtime/library").Decimal;
             extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -202,17 +216,19 @@ export declare class RoomsController {
             maxChildren: number;
             isPubliclyVisible: boolean;
             images: string[];
+            propertyId: string | null;
         };
     } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        propertyId: string | null;
         roomNumber: string;
         floor: number | null;
-        roomTypeId: string;
-        notes: string | null;
-        isEnabled: boolean;
         status: import(".prisma/client").$Enums.RoomStatus;
+        isEnabled: boolean;
+        notes: string | null;
+        roomTypeId: string;
     }>;
     remove(id: string, req: any): Promise<{
         message: string;
@@ -221,10 +237,10 @@ export declare class RoomsController {
         room: {
             roomType: {
                 id: string;
-                createdAt: Date;
                 name: string;
-                updatedAt: Date;
                 description: string | null;
+                createdAt: Date;
+                updatedAt: Date;
                 amenities: string[];
                 basePrice: import("@prisma/client/runtime/library").Decimal;
                 extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -234,17 +250,19 @@ export declare class RoomsController {
                 maxChildren: number;
                 isPubliclyVisible: boolean;
                 images: string[];
+                propertyId: string | null;
             };
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            propertyId: string | null;
             roomNumber: string;
             floor: number | null;
-            roomTypeId: string;
-            notes: string | null;
-            isEnabled: boolean;
             status: import(".prisma/client").$Enums.RoomStatus;
+            isEnabled: boolean;
+            notes: string | null;
+            roomTypeId: string;
         };
         createdBy: {
             email: string;

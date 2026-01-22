@@ -4,6 +4,9 @@ export interface User {
     firstName: string;
     lastName: string;
     role: string;
+    roles: string[];
+    permissions: string[];
+    commissionPercentage?: number;
 }
 
 export interface AuthResponse {

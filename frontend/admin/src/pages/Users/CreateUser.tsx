@@ -14,10 +14,14 @@ const userSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
     email: z.string().email('Invalid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters').optional().or(z.literal('')),
+    password: z.string().optional().or(z.literal('')), // Validated manually in mutation for create mode
     phone: z.string().optional(),
     roleIds: z.array(z.string()).min(1, 'Select at least one role'),
     isActive: z.boolean(),
+    commissionPercentage: z.any().transform((val) => {
+        const parsed = Number(val);
+        return val === '' || val === null || isNaN(parsed) ? null : parsed;
+    }),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -56,6 +60,7 @@ export default function CreateUser() {
             phone: '',
             roleIds: [],
             isActive: true,
+            commissionPercentage: null,
         },
     });
 
@@ -69,6 +74,9 @@ export default function CreateUser() {
             setValue('phone', existingUser.phone || '');
             setValue('isActive', existingUser.isActive);
             setValue('roleIds', existingUser.roles.map((ur: any) => ur.role.id));
+            if (existingUser.commissionPercentage) {
+                setValue('commissionPercentage', Number(existingUser.commissionPercentage));
+            }
         }
     }, [existingUser, setValue]);
 
@@ -90,13 +98,22 @@ export default function CreateUser() {
             navigate('/users');
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || 'Failed to save user');
+            const message = error.response?.data?.message || error.message || 'Failed to save user';
+            alert(message);
         },
     });
 
     const onSubmit = (data: UserFormData) => {
+        console.log('Form submitted with data:', data);
         mutation.mutate(data);
     };
+
+    const onError = (errors: any) => {
+        console.error('Form validation failed:', errors);
+    };
+
+    // ... inside return
+    // <form onSubmit={handleSubmit(onSubmit, onError)} ...>
 
     const toggleRole = (roleId: string) => {
         const currentRoles = watch('roleIds') || [];
@@ -120,7 +137,7 @@ export default function CreateUser() {
                 <h1 className="text-2xl font-bold text-gray-900">{isEditMode ? 'Edit User' : 'Create New User'}</h1>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
                 <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                     <h2 className="text-lg font-semibold mb-4">Personal Information</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -156,6 +173,21 @@ export default function CreateUser() {
                                 {...register('phone')}
                                 className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                             />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Commission Percentage (%)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                {...register('commissionPercentage', { valueAsNumber: true })}
+                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                placeholder="e.g. 10.00"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                                Fixed commission rate for properties added by this user (Marketing roles).
+                            </p>
                         </div>
                     </div>
                 </div>

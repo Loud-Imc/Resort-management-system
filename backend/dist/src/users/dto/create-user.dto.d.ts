@@ -5,4 +5,5 @@ export declare class CreateUserDto {
     lastName: string;
     phone?: string;
     isActive?: boolean;
+    commissionPercentage?: number;
 }

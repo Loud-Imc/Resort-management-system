@@ -113,6 +113,7 @@ let AvailabilityService = class AvailabilityService {
             },
             include: {
                 rooms: true,
+                property: true,
             },
         });
         const results = [];

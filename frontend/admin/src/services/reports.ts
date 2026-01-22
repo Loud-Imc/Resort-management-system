@@ -18,6 +18,13 @@ export interface DashboardStats {
         MAINTENANCE: number;
         BLOCKED: number;
     };
+    superAdmin?: {
+        totalProperties: number;
+        activeProperties: number;
+        totalChannelPartners: number;
+        activeChannelPartners: number;
+        pendingCPCommissions: number;
+    };
 }
 
 export const reportsService = {

@@ -25,4 +25,9 @@ export const rolesService = {
     delete: async (id: string) => {
         await api.delete(`/roles/${id}`);
     },
+
+    getPermissions: async () => {
+        const { data } = await api.get<{ id: string; name: string; module: string; description: string }[]>('/roles/permissions');
+        return data;
+    }
 };

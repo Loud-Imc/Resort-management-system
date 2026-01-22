@@ -12,6 +12,10 @@ import Gallery from './pages/Gallery';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 
+// Marketplace Pages
+import PropertiesPage from './pages/Properties';
+import PropertyDetail from './pages/PropertyDetail';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -37,6 +41,11 @@ function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/rooms" element={<Navigate to="/search" replace />} />
+
+            {/* Marketplace Routes */}
+            <Route path="/properties" element={<PropertiesPage />} />
+            <Route path="/properties/:slug" element={<PropertyDetail />} />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
