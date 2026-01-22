@@ -32,7 +32,7 @@ export default function Contact() {
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-gray-900">Email</h3>
-                                    <p className="text-gray-600">reservations@naturehaven.com</p>
+                                    <p className="text-gray-600">reservations@routeguide.com</p>
                                     <p className="text-sm text-gray-500">Online support 24/7</p>
                                 </div>
                             </div>
@@ -42,8 +42,8 @@ export default function Contact() {
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-gray-900">Location</h3>
-                                    <p className="text-gray-600">Nature Haven Resort</p>
-                                    <p className="text-gray-600">Munnar, Kerala, India - 685612</p>
+                                    <p className="text-gray-600">Route Guide</p>
+                                    <p className="text-gray-600">Banasura Sagar Dam, Wayanad, Kerala - 685612</p>
                                 </div>
                             </div>
                         </div>

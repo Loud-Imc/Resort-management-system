@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, Calendar } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
+import logo from '../../assets/routeguide.svg';
 
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -42,6 +43,7 @@ export default function Navbar() {
                 <div className="flex justify-between items-center h-12">
                     <div className="flex items-center">
                         <Link to="/" className="flex-shrink-0 flex items-center gap-2">
+                            <img src={logo} alt="Route Guide" className={clsx("h-10 w-auto transition-all", isHome && !isScrolled ? "brightness-0 invert" : "")} />
                             <span className={clsx("text-2xl font-serif font-bold transition-colors", brandColor)}>
                                 Route Guide
                             </span>
@@ -55,24 +57,28 @@ export default function Navbar() {
                         >
                             Home
                         </Link>
+
+                        <Link
+                            to="/properties"
+                            className={clsx("hover:text-primary-600 font-medium transition-colors", isActive('/properties') || isActive('/search') ? activeClass : textColor)}
+                        >
+                            Properties
+                        </Link>
+
+                        <a
+                            href="/#events"
+                            className={clsx("hover:text-primary-600 font-medium transition-colors", textColor)}
+                        >
+                            Events
+                        </a>
+
                         <Link
                             to="/about"
                             className={clsx("hover:text-primary-600 font-medium transition-colors", isActive('/about') ? activeClass : textColor)}
                         >
                             About
                         </Link>
-                        <Link
-                            to="/gallery"
-                            className={clsx("hover:text-primary-600 font-medium transition-colors", isActive('/gallery') ? activeClass : textColor)}
-                        >
-                            Gallery
-                        </Link>
-                        <Link
-                            to="/rooms"
-                            className={clsx("hover:text-primary-600 font-medium transition-colors", (isActive('/rooms') || isActive('/search')) ? activeClass : textColor)}
-                        >
-                            Rooms & Suites
-                        </Link>
+
                         <Link
                             to="/contact"
                             className={clsx("hover:text-primary-600 font-medium transition-colors", isActive('/contact') ? activeClass : textColor)}
@@ -81,7 +87,7 @@ export default function Navbar() {
                         </Link>
 
                         <Link
-                            to="/rooms"
+                            to="/properties"
                             className={clsx(
                                 "px-6 py-2.5 rounded-full transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md",
                                 isHome && !isScrolled
@@ -117,14 +123,21 @@ export default function Navbar() {
                             Home
                         </Link>
                         <Link
-                            to="/rooms"
+                            to="/properties"
                             className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
                             onClick={() => setIsOpen(false)}
                         >
-                            Rooms
+                            Properties
                         </Link>
+                        <a
+                            href="/#events"
+                            className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
+                            onClick={() => setIsOpen(false)}
+                        >
+                            Events
+                        </a>
                         <Link
-                            to="/book"
+                            to="/properties"
                             className="block px-3 py-2 text-base font-medium text-primary-600 font-bold hover:bg-primary-50 rounded-md"
                             onClick={() => setIsOpen(false)}
                         >

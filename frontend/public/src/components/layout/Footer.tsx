@@ -1,4 +1,5 @@
 import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from 'lucide-react';
+import logo from '../../assets/routeguide.svg';
 
 export default function Footer() {
     return (
@@ -6,7 +7,10 @@ export default function Footer() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
                     <div>
-                        <h3 className="text-xl font-serif font-bold mb-4">Route Guide</h3>
+                        <div className="flex items-center gap-2 mb-4">
+                            <img src={logo} alt="Route Guide" className="h-8 w-auto brightness-0 invert" />
+                            <h3 className="text-xl font-serif font-bold">Route Guide</h3>
+                        </div>
                         <p className="text-gray-400">
                             Experience the ultimate tranquility at Banasura Sagar Dam. Your journey to peace begins here.
                         </p>

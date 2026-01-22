@@ -19,12 +19,14 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        propertyId: string | null;
     }>;
     findAll(publicOnly?: boolean): Promise<({
         rooms: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            propertyId: string | null;
             roomNumber: string;
             floor: number | null;
             status: import(".prisma/client").$Enums.RoomStatus;
@@ -47,12 +49,14 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        propertyId: string | null;
     })[]>;
     findOne(id: string): Promise<{
         rooms: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            propertyId: string | null;
             roomNumber: string;
             floor: number | null;
             status: import(".prisma/client").$Enums.RoomStatus;
@@ -75,6 +79,7 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        propertyId: string | null;
     }>;
     update(id: string, updateRoomTypeDto: UpdateRoomTypeDto): Promise<{
         id: string;
@@ -91,6 +96,7 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        propertyId: string | null;
     }>;
     remove(id: string): Promise<{
         id: string;
@@ -107,5 +113,6 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        propertyId: string | null;
     }>;
 }

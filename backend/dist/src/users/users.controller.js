@@ -18,6 +18,7 @@ const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
 const users_service_1 = require("./users.service");
 const create_user_with_role_dto_1 = require("./dto/create-user-with-role.dto");
+const update_user_dto_1 = require("./dto/update-user.dto");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 let UsersController = class UsersController {
@@ -33,6 +34,9 @@ let UsersController = class UsersController {
     }
     findOne(id) {
         return this.usersService.findOne(id);
+    }
+    update(id, updateUserDto) {
+        return this.usersService.update(id, updateUserDto);
     }
     assignRole(userId, roleId) {
         return this.usersService.assignRole(userId, roleId);
@@ -64,6 +68,16 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    (0, roles_decorator_1.Roles)('SuperAdmin', 'Admin'),
+    (0, swagger_1.ApiOperation)({ summary: 'Update user' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_user_dto_1.UpdateUserDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':userId/roles/:roleId'),
     (0, roles_decorator_1.Roles)('SuperAdmin', 'Admin'),

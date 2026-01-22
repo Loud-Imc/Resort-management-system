@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import SearchForm from '../components/booking/SearchForm';
-import { ArrowRight, Star, Coffee, Leaf } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { bookingService } from '../services/booking';
+import { propertyApi } from '../services/properties';
+import EventsSection from '../components/home/EventsSection';
+import PromoBanner from '../components/home/PromoBanner';
+import PropertyCard from '../components/PropertyCard';
+import { Property } from '../types';
 
 function HeroCarousel() {
     const slides = [
@@ -43,15 +47,14 @@ function HeroCarousel() {
 }
 
 export default function Home() {
-    const { data: featuredRooms, isLoading } = useQuery({
-        queryKey: ['featuredRooms'],
-        queryFn: bookingService.getFeaturedRooms
+    const { data: featuredProperties, isLoading } = useQuery({
+        queryKey: ['featuredProperties'],
+        queryFn: () => propertyApi.getFeatured(3)
     });
 
     return (
-        <div className="space-y-20">
+        <div className="space-y-0">
             {/* Hero Section */}
-            {/* Hero Section with Carousel */}
             <section className="relative h-screen flex items-center justify-center overflow-hidden">
                 <HeroCarousel />
                 <div className="absolute inset-0 bg-black/20 z-10" />
@@ -73,70 +76,22 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Features Section */}
-            <section className="max-w-7xl mx-auto px-4 py-12">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-                    <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                        <div className="w-16 h-16 mx-auto bg-primary-50 rounded-full flex items-center justify-center mb-6">
-                            <Leaf className="h-8 w-8 text-primary-600" />
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">Eco-Luxury Stay</h3>
-                        <p className="text-gray-600">Premium villas and suites designed to blend seamlessly with the natural surroundings.</p>
-                    </div>
-                    <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                        <div className="w-16 h-16 mx-auto bg-primary-50 rounded-full flex items-center justify-center mb-6">
-                            <Coffee className="h-8 w-8 text-primary-600" />
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">Farm-to-Table Dining</h3>
-                        <p className="text-gray-600">Organic vegetarian cuisine harvested straight from our local gardens.</p>
-                    </div>
-                    <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                        <div className="w-16 h-16 mx-auto bg-primary-50 rounded-full flex items-center justify-center mb-6">
-                            <Star className="h-8 w-8 text-primary-600" />
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">Guided Nature Treks</h3>
-                        <p className="text-gray-600">Experience the local flora and fauna with our expert nature guides.</p>
-                    </div>
-                </div>
-            </section>
+            {/* Events Section */}
+            <EventsSection />
 
-            {/* Secondary Banner - Dam View Experience */}
-            <section className="relative h-[60vh] flex items-center bg-gray-900 overflow-hidden">
-                <div className="absolute inset-0 opacity-70">
-                    <img
-                        src="/images/secondary-banner.png"
-                        alt="Resort Interior View"
-                        className="w-full h-full object-cover"
-                    />
-                </div>
-                <div className="relative z-10 max-w-7xl mx-auto px-4 w-full">
-                    <div className="max-w-2xl bg-white/10 backdrop-blur-md p-8 md:p-12 rounded-2xl border border-white/20 text-white">
-                        <h2 className="text-3xl md:text-5xl font-serif font-bold mb-6">Wake up to Serenity</h2>
-                        <p className="text-lg text-gray-100 mb-8 leading-relaxed">
-                            Experience the magic of the Banasura Sagar Dam right from your window.
-                            Every room at Route Guide offers a unique perspective of the reservoir,
-                            blending modern comfort with the raw beauty of nature.
-                        </p>
-                        <Link
-                            to="/gallery"
-                            className="inline-flex items-center gap-2 bg-white text-gray-900 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
-                        >
-                            View Gallery <ArrowRight className="h-4 w-4" />
-                        </Link>
-                    </div>
-                </div>
-            </section>
+            {/* Promo Banner (Replaces Secondary Banner) */}
+            <PromoBanner />
 
-            {/* Featured Rooms */}
-            <section className="bg-gray-50 py-20">
+            {/* Featured Properties */}
+            <section className="bg-gray-50 py-24">
                 <div className="max-w-7xl mx-auto px-4">
                     <div className="flex justify-between items-end mb-12">
                         <div>
-                            <span className="text-primary-600 font-semibold tracking-wider uppercase">Accommodation</span>
-                            <h2 className="text-4xl font-serif font-bold mt-2">Our Rooms & Suites</h2>
+                            <span className="text-primary-600 font-semibold tracking-wider uppercase">Destinations</span>
+                            <h2 className="text-4xl font-serif font-bold mt-2 text-gray-900">Featured Properties</h2>
                         </div>
-                        <Link to="/rooms" className="hidden md:flex items-center gap-2 text-primary-700 font-semibold hover:gap-3 transition-all">
-                            View All Rooms <ArrowRight className="h-5 w-5" />
+                        <Link to="/properties" className="hidden md:flex items-center gap-2 text-primary-700 font-semibold hover:gap-3 transition-all">
+                            View All Properties <ArrowRight className="h-5 w-5" />
                         </Link>
                     </div>
 
@@ -155,52 +110,21 @@ export default function Home() {
                             ))
                         ) : (
                             // Real Data
-                            featuredRooms?.slice(0, 3).map((room: any) => (
-                                <div key={room.id} className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full">
-                                    <div className="h-64 overflow-hidden relative">
-                                        {room.images && room.images.length > 0 ? (
-                                            <img
-                                                src={room.images[0]}
-                                                alt={room.name}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-                                                No Image
-                                            </div>
-                                        )}
-                                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-primary-800 shadow-sm">
-                                            {room.maxAdults} Adults, {room.maxChildren} Kids
-                                        </div>
-                                    </div>
-                                    <div className="p-6 flex flex-col flex-1">
-                                        <h3 className="text-xl font-bold mb-2">{room.name}</h3>
-                                        <p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-grow">{room.description}</p>
-                                        <div className="flex justify-between items-center border-t border-gray-100 pt-4 mt-auto">
-                                            <div>
-                                                <span className="text-xs text-gray-500 block">Starting from</span>
-                                                <span className="text-lg font-bold text-primary-700">${room.basePrice}</span>
-                                                <span className="text-xs text-gray-500">/night</span>
-                                            </div>
-                                            <Link to={`/search?roomType=${room.id}`} className="text-gray-900 font-medium text-sm hover:text-primary-600 flex items-center gap-1 group/link">
-                                                Book Now <ArrowRight className="h-4 w-4 transform group-hover/link:translate-x-1 transition-transform" />
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </div>
+                            featuredProperties?.map((property: Property) => (
+                                <PropertyCard key={property.id} property={property} />
                             ))
                         )}
 
-                        {!isLoading && (!featuredRooms || featuredRooms.length === 0) && (
-                            <div className="col-span-3 text-center py-12 text-gray-500 bg-gray-50 rounded-xl">
-                                No featured rooms available at the moment.
+                        {!isLoading && (!featuredProperties || featuredProperties.length === 0) && (
+                            <div className="col-span-3 text-center py-12 text-gray-500 bg-white rounded-xl border border-gray-100">
+                                No featured properties available at the moment.
                             </div>
                         )}
                     </div>
 
-                    <div className="mt-8 text-center md:hidden">
-                        <Link to="/rooms" className="inline-flex items-center gap-2 text-primary-700 font-semibold hover:gap-3 transition-all">
-                            View All Rooms <ArrowRight className="h-5 w-5" />
+                    <div className="mt-12 text-center md:hidden">
+                        <Link to="/properties" className="inline-flex items-center gap-2 text-primary-700 font-semibold hover:gap-3 transition-all">
+                            View All Properties <ArrowRight className="h-5 w-5" />
                         </Link>
                     </div>
                 </div>
@@ -220,10 +144,10 @@ export default function Home() {
                         Book your stay directly with us to receive a complimentary nature consultation and a guided tour of our gardens.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link to="/book" className="bg-white text-primary-900 px-8 py-4 rounded-full font-bold hover:bg-gray-100 transition-colors">
+                        <Link to="/properties" className="bg-white text-primary-900 px-8 py-4 rounded-full font-bold hover:bg-gray-100 transition-colors">
                             Check Availability
                         </Link>
-                        <a href="#contact" className="border-2 border-white text-white px-8 py-4 rounded-full font-bold hover:bg-white hover:text-primary-900 transition-colors">
+                        <a href="/contact" className="border-2 border-white text-white px-8 py-4 rounded-full font-bold hover:bg-white hover:text-primary-900 transition-colors">
                             Contact Reservations
                         </a>
                     </div>

@@ -80,14 +80,18 @@ let AuthService = class AuthService {
             email: user.email,
             roles: user.roles.map(ur => ur.role.name),
         };
+        const permissions = Array.from(new Set(user.roles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.name))));
         return {
-            accessToken: this.jwtService.sign(payload),
+            accessToken: this.jwtService.sign({ ...payload, permissions }),
             user: {
                 id: user.id,
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 role: user.roles[0]?.role.name || 'Staff',
+                roles: user.roles.map(ur => ur.role.name),
+                permissions: permissions,
+                commissionPercentage: Number(user.commissionPercentage),
             },
         };
     }

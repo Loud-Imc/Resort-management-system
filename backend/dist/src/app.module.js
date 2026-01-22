@@ -27,6 +27,9 @@ const roles_module_1 = require("./roles/roles.module");
 const booking_sources_module_1 = require("./booking-sources/booking-sources.module");
 const audit_module_1 = require("./audit/audit.module");
 const uploads_module_1 = require("./uploads/uploads.module");
+const properties_module_1 = require("./properties/properties.module");
+const channel_partners_module_1 = require("./channel-partners/channel-partners.module");
+const marketing_module_1 = require("./marketing/marketing.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -54,6 +57,9 @@ exports.AppModule = AppModule = __decorate([
             booking_sources_module_1.BookingSourcesModule,
             audit_module_1.AuditModule,
             uploads_module_1.UploadsModule,
+            properties_module_1.PropertiesModule,
+            channel_partners_module_1.ChannelPartnersModule,
+            marketing_module_1.MarketingModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

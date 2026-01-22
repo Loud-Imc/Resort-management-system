@@ -20,6 +20,13 @@ export declare class ReportsController {
             MAINTENANCE: number;
             BLOCKED: number;
         };
+        superAdmin: {
+            totalProperties: number;
+            activeProperties: number;
+            totalChannelPartners: number;
+            activeChannelPartners: number;
+            pendingCPCommissions: number | import("@prisma/client/runtime/library").Decimal;
+        };
     }>;
     getFinancialReport(startDate: string, endDate: string): Promise<{
         period: {

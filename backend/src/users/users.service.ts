@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -48,16 +49,57 @@ export class UsersService {
             throw new ConflictException('Email already exists');
         }
 
-        const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-        const { roleIds, ...userData } = createUserDto;
+        try {
+            const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+            const { roleIds, ...userData } = createUserDto;
 
-        // Prisma transaction not strictly needed if valid, but good for integrity
-        // Simple create is fine
-        const user = await this.prisma.user.create({
+            // Prisma transaction not strictly needed if valid, but good for integrity
+            // Simple create is fine
+            const user = await this.prisma.user.create({
+                data: {
+                    ...userData,
+                    password: hashedPassword,
+                    roles: roleIds && roleIds.length > 0 ? {
+                        create: roleIds.map(roleId => ({
+                            role: { connect: { id: roleId } }
+                        }))
+                    } : undefined,
+                    commissionPercentage: userData.commissionPercentage,
+                },
+                include: {
+                    roles: {
+                        include: { role: true }
+                    }
+                }
+            });
+
+            const { password, ...result } = user;
+            return result;
+        } catch (error) {
+            console.error('Error creating user:', error);
+            throw error;
+        }
+    }
+
+    async update(id: string, updateUserDto: UpdateUserDto) {
+        const user = await this.prisma.user.findUnique({ where: { id } });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const { roleIds, password, ...userData } = updateUserDto;
+        const updateData: any = { ...userData };
+
+        if (password) {
+            updateData.password = await bcrypt.hash(password, 10);
+        }
+
+        return this.prisma.user.update({
+            where: { id },
             data: {
-                ...userData,
-                password: hashedPassword,
-                roles: roleIds && roleIds.length > 0 ? {
+                ...updateData,
+                roles: roleIds ? {
+                    deleteMany: {},
                     create: roleIds.map(roleId => ({
                         role: { connect: { id: roleId } }
                     }))
@@ -69,9 +111,6 @@ export class UsersService {
                 }
             }
         });
-
-        const { password, ...result } = user;
-        return result;
     }
 
     async findAll() {

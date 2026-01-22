@@ -19,7 +19,7 @@ export default function Confirmation() {
 
                 <h1 className="text-3xl font-serif font-bold text-gray-900 mb-2">Booking Confirmed!</h1>
                 <p className="text-gray-600 mb-8">
-                    Thank you for choosing Nature Haven Resort. We've sent a confirmation email to your address.
+                    Thank you for choosing Route Guide. We've sent a confirmation email to your address.
                     A confirmation email has been sent to <span className="font-semibold text-gray-900">{location.state?.email}</span>.
                 </p>
 

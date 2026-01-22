@@ -31,4 +31,8 @@ export class CreateUserDto {
     @IsBoolean()
     @IsOptional()
     isActive?: boolean;
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    commissionPercentage?: number;
 }

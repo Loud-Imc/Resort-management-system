@@ -16,8 +16,8 @@ export class RoomsService {
     async create(createRoomDto: CreateRoomDto, userId: string) {
         const { roomNumber, floor, roomTypeId, notes, isEnabled = true } = createRoomDto;
 
-        // Check if room number already exists
-        const existingRoom = await this.prisma.room.findUnique({
+        // Check if room number already exists (in same property scope if applicable)
+        const existingRoom = await this.prisma.room.findFirst({
             where: { roomNumber },
         });
 
@@ -153,10 +153,13 @@ export class RoomsService {
     async update(id: string, updateRoomDto: UpdateRoomDto, userId: string) {
         const room = await this.findOne(id);
 
-        // If changing room number, check for conflicts
+        // If changing room number, check for conflicts (within same property if applicable)
         if (updateRoomDto.roomNumber && updateRoomDto.roomNumber !== room.roomNumber) {
-            const existingRoom = await this.prisma.room.findUnique({
-                where: { roomNumber: updateRoomDto.roomNumber },
+            const existingRoom = await this.prisma.room.findFirst({
+                where: {
+                    roomNumber: updateRoomDto.roomNumber,
+                    ...(room.propertyId && { propertyId: room.propertyId }),
+                },
             });
 
             if (existingRoom) {
@@ -453,7 +456,7 @@ export class RoomsService {
             const roomNumber = `${floor}${String(startNumber + i).padStart(2, '0')}`;
 
             // Check if room number exists
-            const existing = await this.prisma.room.findUnique({
+            const existing = await this.prisma.room.findFirst({
                 where: { roomNumber },
             });
 

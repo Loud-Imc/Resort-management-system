@@ -18,6 +18,9 @@ import { RolesModule } from './roles/roles.module';
 import { BookingSourcesModule } from './booking-sources/booking-sources.module';
 import { AuditModule } from './audit/audit.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { PropertiesModule } from './properties/properties.module';
+import { ChannelPartnersModule } from './channel-partners/channel-partners.module';
+import { MarketingModule } from './marketing/marketing.module';
 
 @Module({
   imports: [
@@ -42,6 +45,9 @@ import { UploadsModule } from './uploads/uploads.module';
     BookingSourcesModule,
     AuditModule,
     UploadsModule,
+    PropertiesModule,
+    ChannelPartnersModule,
+    MarketingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

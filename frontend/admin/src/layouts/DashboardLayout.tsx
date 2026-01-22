@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, NavLink, useNavigate, Navigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard,
@@ -14,9 +14,11 @@ import {
     PieChart,
     Briefcase,
     Shield,
-    Loader2
+    Loader2,
+    Building2
 } from 'lucide-react';
 import clsx from 'clsx';
+import logo from '../assets/routeguide.svg';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
@@ -40,18 +42,78 @@ export default function DashboardLayout() {
         navigate('/login');
     };
 
+    const hasPermission = (permission: string) => {
+        return user?.permissions?.includes(permission) || user?.roles?.includes('SuperAdmin');
+    };
+
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-        { icon: Calendar, label: 'Bookings', path: '/bookings' },
-        { icon: BedDouble, label: 'Rooms', path: '/rooms' },
-        { icon: BedDouble, label: 'Room Types', path: '/room-types' },
-        { icon: Users, label: 'Users', path: '/users' },
-        { icon: Users, label: 'Guests', path: '/guests' },
-        { icon: Shield, label: 'Roles', path: '/roles' },
-        { icon: CreditCard, label: 'Payments', path: '/payments' },
-        { icon: DollarSign, label: 'Financials', path: '/financials' },
-        { icon: Briefcase, label: 'Sources', path: '/booking-sources' },
-        { icon: PieChart, label: 'Reports', path: '/reports' },
+
+        // Marketing
+        ...((hasPermission('marketing.view') || user?.roles?.includes('Marketing')) ? [
+            { icon: DollarSign, label: 'Marketing', path: '/marketing' }
+        ] : []),
+
+        // Properties
+        ...(hasPermission('properties.view') ? [
+            { icon: Building2, label: 'Properties', path: '/properties' }
+        ] : []),
+
+        // Bookings
+        ...(hasPermission('bookings.view') ? [
+            { icon: Calendar, label: 'Bookings', path: '/bookings' }
+        ] : []),
+
+        // Rooms
+        ...(hasPermission('rooms.view') ? [
+            { icon: BedDouble, label: 'Rooms', path: '/rooms' }
+        ] : []),
+
+        // Room Types
+        ...(hasPermission('roomTypes.view') ? [
+            { icon: BedDouble, label: 'Room Types', path: '/room-types' }
+        ] : []),
+
+        // Users
+        ...(hasPermission('users.view') ? [
+            { icon: Users, label: 'Users', path: '/users' }
+        ] : []),
+
+        // Guests (Assuming Booking View permission)
+        ...(hasPermission('bookings.view') ? [
+            { icon: Users, label: 'Guests', path: '/guests' }
+        ] : []),
+
+        // Roles (Assuming User Manage permission)
+        ...(hasPermission('users.manage') ? [
+            { icon: Shield, label: 'Roles', path: '/roles' }
+        ] : []),
+
+        // Payments
+        ...(hasPermission('payments.view') ? [
+            { icon: CreditCard, label: 'Payments', path: '/payments' }
+        ] : []),
+
+        // Financials
+        ...(hasPermission('financials.view') ? [
+            { icon: DollarSign, label: 'Financials', path: '/financials' }
+        ] : []),
+
+        // Sources (Settings)
+        ...(hasPermission('settings.view') ? [
+            { icon: Briefcase, label: 'Sources', path: '/booking-sources' }
+        ] : []),
+
+        // Reports
+        ...(hasPermission('reports.view') ? [
+            { icon: PieChart, label: 'Reports', path: '/reports' }
+        ] : []),
+
+        // Channel Partners (Marketing)
+        ...((hasPermission('marketing.view') || user?.roles?.includes('Marketing')) ? [
+            { icon: Users, label: 'CP Dashboard', path: '/cp-dashboard' },
+            { icon: Users, label: 'All Partners', path: '/channel-partners' }
+        ] : []),
     ];
 
     return (
@@ -59,10 +121,10 @@ export default function DashboardLayout() {
             {/* Sidebar - Desktop */}
             <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full z-10">
                 <div className="p-6 border-b border-gray-100">
-                    <h1 className="text-xl font-bold text-primary-600 flex items-center gap-2">
-                        <LayoutDashboard className="h-6 w-6" />
-                        Nature Haven Admin
-                    </h1>
+                    <Link to="/" className="flex items-center gap-2">
+                        <img src={logo} alt="Route Guide" className="h-8 w-auto" />
+                        <span className="text-xl font-bold text-primary-600">Route Guide</span>
+                    </Link>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -109,7 +171,10 @@ export default function DashboardLayout() {
 
             {/* Mobile Header & Sidebar Overlay */}
             <div className="md:hidden fixed w-full bg-white border-b border-gray-200 z-20 flex items-center justify-between p-4">
-                <h1 className="text-lg font-bold text-primary-600">Resort Admin</h1>
+                <Link to="/" className="flex items-center gap-2">
+                    <img src={logo} alt="Route Guide" className="h-8 w-auto" />
+                    <span className="text-lg font-bold text-primary-600">Route Guide</span>
+                </Link>
                 <button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                     className="p-2 rounded-md hover:bg-gray-100 text-gray-600"

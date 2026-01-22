@@ -113,6 +113,36 @@ export default function DashboardHome() {
                 </div>
             </div>
 
+            {/* Super Admin Overview */}
+            {stats?.superAdmin && (
+                <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl p-6 text-white mb-8">
+                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                        <Users className="h-5 w-5 text-primary-400" />
+                        Platform Overview
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div>
+                            <p className="text-gray-400 text-sm">Total Properties</p>
+                            <p className="text-2xl font-bold mt-1">{stats.superAdmin.totalProperties}</p>
+                            <p className="text-xs text-green-400 mt-1">{stats.superAdmin.activeProperties} Active</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">Channel Partners</p>
+                            <p className="text-2xl font-bold mt-1">{stats.superAdmin.totalChannelPartners}</p>
+                            <p className="text-xs text-green-400 mt-1">{stats.superAdmin.activeChannelPartners} Active</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">Pending CP Payouts</p>
+                            <p className="text-2xl font-bold mt-1">₹{stats.superAdmin.pendingCPCommissions.toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">Global Revenue (Today)</p>
+                            <p className="text-2xl font-bold mt-1">₹{stats.revenue.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {statCards.map((stat, index) => (

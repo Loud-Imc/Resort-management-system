@@ -36,9 +36,9 @@ export declare class PaymentsController {
         payment: {
             id: string;
             createdAt: Date;
-            bookingId: string;
             updatedAt: Date;
             status: import(".prisma/client").$Enums.PaymentStatus;
+            bookingId: string;
             amount: import("@prisma/client/runtime/library").Decimal;
             currency: string;
             razorpayOrderId: string | null;
@@ -66,9 +66,9 @@ export declare class PaymentsController {
     getPaymentDetails(bookingId: string): Promise<{
         id: string;
         createdAt: Date;
-        bookingId: string;
         updatedAt: Date;
         status: import(".prisma/client").$Enums.PaymentStatus;
+        bookingId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         razorpayOrderId: string | null;
@@ -85,20 +85,21 @@ export declare class PaymentsController {
             user: {
                 id: string;
                 createdAt: Date;
+                updatedAt: Date;
                 email: string;
                 password: string;
                 firstName: string;
                 lastName: string;
                 phone: string | null;
                 isActive: boolean;
-                updatedAt: Date;
+                commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
             };
             roomType: {
                 id: string;
-                createdAt: Date;
                 name: string;
-                updatedAt: Date;
                 description: string | null;
+                createdAt: Date;
+                updatedAt: Date;
                 amenities: string[];
                 basePrice: import("@prisma/client/runtime/library").Decimal;
                 extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -108,14 +109,16 @@ export declare class PaymentsController {
                 maxChildren: number;
                 isPubliclyVisible: boolean;
                 images: string[];
+                propertyId: string | null;
             };
         } & {
             id: string;
             createdAt: Date;
-            userId: string;
             updatedAt: Date;
-            roomTypeId: string;
+            userId: string;
+            propertyId: string | null;
             status: import(".prisma/client").$Enums.BookingStatus;
+            roomTypeId: string;
             checkInDate: Date;
             roomId: string;
             bookingNumber: string;
@@ -137,6 +140,9 @@ export declare class PaymentsController {
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
             couponId: string | null;
+            channelPartnerId: string | null;
+            cpCommission: import("@prisma/client/runtime/library").Decimal | null;
+            cpDiscount: import("@prisma/client/runtime/library").Decimal | null;
             confirmedAt: Date | null;
             checkedInAt: Date | null;
             checkedOutAt: Date | null;
@@ -145,9 +151,9 @@ export declare class PaymentsController {
     } & {
         id: string;
         createdAt: Date;
-        bookingId: string;
         updatedAt: Date;
         status: import(".prisma/client").$Enums.PaymentStatus;
+        bookingId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         razorpayOrderId: string | null;

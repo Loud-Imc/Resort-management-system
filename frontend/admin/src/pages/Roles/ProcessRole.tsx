@@ -9,21 +9,6 @@ import clsx from 'clsx';
 import { useEffect } from 'react';
 import { Role } from '../../types/user';
 
-// Common permissions list for now (should ideally come from backend)
-const AVAILABLE_PERMISSIONS = [
-    { id: 'bookings.view', label: 'View Bookings', group: 'Bookings' },
-    { id: 'bookings.create', label: 'Create Bookings', group: 'Bookings' },
-    { id: 'bookings.edit', label: 'Edit Bookings', group: 'Bookings' },
-    { id: 'bookings.delete', label: 'Delete Bookings', group: 'Bookings' },
-    { id: 'rooms.view', label: 'View Rooms', group: 'Rooms' },
-    { id: 'rooms.create', label: 'Create Rooms', group: 'Rooms' },
-    { id: 'rooms.edit', label: 'Edit Rooms', group: 'Rooms' },
-    { id: 'rooms.delete', label: 'Delete Rooms', group: 'Rooms' },
-    { id: 'users.view', label: 'View Users', group: 'Users' },
-    { id: 'users.manage', label: 'Manage Users', group: 'Users' },
-    { id: 'financials.view', label: 'View Financials', group: 'Financials' },
-];
-
 const roleSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().optional(),
@@ -53,6 +38,11 @@ export default function ProcessRole() {
         queryKey: ['role', id],
         queryFn: () => rolesService.getById(id!),
         enabled: isEditing,
+    });
+
+    const { data: availablePermissions = [], isLoading: isLoadingPermissions } = useQuery({
+        queryKey: ['permissions'],
+        queryFn: rolesService.getPermissions,
     });
 
     useEffect(() => {
@@ -93,7 +83,30 @@ export default function ProcessRole() {
         setValue('permissions', updated, { shouldDirty: true });
     };
 
-    if (isEditing && isLoadingRole) {
+    const toggleGroup = (groupPermissions: typeof availablePermissions) => {
+        const current = selectedPermissions || [];
+        const groupIds = groupPermissions.map(p => p.name);
+        const allSelected = groupIds.every(id => current.includes(id));
+
+        let updated;
+        if (allSelected) {
+            updated = current.filter(id => !groupIds.includes(id));
+        } else {
+            const unique = new Set([...current, ...groupIds]);
+            updated = Array.from(unique);
+        }
+        setValue('permissions', updated, { shouldDirty: true });
+    };
+
+    const toggleAll = () => {
+        const current = selectedPermissions || [];
+        const allIds = availablePermissions.map(p => p.name);
+        const allSelected = allIds.every(id => current.includes(id));
+
+        setValue('permissions', allSelected ? [] : allIds, { shouldDirty: true });
+    }
+
+    if ((isEditing && isLoadingRole) || isLoadingPermissions) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="h-8 w-8 text-primary-500 animate-spin" />
@@ -101,11 +114,15 @@ export default function ProcessRole() {
         );
     }
 
-    const groupedPermissions = AVAILABLE_PERMISSIONS.reduce((acc, perm) => {
-        if (!acc[perm.group]) acc[perm.group] = [];
-        acc[perm.group].push(perm);
+    const groupedPermissions = availablePermissions.reduce((acc, perm) => {
+        const group = perm.module || 'Other';
+        if (!acc[group]) acc[group] = [];
+        acc[group].push(perm);
         return acc;
-    }, {} as Record<string, typeof AVAILABLE_PERMISSIONS>);
+    }, {} as Record<string, typeof availablePermissions>);
+
+    const allPermissionsSelected = availablePermissions.length > 0 &&
+        availablePermissions.every(p => (selectedPermissions || []).includes(p.name));
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -162,41 +179,73 @@ export default function ProcessRole() {
 
                 {/* Permissions */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-semibold mb-6">Access Permissions</h2>
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-lg font-semibold">Access Permissions</h2>
+                        <button
+                            type="button"
+                            onClick={toggleAll}
+                            className={clsx(
+                                "text-sm font-medium px-4 py-2 rounded-lg transition-colors",
+                                allPermissionsSelected
+                                    ? "bg-red-50 text-red-600 hover:bg-red-100"
+                                    : "bg-primary-50 text-primary-600 hover:bg-primary-100"
+                            )}
+                        >
+                            {allPermissionsSelected ? 'Deselect All' : 'Select All Permissions'}
+                        </button>
+                    </div>
+
                     <div className="space-y-8">
-                        {Object.entries(groupedPermissions).map(([group, permissions]) => (
-                            <div key={group}>
-                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">{group}</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {permissions.map((perm) => (
-                                        <div
-                                            key={perm.id}
-                                            onClick={() => togglePermission(perm.id)}
-                                            className={clsx(
-                                                "cursor-pointer p-3 rounded-lg border text-sm font-medium transition-all flex items-center gap-3",
-                                                selectedPermissions?.includes(perm.id)
-                                                    ? "bg-primary-50 border-primary-200 text-primary-700 shadow-sm"
-                                                    : "bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100"
-                                            )}
+                        {Object.entries(groupedPermissions).map(([group, permissions]) => {
+                            const groupIds = permissions.map(p => p.name);
+                            const isGroupSelected = groupIds.every(id => (selectedPermissions || []).includes(id));
+
+                            return (
+                                <div key={group}>
+                                    <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{group}</h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleGroup(permissions)}
+                                            className="text-xs font-medium text-primary-600 hover:text-primary-800"
                                         >
-                                            <div className={clsx(
-                                                "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                                                selectedPermissions?.includes(perm.id)
-                                                    ? "bg-primary-500 border-primary-500"
-                                                    : "border-gray-400 bg-white"
-                                            )}>
-                                                {selectedPermissions?.includes(perm.id) && (
-                                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                    </svg>
+                                            {isGroupSelected ? 'Deselect Group' : 'Select Group'}
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {permissions.map((perm) => (
+                                            <div
+                                                key={perm.id}
+                                                onClick={() => togglePermission(perm.name)}
+                                                className={clsx(
+                                                    "cursor-pointer p-3 rounded-lg border text-sm font-medium transition-all flex items-center gap-3",
+                                                    selectedPermissions?.includes(perm.name)
+                                                        ? "bg-primary-50 border-primary-200 text-primary-700 shadow-sm"
+                                                        : "bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100"
                                                 )}
+                                            >
+                                                <div className={clsx(
+                                                    "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                                    selectedPermissions?.includes(perm.name)
+                                                        ? "bg-primary-500 border-primary-500"
+                                                        : "border-gray-400 bg-white"
+                                                )}>
+                                                    {selectedPermissions?.includes(perm.name) && (
+                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                                <div className='flex flex-col'>
+                                                    <span>{perm.description}</span>
+                                                    <span className='text-xs text-gray-400 font-normal'>{perm.name}</span>
+                                                </div>
                                             </div>
-                                            {perm.label}
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 

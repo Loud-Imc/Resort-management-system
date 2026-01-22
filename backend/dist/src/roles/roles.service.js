@@ -17,9 +17,117 @@ let RolesService = class RolesService {
     constructor(prisma) {
         this.prisma = prisma;
     }
+    async create(createRoleDto) {
+        const { permissions, ...roleData } = createRoleDto;
+        let permissionConnect = [];
+        if (permissions && permissions.length > 0) {
+            const permissionRecords = await this.prisma.permission.findMany({
+                where: { name: { in: permissions } },
+            });
+            permissionConnect = permissionRecords.map(p => ({
+                permission: { connect: { id: p.id } }
+            }));
+        }
+        return this.prisma.role.create({
+            data: {
+                ...roleData,
+                permissions: {
+                    create: permissionConnect.map(p => ({
+                        permission: { connect: { id: p.permission.connect.id } }
+                    }))
+                },
+            },
+            include: {
+                permissions: {
+                    include: {
+                        permission: true
+                    }
+                }
+            }
+        });
+    }
     async findAll() {
         return this.prisma.role.findMany({
             orderBy: { name: 'asc' },
+            include: {
+                permissions: {
+                    include: {
+                        permission: true
+                    }
+                },
+                _count: {
+                    select: { users: true }
+                }
+            }
+        });
+    }
+    async findOne(id) {
+        const role = await this.prisma.role.findUnique({
+            where: { id },
+            include: {
+                permissions: {
+                    include: {
+                        permission: true
+                    }
+                }
+            }
+        });
+        if (!role)
+            throw new common_1.NotFoundException(`Role with ID ${id} not found`);
+        return {
+            ...role,
+            permissions: role.permissions.map(p => p.permission.name)
+        };
+    }
+    async update(id, updateRoleDto) {
+        const { permissions, ...roleData } = updateRoleDto;
+        const role = await this.prisma.role.findUnique({ where: { id } });
+        if (!role)
+            throw new common_1.NotFoundException(`Role with ID ${id} not found`);
+        const updateData = { ...roleData };
+        if (permissions) {
+            await this.prisma.rolePermission.deleteMany({
+                where: { roleId: id }
+            });
+            const permissionRecords = await this.prisma.permission.findMany({
+                where: { name: { in: permissions } },
+            });
+            updateData.permissions = {
+                deleteMany: {},
+                create: permissionRecords.map(p => ({
+                    permission: { connect: { id: p.id } }
+                }))
+            };
+        }
+        return this.prisma.role.update({
+            where: { id },
+            data: updateData,
+            include: {
+                permissions: {
+                    include: {
+                        permission: true
+                    }
+                }
+            }
+        });
+    }
+    async remove(id) {
+        const role = await this.prisma.role.findUnique({ where: { id } });
+        if (!role)
+            throw new common_1.NotFoundException(`Role with ID ${id} not found`);
+        const userCount = await this.prisma.userRole.count({ where: { roleId: id } });
+        if (userCount > 0) {
+        }
+        return this.prisma.role.delete({
+            where: { id },
+        });
+    }
+    async findAllPermissions() {
+        return this.prisma.permission.findMany({
+            orderBy: [
+                { module: 'asc' },
+                { name: 'asc' },
+            ],
         });
     }
 };

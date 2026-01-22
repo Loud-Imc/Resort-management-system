@@ -47,14 +47,22 @@ export class AuthService {
             roles: user.roles.map(ur => ur.role.name),
         };
 
+        // Flatten permissions from all roles
+        const permissions = Array.from(new Set(
+            user.roles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.name))
+        ));
+
         return {
-            accessToken: this.jwtService.sign(payload),
+            accessToken: this.jwtService.sign({ ...payload, permissions }), // Also include in token if needed, or just return in body
             user: {
                 id: user.id,
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 role: user.roles[0]?.role.name || 'Staff',
+                roles: user.roles.map(ur => ur.role.name),
+                permissions: permissions,
+                commissionPercentage: Number(user.commissionPercentage),
             },
         };
     }

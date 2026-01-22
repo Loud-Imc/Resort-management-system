@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, IsOptional, IsBoolean, IsArray } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, IsOptional, IsBoolean, IsArray, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserWithRoleDto {
@@ -36,4 +36,9 @@ export class CreateUserWithRoleDto {
     @IsArray()
     @IsOptional()
     roleIds?: string[];
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsNumber()
+    commissionPercentage?: number;
 }

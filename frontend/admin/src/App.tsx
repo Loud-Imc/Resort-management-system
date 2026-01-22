@@ -43,6 +43,17 @@ import Financials from './pages/Financials/Financials';
 // Reports
 import Reports from './pages/Reports/Reports';
 
+// Properties
+import { PropertiesList, PropertyForm } from './pages/Properties';
+
+// Channel Partners
+import { CPDashboard, CPList } from './pages/ChannelPartners';
+
+// Marketing
+import { MarketingDashboard } from './pages/Marketing';
+
+
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -89,6 +100,16 @@ function App() {
               <Route path="financials" element={<Financials />} />
               <Route path="payments" element={<PaymentsList />} />
               <Route path="reports" element={<Reports />} />
+
+              {/* Property Management */}
+              <Route path="properties" element={<PropertiesList />} />
+              <Route path="properties/new" element={<PropertyForm />} />
+              <Route path="properties/:id" element={<PropertyForm />} />
+              <Route path="properties/:id/edit" element={<PropertyForm />} />
+
+              {/* Channel Partner */}
+              <Route path="cp-dashboard" element={<CPDashboard />} />
+              <Route path="channel-partners" element={<CPList />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
