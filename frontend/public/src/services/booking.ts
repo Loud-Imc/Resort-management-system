@@ -13,6 +13,11 @@ export const bookingService = {
         return data;
     },
 
+    // Alias for compatibility
+    searchRooms: async (params: BookingSearchParams) => {
+        return bookingService.checkAvailability(params);
+    },
+
     createBooking: async (data: CreateBookingDto) => {
         const { data: response } = await api.post('/bookings/public', data);
         return response;

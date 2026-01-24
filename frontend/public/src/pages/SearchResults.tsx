@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
 import SearchForm from '../components/booking/SearchForm';
