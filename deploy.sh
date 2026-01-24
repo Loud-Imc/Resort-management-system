@@ -24,7 +24,17 @@ npx prisma generate
 npx prisma migrate deploy
 npm run build
 echo "🔄 Restarting Backend Service..."
-pm2 restart resort-api || pm2 start dist/main.js --name "resort-api"
+# Check if the process is already running
+if pm2 describe resort-api > /dev/null; then
+    echo "🔄 Reloading Backend Service (Zero Downtime)..."
+    pm2 reload resort-api --update-env
+else
+    echo "🚀 Starting Backend Service..."
+    NODE_ENV=production pm2 start dist/main.js --name "resort-api"
+fi
+
+# Save the process list to ensure it restarts on server reboot
+pm2 save
 cd ..
 
 # 3. Deploy Admin Frontend

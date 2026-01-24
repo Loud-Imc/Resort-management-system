@@ -26,6 +26,7 @@ export declare class PropertiesController {
             amenities: string[];
             images: string[];
             type: import(".prisma/client").$Enums.PropertyType;
+            slug: string;
             address: string;
             city: string;
             state: string;
@@ -35,14 +36,13 @@ export declare class PropertiesController {
             longitude: import("@prisma/client/runtime/library").Decimal | null;
             coverImage: string | null;
             policies: import("@prisma/client/runtime/library").JsonValue | null;
-            addedById: string | null;
-            marketingCommission: import("@prisma/client/runtime/library").Decimal;
-            commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-            slug: string;
             rating: import("@prisma/client/runtime/library").Decimal | null;
             reviewCount: number;
             isVerified: boolean;
             ownerId: string;
+            addedById: string | null;
+            marketingCommission: import("@prisma/client/runtime/library").Decimal;
+            commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
         })[];
         meta: {
             total: number;
@@ -97,6 +97,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -106,14 +107,13 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     }>;
     create(req: any, data: CreatePropertyDto): Promise<{
         owner: {
@@ -139,6 +139,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -148,14 +149,13 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     }>;
     findOwned(req: any): Promise<({
         _count: {
@@ -175,6 +175,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -184,14 +185,13 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     })[]>;
     findById(id: string): Promise<{
         rooms: {
@@ -256,6 +256,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -265,14 +266,13 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     }>;
     update(id: string, req: any, data: UpdatePropertyDto): Promise<{
         id: string;
@@ -286,6 +286,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -295,14 +296,13 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     }>;
     delete(id: string, req: any): Promise<{
         id: string;
@@ -316,6 +316,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -325,14 +326,13 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     }>;
     findAllAdmin(req: any, query: PropertyQueryDto): Promise<{
         data: ({
@@ -358,6 +358,7 @@ export declare class PropertiesController {
             amenities: string[];
             images: string[];
             type: import(".prisma/client").$Enums.PropertyType;
+            slug: string;
             address: string;
             city: string;
             state: string;
@@ -367,14 +368,13 @@ export declare class PropertiesController {
             longitude: import("@prisma/client/runtime/library").Decimal | null;
             coverImage: string | null;
             policies: import("@prisma/client/runtime/library").JsonValue | null;
-            addedById: string | null;
-            marketingCommission: import("@prisma/client/runtime/library").Decimal;
-            commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-            slug: string;
             rating: import("@prisma/client/runtime/library").Decimal | null;
             reviewCount: number;
             isVerified: boolean;
             ownerId: string;
+            addedById: string | null;
+            marketingCommission: import("@prisma/client/runtime/library").Decimal;
+            commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
         })[];
         meta: {
             total: number;
@@ -395,6 +395,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -404,14 +405,13 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     }>;
     toggleActive(id: string, isActive: boolean): Promise<{
         id: string;
@@ -425,6 +425,7 @@ export declare class PropertiesController {
         amenities: string[];
         images: string[];
         type: import(".prisma/client").$Enums.PropertyType;
+        slug: string;
         address: string;
         city: string;
         state: string;
@@ -434,13 +435,12 @@ export declare class PropertiesController {
         longitude: import("@prisma/client/runtime/library").Decimal | null;
         coverImage: string | null;
         policies: import("@prisma/client/runtime/library").JsonValue | null;
-        addedById: string | null;
-        marketingCommission: import("@prisma/client/runtime/library").Decimal;
-        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
-        slug: string;
         rating: import("@prisma/client/runtime/library").Decimal | null;
         reviewCount: number;
         isVerified: boolean;
         ownerId: string;
+        addedById: string | null;
+        marketingCommission: import("@prisma/client/runtime/library").Decimal;
+        commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
     }>;
 }

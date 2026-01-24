@@ -46,9 +46,8 @@ export declare class RoomsController {
             propertyId: string | null;
             status: import(".prisma/client").$Enums.BookingStatus;
             roomTypeId: string;
-            checkInDate: Date;
-            roomId: string;
             bookingNumber: string;
+            checkInDate: Date;
             checkOutDate: Date;
             numberOfNights: number;
             adultsCount: number;
@@ -63,6 +62,7 @@ export declare class RoomsController {
             overrideReason: string | null;
             specialRequests: string | null;
             isManualBooking: boolean;
+            roomId: string;
             bookingSourceId: string | null;
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -97,10 +97,10 @@ export declare class RoomsController {
             createdAt: Date;
             updatedAt: Date;
             notes: string | null;
+            roomId: string;
             startDate: Date;
             endDate: Date;
             reason: string;
-            roomId: string;
             createdById: string;
         }[];
     } & {
@@ -131,9 +131,8 @@ export declare class RoomsController {
             propertyId: string | null;
             status: import(".prisma/client").$Enums.BookingStatus;
             roomTypeId: string;
-            checkInDate: Date;
-            roomId: string;
             bookingNumber: string;
+            checkInDate: Date;
             checkOutDate: Date;
             numberOfNights: number;
             adultsCount: number;
@@ -148,6 +147,7 @@ export declare class RoomsController {
             overrideReason: string | null;
             specialRequests: string | null;
             isManualBooking: boolean;
+            roomId: string;
             bookingSourceId: string | null;
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -182,10 +182,10 @@ export declare class RoomsController {
             createdAt: Date;
             updatedAt: Date;
             notes: string | null;
+            roomId: string;
             startDate: Date;
             endDate: Date;
             reason: string;
-            roomId: string;
             createdById: string;
         }[];
     } & {
@@ -274,10 +274,10 @@ export declare class RoomsController {
         createdAt: Date;
         updatedAt: Date;
         notes: string | null;
+        roomId: string;
         startDate: Date;
         endDate: Date;
         reason: string;
-        roomId: string;
         createdById: string;
     }>;
     getRoomBlocks(id: string): Promise<({
@@ -291,10 +291,10 @@ export declare class RoomsController {
         createdAt: Date;
         updatedAt: Date;
         notes: string | null;
+        roomId: string;
         startDate: Date;
         endDate: Date;
         reason: string;
-        roomId: string;
         createdById: string;
     })[]>;
     removeBlock(blockId: string, req: any): Promise<{
