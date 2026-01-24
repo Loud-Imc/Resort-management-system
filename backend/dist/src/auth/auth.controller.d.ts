@@ -10,36 +10,36 @@ export declare class AuthController {
                 permissions: ({
                     permission: {
                         id: string;
-                        createdAt: Date;
                         name: string;
                         description: string | null;
+                        createdAt: Date;
                         module: string;
                     };
                 } & {
                     roleId: string;
-                    assignedAt: Date;
                     permissionId: string;
+                    assignedAt: Date;
                 })[];
             } & {
                 id: string;
-                createdAt: Date;
-                updatedAt: Date;
                 name: string;
                 description: string | null;
+                createdAt: Date;
+                updatedAt: Date;
             };
         } & {
-            userId: string;
             roleId: string;
             assignedAt: Date;
+            userId: string;
         })[];
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         email: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     }>;
     login(loginDto: LoginDto): Promise<{

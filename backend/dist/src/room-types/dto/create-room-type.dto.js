@@ -25,6 +25,7 @@ class CreateRoomTypeDto {
     maxChildren;
     isPubliclyVisible;
     images;
+    propertyId;
 }
 exports.CreateRoomTypeDto = CreateRoomTypeDto;
 __decorate([
@@ -98,4 +99,10 @@ __decorate([
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], CreateRoomTypeDto.prototype, "images", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'uuid-of-property', required: false }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateRoomTypeDto.prototype, "propertyId", void 0);
 //# sourceMappingURL=create-room-type.dto.js.map

@@ -41,6 +41,9 @@ let RoomTypesController = class RoomTypesController {
     remove(id) {
         return this.roomTypesService.remove(id);
     }
+    findAllAdmin(req) {
+        return this.roomTypesService.findAllAdmin(req.user);
+    }
 };
 exports.RoomTypesController = RoomTypesController;
 __decorate([
@@ -93,6 +96,16 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], RoomTypesController.prototype, "remove", null);
+__decorate([
+    (0, common_1.Get)('admin/all'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'List all room types (Admin)' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], RoomTypesController.prototype, "findAllAdmin", null);
 exports.RoomTypesController = RoomTypesController = __decorate([
     (0, swagger_1.ApiTags)('Room Types'),
     (0, common_1.Controller)('room-types'),

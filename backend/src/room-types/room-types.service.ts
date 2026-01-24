@@ -17,10 +17,37 @@ export class RoomTypesService {
         return this.prisma.roomType.findMany({
             where: publicOnly ? { isPubliclyVisible: true } : undefined,
             include: {
+                // Include property name for context
+                property: { select: { name: true, city: true } },
                 rooms: {
                     where: { isEnabled: true },
                 },
             },
+        });
+    }
+
+    async findAllAdmin(user: any) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
+
+        const where: any = {};
+
+        if (!isGlobalAdmin) {
+            // Filter by properties assigned to this user
+            where.property = {
+                staff: { some: { userId: user.id } }
+            };
+        }
+
+        return this.prisma.roomType.findMany({
+            where,
+            include: {
+                property: { select: { name: true, city: true } },
+                _count: {
+                    select: { rooms: true }
+                }
+            },
+            orderBy: { name: 'asc' }
         });
     }
 

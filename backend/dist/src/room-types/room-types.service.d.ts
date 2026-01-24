@@ -8,8 +8,6 @@ export declare class RoomTypesService {
         id: string;
         name: string;
         description: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         amenities: string[];
         basePrice: import("@prisma/client/runtime/library").Decimal;
         extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -19,18 +17,24 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
         propertyId: string | null;
     }>;
     findAll(publicOnly?: boolean): Promise<({
+        property: {
+            name: string;
+            city: string;
+        } | null;
         rooms: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
             propertyId: string | null;
+            isEnabled: boolean;
             roomNumber: string;
             floor: number | null;
             status: import(".prisma/client").$Enums.RoomStatus;
-            isEnabled: boolean;
             notes: string | null;
             roomTypeId: string;
         }[];
@@ -38,8 +42,6 @@ export declare class RoomTypesService {
         id: string;
         name: string;
         description: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         amenities: string[];
         basePrice: import("@prisma/client/runtime/library").Decimal;
         extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -49,6 +51,33 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        propertyId: string | null;
+    })[]>;
+    findAllAdmin(user: any): Promise<({
+        property: {
+            name: string;
+            city: string;
+        } | null;
+        _count: {
+            rooms: number;
+        };
+    } & {
+        id: string;
+        name: string;
+        description: string | null;
+        amenities: string[];
+        basePrice: import("@prisma/client/runtime/library").Decimal;
+        extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
+        extraChildPrice: import("@prisma/client/runtime/library").Decimal;
+        freeChildrenCount: number;
+        maxAdults: number;
+        maxChildren: number;
+        isPubliclyVisible: boolean;
+        images: string[];
+        createdAt: Date;
+        updatedAt: Date;
         propertyId: string | null;
     })[]>;
     findOne(id: string): Promise<{
@@ -57,10 +86,10 @@ export declare class RoomTypesService {
             createdAt: Date;
             updatedAt: Date;
             propertyId: string | null;
+            isEnabled: boolean;
             roomNumber: string;
             floor: number | null;
             status: import(".prisma/client").$Enums.RoomStatus;
-            isEnabled: boolean;
             notes: string | null;
             roomTypeId: string;
         }[];
@@ -68,8 +97,6 @@ export declare class RoomTypesService {
         id: string;
         name: string;
         description: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         amenities: string[];
         basePrice: import("@prisma/client/runtime/library").Decimal;
         extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -79,14 +106,14 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
         propertyId: string | null;
     }>;
     update(id: string, updateRoomTypeDto: UpdateRoomTypeDto): Promise<{
         id: string;
         name: string;
         description: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         amenities: string[];
         basePrice: import("@prisma/client/runtime/library").Decimal;
         extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -96,14 +123,14 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
         propertyId: string | null;
     }>;
     remove(id: string): Promise<{
         id: string;
         name: string;
         description: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         amenities: string[];
         basePrice: import("@prisma/client/runtime/library").Decimal;
         extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -113,6 +140,8 @@ export declare class RoomTypesService {
         maxChildren: number;
         isPubliclyVisible: boolean;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
         propertyId: string | null;
     }>;
 }

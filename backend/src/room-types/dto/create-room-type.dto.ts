@@ -62,4 +62,9 @@ export class CreateRoomTypeDto {
     @IsArray()
     @IsString({ each: true })
     images: string[];
+
+    @ApiProperty({ example: 'uuid-of-property', required: false })
+    @IsString()
+    @IsOptional()
+    propertyId?: string;
 }

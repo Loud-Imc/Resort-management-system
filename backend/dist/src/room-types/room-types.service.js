@@ -26,10 +26,31 @@ let RoomTypesService = class RoomTypesService {
         return this.prisma.roomType.findMany({
             where: publicOnly ? { isPubliclyVisible: true } : undefined,
             include: {
+                property: { select: { name: true, city: true } },
                 rooms: {
                     where: { isEnabled: true },
                 },
             },
+        });
+    }
+    async findAllAdmin(user) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
+        const where = {};
+        if (!isGlobalAdmin) {
+            where.property = {
+                staff: { some: { userId: user.id } }
+            };
+        }
+        return this.prisma.roomType.findMany({
+            where,
+            include: {
+                property: { select: { name: true, city: true } },
+                _count: {
+                    select: { rooms: true }
+                }
+            },
+            orderBy: { name: 'asc' }
         });
     }
     async findOne(id) {

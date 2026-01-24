@@ -415,23 +415,6 @@ export declare class BookingsController {
         cancelledAt: Date | null;
     })[]>;
     findOne(id: string): Promise<{
-        payments: {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            status: import(".prisma/client").$Enums.PaymentStatus;
-            bookingId: string;
-            amount: import("@prisma/client/runtime/library").Decimal;
-            currency: string;
-            razorpayOrderId: string | null;
-            razorpayPaymentId: string | null;
-            razorpaySignature: string | null;
-            paymentMethod: string | null;
-            paymentDate: Date | null;
-            refundAmount: import("@prisma/client/runtime/library").Decimal | null;
-            refundDate: Date | null;
-            refundReason: string | null;
-        }[];
         user: {
             id: string;
             email: string;
@@ -487,6 +470,23 @@ export declare class BookingsController {
             age: number | null;
             idType: string | null;
             idNumber: string | null;
+        }[];
+        payments: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: import(".prisma/client").$Enums.PaymentStatus;
+            bookingId: string;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            currency: string;
+            razorpayOrderId: string | null;
+            razorpayPaymentId: string | null;
+            razorpaySignature: string | null;
+            paymentMethod: string | null;
+            paymentDate: Date | null;
+            refundAmount: import("@prisma/client/runtime/library").Decimal | null;
+            refundDate: Date | null;
+            refundReason: string | null;
         }[];
     } & {
         id: string;

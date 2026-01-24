@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RoomTypesService } from './room-types.service';
@@ -49,5 +49,12 @@ export class RoomTypesController {
     @ApiOperation({ summary: 'Delete room type' })
     remove(@Param('id') id: string) {
         return this.roomTypesService.remove(id);
+    }
+    @Get('admin/all')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'List all room types (Admin)' })
+    findAllAdmin(@Req() req) {
+        return this.roomTypesService.findAllAdmin(req.user);
     }
 }

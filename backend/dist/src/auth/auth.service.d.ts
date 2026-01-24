@@ -12,36 +12,36 @@ export declare class AuthService {
                 permissions: ({
                     permission: {
                         id: string;
-                        createdAt: Date;
                         name: string;
                         description: string | null;
+                        createdAt: Date;
                         module: string;
                     };
                 } & {
                     roleId: string;
-                    assignedAt: Date;
                     permissionId: string;
+                    assignedAt: Date;
                 })[];
             } & {
                 id: string;
-                createdAt: Date;
-                updatedAt: Date;
                 name: string;
                 description: string | null;
+                createdAt: Date;
+                updatedAt: Date;
             };
         } & {
-            userId: string;
             roleId: string;
             assignedAt: Date;
+            userId: string;
         })[];
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         email: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     }>;
     login(loginDto: LoginDto): Promise<{
@@ -63,36 +63,35 @@ export declare class AuthService {
                 permissions: ({
                     permission: {
                         id: string;
-                        createdAt: Date;
                         name: string;
                         description: string | null;
+                        createdAt: Date;
                         module: string;
                     };
                 } & {
                     roleId: string;
-                    assignedAt: Date;
                     permissionId: string;
+                    assignedAt: Date;
                 })[];
             } & {
                 id: string;
-                createdAt: Date;
-                updatedAt: Date;
                 name: string;
                 description: string | null;
+                createdAt: Date;
+                updatedAt: Date;
             };
         } & {
-            userId: string;
             roleId: string;
             assignedAt: Date;
+            userId: string;
         })[];
         bookings: ({
             roomType: {
                 id: string;
-                createdAt: Date;
-                updatedAt: Date;
                 name: string;
                 description: string | null;
-                propertyId: string | null;
+                createdAt: Date;
+                updatedAt: Date;
                 amenities: string[];
                 basePrice: import("@prisma/client/runtime/library").Decimal;
                 extraAdultPrice: import("@prisma/client/runtime/library").Decimal;
@@ -102,14 +101,19 @@ export declare class AuthService {
                 maxChildren: number;
                 isPubliclyVisible: boolean;
                 images: string[];
+                propertyId: string | null;
             };
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
             userId: string;
-            bookingNumber: string;
+            propertyId: string | null;
+            status: import(".prisma/client").$Enums.BookingStatus;
+            roomTypeId: string;
             checkInDate: Date;
+            roomId: string;
+            bookingNumber: string;
             checkOutDate: Date;
             numberOfNights: number;
             adultsCount: number;
@@ -122,12 +126,8 @@ export declare class AuthService {
             totalAmount: import("@prisma/client/runtime/library").Decimal;
             isPriceOverridden: boolean;
             overrideReason: string | null;
-            status: import(".prisma/client").$Enums.BookingStatus;
             specialRequests: string | null;
             isManualBooking: boolean;
-            propertyId: string | null;
-            roomId: string;
-            roomTypeId: string;
             bookingSourceId: string | null;
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -142,14 +142,14 @@ export declare class AuthService {
         })[];
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         email: string;
         password: string;
         firstName: string;
         lastName: string;
         phone: string | null;
         isActive: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         commissionPercentage: import("@prisma/client/runtime/library").Decimal | null;
     }>;
 }

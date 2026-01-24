@@ -14,9 +14,9 @@ export declare class RolesService {
                 module: string;
             };
         } & {
-            assignedAt: Date;
-            permissionId: string;
             roleId: string;
+            permissionId: string;
+            assignedAt: Date;
         })[];
     } & {
         id: string;
@@ -35,9 +35,9 @@ export declare class RolesService {
                 module: string;
             };
         } & {
-            assignedAt: Date;
-            permissionId: string;
             roleId: string;
+            permissionId: string;
+            assignedAt: Date;
         })[];
         _count: {
             users: number;
@@ -67,9 +67,9 @@ export declare class RolesService {
                 module: string;
             };
         } & {
-            assignedAt: Date;
-            permissionId: string;
             roleId: string;
+            permissionId: string;
+            assignedAt: Date;
         })[];
     } & {
         id: string;

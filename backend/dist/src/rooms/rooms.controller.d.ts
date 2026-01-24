@@ -98,9 +98,9 @@ export declare class RoomsController {
             updatedAt: Date;
             notes: string | null;
             startDate: Date;
-            roomId: string;
-            reason: string;
             endDate: Date;
+            reason: string;
+            roomId: string;
             createdById: string;
         }[];
     } & {
@@ -183,9 +183,9 @@ export declare class RoomsController {
             updatedAt: Date;
             notes: string | null;
             startDate: Date;
-            roomId: string;
-            reason: string;
             endDate: Date;
+            reason: string;
+            roomId: string;
             createdById: string;
         }[];
     } & {
@@ -275,9 +275,9 @@ export declare class RoomsController {
         updatedAt: Date;
         notes: string | null;
         startDate: Date;
-        roomId: string;
-        reason: string;
         endDate: Date;
+        reason: string;
+        roomId: string;
         createdById: string;
     }>;
     getRoomBlocks(id: string): Promise<({
@@ -292,9 +292,9 @@ export declare class RoomsController {
         updatedAt: Date;
         notes: string | null;
         startDate: Date;
-        roomId: string;
-        reason: string;
         endDate: Date;
+        reason: string;
+        roomId: string;
         createdById: string;
     })[]>;
     removeBlock(blockId: string, req: any): Promise<{

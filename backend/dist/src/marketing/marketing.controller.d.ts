@@ -13,11 +13,11 @@ export declare class MarketingController {
         createdAt: Date;
         isActive: boolean;
         images: string[];
-        slug: string;
         city: string;
         state: string;
-        isVerified: boolean;
         marketingCommission: import("@prisma/client/runtime/library").Decimal;
         commissionStatus: import(".prisma/client").$Enums.CommissionStatus;
+        slug: string;
+        isVerified: boolean;
     }[]>;
 }

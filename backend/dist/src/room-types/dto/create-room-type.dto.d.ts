@@ -10,4 +10,5 @@ export declare class CreateRoomTypeDto {
     maxChildren: number;
     isPubliclyVisible: boolean;
     images: string[];
+    propertyId?: string;
 }

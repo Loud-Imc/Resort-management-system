@@ -101,9 +101,9 @@ export declare class RoomsService {
             updatedAt: Date;
             notes: string | null;
             startDate: Date;
-            roomId: string;
-            reason: string;
             endDate: Date;
+            reason: string;
+            roomId: string;
             createdById: string;
         }[];
     } & {
@@ -186,9 +186,9 @@ export declare class RoomsService {
             updatedAt: Date;
             notes: string | null;
             startDate: Date;
-            roomId: string;
-            reason: string;
             endDate: Date;
+            reason: string;
+            roomId: string;
             createdById: string;
         }[];
     } & {
@@ -278,9 +278,9 @@ export declare class RoomsService {
         updatedAt: Date;
         notes: string | null;
         startDate: Date;
-        roomId: string;
-        reason: string;
         endDate: Date;
+        reason: string;
+        roomId: string;
         createdById: string;
     }>;
     removeBlock(blockId: string, userId: string): Promise<{
@@ -298,9 +298,9 @@ export declare class RoomsService {
         updatedAt: Date;
         notes: string | null;
         startDate: Date;
-        roomId: string;
-        reason: string;
         endDate: Date;
+        reason: string;
+        roomId: string;
         createdById: string;
     })[]>;
     bulkCreate(roomTypeId: string, startNumber: number, count: number, floor: number, userId: string): Promise<{
