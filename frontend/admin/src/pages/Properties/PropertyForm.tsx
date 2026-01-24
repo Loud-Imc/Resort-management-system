@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, UserCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Building2, MapPin, Image } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import { PropertyType, CreatePropertyDto } from '../../types/property';
@@ -465,7 +465,7 @@ export default function PropertyForm() {
                                 Gallery Images
                             </label>
                             <ImageUpload
-                                images={formData.images}
+                                images={formData.images || []}
                                 onChange={(urls) => setFormData(prev => ({ ...prev, images: urls }))}
                                 maxImages={10}
                             />

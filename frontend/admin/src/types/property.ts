@@ -37,6 +37,7 @@ export interface Property {
     _count?: {
         bookings: number;
         staff?: number;
+        rooms: number;
     };
     marketingCommission?: number;
     commissionStatus?: 'PENDING' | 'PAID' | 'CANCELLED';

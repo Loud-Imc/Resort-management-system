@@ -23,7 +23,7 @@ export default function CreateRoom() {
 
     const { data: roomTypes, isLoading: loadingTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
-        queryFn: roomTypesService.getAll,
+        queryFn: roomTypesService.getAllAdmin,
     });
 
     const {

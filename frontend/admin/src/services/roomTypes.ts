@@ -7,6 +7,11 @@ export const roomTypesService = {
         return data;
     },
 
+    getAllAdmin: async () => {
+        const { data } = await api.get<RoomType[]>('/room-types/admin/all');
+        return data;
+    },
+
     getById: async (id: string) => {
         const { data } = await api.get<RoomType>(`/room-types/${id}`);
         return data;

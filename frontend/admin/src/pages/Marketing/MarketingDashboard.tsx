@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { marketingService, MarketingStats } from '../../services/marketing';
 import { Property } from '../../types/property';
-import { Loader2, DollarSign, Building2, CheckCircle, Clock } from 'lucide-react';
+import { Loader2, Building2, CheckCircle, Clock } from 'lucide-react';
 
 export default function MarketingDashboard() {
     const [stats, setStats] = useState<MarketingStats | null>(null);

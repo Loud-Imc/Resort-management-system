@@ -50,7 +50,7 @@ import { PropertiesList, PropertyForm } from './pages/Properties';
 import { CPDashboard, CPList } from './pages/ChannelPartners';
 
 // Marketing
-import { MarketingDashboard } from './pages/Marketing';
+// import { MarketingDashboard } from './pages/Marketing';
 
 
 

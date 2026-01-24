@@ -16,7 +16,7 @@ export default function RoomTypesList() {
 
     const { data: roomTypes, isLoading } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
-        queryFn: roomTypesService.getAll,
+        queryFn: roomTypesService.getAllAdmin,
     });
 
     const deleteMutation = useMutation({

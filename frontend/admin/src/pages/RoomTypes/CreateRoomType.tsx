@@ -20,9 +20,12 @@ const roomTypeSchema = z.object({
     isPubliclyVisible: z.boolean(),
     amenities: z.array(z.string()).min(1, 'Add at least one amenity'),
     images: z.array(z.string()).optional(),
+    propertyId: z.string().min(1, 'Property is required'),
 });
 
 type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
+
+import propertyService from '../../services/properties';
 
 export default function CreateRoomType() {
     const navigate = useNavigate();
@@ -95,6 +98,18 @@ export default function CreateRoomType() {
         }
     }, [existingType, setValue]);
 
+    const { data: properties } = useQuery({
+        queryKey: ['properties'],
+        queryFn: () => propertyService.getAllAdmin({ limit: 100 }), // Get all accessible properties
+    });
+
+    useEffect(() => {
+        // Auto-select property if user only has access to one (e.g., Property Manager)
+        if (properties?.data?.length === 1 && !isEditMode) {
+            setValue('propertyId', properties.data[0].id);
+        }
+    }, [properties, isEditMode, setValue]);
+
     const mutation = useMutation({
         mutationFn: (data: RoomTypeFormData) => {
             const submitData: any = {
@@ -138,6 +153,27 @@ export default function CreateRoomType() {
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+
+                {/* Property Selection */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h2 className="text-lg font-semibold mb-4">Property Assignment</h2>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Property</label>
+                        <select
+                            {...register('propertyId')}
+                            className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="">-- Select Property --</option>
+                            {properties?.data?.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                    {p.name} ({p.city})
+                                </option>
+                            ))}
+                        </select>
+                        {errors.propertyId && <p className="text-red-500 text-xs mt-1">{errors.propertyId.message}</p>}
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Basic Info */}
                     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 md:col-span-2">
