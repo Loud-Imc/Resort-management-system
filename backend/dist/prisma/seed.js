@@ -86,6 +86,14 @@ async function main() {
             description: 'Marketing staff access',
         },
     });
+    const eventOrganizerRole = await prisma.role.upsert({
+        where: { name: 'EventOrganizer' },
+        update: {},
+        create: {
+            name: 'EventOrganizer',
+            description: 'External event organizer access',
+        },
+    });
     console.log('✅ Roles created');
     const permissions = [
         { name: 'users.view', module: 'Users', description: 'View system users' },
@@ -118,6 +126,13 @@ async function main() {
         { name: 'settings.view', module: 'Settings', description: 'View system settings' },
         { name: 'settings.manage', module: 'Settings', description: 'Modify system configuration' },
         { name: 'reports.view', module: 'Reports', description: 'Access system reports' },
+        { name: 'events.view', module: 'Events', description: 'View events' },
+        { name: 'events.create', module: 'Events', description: 'Create new events' },
+        { name: 'events.edit', module: 'Events', description: 'Edit events' },
+        { name: 'events.delete', module: 'Events', description: 'Delete events' },
+        { name: 'events.approve', module: 'Events', description: 'Approve pending events' },
+        { name: 'events.verify', module: 'Events', description: 'Verify event tickets' },
+        { name: 'events.view_bookings', module: 'Events', description: 'View all event bookings' },
     ];
     for (const permission of permissions) {
         await prisma.permission.upsert({
@@ -144,6 +159,29 @@ async function main() {
         });
     }
     console.log('✅ Permissions assigned to SuperAdmin');
+    const eventPermissions = await prisma.permission.findMany({
+        where: {
+            name: {
+                in: ['events.view', 'events.create', 'events.edit'],
+            },
+        },
+    });
+    for (const permission of eventPermissions) {
+        await prisma.rolePermission.upsert({
+            where: {
+                roleId_permissionId: {
+                    roleId: eventOrganizerRole.id,
+                    permissionId: permission.id,
+                },
+            },
+            update: {},
+            create: {
+                roleId: eventOrganizerRole.id,
+                permissionId: permission.id,
+            },
+        });
+    }
+    console.log('✅ Permissions assigned to EventOrganizer');
     const hashedPassword = await bcrypt.hash('admin123', 10);
     const superAdmin = await prisma.user.upsert({
         where: { email: 'admin@resort.com' },

@@ -39,6 +39,10 @@ model User {
   addedProperties Property[]      @relation("PropertyAddedBy")
   commissionPercentage Decimal?   @db.Decimal(5, 2) // Fixed commission % for this user (e.g., 10.00)
 
+  // Events relation
+  createdEvents Event[]        @relation("EventsCreated")
+  eventBookings EventBooking[]
+
   @@map("users")
 }
 
@@ -411,8 +415,11 @@ model Payment {
   refundDate   DateTime?
   refundReason String?
 
-  bookingId String
-  booking   Booking @relation(fields: [bookingId], references: [id])
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  eventBookingId String?
+  eventBooking   EventBooking? @relation(fields: [eventBookingId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -442,6 +449,9 @@ model Income {
   bookingId String?
   booking   Booking? @relation(fields: [bookingId], references: [id])
 
+  eventBookingId String?
+  eventBooking   EventBooking? @relation(fields: [eventBookingId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -452,6 +462,7 @@ enum IncomeSource {
   ROOM_BOOKING
   EXTRA_GUEST_CHARGES
   ONLINE_BOOKING
+  EVENT_BOOKING
   OTHER
 }
 
@@ -566,6 +577,7 @@ model Property {
   rooms     Room[]
   bookings  Booking[]
   staff     PropertyStaff[]
+  events    Event[]
 
   // Marketing Fields
   addedById           String?
@@ -663,4 +675,86 @@ enum CommissionStatus {
   PENDING
   PAID
   CANCELLED
+}
+
+// ============================================
+// EVENTS MANAGEMENT
+// ============================================
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime
+  location    String
+  price       String? // e.g., "Free", "$85", "INR 500"
+  images      String[]
+  isActive    Boolean  @default(true)
+  
+  status        EventStatus        @default(PENDING)
+  organizerType EventOrganizerType @default(PROPERTY)
+
+  // Relations
+  propertyId String? // Optional: Null if it's a club/external event
+  property   Property? @relation(fields: [propertyId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("EventsCreated", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings EventBooking[]
+
+  @@map("events")
+}
+
+enum EventStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum EventOrganizerType {
+  PROPERTY
+  EXTERNAL
+}
+
+// ============================================
+// EVENT BOOKINGS & TICKETING
+// ============================================
+
+model EventBooking {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  ticketId   String   @unique // BK-EVT-XXXXXX
+  amountPaid Decimal  @db.Decimal(10, 2)
+  status     EventBookingStatus @default(PENDING)
+  
+  guestName  String?
+  guestEmail String?
+  guestPhone String?
+  
+  checkedIn   Boolean   @default(false)
+  checkInTime DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+  income   Income[]
+
+  @@map("event_bookings")
+}
+
+enum EventBookingStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
 }

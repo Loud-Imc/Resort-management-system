@@ -65,8 +65,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -81,7 +82,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -152,8 +152,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -168,7 +169,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -243,8 +243,9 @@ export declare class BookingsService {
             createdAt: Date;
             updatedAt: Date;
             status: import(".prisma/client").$Enums.PaymentStatus;
-            bookingId: string;
+            bookingId: string | null;
             amount: import("@prisma/client/runtime/library").Decimal;
+            eventBookingId: string | null;
             currency: string;
             razorpayOrderId: string | null;
             razorpayPaymentId: string | null;
@@ -263,8 +264,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -279,7 +281,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -342,8 +343,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -358,7 +360,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -421,8 +422,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -437,7 +439,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -500,8 +501,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -516,7 +518,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -537,8 +538,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -553,7 +555,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -609,8 +610,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -625,7 +627,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -681,8 +682,9 @@ export declare class BookingsService {
         propertyId: string | null;
         status: import(".prisma/client").$Enums.BookingStatus;
         roomTypeId: string;
-        bookingNumber: string;
         checkInDate: Date;
+        roomId: string;
+        bookingNumber: string;
         checkOutDate: Date;
         numberOfNights: number;
         adultsCount: number;
@@ -697,7 +699,6 @@ export declare class BookingsService {
         overrideReason: string | null;
         specialRequests: string | null;
         isManualBooking: boolean;
-        roomId: string;
         bookingSourceId: string | null;
         agentId: string | null;
         commissionAmount: import("@prisma/client/runtime/library").Decimal;

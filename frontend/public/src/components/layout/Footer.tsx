@@ -7,14 +7,13 @@ export default function Footer() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
                     <div>
-                        <div className="flex items-center gap-2 mb-4">
-                            <img src={logo} alt="Route Guide" className="h-8 w-auto brightness-0 invert" />
-                            <h3 className="text-xl font-serif font-bold">Route Guide</h3>
+                        <div className="flex items-center mb-1">
+                            <img src={logo} alt="Route Guide" className="h-50 w-auto brightness-0 invert" />
                         </div>
                         <p className="text-gray-400">
                             Experience the ultimate tranquility at Banasura Sagar Dam. Your journey to peace begins here.
                         </p>
-                        <div className="flex gap-4 mt-6">
+                        <div className="flex gap-4 mt-1">
                             <a href="#" className="text-gray-400 hover:text-white transition-colors"><Facebook className="h-5 w-5" /></a>
                             <a href="#" className="text-gray-400 hover:text-white transition-colors"><Instagram className="h-5 w-5" /></a>
                             <a href="#" className="text-gray-400 hover:text-white transition-colors"><Twitter className="h-5 w-5" /></a>

@@ -64,8 +64,8 @@ export declare class ChannelPartnersService {
             description: string | null;
             createdAt: Date;
             type: import(".prisma/client").$Enums.CPTransactionType;
-            channelPartnerId: string;
             bookingId: string | null;
+            channelPartnerId: string;
             amount: Prisma.Decimal;
             points: number;
         }[];

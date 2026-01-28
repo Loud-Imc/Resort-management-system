@@ -2,10 +2,15 @@ import { IsString, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class InitiatePaymentDto {
-    @ApiProperty({ example: 'booking-uuid' })
+    @ApiProperty({ example: 'booking-uuid', required: false })
     @IsString()
-    @IsNotEmpty()
-    bookingId: string;
+    @IsOptional()
+    bookingId?: string;
+
+    @ApiProperty({ example: 'event-booking-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    eventBookingId?: string;
 }
 
 export class VerifyPaymentDto {

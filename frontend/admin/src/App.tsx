@@ -52,6 +52,11 @@ import { CPDashboard, CPList } from './pages/ChannelPartners';
 // Marketing
 // import { MarketingDashboard } from './pages/Marketing';
 
+// Events
+import EventsList from './pages/Events/EventsList';
+import EventForm from './pages/Events/EventForm';
+import CheckIn from './pages/Events/CheckIn';
+
 
 
 const queryClient = new QueryClient();
@@ -110,6 +115,12 @@ function App() {
               {/* Channel Partner */}
               <Route path="cp-dashboard" element={<CPDashboard />} />
               <Route path="channel-partners" element={<CPList />} />
+
+              {/* Event Management */}
+              <Route path="events" element={<EventsList />} />
+              <Route path="events/create" element={<EventForm />} />
+              <Route path="events/edit/:id" element={<EventForm />} />
+              <Route path="events/check-in" element={<CheckIn />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

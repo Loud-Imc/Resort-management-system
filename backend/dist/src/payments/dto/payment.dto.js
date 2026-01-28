@@ -14,14 +14,21 @@ const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class InitiatePaymentDto {
     bookingId;
+    eventBookingId;
 }
 exports.InitiatePaymentDto = InitiatePaymentDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 'booking-uuid' }),
+    (0, swagger_1.ApiProperty)({ example: 'booking-uuid', required: false }),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], InitiatePaymentDto.prototype, "bookingId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'event-booking-uuid', required: false }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], InitiatePaymentDto.prototype, "eventBookingId", void 0);
 class VerifyPaymentDto {
     razorpayOrderId;
     razorpayPaymentId;

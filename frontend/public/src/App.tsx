@@ -15,6 +15,8 @@ import Privacy from './pages/Privacy';
 // Marketplace Pages
 import PropertiesPage from './pages/Properties';
 import PropertyDetail from './pages/PropertyDetail';
+import EventDetail from './pages/EventDetail';
+import EventBookingFlow from './pages/EventBooking';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +47,8 @@ function App() {
             {/* Marketplace Routes */}
             <Route path="/properties" element={<PropertiesPage />} />
             <Route path="/properties/:slug" element={<PropertyDetail />} />
+            <Route path="/events/:id" element={<EventDetail />} />
+            <Route path="/events/:id/book" element={<EventBookingFlow />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

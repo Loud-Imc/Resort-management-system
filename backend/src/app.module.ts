@@ -21,6 +21,8 @@ import { UploadsModule } from './uploads/uploads.module';
 import { PropertiesModule } from './properties/properties.module';
 import { ChannelPartnersModule } from './channel-partners/channel-partners.module';
 import { MarketingModule } from './marketing/marketing.module';
+import { EventsModule } from './events/events.module';
+import { EventBookingsModule } from './event-bookings/event-bookings.module';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { MarketingModule } from './marketing/marketing.module';
     PropertiesModule,
     ChannelPartnersModule,
     MarketingModule,
+    EventsModule,
+    EventBookingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

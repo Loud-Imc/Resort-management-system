@@ -26,9 +26,6 @@ export default function Navbar() {
         ? 'text-white'
         : 'text-gray-700';
 
-    const brandColor = isHome && !isScrolled
-        ? 'text-white'
-        : 'text-primary-900';
 
     const isActive = (path: string) => location.pathname === path;
     const activeClass = "text-primary-600 font-bold";
@@ -42,11 +39,15 @@ export default function Navbar() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-12">
                     <div className="flex items-center">
-                        <Link to="/" className="flex-shrink-0 flex items-center gap-2">
-                            <img src={logo} alt="Route Guide" className={clsx("h-10 w-auto transition-all", isHome && !isScrolled ? "brightness-0 invert" : "")} />
-                            <span className={clsx("text-2xl font-serif font-bold transition-colors", brandColor)}>
-                                Route Guide
-                            </span>
+                        <Link to="/" className="flex-shrink-0 flex items-center">
+                            <img
+                                src={logo}
+                                alt="Route Guide"
+                                className={clsx(
+                                    "h-50 w-auto transition-all",
+                                    isHome && !isScrolled ? "brightness-0 invert" : ""
+                                )}
+                            />
                         </Link>
                     </div>
 

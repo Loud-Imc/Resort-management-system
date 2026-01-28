@@ -63,58 +63,116 @@ let PaymentsService = class PaymentsService {
             key_secret: keySecret,
         });
     }
-    async initiatePayment(bookingId) {
-        const booking = await this.prisma.booking.findUnique({
-            where: { id: bookingId },
-            include: {
-                user: true,
-                roomType: true,
-            },
-        });
-        if (!booking) {
-            throw new common_1.NotFoundException('Booking not found');
+    async initiatePayment(bookingId, eventBookingId) {
+        if (!bookingId && !eventBookingId) {
+            throw new common_1.BadRequestException('Either bookingId or eventBookingId is required');
         }
-        if (booking.status !== 'PENDING_PAYMENT') {
-            throw new common_1.BadRequestException('Booking is not pending payment');
-        }
-        const order = await this.razorpay.orders.create({
-            amount: Math.round(Number(booking.totalAmount) * 100),
-            currency: 'INR',
-            receipt: booking.bookingNumber,
-            notes: {
-                bookingId: booking.id,
-                bookingNumber: booking.bookingNumber,
-                customerEmail: booking.user.email,
-            },
-        });
-        const payment = await this.prisma.payment.create({
-            data: {
-                amount: booking.totalAmount,
+        if (bookingId) {
+            const booking = await this.prisma.booking.findUnique({
+                where: { id: bookingId },
+                include: {
+                    user: true,
+                    roomType: true,
+                },
+            });
+            if (!booking) {
+                throw new common_1.NotFoundException('Booking not found');
+            }
+            if (booking.status !== 'PENDING_PAYMENT') {
+                throw new common_1.BadRequestException('Booking is not pending payment');
+            }
+            const order = await this.razorpay.orders.create({
+                amount: Math.round(Number(booking.totalAmount) * 100),
                 currency: 'INR',
-                status: 'PENDING',
-                razorpayOrderId: order.id,
-                bookingId: booking.id,
-            },
-        });
-        return {
-            orderId: order.id,
-            amount: order.amount,
-            currency: order.currency,
-            keyId: this.configService.get('RAZORPAY_KEY_ID'),
-            booking: {
-                id: booking.id,
-                bookingNumber: booking.bookingNumber,
-                totalAmount: booking.totalAmount,
-            },
-            payment: {
-                id: payment.id,
-            },
-        };
+                receipt: booking.bookingNumber,
+                notes: {
+                    bookingId: booking.id,
+                    bookingNumber: booking.bookingNumber,
+                    customerEmail: booking.user.email,
+                    type: 'RESORT_BOOKING'
+                },
+            });
+            const payment = await this.prisma.payment.create({
+                data: {
+                    amount: booking.totalAmount,
+                    currency: 'INR',
+                    status: 'PENDING',
+                    razorpayOrderId: order.id,
+                    bookingId: booking.id,
+                },
+            });
+            return {
+                orderId: order.id,
+                amount: order.amount,
+                currency: order.currency,
+                keyId: this.configService.get('RAZORPAY_KEY_ID'),
+                booking: {
+                    id: booking.id,
+                    bookingNumber: booking.bookingNumber,
+                    totalAmount: booking.totalAmount,
+                },
+                payment: {
+                    id: payment.id,
+                },
+            };
+        }
+        else {
+            const eventBooking = await this.prisma.eventBooking.findUnique({
+                where: { id: eventBookingId },
+                include: {
+                    user: true,
+                    event: true,
+                },
+            });
+            if (!eventBooking) {
+                throw new common_1.NotFoundException('Event Booking not found');
+            }
+            if (eventBooking.status !== 'PENDING') {
+                throw new common_1.BadRequestException('Event booking is not pending payment');
+            }
+            const order = await this.razorpay.orders.create({
+                amount: Math.round(Number(eventBooking.amountPaid) * 100),
+                currency: 'INR',
+                receipt: eventBooking.ticketId,
+                notes: {
+                    eventBookingId: eventBooking.id,
+                    ticketId: eventBooking.ticketId,
+                    customerEmail: eventBooking.user.email,
+                    type: 'EVENT_BOOKING'
+                },
+            });
+            const payment = await this.prisma.payment.create({
+                data: {
+                    amount: eventBooking.amountPaid,
+                    currency: 'INR',
+                    status: 'PENDING',
+                    razorpayOrderId: order.id,
+                    eventBookingId: eventBooking.id,
+                },
+            });
+            return {
+                orderId: order.id,
+                amount: order.amount,
+                currency: order.currency,
+                keyId: this.configService.get('RAZORPAY_KEY_ID'),
+                eventBooking: {
+                    id: eventBooking.id,
+                    ticketId: eventBooking.ticketId,
+                    amountPaid: eventBooking.amountPaid,
+                },
+                payment: {
+                    id: payment.id,
+                },
+            };
+        }
     }
     async verifyPayment(razorpayOrderId, razorpayPaymentId, razorpaySignature) {
         const payment = await this.prisma.payment.findUnique({
             where: { razorpayOrderId },
-            include: { booking: true },
+            include: {
+                booking: true,
+                eventBooking: true
+            },
         });
         if (!payment) {
             throw new common_1.NotFoundException('Payment not found');
@@ -140,21 +198,39 @@ let PaymentsService = class PaymentsService {
                 paymentDate: new Date(),
             },
         });
-        await this.prisma.booking.update({
-            where: { id: payment.bookingId },
-            data: {
-                status: 'CONFIRMED',
-                confirmedAt: new Date(),
-            },
-        });
-        await this.prisma.income.create({
-            data: {
-                amount: payment.amount,
-                source: 'ONLINE_BOOKING',
-                description: `Online booking ${payment.booking.bookingNumber}`,
-                bookingId: payment.bookingId,
-            },
-        });
+        if (payment.bookingId && payment.booking) {
+            await this.prisma.booking.update({
+                where: { id: payment.bookingId },
+                data: {
+                    status: 'CONFIRMED',
+                    confirmedAt: new Date(),
+                },
+            });
+            await this.prisma.income.create({
+                data: {
+                    amount: payment.amount,
+                    source: 'ONLINE_BOOKING',
+                    description: `Online booking ${payment.booking.bookingNumber}`,
+                    bookingId: payment.bookingId,
+                },
+            });
+        }
+        else if (payment.eventBookingId && payment.eventBooking) {
+            await this.prisma.eventBooking.update({
+                where: { id: payment.eventBookingId },
+                data: {
+                    status: 'PAID',
+                },
+            });
+            await this.prisma.income.create({
+                data: {
+                    amount: payment.amount,
+                    source: 'EVENT_BOOKING',
+                    description: `Event booking ${payment.eventBooking.ticketId}`,
+                    eventBookingId: payment.eventBookingId,
+                },
+            });
+        }
         return {
             success: true,
             payment: updatedPayment,
@@ -189,7 +265,10 @@ let PaymentsService = class PaymentsService {
     async handlePaymentCaptured(paymentData) {
         const payment = await this.prisma.payment.findUnique({
             where: { razorpayOrderId: paymentData.order_id },
-            include: { booking: true },
+            include: {
+                booking: true,
+                eventBooking: true
+            },
         });
         if (!payment) {
             console.error('Payment not found for order:', paymentData.order_id);
@@ -207,21 +286,39 @@ let PaymentsService = class PaymentsService {
                 paymentDate: new Date(paymentData.created_at * 1000),
             },
         });
-        await this.prisma.booking.update({
-            where: { id: payment.bookingId },
-            data: {
-                status: 'CONFIRMED',
-                confirmedAt: new Date(),
-            },
-        });
-        await this.prisma.income.create({
-            data: {
-                amount: payment.amount,
-                source: 'ONLINE_BOOKING',
-                description: `Online booking ${payment.booking.bookingNumber}`,
-                bookingId: payment.bookingId,
-            },
-        });
+        if (payment.bookingId) {
+            await this.prisma.booking.update({
+                where: { id: payment.bookingId },
+                data: {
+                    status: 'CONFIRMED',
+                    confirmedAt: new Date(),
+                },
+            });
+            await this.prisma.income.create({
+                data: {
+                    amount: payment.amount,
+                    source: 'ONLINE_BOOKING',
+                    description: `Online booking ${payment.booking?.bookingNumber}`,
+                    bookingId: payment.bookingId,
+                },
+            });
+        }
+        else if (payment.eventBookingId) {
+            await this.prisma.eventBooking.update({
+                where: { id: payment.eventBookingId },
+                data: {
+                    status: 'PAID',
+                },
+            });
+            await this.prisma.income.create({
+                data: {
+                    amount: payment.amount,
+                    source: 'EVENT_BOOKING',
+                    description: `Event booking ${payment.eventBooking?.ticketId}`,
+                    eventBookingId: payment.eventBookingId,
+                },
+            });
+        }
     }
     async handlePaymentFailed(paymentData) {
         const payment = await this.prisma.payment.findUnique({
@@ -241,7 +338,10 @@ let PaymentsService = class PaymentsService {
     async processRefund(paymentId, amount, reason) {
         const payment = await this.prisma.payment.findUnique({
             where: { id: paymentId },
-            include: { booking: true },
+            include: {
+                booking: true,
+                eventBooking: true
+            },
         });
         if (!payment) {
             throw new common_1.NotFoundException('Payment not found');
@@ -253,11 +353,12 @@ let PaymentsService = class PaymentsService {
             throw new common_1.BadRequestException('Razorpay payment ID not found');
         }
         const refundAmount = amount || Number(payment.amount);
+        const bookingIdentifier = payment.booking?.bookingNumber || payment.eventBooking?.ticketId || 'Unknown';
         const refund = await this.razorpay.payments.refund(payment.razorpayPaymentId, {
             amount: Math.round(refundAmount * 100),
             notes: {
                 reason: reason || 'Booking cancellation',
-                bookingNumber: payment.booking.bookingNumber,
+                bookingIdentifier: bookingIdentifier,
             },
         });
         const isFullRefund = refundAmount >= Number(payment.amount);
@@ -271,10 +372,18 @@ let PaymentsService = class PaymentsService {
             },
         });
         if (isFullRefund) {
-            await this.prisma.booking.update({
-                where: { id: payment.bookingId },
-                data: { status: 'REFUNDED' },
-            });
+            if (payment.bookingId) {
+                await this.prisma.booking.update({
+                    where: { id: payment.bookingId },
+                    data: { status: 'REFUNDED' },
+                });
+            }
+            else if (payment.eventBookingId) {
+                await this.prisma.eventBooking.update({
+                    where: { id: payment.eventBookingId },
+                    data: { status: 'REFUNDED' },
+                });
+            }
         }
         return {
             success: true,
@@ -292,6 +401,12 @@ let PaymentsService = class PaymentsService {
                     include: {
                         user: true,
                         roomType: true,
+                    },
+                },
+                eventBooking: {
+                    include: {
+                        user: true,
+                        event: true,
                     },
                 },
             },

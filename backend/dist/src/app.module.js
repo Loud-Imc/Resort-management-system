@@ -30,6 +30,8 @@ const uploads_module_1 = require("./uploads/uploads.module");
 const properties_module_1 = require("./properties/properties.module");
 const channel_partners_module_1 = require("./channel-partners/channel-partners.module");
 const marketing_module_1 = require("./marketing/marketing.module");
+const events_module_1 = require("./events/events.module");
+const event_bookings_module_1 = require("./event-bookings/event-bookings.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -60,6 +62,8 @@ exports.AppModule = AppModule = __decorate([
             properties_module_1.PropertiesModule,
             channel_partners_module_1.ChannelPartnersModule,
             marketing_module_1.MarketingModule,
+            events_module_1.EventsModule,
+            event_bookings_module_1.EventBookingsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

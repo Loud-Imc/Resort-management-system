@@ -1,5 +1,6 @@
 export declare class InitiatePaymentDto {
-    bookingId: string;
+    bookingId?: string;
+    eventBookingId?: string;
 }
 export declare class VerifyPaymentDto {
     razorpayOrderId: string;

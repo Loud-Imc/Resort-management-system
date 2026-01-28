@@ -26,10 +26,10 @@ let PaymentsController = class PaymentsController {
         this.paymentsService = paymentsService;
     }
     initiatePayment(dto) {
-        return this.paymentsService.initiatePayment(dto.bookingId);
+        return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId);
     }
     initiatePublicPayment(dto) {
-        return this.paymentsService.initiatePayment(dto.bookingId);
+        return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId);
     }
     verifyPayment(dto) {
         return this.paymentsService.verifyPayment(dto.razorpayOrderId, dto.razorpayPaymentId, dto.razorpaySignature);

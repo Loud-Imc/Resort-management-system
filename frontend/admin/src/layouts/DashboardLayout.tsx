@@ -64,6 +64,14 @@ export default function DashboardLayout() {
             { icon: Calendar, label: 'Bookings', path: '/bookings' }
         ] : []),
 
+        // Events
+        ...(hasPermission('events.view') ? [
+            { icon: Calendar, label: 'Events', path: '/events' },
+            ...(hasPermission('events.verify') ? [
+                { icon: Shield, label: 'Check-In', path: '/events/check-in' }
+            ] : [])
+        ] : []),
+
         // Rooms
         ...(hasPermission('rooms.view') ? [
             { icon: BedDouble, label: 'Rooms', path: '/rooms' }

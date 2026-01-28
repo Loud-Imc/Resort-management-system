@@ -108,8 +108,9 @@ export declare class UsersController {
             propertyId: string | null;
             status: import(".prisma/client").$Enums.BookingStatus;
             roomTypeId: string;
-            bookingNumber: string;
             checkInDate: Date;
+            roomId: string;
+            bookingNumber: string;
             checkOutDate: Date;
             numberOfNights: number;
             adultsCount: number;
@@ -124,7 +125,6 @@ export declare class UsersController {
             overrideReason: string | null;
             specialRequests: string | null;
             isManualBooking: boolean;
-            roomId: string;
             bookingSourceId: string | null;
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;

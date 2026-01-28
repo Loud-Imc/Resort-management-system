@@ -1,15 +1,16 @@
 import api from './api';
 
 export const paymentService = {
-    initiatePayment: async (bookingId: string) => {
+    initiatePayment: async (params: { bookingId?: string; eventBookingId?: string }) => {
         const { data } = await api.post<{
             orderId: string;
             amount: number;
             currency: string;
             keyId: string;
-            booking: any;
+            booking?: any;
+            eventBooking?: any;
             payment: any;
-        }>('/payments/public/initiate', { bookingId });
+        }>('/payments/public/initiate', params);
         return data;
     },
 

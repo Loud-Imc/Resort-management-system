@@ -16,6 +16,7 @@ export declare class IncomeController {
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
+        eventBookingId: string | null;
     }>;
     findAll(source?: string, startDate?: string, endDate?: string, bookingId?: string): Promise<({
         booking: {
@@ -34,6 +35,7 @@ export declare class IncomeController {
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
+        eventBookingId: string | null;
     })[]>;
     getSummary(startDate: string, endDate: string): Promise<{
         totalIncome: number;
@@ -48,6 +50,7 @@ export declare class IncomeController {
             amount: import("@prisma/client/runtime/library").Decimal;
             source: import(".prisma/client").$Enums.IncomeSource;
             date: Date;
+            eventBookingId: string | null;
         }[];
     }>;
     findOne(id: string): Promise<{
@@ -68,8 +71,9 @@ export declare class IncomeController {
             propertyId: string | null;
             status: import(".prisma/client").$Enums.BookingStatus;
             roomTypeId: string;
-            bookingNumber: string;
             checkInDate: Date;
+            roomId: string;
+            bookingNumber: string;
             checkOutDate: Date;
             numberOfNights: number;
             adultsCount: number;
@@ -84,7 +88,6 @@ export declare class IncomeController {
             overrideReason: string | null;
             specialRequests: string | null;
             isManualBooking: boolean;
-            roomId: string;
             bookingSourceId: string | null;
             agentId: string | null;
             commissionAmount: import("@prisma/client/runtime/library").Decimal;
@@ -106,6 +109,7 @@ export declare class IncomeController {
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
+        eventBookingId: string | null;
     }>;
     update(id: string, updateIncomeDto: UpdateIncomeDto, req: any): Promise<{
         id: string;
@@ -116,6 +120,7 @@ export declare class IncomeController {
         amount: import("@prisma/client/runtime/library").Decimal;
         source: import(".prisma/client").$Enums.IncomeSource;
         date: Date;
+        eventBookingId: string | null;
     }>;
     remove(id: string, req: any): Promise<{
         message: string;
