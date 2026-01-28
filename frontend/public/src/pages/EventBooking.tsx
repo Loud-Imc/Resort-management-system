@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
     Calendar, MapPin, User, Mail, Phone,
     CreditCard, ArrowLeft, Loader2, CheckCircle,
@@ -22,7 +22,7 @@ declare global {
 
 export default function EventBookingFlow() {
     const { id: eventId } = useParams();
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
 
     const [event, setEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
