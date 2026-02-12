@@ -61,7 +61,7 @@ export class EventsService {
         });
     }
 
-    async findAllAdmin(userId: string) {
+    async findAllAdmin(userId: string, propertyId?: string) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             include: { roles: { include: { role: true } } },
@@ -72,6 +72,7 @@ export class EventsService {
 
         if (isSuperAdmin) {
             return this.prisma.event.findMany({
+                where: propertyId ? { propertyId } : undefined,
                 include: { property: true, createdBy: true },
                 orderBy: { createdAt: 'desc' },
             });
@@ -80,11 +81,16 @@ export class EventsService {
         // Others only see what they created or events for properties they manage
         return this.prisma.event.findMany({
             where: {
-                OR: [
-                    { createdById: userId },
-                    { property: { staff: { some: { userId } } } },
-                    { property: { ownerId: userId } },
-                ],
+                AND: [
+                    propertyId ? { propertyId } : {},
+                    {
+                        OR: [
+                            { createdById: userId },
+                            { property: { staff: { some: { userId } } } },
+                            { property: { ownerId: userId } },
+                        ],
+                    }
+                ]
             },
             include: { property: true, createdBy: true },
             orderBy: { createdAt: 'desc' },

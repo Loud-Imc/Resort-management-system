@@ -3,35 +3,37 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { AuthGuard } from '@nestjs/passport';
 import { ExpensesService } from './expenses.service';
 import { CreateExpenseDto, UpdateExpenseDto, CreateExpenseCategoryDto } from './dto/expense.dto';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PERMISSIONS } from '../auth/constants/permissions.constant';
 
 @ApiTags('Expenses')
 @Controller('expenses')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @ApiBearerAuth()
 export class ExpensesController {
     constructor(private readonly expensesService: ExpensesService) { }
 
     @Post()
-    @Roles('SuperAdmin', 'Admin', 'Manager')
-    @ApiOperation({ summary: 'Create expense (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.CREATE)
+    @ApiOperation({ summary: 'Create expense' })
     create(@Body() createExpenseDto: CreateExpenseDto, @Request() req) {
         return this.expensesService.create(createExpenseDto, req.user.id);
     }
 
     @Get()
-    @Roles('SuperAdmin', 'Admin', 'Manager')
-    @ApiOperation({ summary: 'Get all expenses with filters (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.READ)
+    @ApiOperation({ summary: 'Get all expenses with filters' })
     @ApiQuery({ name: 'categoryId', required: false })
     @ApiQuery({ name: 'startDate', required: false })
     @ApiQuery({ name: 'endDate', required: false })
     findAll(
+        @Request() req,
         @Query('categoryId') categoryId?: string,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
     ) {
-        return this.expensesService.findAll({
+        return this.expensesService.findAll(req.user, {
             categoryId,
             startDate: startDate ? new Date(startDate) : undefined,
             endDate: endDate ? new Date(endDate) : undefined,
@@ -39,68 +41,69 @@ export class ExpensesController {
     }
 
     @Get('summary')
-    @Roles('SuperAdmin', 'Admin')
-    @ApiOperation({ summary: 'Get expense summary (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.READ)
+    @ApiOperation({ summary: 'Get expense summary' })
     @ApiQuery({ name: 'startDate', required: true })
     @ApiQuery({ name: 'endDate', required: true })
     getSummary(
+        @Request() req,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
     ) {
-        return this.expensesService.getSummary(new Date(startDate), new Date(endDate));
+        return this.expensesService.getSummary(req.user, new Date(startDate), new Date(endDate));
     }
 
     @Get(':id')
-    @Roles('SuperAdmin', 'Admin', 'Manager')
-    @ApiOperation({ summary: 'Get expense by ID (Admin only)' })
-    findOne(@Param('id') id: string) {
-        return this.expensesService.findOne(id);
+    @Permissions(PERMISSIONS.EXPENSES.READ)
+    @ApiOperation({ summary: 'Get expense by ID' })
+    findOne(@Param('id') id: string, @Request() req) {
+        return this.expensesService.findOne(id, req.user);
     }
 
     @Patch(':id')
-    @Roles('SuperAdmin', 'Admin', 'Manager')
-    @ApiOperation({ summary: 'Update expense (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.UPDATE)
+    @ApiOperation({ summary: 'Update expense' })
     update(
         @Param('id') id: string,
         @Body() updateExpenseDto: UpdateExpenseDto,
         @Request() req,
     ) {
-        return this.expensesService.update(id, updateExpenseDto, req.user.id);
+        return this.expensesService.update(id, updateExpenseDto, req.user);
     }
 
     @Delete(':id')
-    @Roles('SuperAdmin', 'Admin')
-    @ApiOperation({ summary: 'Delete expense (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.DELETE)
+    @ApiOperation({ summary: 'Delete expense' })
     remove(@Param('id') id: string, @Request() req) {
-        return this.expensesService.remove(id, req.user.id);
+        return this.expensesService.remove(id, req.user);
     }
 
     // ===== Categories =====
 
     @Post('categories')
-    @Roles('SuperAdmin', 'Admin')
-    @ApiOperation({ summary: 'Create expense category (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.CREATE)
+    @ApiOperation({ summary: 'Create expense category' })
     createCategory(@Body() createCategoryDto: CreateExpenseCategoryDto, @Request() req) {
         return this.expensesService.createCategory(createCategoryDto, req.user.id);
     }
 
     @Get('categories/all')
-    @Roles('SuperAdmin', 'Admin', 'Manager')
-    @ApiOperation({ summary: 'Get all expense categories (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.READ)
+    @ApiOperation({ summary: 'Get all expense categories' })
     findAllCategories() {
         return this.expensesService.findAllCategories();
     }
 
     @Get('categories/:id')
-    @Roles('SuperAdmin', 'Admin', 'Manager')
-    @ApiOperation({ summary: 'Get expense category by ID (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.READ)
+    @ApiOperation({ summary: 'Get expense category by ID' })
     findOneCategory(@Param('id') id: string) {
         return this.expensesService.findOneCategory(id);
     }
 
     @Delete('categories/:id')
-    @Roles('SuperAdmin', 'Admin')
-    @ApiOperation({ summary: 'Delete expense category (Admin only)' })
+    @Permissions(PERMISSIONS.EXPENSES.DELETE)
+    @ApiOperation({ summary: 'Delete expense category' })
     removeCategory(@Param('id') id: string, @Request() req) {
         return this.expensesService.removeCategory(id, req.user.id);
     }

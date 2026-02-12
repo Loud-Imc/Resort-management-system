@@ -39,6 +39,11 @@ model User {
   addedProperties Property[]      @relation("PropertyAddedBy")
   commissionPercentage Decimal?   @db.Decimal(5, 2) // Fixed commission % for this user (e.g., 10.00)
 
+  // Tracking
+  createdById   String?
+  createdBy     User?           @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers  User[]          @relation("UserCreator")
+
   // Events relation
   createdEvents Event[]        @relation("EventsCreated")
   eventBookings EventBooking[]
@@ -125,20 +130,48 @@ model RoomType {
   // Images
   images String[] // Array of image URLs
 
+  // Rich Details
+  highlights        String[] @default([])
+  inclusions        String[] @default([])
+  cancellationPolicy String?
+  
+  // Marketing
+  marketingBadgeText String?  // e.g., "Selling Fast", "Early Bird Offer"
+  marketingBadgeType String?  // e.g., "URGENT", "POSITIVE", "NEUTRAL"
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Multi-tenant: Property relation
-  propertyId String?
-  property   Property? @relation(fields: [propertyId], references: [id])
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
 
   // Relations
   rooms        Room[]
   bookings     Booking[]
   pricingRules PricingRule[]
+  offers       Offer[]
 
   @@unique([propertyId, name])
   @@map("room_types")
+}
+
+model Offer {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  discountPercentage Decimal  @db.Decimal(5, 2)
+  startDate          DateTime
+  endDate            DateTime
+  isActive           Boolean  @default(true)
+
+  roomTypeId String
+  roomType   RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("offers")
 }
 
 model Room {
@@ -153,8 +186,8 @@ model Room {
   roomType   RoomType @relation(fields: [roomTypeId], references: [id])
 
   // Multi-tenant: Property relation
-  propertyId String?
-  property   Property? @relation(fields: [propertyId], references: [id])
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -212,8 +245,9 @@ model Booking {
   baseAmount       Decimal @db.Decimal(10, 2)
   extraAdultAmount Decimal @default(0) @db.Decimal(10, 2)
   extraChildAmount Decimal @default(0) @db.Decimal(10, 2)
-  taxAmount        Decimal @default(0) @db.Decimal(10, 2)
-  discountAmount   Decimal @default(0) @db.Decimal(10, 2)
+  taxAmount           Decimal @default(0) @db.Decimal(10, 2)
+  offerDiscountAmount Decimal @default(0) @db.Decimal(10, 2)
+  couponDiscountAmount Decimal @default(0) @db.Decimal(10, 2)
   totalAmount      Decimal @db.Decimal(10, 2)
 
   // Pricing override (for manual bookings)
@@ -452,6 +486,10 @@ model Income {
   eventBookingId String?
   eventBooking   EventBooking? @relation(fields: [eventBookingId], references: [id])
 
+  // Multi-tenant: Property relation
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -474,6 +512,10 @@ model Expense {
 
   categoryId String
   category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  // Multi-tenant: Property relation
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
 
   // Attachments
   receipts String[] // Array of receipt URLs
@@ -564,6 +606,7 @@ model Property {
   // Status
   isActive   Boolean @default(true)
   isVerified Boolean @default(false)
+  isFeatured Boolean @default(false)
 
   // Owner
   ownerId String
@@ -578,6 +621,8 @@ model Property {
   bookings  Booking[]
   staff     PropertyStaff[]
   events    Event[]
+  incomes   Income[]
+  expenses  Expense[]
 
   // Marketing Fields
   addedById           String?

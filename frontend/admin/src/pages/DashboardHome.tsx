@@ -1,20 +1,22 @@
 import { useQuery } from '@tanstack/react-query';
+import { useProperty } from '../context/PropertyContext';
 import { reportsService, DashboardStats } from '../services/reports';
 import { roomsService } from '../services/rooms';
 import { Loader2, DollarSign, Users, BedDouble, Plus, Info, LayoutGrid, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function DashboardHome() {
+    const { selectedProperty } = useProperty();
     const navigate = useNavigate();
 
     const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<DashboardStats>({
-        queryKey: ['dashboardStats'],
-        queryFn: reportsService.getDashboardStats,
+        queryKey: ['dashboardStats', selectedProperty?.id],
+        queryFn: () => reportsService.getDashboardStats(selectedProperty?.id),
     });
 
     const { data: rooms, isLoading: roomsLoading } = useQuery({
-        queryKey: ['rooms'],
-        queryFn: () => roomsService.getAll(),
+        queryKey: ['rooms', selectedProperty?.id],
+        queryFn: () => roomsService.getAll({ propertyId: selectedProperty?.id }),
     });
 
     if (statsLoading || roomsLoading) {

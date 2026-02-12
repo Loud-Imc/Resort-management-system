@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsEnum, IsEmail, IsArray, IsBoolean, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsEmail, IsArray, IsBoolean, IsNumber, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export enum PropertyType {
     RESORT = 'RESORT',
@@ -91,6 +92,16 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsNumber()
     marketingCommission?: number;
+
+    @ApiProperty({ example: 'user-uuid-123', description: 'ID of the user who will own this property' })
+    @IsOptional()
+    @IsString()
+    ownerId?: string;
+
+    @ApiProperty({ example: false, description: 'Whether this property is featured on the homepage' })
+    @IsOptional()
+    @IsBoolean()
+    isFeatured?: boolean;
 }
 
 export class UpdatePropertyDto {
@@ -162,8 +173,27 @@ export class UpdatePropertyDto {
     isActive?: boolean;
 
     @IsOptional()
+    @IsBoolean()
+    isFeatured?: boolean;
+
+    @IsOptional()
     @IsEnum(['PENDING', 'PAID', 'CANCELLED'])
     commissionStatus?: 'PENDING' | 'PAID' | 'CANCELLED';
+
+    @ApiProperty({ description: 'ID of the user who owns this property (Admin only)' })
+    @IsOptional()
+    @IsString()
+    ownerId?: string;
+
+    @ApiProperty({ description: 'ID of the marketing staff who added this property' })
+    @IsOptional()
+    @IsString()
+    addedById?: string;
+
+    @ApiProperty({ description: 'Commission amount for the marketing staff' })
+    @IsOptional()
+    @IsNumber()
+    marketingCommission?: number;
 }
 
 export class PropertyQueryDto {
@@ -185,10 +215,12 @@ export class PropertyQueryDto {
 
     @IsOptional()
     @IsNumber()
+    @Type(() => Number)
     minPrice?: number;
 
     @IsOptional()
     @IsNumber()
+    @Type(() => Number)
     maxPrice?: number;
 
     @IsOptional()
@@ -197,9 +229,21 @@ export class PropertyQueryDto {
 
     @IsOptional()
     @IsNumber()
+    @Type(() => Number)
     page?: number;
 
     @IsOptional()
     @IsNumber()
+    @Type(() => Number)
     limit?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    isFeatured?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    isVerified?: boolean;
 }

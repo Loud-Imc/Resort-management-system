@@ -5,6 +5,7 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PERMISSIONS } from '../auth/constants/permissions.constant';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Events')
@@ -14,7 +15,7 @@ export class EventsController {
 
     @Post()
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions('events.create')
+    @Permissions(PERMISSIONS.EVENTS.CREATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create a new event' })
     create(@Body() createEventDto: CreateEventDto, @Request() req) {
@@ -32,11 +33,11 @@ export class EventsController {
 
     @Get('admin/all')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions('events.view')
+    @Permissions(PERMISSIONS.EVENTS.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get all events for admin management' })
-    findAllAdmin(@Request() req) {
-        return this.eventsService.findAllAdmin(req.user.id);
+    findAllAdmin(@Request() req, @Query('propertyId') propertyId?: string) {
+        return this.eventsService.findAllAdmin(req.user.id, propertyId);
     }
 
     @Get(':id')
@@ -47,7 +48,7 @@ export class EventsController {
 
     @Patch(':id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions('events.edit')
+    @Permissions(PERMISSIONS.EVENTS.UPDATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update an event' })
     update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto, @Request() req) {
@@ -56,7 +57,7 @@ export class EventsController {
 
     @Delete(':id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions('events.delete')
+    @Permissions(PERMISSIONS.EVENTS.DELETE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Delete (deactivate) an event' })
     remove(@Param('id') id: string, @Request() req) {
@@ -65,7 +66,7 @@ export class EventsController {
 
     @Patch(':id/approve')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions('events.approve')
+    @Permissions(PERMISSIONS.EVENTS.APPROVE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Approve a pending event (SuperAdmin only)' })
     approve(@Param('id') id: string, @Request() req) {

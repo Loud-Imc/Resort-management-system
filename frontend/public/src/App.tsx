@@ -15,8 +15,12 @@ import Privacy from './pages/Privacy';
 // Marketplace Pages
 import PropertiesPage from './pages/Properties';
 import PropertyDetail from './pages/PropertyDetail';
+import RoomDetail from './pages/RoomDetail';
 import EventDetail from './pages/EventDetail';
 import EventBookingFlow from './pages/EventBooking';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import MyBookings from './pages/MyBookings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,11 +46,15 @@ function App() {
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/rooms" element={<Navigate to="/search" replace />} />
 
             {/* Marketplace Routes */}
             <Route path="/properties" element={<PropertiesPage />} />
             <Route path="/properties/:slug" element={<PropertyDetail />} />
+            <Route path="/properties/:slug/rooms/:roomTypeId" element={<RoomDetail />} />
             <Route path="/events/:id" element={<EventDetail />} />
             <Route path="/events/:id/book" element={<EventBookingFlow />} />
 

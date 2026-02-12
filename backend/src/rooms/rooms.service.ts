@@ -18,7 +18,10 @@ export class RoomsService {
 
         // Check if room number already exists (in same property scope if applicable)
         const existingRoom = await this.prisma.room.findFirst({
-            where: { roomNumber },
+            where: {
+                roomNumber,
+                propertyId: createRoomDto.propertyId
+            },
         });
 
         if (existingRoom) {
@@ -39,6 +42,7 @@ export class RoomsService {
                 roomNumber,
                 floor,
                 roomTypeId,
+                propertyId: createRoomDto.propertyId as string,
                 notes,
                 isEnabled,
                 status: 'AVAILABLE',
@@ -62,12 +66,25 @@ export class RoomsService {
     /**
      * Get all rooms with filters
      */
-    async findAll(filters?: {
+    async findAll(user: any, filters?: {
         roomTypeId?: string;
         floor?: number;
         status?: string;
         isEnabled?: boolean;
+        propertyId?: string;
     }) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        // Define property scoping
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -77,9 +94,12 @@ export class RoomsService {
                 floor: filters?.floor,
                 status: filters?.status as any,
                 isEnabled: filters?.isEnabled,
+                propertyId: filters?.propertyId,
+                property: !isGlobalAdmin ? propertyFilter : undefined, // Enforce isolation only for non-admins
             },
             include: {
                 roomType: true,
+                property: { select: { name: true } },
                 bookings: {
                     where: {
                         status: 'CONFIRMED',
@@ -107,11 +127,15 @@ export class RoomsService {
     /**
      * Get room by ID
      */
-    async findOne(id: string) {
+    async findOne(id: string, user: any) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
         const room = await this.prisma.room.findUnique({
             where: { id },
             include: {
                 roomType: true,
+                property: true,
                 blocks: {
                     orderBy: {
                         startDate: 'desc',
@@ -144,14 +168,26 @@ export class RoomsService {
             throw new NotFoundException('Room not found');
         }
 
+        // Check ownership/staff access
+        if (!isGlobalAdmin) {
+            const isOwner = room.property?.ownerId === user.id;
+            const isStaff = await this.prisma.propertyStaff.findUnique({
+                where: { propertyId_userId: { propertyId: room.propertyId || '', userId: user.id } }
+            });
+
+            if (!isOwner && !isStaff) {
+                throw new NotFoundException('Room not found'); // Hide existence for security
+            }
+        }
+
         return room;
     }
 
     /**
      * Update room
      */
-    async update(id: string, updateRoomDto: UpdateRoomDto, userId: string) {
-        const room = await this.findOne(id);
+    async update(id: string, updateRoomDto: UpdateRoomDto, user: any) {
+        const room = await this.findOne(id, user);
 
         // If changing room number, check for conflicts (within same property if applicable)
         if (updateRoomDto.roomNumber && updateRoomDto.roomNumber !== room.roomNumber) {
@@ -197,7 +233,7 @@ export class RoomsService {
             action: 'UPDATE',
             entity: 'Room',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: room,
             newValue: updated,
         });
@@ -208,8 +244,8 @@ export class RoomsService {
     /**
      * Delete room (soft delete by disabling)
      */
-    async remove(id: string, userId: string) {
-        const room = await this.findOne(id);
+    async remove(id: string, user: any) {
+        const room = await this.findOne(id, user);
 
         // Check if room has active bookings
         const activeBookings = await this.prisma.booking.count({
@@ -237,7 +273,7 @@ export class RoomsService {
             action: 'DELETE',
             entity: 'Room',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: room,
             newValue: updated,
         });
@@ -248,8 +284,8 @@ export class RoomsService {
     /**
      * Block room for maintenance or owner use
      */
-    async blockRoom(roomId: string, blockRoomDto: BlockRoomDto, userId: string) {
-        const room = await this.findOne(roomId);
+    async blockRoom(roomId: string, blockRoomDto: BlockRoomDto, user: any) {
+        const room = await this.findOne(roomId, user);
 
         const startDate = new Date(blockRoomDto.startDate);
         const endDate = new Date(blockRoomDto.endDate);
@@ -330,7 +366,7 @@ export class RoomsService {
                 endDate,
                 reason: blockRoomDto.reason,
                 notes: blockRoomDto.notes,
-                createdById: userId,
+                createdById: user.id,
             },
             include: {
                 room: {
@@ -360,7 +396,7 @@ export class RoomsService {
             action: 'BLOCK',
             entity: 'Room',
             entityId: roomId,
-            userId,
+            userId: user.id,
             newValue: block,
         });
 
@@ -370,7 +406,7 @@ export class RoomsService {
     /**
      * Remove room block
      */
-    async removeBlock(blockId: string, userId: string) {
+    async removeBlock(blockId: string, user: any) {
         const block = await this.prisma.roomBlock.findUnique({
             where: { id: blockId },
             include: { room: true },
@@ -404,7 +440,7 @@ export class RoomsService {
             action: 'UNBLOCK',
             entity: 'Room',
             entityId: block.roomId,
-            userId,
+            userId: user.id,
             oldValue: block,
         });
 
@@ -414,7 +450,10 @@ export class RoomsService {
     /**
      * Get room blocks
      */
-    async getRoomBlocks(roomId: string) {
+    async getRoomBlocks(roomId: string, user: any) {
+        // Verify room access first
+        await this.findOne(roomId, user);
+
         return this.prisma.roomBlock.findMany({
             where: { roomId },
             include: {
@@ -466,6 +505,7 @@ export class RoomsService {
                         roomNumber,
                         floor,
                         roomTypeId,
+                        propertyId: roomType.propertyId,
                         status: 'AVAILABLE',
                         isEnabled: true,
                     },

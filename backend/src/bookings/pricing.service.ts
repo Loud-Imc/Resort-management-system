@@ -7,6 +7,8 @@ export interface PricingBreakdown {
     extraAdultAmount: number;
     extraChildAmount: number;
     taxAmount: number;
+    offerDiscountAmount: number;
+    couponDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
     numberOfNights: number;
@@ -95,28 +97,47 @@ export class PricingService {
             }
         }
 
-        // 7. Calculate tax (18% GST)
+        // 7. Check for active Room Type Offers (Direct Discounts)
+        const activeOffer = await this.prisma.offer.findFirst({
+            where: {
+                roomTypeId,
+                isActive: true,
+                startDate: { lte: checkOutDate },
+                endDate: { gte: checkInDate },
+            },
+        });
+
+        let offerDiscountAmount = 0;
+        if (activeOffer) {
+            offerDiscountAmount = (subtotal * Number(activeOffer.discountPercentage)) / 100;
+            subtotal -= offerDiscountAmount;
+        }
+
+        // 8. Calculate tax (18% GST) on the discounted subtotal
         const taxAmount = subtotal * this.TAX_RATE;
 
-        // 8. Apply coupon discount if valid
-        let discountAmount = 0;
+        // 9. Apply coupon discount (Apply at the end after Tax?) 
+        // Usually coupons are applied to subtotal before tax, but let's follow the previous logic: subtotal + tax - discount
+        let couponDiscountAmount = 0;
         if (couponCode) {
-            discountAmount = await this.calculateCouponDiscount(
+            couponDiscountAmount = await this.calculateCouponDiscount(
                 couponCode,
                 subtotal,
                 checkInDate,
             );
         }
 
-        // 9. Calculate final total
-        const totalAmount = subtotal + taxAmount - discountAmount;
+        // 10. Calculate final total
+        const totalAmount = subtotal + taxAmount - couponDiscountAmount;
 
         return {
             baseAmount,
             extraAdultAmount,
             extraChildAmount,
             taxAmount,
-            discountAmount,
+            offerDiscountAmount,
+            couponDiscountAmount,
+            discountAmount: offerDiscountAmount + couponDiscountAmount,
             totalAmount,
             numberOfNights,
             pricePerNight: basePricePerNight,
@@ -173,8 +194,14 @@ export class PricingService {
             throw new BadRequestException('Coupon is not active');
         }
 
-        const now = new Date(bookingDate);
-        if (now < coupon.validFrom || now > coupon.validUntil) {
+        const checkIn = new Date(bookingDate);
+        const validFrom = new Date(coupon.validFrom);
+        validFrom.setHours(0, 0, 0, 0); // Be lenient: valid from start of day
+
+        const validUntil = new Date(coupon.validUntil);
+        validUntil.setHours(23, 59, 59, 999); // Be lenient: valid until end of day
+
+        if (checkIn < validFrom || checkIn > validUntil) {
             throw new BadRequestException('Coupon is not valid for this date');
         }
 
@@ -191,7 +218,7 @@ export class PricingService {
         let discount = 0;
         if (coupon.discountType === 'PERCENTAGE') {
             discount = (subtotal * Number(coupon.discountValue)) / 100;
-        } else {
+        } else if (coupon.discountType === 'FIXED_AMOUNT') {
             discount = Number(coupon.discountValue);
         }
 

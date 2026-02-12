@@ -19,6 +19,18 @@ export default function Login() {
     const { login, isAuthenticated, isLoading } = useAuth();
     const navigate = useNavigate();
 
+    const {
+        register,
+        handleSubmit,
+        formState: { errors, isSubmitting },
+    } = useForm<LoginFormData>({
+        resolver: zodResolver(loginSchema),
+        defaultValues: {
+            email: 'admin@resort.com',
+            password: 'admin123',
+        },
+    });
+
     useEffect(() => {
         if (!isLoading && isAuthenticated) {
             navigate('/', { replace: true });
@@ -32,18 +44,6 @@ export default function Login() {
             </div>
         );
     }
-
-    const {
-        register,
-        handleSubmit,
-        formState: { errors, isSubmitting },
-    } = useForm<LoginFormData>({
-        resolver: zodResolver(loginSchema),
-        defaultValues: {
-            email: 'admin@resort.com',
-            password: 'admin123',
-        },
-    });
 
     const onSubmit = async (data: LoginFormData) => {
         try {

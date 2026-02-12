@@ -28,6 +28,11 @@ export class CreateRoomDto {
     @IsBoolean()
     @IsOptional()
     isEnabled?: boolean;
+
+    @ApiProperty({ example: 'property-uuid' })
+    @IsString()
+    @IsNotEmpty()
+    propertyId: string;
 }
 
 export class UpdateRoomDto {
@@ -62,6 +67,11 @@ export class UpdateRoomDto {
     @IsString()
     @IsOptional()
     roomTypeId?: string;
+
+    @ApiProperty({ example: 'property-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    propertyId?: string;
 }
 
 export class BlockRoomDto {

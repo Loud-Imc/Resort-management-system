@@ -4,8 +4,6 @@ import {
     MapPin, Calendar, Clock, Tag, ArrowLeft,
     ArrowRight, Loader2, Share2, Info
 } from 'lucide-react';
-import Navbar from '../components/layout/Navbar';
-import Footer from '../components/layout/Footer';
 import eventsService, { Event } from '../services/events';
 
 export default function EventDetail() {
@@ -64,8 +62,7 @@ export default function EventDetail() {
     const eventDate = new Date(event.date);
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <Navbar />
+        <div className="min-h-screen bg-gray-50 pt-16">
 
             {/* Hero Section */}
             <div className="relative h-[400px] md:h-[600px] w-full overflow-hidden pt-20">
@@ -225,7 +222,6 @@ export default function EventDetail() {
                 </div>
             </div>
 
-            <Footer />
         </div>
     );
 }

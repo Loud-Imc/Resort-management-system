@@ -2,13 +2,13 @@ import api from './api';
 import { Event, CreateEventDto } from '../types/event';
 
 export const eventsService = {
-    getAll: async () => {
-        const response = await api.get<Event[]>('/events');
+    getAll: async (params?: { propertyId?: string }) => {
+        const response = await api.get<Event[]>('/events', { params });
         return response.data;
     },
 
-    getAllAdmin: async () => {
-        const response = await api.get<Event[]>('/events/admin/all');
+    getAllAdmin: async (params?: { propertyId?: string }) => {
+        const response = await api.get<Event[]>('/events/admin/all', { params });
         return response.data;
     },
 

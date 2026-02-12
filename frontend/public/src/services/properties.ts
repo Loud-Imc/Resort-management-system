@@ -27,7 +27,7 @@ export const propertyApi = {
     // Get featured properties for homepage
     async getFeatured(limit = 6): Promise<Property[]> {
         const response = await api.get('/properties', {
-            params: { limit, isVerified: true }
+            params: { limit, isFeatured: true }
         });
         return response.data.data;
     },

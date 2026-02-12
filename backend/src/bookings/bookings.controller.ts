@@ -7,9 +7,10 @@ import { PricingService } from './pricing.service';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { CalculatePriceDto } from './dto/calculate-price.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 import { SearchRoomsDto } from './dto/search-rooms.dto';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PERMISSIONS } from '../auth/constants/permissions.constant';
 
 @ApiTags('Bookings')
 @Controller('bookings')
@@ -49,6 +50,8 @@ export class BookingsController {
             new Date(dto.checkOutDate),
             dto.adults,
             dto.children || 0,
+            dto.location,
+            dto.type,
         );
 
         return {
@@ -72,15 +75,11 @@ export class BookingsController {
     @Post('public')
     @ApiOperation({ summary: 'Create public booking (No Auth)' })
     async createPublic(@Body() createBookingDto: CreateBookingDto) {
-        // For public bookings, we might need to handle user creation/lookup internally
-        // For now, pass a null or special system user ID if the service supports it,
-        // OR update the service to handle "guest" booking creation where userId is optional/created on fly.
-        // Assuming the service can handle user creation based on guest details in DTO.
-        return this.bookingsService.create(createBookingDto, 'GUEST_USER'); // You might need to adjust logic to find/create user by email
+        return this.bookingsService.create(createBookingDto, 'GUEST_USER');
     }
 
     @Post()
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create booking' })
     create(@Body() createBookingDto: CreateBookingDto, @Request() req) {
@@ -88,84 +87,88 @@ export class BookingsController {
     }
 
     @Get()
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager', 'Staff')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.READ)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get all bookings with filters (Staff only)' })
+    @ApiOperation({ summary: 'Get all bookings with filters' })
     @ApiQuery({ name: 'status', required: false })
     @ApiQuery({ name: 'roomTypeId', required: false })
+    @ApiQuery({ name: 'propertyId', required: false })
     findAll(
+        @Request() req,
         @Query('status') status?: string,
         @Query('roomTypeId') roomTypeId?: string,
+        @Query('propertyId') propertyId?: string,
     ) {
-        return this.bookingsService.findAll({
+        return this.bookingsService.findAll(req.user, {
             status,
             roomTypeId,
+            propertyId,
         });
     }
 
     @Get('today/check-ins')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager', 'Staff')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: "Get today's check-ins" })
-    getTodayCheckIns() {
-        return this.bookingsService.getTodayCheckIns();
+    getTodayCheckIns(@Request() req) {
+        return this.bookingsService.getTodayCheckIns(req.user);
     }
 
     @Get('today/check-outs')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager', 'Staff')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: "Get today's check-outs" })
-    getTodayCheckOuts() {
-        return this.bookingsService.getTodayCheckOuts();
+    getTodayCheckOuts(@Request() req) {
+        return this.bookingsService.getTodayCheckOuts(req.user);
     }
 
     @Get(':id')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get booking by ID' })
-    findOne(@Param('id') id: string) {
-        return this.bookingsService.findOne(id);
+    findOne(@Param('id') id: string, @Request() req) {
+        return this.bookingsService.findOne(id, req.user);
     }
 
     @Post(':id/check-in')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager', 'Staff')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.CHECK_IN)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Check-in booking (Staff only)' })
+    @ApiOperation({ summary: 'Check-in booking' })
     checkIn(@Param('id') id: string, @Request() req) {
-        return this.bookingsService.checkIn(id, req.user.id);
+        return this.bookingsService.checkIn(id, req.user);
     }
 
     @Post(':id/check-out')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager', 'Staff')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.CHECK_OUT)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Check-out booking (Staff only)' })
+    @ApiOperation({ summary: 'Check-out booking' })
     checkOut(@Param('id') id: string, @Request() req) {
-        return this.bookingsService.checkOut(id, req.user.id);
+        return this.bookingsService.checkOut(id, req.user);
     }
 
     @Post(':id/cancel')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Cancel booking' })
     cancel(@Param('id') id: string, @Request() req, @Body('reason') reason?: string) {
-        return this.bookingsService.cancel(id, req.user.id, reason);
+        return this.bookingsService.cancel(id, req.user, reason);
     }
 
     @Patch(':id/status')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.UPDATE)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Update booking status (Admin only)' })
+    @ApiOperation({ summary: 'Update booking status' })
     updateStatus(
         @Param('id') id: string,
         @Body('status') status: string,
         @Request() req,
     ) {
-        return this.bookingsService.updateStatus(id, status, req.user.id);
+        return this.bookingsService.updateStatus(id, status, req.user);
     }
 }

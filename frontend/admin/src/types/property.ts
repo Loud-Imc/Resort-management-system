@@ -25,6 +25,7 @@ export interface Property {
     reviewCount: number;
     isActive: boolean;
     isVerified: boolean;
+    isFeatured: boolean;
     ownerId: string;
     owner?: {
         id: string;
@@ -67,10 +68,13 @@ export interface CreatePropertyDto {
     policies?: Record<string, any>;
     addedById?: string;
     marketingCommission?: number;
+    ownerId?: string;
+    isFeatured?: boolean;
 }
 
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {
     isActive?: boolean;
+    isFeatured?: boolean;
 }
 
 export interface PropertyQueryParams {

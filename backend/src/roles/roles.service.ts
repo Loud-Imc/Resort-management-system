@@ -40,12 +40,23 @@ export class RolesService {
         });
     }
 
-    async findAll() {
-        // Need to flatten permissions for frontend consistency if needed, 
-        // but frontend expects role.permissions as array of strings or objects?
-        // Frontend RolesList likely just displays count. ProcessRole fetches details.
-        // Let's modify findAll to include permissions just in case.
+    async findAll(user?: any) {
+        let where: any = {};
+
+        if (user) {
+            const roles = user.roles || [];
+            const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+            if (!isGlobalAdmin) {
+                const manageableRoleNames = this.getManageableRoleNames(roles);
+                where = {
+                    name: { in: manageableRoleNames }
+                };
+            }
+        }
+
         return this.prisma.role.findMany({
+            where,
             orderBy: { name: 'asc' },
             include: {
                 permissions: {
@@ -58,6 +69,19 @@ export class RolesService {
                 }
             }
         });
+    }
+
+    private getManageableRoleNames(userRoles: string[]): string[] {
+        if (userRoles.includes('PropertyOwner')) {
+            return ['Manager', 'Staff'];
+        }
+        if (userRoles.includes('EventOrganizer')) {
+            return ['VerificationStaff'];
+        }
+        if (userRoles.includes('Marketing')) {
+            return ['PropertyOwner'];
+        }
+        return [];
     }
 
     async findOne(id: string) {

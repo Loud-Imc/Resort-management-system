@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { format, addDays } from 'date-fns';
 import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
@@ -51,24 +52,24 @@ export default function CreateBooking() {
     // Fetch Room Types
     const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
-        queryFn: roomTypesService.getAll,
+        queryFn: () => roomTypesService.getAll(),
     });
 
     // Fetch Booking Sources
     const { data: bookingSources } = useQuery<any[]>({
         queryKey: ['bookingSources'],
-        queryFn: bookingSourcesService.getAll,
+        queryFn: () => bookingSourcesService.getAll(),
     });
 
     // Fetch Users for Agent selection
     const { data: users } = useQuery<User[]>({
         queryKey: ['users'],
-        queryFn: usersService.getAll,
+        queryFn: () => usersService.getAll(),
     });
 
     // Filter users who have 'Agent' role (assuming logic or just listing all for now and user filters)
     // Ideally backend should provide a filter for this, or we filter on frontend if roles are populated
-    const agents = users?.filter(u => u.roles?.some(r => r.role.name === 'Agent' || r.role.name === 'Manager')) || [];
+    const agents = (users as User[] | undefined)?.filter(u => u.roles?.some((r: any) => r.role.name === 'Agent' || r.role.name === 'Manager')) || [];
 
     const {
         register,
@@ -141,17 +142,18 @@ export default function CreateBooking() {
     const createBookingMutation = useMutation({
         mutationFn: bookingsService.create,
         onSuccess: () => {
+            toast.success('Booking created successfully');
             navigate('/bookings');
         },
         onError: (error: any) => {
             console.error('Failed to create booking:', error);
-            alert(error.response?.data?.message || 'Failed to create booking');
+            toast.error(error.response?.data?.message || 'Failed to create booking');
         },
     });
 
     const onSubmit = (data: BookingFormData) => {
         if (!availability?.available) {
-            alert('Please check availability first');
+            toast.error('Please check availability first');
             return;
         }
 
@@ -473,10 +475,16 @@ export default function CreateBooking() {
                                     </div>
                                 )}
 
-                                {priceDetails.discountAmount > 0 && (
+                                {priceDetails.offerDiscountAmount > 0 && (
                                     <div className="flex justify-between text-sm text-green-600">
-                                        <span>Discount</span>
-                                        <span>-₹{priceDetails.discountAmount.toFixed(2)}</span>
+                                        <span>Offer Discount</span>
+                                        <span>-₹{priceDetails.offerDiscountAmount.toFixed(2)}</span>
+                                    </div>
+                                )}
+                                {priceDetails.couponDiscountAmount > 0 && (
+                                    <div className="flex justify-between text-sm text-green-600 font-medium">
+                                        <span>Coupon Discount</span>
+                                        <span>-₹{priceDetails.couponDiscountAmount.toFixed(2)}</span>
                                     </div>
                                 )}
 

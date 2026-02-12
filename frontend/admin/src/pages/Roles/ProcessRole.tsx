@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, Save, AlertCircle, Shield } from 'lucide-react';
 import clsx from 'clsx';
 import { useEffect } from 'react';
 import { Role } from '../../types/user';
+import toast from 'react-hot-toast';
 
 const roleSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -63,11 +64,12 @@ export default function ProcessRole() {
             return rolesService.create(data);
         },
         onSuccess: () => {
+            toast.success(`Role ${isEditing ? 'updated' : 'created'} successfully`);
             queryClient.invalidateQueries({ queryKey: ['roles'] });
             navigate('/roles');
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || 'Failed to save role');
+            toast.error(error.response?.data?.message || 'Failed to save role');
         },
     });
 

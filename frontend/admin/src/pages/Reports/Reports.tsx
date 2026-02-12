@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -8,6 +9,7 @@ import type { Booking } from '../../types/booking';
 
 
 export default function Reports() {
+    const { selectedProperty } = useProperty();
     const [dateRange, setDateRange] = useState('month'); // 'month', 'week', 'year'
 
     // Mock data fetching or real implementation
@@ -22,8 +24,8 @@ export default function Reports() {
     });
 
     const { data: bookings, isLoading } = useQuery<Booking[]>({
-        queryKey: ['bookings', 'all'], // Fetch all for reporting (not ideal for prod, but okay for MVP)
-        queryFn: () => bookingsService.getAll(),
+        queryKey: ['bookings', 'all', selectedProperty?.id], // Fetch all for reporting (not ideal for prod, but okay for MVP)
+        queryFn: () => bookingsService.getAll({ propertyId: selectedProperty?.id }),
     });
 
     if (isLoading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin h-8 w-8 text-primary-600" /></div>;

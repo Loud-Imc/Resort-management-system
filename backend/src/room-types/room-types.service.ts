@@ -13,9 +13,12 @@ export class RoomTypesService {
         });
     }
 
-    async findAll(publicOnly = false) {
+    async findAll(publicOnly = false, propertyId?: string) {
         return this.prisma.roomType.findMany({
-            where: publicOnly ? { isPubliclyVisible: true } : undefined,
+            where: {
+                ...(publicOnly ? { isPubliclyVisible: true } : {}),
+                ...(propertyId ? { propertyId } : {}),
+            },
             include: {
                 // Include property name for context
                 property: { select: { name: true, city: true } },
@@ -26,19 +29,26 @@ export class RoomTypesService {
         });
     }
 
-    async findAllAdmin(user: any) {
+    async findAllAdmin(user: any, propertyId?: string) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
 
         const where: any = {};
 
         if (!isGlobalAdmin) {
-            // Filter by properties assigned to this user
             where.property = {
-                staff: { some: { userId: user.id } }
+                OR: [
+                    { ownerId: user.id },
+                    { staff: { some: { userId: user.id } } }
+                ]
             };
         }
 
+        if (propertyId) {
+            where.propertyId = propertyId;
+        }
+
+        console.error('PropertyId**:', where)
         return this.prisma.roomType.findMany({
             where,
             include: {

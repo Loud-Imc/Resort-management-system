@@ -93,8 +93,30 @@ export class EventBookingsService {
         });
     }
 
-    async findAllAdmin() {
+    async findAllAdmin(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!user) throw new UnauthorizedException('User not found');
+        const isSuperAdmin = user.roles.some((r) => r.role.name === 'SuperAdmin');
+
+        const where: any = {};
+
+        if (!isSuperAdmin) {
+            // Organizer/Admin only see bookings for events they created or properties they manage
+            where.event = {
+                OR: [
+                    { createdById: userId },
+                    { property: { staff: { some: { userId } } } },
+                    { property: { ownerId: userId } },
+                ],
+            };
+        }
+
         return this.prisma.eventBooking.findMany({
+            where,
             include: {
                 event: true,
                 user: { select: { firstName: true, lastName: true, email: true } }

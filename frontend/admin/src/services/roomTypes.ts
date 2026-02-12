@@ -2,13 +2,13 @@ import api from './api';
 import type { RoomType, CreateRoomTypeDto, UpdateRoomTypeDto } from '../types/room';
 
 export const roomTypesService = {
-    getAll: async () => {
-        const { data } = await api.get<RoomType[]>('/room-types');
+    getAll: async (params?: { propertyId?: string }) => {
+        const { data } = await api.get<RoomType[]>('/room-types', { params });
         return data;
     },
 
-    getAllAdmin: async () => {
-        const { data } = await api.get<RoomType[]>('/room-types/admin/all');
+    getAllAdmin: async (params?: { propertyId?: string }) => {
+        const { data } = await api.get<RoomType[]>('/room-types/admin/all', { params });
         return data;
     },
 

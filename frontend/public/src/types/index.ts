@@ -9,8 +9,14 @@ export interface RoomType {
     size?: number;
     amenities: string[];
     images: string[];
+    highlights?: string[];
+    inclusions?: string[];
+    cancellationPolicy?: string;
     availableCount: number;
+    marketingBadgeText?: string;
+    marketingBadgeType?: string;
     totalPrice?: number;
+    offers?: any[];
 }
 
 export interface BookingSearchParams {
@@ -18,6 +24,8 @@ export interface BookingSearchParams {
     checkOutDate: string;
     adults: number;
     children: number;
+    location?: string;
+    type?: string;
 }
 
 export interface AvailabilityResponse {
@@ -67,6 +75,7 @@ export interface Property {
         rooms: number;
         bookings: number;
     };
+    roomTypes?: RoomType[];
 }
 
 export interface PropertySearchParams {

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { RoomType } from '../../types/room';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,9 +6,12 @@ import { z } from 'zod';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { roomsService } from '../../services/rooms';
 import { roomTypesService } from '../../services/roomTypes';
+import { useProperty } from '../../context/PropertyContext';
 import { Loader2, ArrowLeft, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const roomSchema = z.object({
+    propertyId: z.string().min(1, 'Property is required'),
     roomNumber: z.string().min(1, 'Room number is required'),
     floor: z.number().optional(),
     roomTypeId: z.string().min(1, 'Room type is required'),
@@ -18,32 +21,45 @@ const roomSchema = z.object({
 
 type RoomFormData = z.infer<typeof roomSchema>;
 
+
+
 export default function CreateRoom() {
     const navigate = useNavigate();
-
-    const { data: roomTypes, isLoading: loadingTypes } = useQuery<RoomType[]>({
-        queryKey: ['roomTypes'],
-        queryFn: roomTypesService.getAllAdmin,
-    });
+    const [searchParams] = useSearchParams();
+    const { propertyIdFromUrl } = { propertyIdFromUrl: searchParams.get('propertyId') }; // or just use searchParams.get directly
+    const { selectedProperty } = useProperty();
 
     const {
         register,
         handleSubmit,
+        watch,
         formState: { errors, isSubmitting },
     } = useForm<RoomFormData>({
         resolver: zodResolver(roomSchema),
         defaultValues: {
             isEnabled: true,
+            propertyId: propertyIdFromUrl || selectedProperty?.id || '',
         },
+    });
+
+    const selectedPropertyId = watch('propertyId');
+
+    const { data: roomTypes, isLoading: loadingTypes } = useQuery<RoomType[]>({
+        queryKey: ['roomTypes', selectedPropertyId],
+        queryFn: () => roomTypesService.getAllAdmin({
+            propertyId: selectedPropertyId
+        }),
+        enabled: !!selectedPropertyId,
     });
 
     const createRoomMutation = useMutation({
         mutationFn: roomsService.create,
         onSuccess: () => {
-            navigate('/rooms');
+            toast.success('Room created successfully');
+            navigate(selectedPropertyId ? `/rooms?propertyId=${selectedPropertyId}` : '/rooms');
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || 'Failed to create room');
+            toast.error(error.response?.data?.message || 'Failed to create room');
         },
     });
 
@@ -55,10 +71,15 @@ export default function CreateRoom() {
         return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
     }
 
+
+
     return (
         <div className="max-w-2xl mx-auto">
             <div className="flex items-center gap-4 mb-6">
-                <button onClick={() => navigate('/rooms')} className="p-2 hover:bg-gray-100 rounded-full">
+                <button
+                    onClick={() => navigate(selectedPropertyId ? `/rooms?propertyId=${selectedPropertyId}` : '/rooms')}
+                    className="p-2 hover:bg-gray-100 rounded-full"
+                >
                     <ArrowLeft className="h-6 w-6 text-gray-600" />
                 </button>
                 <h1 className="text-2xl font-bold text-gray-900">Add New Room</h1>
@@ -66,6 +87,8 @@ export default function CreateRoom() {
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Room Number</label>
                         <input

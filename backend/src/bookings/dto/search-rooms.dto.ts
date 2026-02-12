@@ -25,4 +25,12 @@ export class SearchRoomsDto {
     @Type(() => Number)
     @IsOptional()
     children: number;
+
+    @ApiProperty({ example: 'Wayanad', required: false })
+    @IsOptional()
+    location?: string;
+
+    @ApiProperty({ example: 'RESORT', required: false })
+    @IsOptional()
+    type?: string;
 }

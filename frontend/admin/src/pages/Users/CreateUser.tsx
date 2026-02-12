@@ -3,12 +3,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { usersService } from '../../services/users';
 import { rolesService } from '../../services/roles';
+import staffService from '../../services/staff';
 import { Loader2, ArrowLeft, Save, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { Role, User } from '../../types/user';
+import toast from 'react-hot-toast';
 
 const userSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
@@ -29,6 +31,10 @@ type UserFormData = z.infer<typeof userSchema>;
 export default function CreateUser() {
     const navigate = useNavigate();
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
+    const propertyId = searchParams.get('propertyId');
+    const defaultRole = searchParams.get('role');
+
     const isEditMode = !!id;
     const queryClient = useQueryClient();
     const [showPassword, setShowPassword] = useState(false);
@@ -93,13 +99,28 @@ export default function CreateUser() {
             }
             return usersService.create(data as any);
         },
-        onSuccess: () => {
+        onSuccess: async (newUser: User) => {
+            toast.success(`User ${isEditMode ? 'updated' : 'created'} successfully`);
+
+            // If we came from a property staff management page, auto-link the user
+            if (!isEditMode && propertyId && defaultRole) {
+                try {
+                    await staffService.addStaff(propertyId, newUser.id, defaultRole);
+                    toast.success(`Assigned as ${defaultRole} to property`);
+                    navigate(`/properties/${propertyId}/staff`);
+                    return;
+                } catch (err) {
+                    console.error('Failed to auto-link staff:', err);
+                    toast.error('User created, but failed to link to property automatically');
+                }
+            }
+
             queryClient.invalidateQueries({ queryKey: ['users'] });
             navigate('/users');
         },
         onError: (error: any) => {
             const message = error.response?.data?.message || error.message || 'Failed to save user';
-            alert(message);
+            toast.error(message);
         },
     });
 

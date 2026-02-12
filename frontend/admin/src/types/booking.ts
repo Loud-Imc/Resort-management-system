@@ -31,6 +31,8 @@ export interface Booking {
     childrenCount: number;
     baseAmount: number;
     taxAmount: number;
+    offerDiscountAmount: number;
+    couponDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
     status: BookingStatus;
@@ -96,6 +98,8 @@ export interface PriceCalculationResult {
     extraAdultAmount: number;
     extraChildAmount: number;
     taxAmount: number;
+    offerDiscountAmount: number;
+    couponDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
     numberOfNights: number;

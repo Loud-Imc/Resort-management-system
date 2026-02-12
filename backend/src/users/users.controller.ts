@@ -1,33 +1,33 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch, Request, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PERMISSIONS } from '../auth/constants/permissions.constant';
 
 @ApiTags('Users')
 @Controller('users')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @ApiBearerAuth()
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
 
     @Get()
-    @Roles('SuperAdmin', 'Admin')
+    @Permissions(PERMISSIONS.USERS.READ)
     @ApiOperation({ summary: 'Get all users' })
-    findAll() {
-        return this.usersService.findAll();
+    findAll(@Request() req, @Query('propertyId') propertyId?: string) {
+        return this.usersService.findAll(req.user, propertyId);
     }
 
     @Post()
-    @Roles('SuperAdmin', 'Admin')
+    @Permissions(PERMISSIONS.USERS.CREATE)
     @ApiOperation({ summary: 'Create user with roles' })
-    create(@Body() createUserDto: CreateUserWithRoleDto) {
-        return this.usersService.createWithRoles(createUserDto);
+    create(@Request() req, @Body() createUserDto: CreateUserWithRoleDto) {
+        return this.usersService.createWithRoles(req.user, createUserDto);
     }
-
 
     @Get(':id')
     @ApiOperation({ summary: 'Get user by ID' })
@@ -36,14 +36,14 @@ export class UsersController {
     }
 
     @Patch(':id')
-    @Roles('SuperAdmin', 'Admin')
+    @Permissions(PERMISSIONS.USERS.UPDATE)
     @ApiOperation({ summary: 'Update user' })
     update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
         return this.usersService.update(id, updateUserDto);
     }
 
     @Post(':userId/roles/:roleId')
-    @Roles('SuperAdmin', 'Admin')
+    @Permissions(PERMISSIONS.USERS.MANAGE_ROLES)
     @ApiOperation({ summary: 'Assign role to user' })
     assignRole(
         @Param('userId') userId: string,

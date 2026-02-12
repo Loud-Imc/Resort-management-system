@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Save, Calendar, MapPin, Image as ImageIcon } from 'lucide-react';
 import { eventsService } from '../../services/events';
-import propertyService from '../../services/properties';
 import { CreateEventDto } from '../../types/event';
-import { Property } from '../../types/property';
+import { useProperty } from '../../context/PropertyContext';
 import ImageUpload from '../../components/ImageUpload';
 
 export default function EventForm() {
@@ -15,7 +14,7 @@ export default function EventForm() {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [properties, setProperties] = useState<Property[]>([]);
+    const { selectedProperty } = useProperty();
 
     const [formData, setFormData] = useState<CreateEventDto>({
         title: '',
@@ -25,7 +24,7 @@ export default function EventForm() {
         price: '',
         images: [],
         organizerType: 'PROPERTY',
-        propertyId: '',
+        propertyId: selectedProperty?.id || '',
     });
 
     useEffect(() => {
@@ -36,17 +35,7 @@ export default function EventForm() {
     }, [id, isEdit]);
 
     const loadProperties = async () => {
-        try {
-            const response = await propertyService.getAllAdmin();
-            const data = response.data;
-            setProperties(data);
-            // Auto-select if user only manages one property
-            if (data.length === 1 && !isEdit) {
-                setFormData(prev => ({ ...prev, propertyId: data[0].id }));
-            }
-        } catch (err) {
-            console.error('Failed to load properties', err);
-        }
+        // No longer needed to load all properties for selection
     };
 
     const loadEvent = async (eventId: string) => {
@@ -178,18 +167,11 @@ export default function EventForm() {
 
                             {formData.organizerType === 'PROPERTY' && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Property</label>
-                                    <select
-                                        required={formData.organizerType === 'PROPERTY'}
-                                        value={formData.propertyId}
-                                        onChange={e => setFormData(prev => ({ ...prev, propertyId: e.target.value }))}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white"
-                                    >
-                                        <option value="">Select a Property</option>
-                                        {properties.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Property</label>
+                                    <div className="px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-600">
+                                        {selectedProperty?.name || 'Selected Property'}
+                                    </div>
+                                    <input type="hidden" value={formData.propertyId} />
                                 </div>
                             )}
 

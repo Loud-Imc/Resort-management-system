@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
 import { BookingStatus } from '../../types/booking';
 import type { Booking } from '../../types/booking';
@@ -18,11 +19,16 @@ import { Link } from 'react-router-dom';
 
 export default function BookingsList() {
     const [statusFilter, setStatusFilter] = useState<string>('');
+    const { selectedProperty } = useProperty();
     const queryClient = useQueryClient();
 
     const { data: bookings, isLoading, error } = useQuery<Booking[]>({
-        queryKey: ['bookings', statusFilter],
-        queryFn: () => bookingsService.getAll({ status: statusFilter || undefined }),
+        queryKey: ['bookings', statusFilter, selectedProperty?.id],
+        queryFn: () => bookingsService.getAll({
+            status: statusFilter || undefined,
+            propertyId: selectedProperty?.id
+        }),
+        enabled: !!selectedProperty?.id,
     });
 
     const checkInMutation = useMutation({

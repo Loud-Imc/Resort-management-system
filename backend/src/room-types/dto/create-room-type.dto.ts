@@ -63,8 +63,35 @@ export class CreateRoomTypeDto {
     @IsString({ each: true })
     images: string[];
 
-    @ApiProperty({ example: 'uuid-of-property', required: false })
+    @ApiProperty({ example: ['Ocean View', 'Private Balcony'], type: [String], required: false })
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    highlights?: string[];
+
+    @ApiProperty({ example: ['Breakfast included', 'Spa access'], type: [String], required: false })
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    inclusions?: string[];
+
+    @ApiProperty({ example: 'Free cancellation until 24h before check-in', required: false })
     @IsString()
     @IsOptional()
-    propertyId?: string;
+    cancellationPolicy?: string;
+
+    @ApiProperty({ example: 'Selling Fast', required: false })
+    @IsString()
+    @IsOptional()
+    marketingBadgeText?: string;
+
+    @ApiProperty({ example: 'URGENT', enum: ['URGENT', 'POSITIVE', 'NEUTRAL'], required: false })
+    @IsString()
+    @IsOptional()
+    marketingBadgeType?: string;
+
+    @ApiProperty({ example: 'uuid-of-property' })
+    @IsString()
+    @IsNotEmpty()
+    propertyId: string;
 }

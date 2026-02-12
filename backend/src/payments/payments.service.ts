@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { BookingsService } from '../bookings/bookings.service';
+import { MailService } from '../mail/mail.service';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
 
@@ -12,6 +13,7 @@ export class PaymentsService {
     constructor(
         private prisma: PrismaService,
         private configService: ConfigService,
+        private mailService: MailService,
     ) {
         const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -157,8 +159,18 @@ export class PaymentsService {
         const payment = await this.prisma.payment.findUnique({
             where: { razorpayOrderId },
             include: {
-                booking: true,
-                eventBooking: true
+                booking: {
+                    include: {
+                        user: true,
+                        roomType: true,
+                    }
+                },
+                eventBooking: {
+                    include: {
+                        user: true,
+                        event: true,
+                    }
+                }
             },
         });
 
@@ -213,6 +225,9 @@ export class PaymentsService {
                     bookingId: payment.bookingId,
                 },
             });
+
+            // Send confirmation email
+            await this.mailService.sendBookingConfirmation(payment.booking);
         } else if (payment.eventBookingId && payment.eventBooking) {
             // Update event booking status to PAID
             await this.prisma.eventBooking.update({
@@ -282,8 +297,18 @@ export class PaymentsService {
         const payment = await this.prisma.payment.findUnique({
             where: { razorpayOrderId: paymentData.order_id },
             include: {
-                booking: true,
-                eventBooking: true
+                booking: {
+                    include: {
+                        user: true,
+                        roomType: true,
+                    }
+                },
+                eventBooking: {
+                    include: {
+                        user: true,
+                        event: true,
+                    }
+                }
             },
         });
 
@@ -326,6 +351,9 @@ export class PaymentsService {
                     bookingId: payment.bookingId,
                 },
             });
+
+            // Send confirmation email
+            await this.mailService.sendBookingConfirmation(payment.booking);
         } else if (payment.eventBookingId) {
             await this.prisma.eventBooking.update({
                 where: { id: payment.eventBookingId },
@@ -441,8 +469,27 @@ export class PaymentsService {
         };
     }
 
-    async findAll() {
+    async findAll(user: any) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
+        const finalFilter = !isGlobalAdmin ? {
+            OR: [
+                { booking: { property: propertyFilter } },
+                { eventBooking: { event: { property: propertyFilter } } }
+            ]
+        } : {};
+
         return this.prisma.payment.findMany({
+            where: finalFilter,
             include: {
                 booking: {
                     include: {

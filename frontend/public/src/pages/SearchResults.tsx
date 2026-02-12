@@ -25,14 +25,18 @@ export default function SearchResults() {
     const checkOut = searchParams.get('checkOut') || defaults.checkOut;
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
+    const location = searchParams.get('location') || '';
+    const type = searchParams.get('type') || 'ALL';
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['availability', checkIn, checkOut, adults, children],
-        queryFn: () => bookingService.searchRooms({ // Use searchRooms which returns available types
+        queryKey: ['availability', checkIn, checkOut, adults, children, location, type],
+        queryFn: () => bookingService.searchRooms({
             checkInDate: checkIn,
             checkOutDate: checkOut,
             adults,
-            children
+            children,
+            location,
+            type: type === 'ALL' ? undefined : type
         }),
         enabled: !!checkIn && !!checkOut,
     });
@@ -80,8 +84,7 @@ export default function SearchResults() {
         <div className="max-w-7xl mx-auto px-4 py-8 pt-28">
             {/* Modify Search */}
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6 font-serif">Select Your Destination</h1>
-                <SearchForm className="shadow-sm border-gray-200" />
+                <SearchForm variant="inline" theme="light" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

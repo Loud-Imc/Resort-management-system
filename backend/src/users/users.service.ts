@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
@@ -18,8 +18,19 @@ export class UsersService {
             throw new ConflictException('Email already exists');
         }
 
+        const customerRole = await this.prisma.role.findUnique({
+            where: { name: 'Customer' },
+        });
+
         const user = await this.prisma.user.create({
-            data: createUserDto,
+            data: {
+                ...createUserDto,
+                roles: customerRole ? {
+                    create: {
+                        role: { connect: { id: customerRole.id } }
+                    }
+                } : undefined,
+            },
             include: {
                 roles: {
                     include: {
@@ -40,7 +51,27 @@ export class UsersService {
         return user;
     }
 
-    async createWithRoles(createUserDto: CreateUserWithRoleDto) {
+    async createWithRoles(currentUser: any, createUserDto: CreateUserWithRoleDto) {
+        const { roleIds, password, ...userData } = createUserDto;
+
+        // Security: Validate role assignment
+        const currentUserRoles = currentUser.roles || [];
+        const isGlobalAdmin = currentUserRoles.includes('SuperAdmin') || currentUserRoles.includes('Admin');
+
+        if (!isGlobalAdmin && roleIds && roleIds.length > 0) {
+            const manageableRoleNames = this.getManageableRoles(currentUserRoles);
+
+            const requestedRoles = await this.prisma.role.findMany({
+                where: { id: { in: roleIds } }
+            });
+            const requestedRoleNames = requestedRoles.map(r => r.name);
+
+            const isAuthorized = requestedRoleNames.every(name => manageableRoleNames.includes(name));
+            if (!isAuthorized) {
+                throw new ForbiddenException('You are not authorized to assign one or more of these roles');
+            }
+        }
+
         const existingUser = await this.prisma.user.findUnique({
             where: { email: createUserDto.email },
         });
@@ -50,15 +81,12 @@ export class UsersService {
         }
 
         try {
-            const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-            const { roleIds, ...userData } = createUserDto;
-
-            // Prisma transaction not strictly needed if valid, but good for integrity
-            // Simple create is fine
+            const hashedPassword = await bcrypt.hash(password, 10);
             const user = await this.prisma.user.create({
                 data: {
                     ...userData,
                     password: hashedPassword,
+                    createdById: currentUser.id,
                     roles: roleIds && roleIds.length > 0 ? {
                         create: roleIds.map(roleId => ({
                             role: { connect: { id: roleId } }
@@ -73,12 +101,26 @@ export class UsersService {
                 }
             });
 
-            const { password, ...result } = user;
+            const { password: _, ...result } = user;
             return result;
         } catch (error) {
             console.error('Error creating user:', error);
+            if (error instanceof ConflictException || error instanceof ForbiddenException) throw error;
             throw error;
         }
+    }
+
+    private getManageableRoles(userRoles: string[]): string[] {
+        if (userRoles.includes('PropertyOwner')) {
+            return ['Manager', 'Staff'];
+        }
+        if (userRoles.includes('EventOrganizer')) {
+            return ['VerificationStaff'];
+        }
+        if (userRoles.includes('Marketing')) {
+            return ['PropertyOwner'];
+        }
+        return [];
     }
 
     async update(id: string, updateUserDto: UpdateUserDto) {
@@ -113,8 +155,40 @@ export class UsersService {
         });
     }
 
-    async findAll() {
+    async findAll(user: any, propertyId?: string) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        if (isGlobalAdmin) {
+            return this.prisma.user.findMany({
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        // For Property Owners or Managers, only show staff associated with their properties
+        // OR users created by them
         return this.prisma.user.findMany({
+            where: {
+                OR: [
+                    {
+                        propertyStaff: {
+                            some: {
+                                property: {
+                                    ownerId: user.id,
+                                    ...(propertyId && { id: propertyId }),
+                                }
+                            }
+                        }
+                    },
+                    { createdById: user.id }
+                ]
+            },
             include: {
                 roles: {
                     include: {

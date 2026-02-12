@@ -1,11 +1,11 @@
 import { Controller, Post, Get, Body, Param, Headers, UseGuards, RawBodyRequest, Req } from '@nestjs/common';
-import type { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PaymentsService } from './payments.service';
 import { InitiatePaymentDto, VerifyPaymentDto, ProcessRefundDto } from './dto/payment.dto';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PERMISSIONS } from '../auth/constants/permissions.constant';
 
 @ApiTags('Payments')
 @Controller('payments')
@@ -46,10 +46,10 @@ export class PaymentsController {
     }
 
     @Post(':paymentId/refund')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PAYMENTS.REFUND)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Process refund (Admin only)' })
+    @ApiOperation({ summary: 'Process refund' })
     processRefund(
         @Param('paymentId') paymentId: string,
         @Body() dto: ProcessRefundDto,
@@ -65,11 +65,11 @@ export class PaymentsController {
         return this.paymentsService.getPaymentDetails(bookingId);
     }
     @Get()
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PAYMENTS.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get all payments' })
-    findAll() {
-        return this.paymentsService.findAll();
+    findAll(@Req() req) {
+        return this.paymentsService.findAll(req.user);
     }
 }

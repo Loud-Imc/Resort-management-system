@@ -8,6 +8,7 @@ import { roomsService } from '../../services/rooms';
 import { roomTypesService } from '../../services/roomTypes';
 import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useEffect } from 'react';
+import toast from 'react-hot-toast';
 
 const roomSchema = z.object({
     roomNumber: z.string().min(1, 'Room number is required'),
@@ -26,7 +27,7 @@ export default function EditRoom() {
 
     const { data: roomTypes, isLoading: loadingTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes'],
-        queryFn: roomTypesService.getAll,
+        queryFn: () => roomTypesService.getAll(),
     });
 
     const { data: room, isLoading: loadingRoom } = useQuery<Room>({
@@ -59,12 +60,13 @@ export default function EditRoom() {
     const updateRoomMutation = useMutation({
         mutationFn: (data: RoomFormData) => roomsService.update(id!, data),
         onSuccess: () => {
+            toast.success('Room updated successfully');
             queryClient.invalidateQueries({ queryKey: ['rooms'] });
             queryClient.invalidateQueries({ queryKey: ['room', id] });
             navigate('/rooms');
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || 'Failed to update room');
+            toast.error(error.response?.data?.message || 'Failed to update room');
         },
     });
 

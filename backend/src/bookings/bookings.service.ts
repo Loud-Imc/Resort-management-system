@@ -4,6 +4,7 @@ import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class BookingsService {
@@ -38,40 +39,37 @@ export class BookingsService {
         const agentId = createBookingDto.agentId || undefined;
 
         const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
+        checkOut.setHours(0, 0, 0, 0);
 
         // Handle Guest User Creation
+        const lowercaseEmail = createBookingDto.guestEmail?.toLowerCase();
+        console.log(`[BookingsService] INCOMING: userId=${userId}, guestEmail=${lowercaseEmail}`);
         let bookingUserId = userId;
         if (userId === 'GUEST_USER') {
-            const email = createBookingDto.guestEmail;
-            if (!email) {
+            if (!lowercaseEmail) {
                 throw new BadRequestException('Guest email is required for public bookings');
             }
 
             // Check if user exists
             let user = await this.prisma.user.findUnique({
-                where: { email },
+                where: { email: lowercaseEmail },
             });
 
             if (!user) {
+                console.log(`[BookingsService] Guest user not found for ${lowercaseEmail}. Creating...`);
                 // Create new guest user
-                const password = Math.random().toString(36).slice(-8); // Random password
-                // NOTE: You might need to adjust this depending on how you handle Roles. 
-                // If you use a Role relation, you need to find the Role ID first.
-                // For safety, let's assume a default role or handle it.
-                // Better: Use upsert if possible, or just create.
-
-                // Fetch 'Customer' role (common for guests)
                 const customerRole = await this.prisma.role.findFirst({ where: { name: 'Customer' } });
                 const roleId = customerRole ? customerRole.id : undefined;
 
                 user = await this.prisma.user.create({
                     data: {
-                        email,
+                        email: lowercaseEmail,
                         firstName: createBookingDto.guestName?.split(' ')[0] || 'Guest',
                         lastName: createBookingDto.guestName?.split(' ').slice(1).join(' ') || 'User',
                         phone: createBookingDto.guestPhone,
-                        password: 'GUEST_PASSWORD_PLACEHOLDER', // In a real app, use a random hash or handle passless
+                        password: await bcrypt.hash('GUEST_PASSWORD_PLACEHOLDER', 10),
                         roles: roleId ? {
                             create: {
                                 role: { connect: { id: roleId } }
@@ -83,7 +81,31 @@ export class BookingsService {
             bookingUserId = user.id;
         }
 
-        // 1. Check availability
+        console.log(`[BookingsService] DERIVED bookingUserId=${bookingUserId}`);
+
+        // 1. Check for existing PENDING_PAYMENT from the SAME USER for this roomType
+        // This prevents "Self-Blocking" on retries.
+        // We match by EMAIL in the relation for maximum reliability.
+        console.log(`[BookingsService] Checking for self-block: email=${lowercaseEmail}, roomTypeId=${roomTypeId}`);
+        const existingPending = await this.prisma.booking.findFirst({
+            where: {
+                status: 'PENDING_PAYMENT',
+                roomTypeId,
+                user: { email: lowercaseEmail },
+                createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) } // Within last 30 mins
+            }
+        });
+
+        if (existingPending) {
+            console.log(`[BookingsService] SELF-BLOCK DETECTED: ${existingPending.bookingNumber} (${existingPending.id}). Deleting...`);
+            // Delete the stale pending booking to free up the room for this retry
+            await this.prisma.booking.delete({ where: { id: existingPending.id } });
+            console.log(`[BookingsService] Self-block deleted successfully.`);
+        } else {
+            console.log(`[BookingsService] No self-block found.`);
+        }
+
+        // 2. Check availability
         const isAvailable = await this.availabilityService.checkAvailability(
             roomTypeId,
             checkIn,
@@ -186,7 +208,8 @@ export class BookingsService {
                 extraAdultAmount: pricing.extraAdultAmount,
                 extraChildAmount: pricing.extraChildAmount,
                 taxAmount: pricing.taxAmount,
-                discountAmount: pricing.discountAmount,
+                offerDiscountAmount: pricing.offerDiscountAmount,
+                couponDiscountAmount: pricing.couponDiscountAmount,
                 totalAmount: finalTotal,
                 isPriceOverridden,
                 overrideReason,
@@ -195,6 +218,7 @@ export class BookingsService {
                 status: isManualBooking ? 'CONFIRMED' : 'PENDING_PAYMENT',
                 roomId: selectedRoom.id,
                 roomTypeId,
+                propertyId: selectedRoom.propertyId,
                 userId: bookingUserId,
                 bookingSourceId,
                 agentId,
@@ -248,6 +272,7 @@ export class BookingsService {
                     source: 'ROOM_BOOKING',
                     description: `Booking ${bookingNumber}`,
                     bookingId: booking.id,
+                    propertyId: booking.propertyId,
                 },
             });
         }
@@ -258,21 +283,66 @@ export class BookingsService {
     /**
      * Find all bookings with filters
      */
-    async findAll(filters?: {
+    async findAll(user: any, filters?: {
         status?: string;
         checkInDate?: Date;
         checkOutDate?: Date;
         roomTypeId?: string;
+        propertyId?: string;
     }) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+        const isCustomer = roles.includes('Customer');
+
+        const where: any = {
+            status: filters?.status as any,
+            checkInDate: filters?.checkInDate ? { gte: filters.checkInDate } : undefined,
+            checkOutDate: filters?.checkOutDate ? { lte: filters.checkOutDate } : undefined,
+            roomTypeId: filters?.roomTypeId,
+        };
+
+        if (isGlobalAdmin) {
+            // Global admins can see everything or filter by a specific property if provided
+            if (filters?.propertyId) {
+                where.propertyId = filters.propertyId;
+            }
+        } else if (isCustomer) {
+            // Customers only see their own bookings
+            where.userId = user.id;
+        } else {
+            // Property owners and staff
+            if (filters?.propertyId) {
+                // If filtering by property, ensure the user has access to it
+                where.AND = [
+                    { propertyId: filters.propertyId },
+                    {
+                        property: {
+                            OR: [
+                                { ownerId: user.id },
+                                { staff: { some: { userId: user.id } } }
+                            ]
+                        }
+                    }
+                ];
+            } else {
+                // Otherwise, show bookings for all their associated properties
+                where.property = {
+                    OR: [
+                        { ownerId: user.id },
+                        { staff: { some: { userId: user.id } } }
+                    ]
+                };
+            }
+        }
+
         return this.prisma.booking.findMany({
-            where: {
-                status: filters?.status as any,
-                checkInDate: filters?.checkInDate ? { gte: filters.checkInDate } : undefined,
-                checkOutDate: filters?.checkOutDate ? { lte: filters.checkOutDate } : undefined,
-                roomTypeId: filters?.roomTypeId,
-            },
+            where,
             include: {
-                room: true,
+                room: {
+                    include: {
+                        roomType: true
+                    }
+                },
                 roomType: true,
                 user: {
                     select: {
@@ -293,13 +363,17 @@ export class BookingsService {
     /**
      * Find one booking by ID
      */
-    async findOne(id: string) {
+    async findOne(id: string, user: any) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
         const booking = await this.prisma.booking.findUnique({
             where: { id },
             include: {
                 room: true,
                 roomType: true,
                 guests: true,
+                property: true,
                 user: {
                     select: {
                         id: true,
@@ -317,14 +391,26 @@ export class BookingsService {
             throw new NotFoundException('Booking not found');
         }
 
+        // Check ownership/staff access
+        if (!isGlobalAdmin) {
+            const isOwner = booking.property?.ownerId === user.id;
+            const isStaff = await this.prisma.propertyStaff.findUnique({
+                where: { propertyId_userId: { propertyId: booking.propertyId || '', userId: user.id } }
+            });
+
+            if (!isOwner && !isStaff && booking.userId !== user.id) {
+                throw new NotFoundException('Booking not found');
+            }
+        }
+
         return booking;
     }
 
     /**
      * Check-in a booking
      */
-    async checkIn(id: string, userId: string) {
-        const booking = await this.findOne(id);
+    async checkIn(id: string, user: any) {
+        const booking = await this.findOne(id, user);
 
         if (booking.status !== 'CONFIRMED') {
             throw new BadRequestException('Only confirmed bookings can be checked in');
@@ -353,9 +439,9 @@ export class BookingsService {
             action: 'CHECK_IN',
             entity: 'Booking',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: { status: booking.status },
-            newValue: { status: 'CHECKED_IN' },
+            newValue: { status: 'CHECK_IN' },
             bookingId: id,
         });
 
@@ -365,8 +451,8 @@ export class BookingsService {
     /**
      * Check-out a booking
      */
-    async checkOut(id: string, userId: string) {
-        const booking = await this.findOne(id);
+    async checkOut(id: string, user: any) {
+        const booking = await this.findOne(id, user);
 
         if (booking.status !== 'CHECKED_IN') {
             throw new BadRequestException('Only checked-in bookings can be checked out');
@@ -395,9 +481,9 @@ export class BookingsService {
             action: 'CHECK_OUT',
             entity: 'Booking',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: { status: booking.status },
-            newValue: { status: 'CHECKED_OUT' },
+            newValue: { status: 'CHECK_OUT' },
             bookingId: id,
         });
 
@@ -407,8 +493,8 @@ export class BookingsService {
     /**
      * Cancel a booking
      */
-    async cancel(id: string, userId: string, reason?: string) {
-        const booking = await this.findOne(id);
+    async cancel(id: string, user: any, reason?: string) {
+        const booking = await this.findOne(id, user);
 
         if (!['PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status)) {
             throw new BadRequestException('Only pending or confirmed bookings can be cancelled');
@@ -431,7 +517,7 @@ export class BookingsService {
             action: 'CANCEL',
             entity: 'Booking',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: { status: booking.status },
             newValue: { status: 'CANCELLED', reason },
             bookingId: id,
@@ -443,8 +529,8 @@ export class BookingsService {
     /**
      * Update booking status (for payment confirmation)
      */
-    async updateStatus(id: string, status: string, userId: string) {
-        const booking = await this.findOne(id);
+    async updateStatus(id: string, status: string, user: any) {
+        const booking = await this.findOne(id, user);
 
         const updated = await this.prisma.booking.update({
             where: { id },
@@ -462,6 +548,7 @@ export class BookingsService {
                     source: booking.isManualBooking ? 'ROOM_BOOKING' : 'ONLINE_BOOKING',
                     description: `Booking ${booking.bookingNumber}`,
                     bookingId: booking.id,
+                    propertyId: booking.propertyId,
                 },
             });
         }
@@ -470,7 +557,7 @@ export class BookingsService {
             action: 'STATUS_CHANGE',
             entity: 'Booking',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: { status: booking.status },
             newValue: { status },
             bookingId: id,
@@ -482,11 +569,22 @@ export class BookingsService {
     /**
      * Get today's check-ins
      */
-    async getTodayCheckIns() {
+    async getTodayCheckIns(user: any) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
 
         return this.prisma.booking.findMany({
             where: {
@@ -495,6 +593,7 @@ export class BookingsService {
                     lt: tomorrow,
                 },
                 status: 'CONFIRMED',
+                property: propertyFilter,
             },
             include: {
                 room: true,
@@ -513,11 +612,22 @@ export class BookingsService {
     /**
      * Get today's check-outs
      */
-    async getTodayCheckOuts() {
+    async getTodayCheckOuts(user: any) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
 
         return this.prisma.booking.findMany({
             where: {
@@ -526,6 +636,7 @@ export class BookingsService {
                     lt: tomorrow,
                 },
                 status: 'CHECKED_IN',
+                property: propertyFilter,
             },
             include: {
                 room: true,

@@ -3,7 +3,7 @@ import type { Booking, CreateBookingDto, CheckAvailabilityDto, PriceCalculationD
 
 export const bookingsService = {
     // Get all bookings with filtering
-    getAll: async (params?: { status?: string; roomTypeId?: string }) => {
+    getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string }) => {
         const { data } = await api.get<Booking[]>('/bookings', { params });
         return data;
     },

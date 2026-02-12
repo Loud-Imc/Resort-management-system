@@ -40,7 +40,7 @@ export class PropertiesService {
             }
         }
 
-        const ownerId = user.id;
+        const ownerId = data.ownerId || user.id;
 
         return this.prisma.property.create({
             data: {
@@ -52,6 +52,7 @@ export class PropertiesService {
                 commissionStatus: commission.greaterThan(0) ? 'PENDING' : 'PENDING',
                 latitude: data.latitude ? new Prisma.Decimal(data.latitude) : null,
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : null,
+                isFeatured: data.isFeatured || false,
             },
             include: {
                 owner: {
@@ -73,6 +74,8 @@ export class PropertiesService {
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
             ...(type && { type }),
+            ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
+            ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
             ...(search && {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
@@ -121,13 +124,18 @@ export class PropertiesService {
         const where: Prisma.PropertyWhereInput = {
             // If not global admin, restrict to assigned properties
             ...(!isGlobalAdmin && {
-                staff: { some: { userId: user.id } }
+                OR: [
+                    { ownerId: user.id },
+                    { staff: { some: { userId: user.id } } }
+                ]
             }),
 
             // Filters
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
             ...(type && { type }),
+            ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
+            ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
             ...(search && {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
@@ -181,6 +189,13 @@ export class PropertiesService {
                             where: { isEnabled: true },
                             select: { id: true, roomNumber: true, status: true },
                         },
+                        offers: {
+                            where: {
+                                isActive: true,
+                                startDate: { lte: new Date() },
+                                endDate: { gte: new Date() },
+                            },
+                        },
                     },
                 },
                 _count: {
@@ -233,7 +248,7 @@ export class PropertiesService {
         });
     }
 
-    async update(id: string, userId: string, data: UpdatePropertyDto) {
+    async update(id: string, user: any, data: UpdatePropertyDto) {
         const property = await this.prisma.property.findUnique({
             where: { id },
         });
@@ -242,14 +257,59 @@ export class PropertiesService {
             throw new NotFoundException('Property not found');
         }
 
-        if (property.ownerId !== userId) {
+        const roles = user.roles || [];
+        const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        if (property.ownerId !== user.id && !isAdmin) {
             throw new ForbiddenException('You can only update your own properties');
+        }
+
+        // Prepare data for update, handling restricted fields
+        const updateData: any = { ...data };
+
+        // If not admin, prevent changing ownership/marketing fields
+        if (!isAdmin) {
+            delete updateData.ownerId;
+            delete updateData.addedById;
+            delete updateData.marketingCommission;
+            delete updateData.commissionStatus;
+            delete updateData.isFeatured;
+        } else {
+            // Admin logic
+            // 1. Handle Owner ID
+            if (updateData.ownerId) {
+                // Verify owner exists
+                const ownerExists = await this.prisma.user.findUnique({ where: { id: updateData.ownerId } });
+                if (!ownerExists) {
+                    throw new NotFoundException(`Owner user with ID ${updateData.ownerId} not found`);
+                }
+            } else {
+                // If empty or null/undefined, remove it to prevent accidental nulling of required field
+                delete updateData.ownerId;
+            }
+
+            // 2. Handle Added By ID
+            if (updateData.addedById) {
+                // Verify user exists
+                const addedByExists = await this.prisma.user.findUnique({ where: { id: updateData.addedById } });
+                if (!addedByExists) {
+                    // If invalid ID sent, either throw or ignore. Throwing is safer.
+                    throw new NotFoundException(`AddedBy user with ID ${updateData.addedById} not found`);
+                }
+            } else {
+                // If empty or null, remove it. If you want to allow clearing, you'd check for explicit null.
+                // Assuming empty string means "no change" or "clear" depends on intent.
+                // Frontend sends '' for default. If we assume '' means "no change", we delete it.
+                // If we want to allow clearing, we'd need a specific flag or value.
+                // For now, let's assume invalid/empty means "don't touch".
+                delete updateData.addedById;
+            }
         }
 
         return this.prisma.property.update({
             where: { id },
             data: {
-                ...data,
+                ...updateData,
                 latitude: data.latitude ? new Prisma.Decimal(data.latitude) : undefined,
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : undefined,
             },

@@ -28,14 +28,16 @@ export interface DashboardStats {
 }
 
 export const reportsService = {
-    getDashboardStats: async () => {
-        const { data } = await api.get<DashboardStats>('/reports/dashboard');
+    getDashboardStats: async (propertyId?: string) => {
+        const { data } = await api.get<DashboardStats>('/reports/dashboard', {
+            params: { propertyId }
+        });
         return data;
     },
 
-    getFinancialReport: async (startDate: string, endDate: string) => {
+    getFinancialReport: async (startDate: string, endDate: string, propertyId?: string) => {
         const { data } = await api.get<any>('/reports/financial', {
-            params: { startDate, endDate },
+            params: { startDate, endDate, propertyId },
         });
         return data;
     },

@@ -55,24 +55,11 @@ export default function Home() {
     return (
         <div className="space-y-0">
             {/* Hero Section */}
-            <section className="relative h-screen flex items-center justify-center overflow-hidden">
+            <section className="relative h-[80vh] md:h-screen flex items-start pt-32 md:items-center md:justify-center md:pt-0 overflow-hidden">
                 <HeroCarousel />
                 <div className="absolute inset-0 bg-black/20 z-10" />
                 <div className="relative z-20 max-w-7xl mx-auto px-4 w-full">
-                    <div className="text-center text-white mb-12">
-                        <span className="uppercase tracking-widest text-sm font-semibold mb-4 block text-primary-200 animate-fade-in-up">
-                            Welcome to Paradise
-                        </span>
-                        <h1 className="text-5xl md:text-7xl font-serif font-bold mb-6 animate-fade-in-up delay-100">
-                            Route Guide
-                        </h1>
-                        <p className="text-xl text-gray-100 max-w-3xl mx-auto animate-fade-in-up delay-200 drop-shadow-lg">
-                            An exclusive eco-retreat nestled on the banks of the Banasura Sagar Dam reservoir.
-                            Where nature meets luxury.
-                        </p>
-                    </div>
-
-                    <SearchForm className="max-w-5xl mx-auto shadow-2xl rounded-xl overflow-hidden animate-fade-in-up delay-300" />
+                    <SearchForm className="animate-fade-in-up" />
                 </div>
             </section>
 

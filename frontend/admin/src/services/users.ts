@@ -2,8 +2,8 @@ import api from './api';
 import type { User, CreateUserDto, UpdateUserDto } from '../types/user';
 
 export const usersService = {
-    getAll: async () => {
-        const { data } = await api.get<User[]>('/users');
+    getAll: async (params?: { propertyId?: string }) => {
+        const { data } = await api.get<User[]>('/users', { params });
         return data;
     },
 

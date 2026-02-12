@@ -37,7 +37,7 @@ export class EventBookingsController {
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions('events.view_bookings')
     @Get('admin/all')
-    findAllAdmin() {
-        return this.eventBookingsService.findAllAdmin();
+    findAllAdmin(@Request() req) {
+        return this.eventBookingsService.findAllAdmin(req.user.id);
     }
 }

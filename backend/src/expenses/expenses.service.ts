@@ -14,7 +14,7 @@ export class ExpensesService {
      * Create expense
      */
     async create(createExpenseDto: CreateExpenseDto, userId: string) {
-        const { amount, description, categoryId, date, receipts = [] } = createExpenseDto;
+        const { amount, description, categoryId, propertyId, date, receipts = [] } = createExpenseDto;
 
         // Verify category exists
         const category = await this.prisma.expenseCategory.findUnique({
@@ -30,6 +30,7 @@ export class ExpensesService {
                 amount,
                 description,
                 categoryId,
+                propertyId,
                 date: date ? new Date(date) : new Date(),
                 receipts,
             },
@@ -52,11 +53,22 @@ export class ExpensesService {
     /**
      * Get all expenses with filters
      */
-    async findAll(filters?: {
+    async findAll(user: any, filters?: {
         categoryId?: string;
         startDate?: Date;
         endDate?: Date;
     }) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
         return this.prisma.expense.findMany({
             where: {
                 categoryId: filters?.categoryId,
@@ -64,6 +76,7 @@ export class ExpensesService {
                     gte: filters?.startDate,
                     lte: filters?.endDate,
                 },
+                property: !isGlobalAdmin ? propertyFilter : undefined,
             },
             include: {
                 category: true,
@@ -77,16 +90,32 @@ export class ExpensesService {
     /**
      * Get expense by ID
      */
-    async findOne(id: string) {
+    async findOne(id: string, user: any) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
         const expense = await this.prisma.expense.findUnique({
             where: { id },
             include: {
                 category: true,
+                property: true,
             },
         });
 
         if (!expense) {
             throw new NotFoundException('Expense not found');
+        }
+
+        // Check ownership/staff access
+        if (!isGlobalAdmin) {
+            const isOwner = expense.property?.ownerId === user.id;
+            const isStaff = await this.prisma.propertyStaff.findUnique({
+                where: { propertyId_userId: { propertyId: expense.propertyId || '', userId: user.id } }
+            });
+
+            if (!isOwner && !isStaff) {
+                throw new NotFoundException('Expense not found');
+            }
         }
 
         return expense;
@@ -95,8 +124,8 @@ export class ExpensesService {
     /**
      * Update expense
      */
-    async update(id: string, updateExpenseDto: UpdateExpenseDto, userId: string) {
-        const expense = await this.findOne(id);
+    async update(id: string, updateExpenseDto: UpdateExpenseDto, user: any) {
+        const expense = await this.findOne(id, user);
 
         // Verify category if changing
         if (updateExpenseDto.categoryId) {
@@ -127,7 +156,7 @@ export class ExpensesService {
             action: 'UPDATE',
             entity: 'Expense',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: expense,
             newValue: updated,
         });
@@ -138,8 +167,8 @@ export class ExpensesService {
     /**
      * Delete expense
      */
-    async remove(id: string, userId: string) {
-        const expense = await this.findOne(id);
+    async remove(id: string, user: any) {
+        const expense = await this.findOne(id, user);
 
         await this.prisma.expense.delete({
             where: { id },
@@ -149,7 +178,7 @@ export class ExpensesService {
             action: 'DELETE',
             entity: 'Expense',
             entityId: id,
-            userId,
+            userId: user.id,
             oldValue: expense,
         });
 
@@ -159,13 +188,25 @@ export class ExpensesService {
     /**
      * Get expense summary
      */
-    async getSummary(startDate: Date, endDate: Date) {
+    async getSummary(user: any, startDate: Date, endDate: Date) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
         const expenses = await this.prisma.expense.findMany({
             where: {
                 date: {
                     gte: startDate,
                     lte: endDate,
                 },
+                property: propertyFilter,
             },
             include: {
                 category: true,

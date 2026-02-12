@@ -9,23 +9,33 @@ import {
     Users,
     Image as ImageIcon
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Building2 } from 'lucide-react';
+
+
+import { useProperty } from '../../context/PropertyContext';
+import toast from 'react-hot-toast';
 
 export default function RoomTypesList() {
+    const { selectedProperty } = useProperty();
+    const [searchParams] = useSearchParams();
+    const urlPropertyId = searchParams.get('propertyId');
+    const propertyId = selectedProperty?.id || urlPropertyId;
     const queryClient = useQueryClient();
 
     const { data: roomTypes, isLoading } = useQuery<RoomType[]>({
-        queryKey: ['roomTypes'],
-        queryFn: roomTypesService.getAllAdmin,
+        queryKey: ['roomTypes', propertyId],
+        queryFn: () => roomTypesService.getAllAdmin({ propertyId: propertyId || undefined }),
     });
 
     const deleteMutation = useMutation({
         mutationFn: roomTypesService.delete,
         onSuccess: () => {
+            toast.success('Room type deleted successfully');
             queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || 'Failed to delete room type');
+            toast.error(error.response?.data?.message || 'Failed to delete room type');
         },
     });
 
@@ -87,6 +97,12 @@ export default function RoomTypesList() {
                                     <Users className="h-4 w-4" />
                                     <span>Max {type.maxAdults} Adults, {type.maxChildren} Children</span>
                                 </div>
+                                {!propertyId && type.property && (
+                                    <div className="flex items-center gap-2 text-xs text-primary-600 font-medium">
+                                        <Building2 className="h-3 w-3" />
+                                        <span>{type.property.name}</span>
+                                    </div>
+                                )}
                                 {type.amenities && type.amenities.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-2">
                                         {type.amenities.slice(0, 3).map((amenity, idx) => (

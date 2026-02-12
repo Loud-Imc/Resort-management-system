@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Navigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ArrowLeft, ShieldCheck, CreditCard } from 'lucide-react';
-import { differenceInDays, format } from 'date-fns';
+import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn } from 'lucide-react';
+import { differenceInDays, format, addDays } from 'date-fns';
 import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
 import { useQuery } from '@tanstack/react-query';
@@ -30,6 +30,11 @@ export default function Checkout() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState('');
+    const [user, setUser] = useState<any>(null);
+    const [token, setToken] = useState<string | null>(null);
+
 
     // Load Razorpay Script
     useEffect(() => {
@@ -42,34 +47,83 @@ export default function Checkout() {
         };
     }, []);
 
+    // Check auth status and pre-fill
+    useEffect(() => {
+        const storedUser = localStorage.getItem('user');
+        const storedToken = localStorage.getItem('token');
+        if (storedUser && storedToken) {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+            setToken(storedToken);
+
+            // Pre-fill form
+            setValue('firstName', userData.firstName || '');
+            setValue('lastName', userData.lastName || '');
+            setValue('email', userData.email || '');
+            setValue('phone', userData.phone || '');
+        }
+    }, []);
+
     // Get booking details from URL
     const roomId = searchParams.get('roomId');
-    const checkIn = searchParams.get('checkIn') || new Date().toISOString();
-    const checkOut = searchParams.get('checkOut') || new Date().toISOString();
+
+    const checkIn = useState(() => searchParams.get('checkIn') || format(new Date(), 'yyyy-MM-dd'))[0];
+    const checkOut = useState(() => searchParams.get('checkOut') || format(addDays(new Date(), 1), 'yyyy-MM-dd'))[0];
+
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
 
-    const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
         resolver: zodResolver(userSchema),
     });
 
-    // Fetch room details just to display price/name (could be optimized with global state)
-    const { data: availability } = useQuery<{ availableRoomTypes: any[] }>({
+    // Fetch room details directly by ID for the summary
+    const { data: selectedRoom } = useQuery<any>({
         queryKey: ['room-details', roomId],
-        queryFn: () => bookingService.checkAvailability({
+        queryFn: () => bookingService.getRoomType(roomId!),
+        enabled: !!roomId,
+    });
+
+    // Fetch NON-COUPON pricing (Permanent baseline)
+    const { data: basePricing } = useQuery<any>({
+        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children],
+        queryFn: () => bookingService.calculatePrice({
+            roomTypeId: roomId!,
             checkInDate: checkIn,
             checkOutDate: checkOut,
-            adults: adults,
-            children: children
+            adultsCount: adults,
+            childrenCount: children,
         }),
         enabled: !!roomId,
     });
 
-    const selectedRoom = availability?.availableRoomTypes?.find((r: any) => r.id === roomId);
-    const nights = differenceInDays(new Date(checkOut), new Date(checkIn));
-    const totalAmount = selectedRoom ? Number(selectedRoom.basePrice) * nights : 0;
-    const taxes = totalAmount * 0.18;
-    const grandTotal = totalAmount + taxes;
+    // Fetch COUPON-SPECIFIC pricing (Volatile)
+    const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
+        queryKey: ['pricing', roomId, checkIn, checkOut, adults, children, appliedCoupon],
+        queryFn: () => bookingService.calculatePrice({
+            roomTypeId: roomId!,
+            checkInDate: checkIn,
+            checkOutDate: checkOut,
+            adultsCount: adults,
+            childrenCount: children,
+            couponCode: appliedCoupon || undefined
+        }),
+        enabled: !!roomId && !!appliedCoupon,
+        retry: false,
+    });
+
+    // Derive effective pricing to display
+    const effectivePricing = (appliedCoupon && couponPricing && !isPricingError) ? couponPricing : basePricing;
+    const pricingLoading = couponPricingLoading;
+
+    // Const Selected Room is now fetched directly
+    const nights = effectivePricing?.numberOfNights || differenceInDays(new Date(checkOut), new Date(checkIn)) || 1;
+
+    const handleApplyCoupon = (e: React.FormEvent) => {
+        e.preventDefault();
+        setAppliedCoupon(couponCode);
+    };
+
 
     const onSubmit = async (userData: FormData) => {
         if (!selectedRoom) return;
@@ -77,26 +131,44 @@ export default function Checkout() {
         setIsProcessing(true);
         try {
             // 1. Create the booking (Status: PENDING_PAYMENT)
-            const booking = await bookingService.createBooking({
-                roomTypeId: selectedRoom.id,
-                checkInDate: checkIn,
-                checkOutDate: checkOut,
-                adultsCount: adults,
-                childrenCount: children,
-                guestName: `${userData.firstName} ${userData.lastName}`,
-                guestEmail: userData.email,
-                guestPhone: userData.phone,
-                specialRequests: userData.specialRequests,
-                guests: [{
-                    firstName: userData.firstName,
-                    lastName: userData.lastName,
-                    email: userData.email,
-                    phone: userData.phone
-                }]
-            });
+            const booking = token
+                ? await bookingService.createAuthenticatedBooking({
+                    roomTypeId: selectedRoom.id,
+                    checkInDate: checkIn,
+                    checkOutDate: checkOut,
+                    adultsCount: adults,
+                    childrenCount: children,
+                    guestName: `${userData.firstName} ${userData.lastName}`,
+                    guestEmail: userData.email,
+                    guestPhone: userData.phone,
+                    specialRequests: userData.specialRequests,
+                    guests: [{
+                        firstName: userData.firstName,
+                        lastName: userData.lastName,
+                        email: userData.email,
+                        phone: userData.phone
+                    }]
+                })
+                : await bookingService.createBooking({
+                    roomTypeId: selectedRoom.id,
+                    checkInDate: checkIn,
+                    checkOutDate: checkOut,
+                    adultsCount: adults,
+                    childrenCount: children,
+                    guestName: `${userData.firstName} ${userData.lastName}`,
+                    guestEmail: userData.email,
+                    guestPhone: userData.phone,
+                    specialRequests: userData.specialRequests,
+                    guests: [{
+                        firstName: userData.firstName,
+                        lastName: userData.lastName,
+                        email: userData.email,
+                        phone: userData.phone
+                    }]
+                });
 
             // 2. Initiate Payment (Create Razorpay Order)
-            const paymentInfo = await paymentService.initiatePayment(booking.id);
+            const paymentInfo = await paymentService.initiatePayment({ bookingId: booking.id });
 
             // 3. Open Razorpay Checkout
             const options = {
@@ -148,9 +220,20 @@ export default function Checkout() {
             const rzp = new window.Razorpay(options);
             rzp.open();
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Booking/Payment initiation failed', error);
-            alert('Something went wrong. Please try again.');
+
+            // Check for specific backend errors (e.g., availability conflict)
+            const errorMessage = error.response?.data?.message;
+
+            if (error.response?.status === 400 && errorMessage === 'No rooms available for the selected dates') {
+                alert('This room was just selected by another guest who is finishing their checkout. Please try again in 5-10 minutes if it becomes available, or choose another room type.');
+            } else if (errorMessage) {
+                alert(`Booking failed: ${errorMessage}`);
+            } else {
+                alert('Something went wrong with the booking. Please try again or contact support.');
+            }
+
             setIsProcessing(false);
         }
     };
@@ -170,7 +253,32 @@ export default function Checkout() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="md:col-span-2">
-                    <h2 className="text-2xl font-bold font-serif mb-6">Guest Details</h2>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <h2 className="text-2xl font-bold font-serif">Guest Details</h2>
+
+                        {!user && (
+                            <div className="bg-primary-50 px-4 py-2 rounded-lg border border-primary-100 flex items-center gap-3">
+                                <UserIcon className="h-5 w-5 text-primary-600" />
+                                <div className="text-sm">
+                                    <span className="text-gray-600">Already have an account? </span>
+                                    <Link
+                                        to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`}
+                                        className="text-primary-700 font-bold hover:underline inline-flex items-center gap-1"
+                                    >
+                                        Log in for a faster experience <LogIn className="h-3.5 w-3.5" />
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
+
+                        {user && (
+                            <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
+                                <ShieldCheck className="h-4 w-4" />
+                                Logged in as {user.firstName}
+                            </div>
+                        )}
+                    </div>
+
                     <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
@@ -250,7 +358,7 @@ export default function Checkout() {
                                     <Loader2 className="animate-spin h-5 w-5" /> Processing...
                                 </>
                             ) : (
-                                `Reserve & Pay ₹${grandTotal.toLocaleString('en-IN')}`
+                                `Reserve & Pay ₹${effectivePricing?.totalAmount?.toLocaleString('en-IN') || '...'}`
                             )}
                         </button>
                     </form>
@@ -284,18 +392,73 @@ export default function Checkout() {
                                     </div>
                                 </div>
 
+                                <div className="border-t border-dashed border-gray-200 my-4"></div>
+
+                                <form onSubmit={handleApplyCoupon} className="space-y-2">
+                                    <label className="text-xs font-bold text-gray-500 uppercase">Apply Coupon</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={couponCode}
+                                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                            placeholder="GUEST10"
+                                            className="flex-1 p-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
+                                        />
+                                        <button
+                                            type="submit"
+                                            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors"
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                    {appliedCoupon && !pricingLoading && !isPricingError && (
+                                        <p className="text-[10px] text-green-600 font-medium italic">Coupon "{appliedCoupon}" applied!</p>
+                                    )}
+                                    {isPricingError && appliedCoupon && (
+                                        <p className="text-[10px] text-red-500 font-medium italic">
+                                            {pricingError?.response?.data?.message || 'Invalid coupon code'}
+                                        </p>
+                                    )}
+                                </form>
+
                                 <div className="border-t border-gray-100 pt-4 space-y-2">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">Room Charges</span>
-                                        <span>₹{totalAmount.toLocaleString('en-IN')}</span>
+                                        <span className="text-gray-600">Base Room Charges</span>
+                                        <span>₹{effectivePricing?.baseAmount?.toLocaleString('en-IN') || '0'}</span>
                                     </div>
+                                    {(effectivePricing?.extraAdultAmount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Extra Adult Charges</span>
+                                            <span>₹{effectivePricing.extraAdultAmount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    )}
+                                    {(effectivePricing?.extraChildAmount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Extra Child Charges</span>
+                                            <span>₹{effectivePricing.extraChildAmount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    )}
+                                    {effectivePricing?.offerDiscountAmount > 0 && (
+                                        <div className="flex justify-between text-sm text-green-600 font-medium">
+                                            <span>Offer Discount</span>
+                                            <span>-₹{effectivePricing.offerDiscountAmount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">Taxes & Fees (18%)</span>
-                                        <span>₹{taxes.toLocaleString('en-IN')}</span>
+                                        <span className="text-gray-600">Taxes & Fees ({Math.round((effectivePricing?.taxRate || 0.18) * 100)}%)</span>
+                                        <span>₹{effectivePricing?.taxAmount?.toLocaleString('en-IN') || '0'}</span>
                                     </div>
-                                    <div className="flex justify-between text-lg font-bold text-primary-900 pt-2 border-t border-gray-100 mt-2">
-                                        <span>Total</span>
-                                        <span>₹{grandTotal.toLocaleString('en-IN')}</span>
+
+                                    {appliedCoupon && !isPricingError && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
+                                            <span>Coupon Discount ({appliedCoupon})</span>
+                                            <span>-₹{effectivePricing.couponDiscountAmount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
+                                        <span className="text-lg font-bold text-gray-900">Total</span>
+                                        <span className="text-2xl font-black text-primary-600">₹{effectivePricing?.totalAmount?.toLocaleString('en-IN') || '0'}</span>
                                     </div>
                                 </div>
                             </div>

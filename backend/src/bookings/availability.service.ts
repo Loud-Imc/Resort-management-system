@@ -27,6 +27,11 @@ export class AvailabilityService {
         checkInDate: Date,
         checkOutDate: Date,
     ) {
+        const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
+        const checkOut = new Date(checkOutDate);
+        checkOut.setHours(0, 0, 0, 0);
+
         // Get all enabled rooms of this type
         const allRooms = await this.prisma.room.findMany({
             where: {
@@ -156,17 +161,44 @@ export class AvailabilityService {
         checkOutDate: Date,
         adults: number,
         children: number,
+        location?: string,
+        type?: string,
     ) {
+        const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
+        const checkOut = new Date(checkOutDate);
+        checkOut.setHours(0, 0, 0, 0);
+
         // 1. Get all room types that fit the guest capacity
         const suitableTypes = await this.prisma.roomType.findMany({
             where: {
                 maxAdults: { gte: adults },
                 maxChildren: { gte: children },
                 isPubliclyVisible: true, // Only public ones
+                property: {
+                    isActive: true,
+                    ...(location && {
+                        OR: [
+                            { city: { contains: location, mode: 'insensitive' } },
+                            { address: { contains: location, mode: 'insensitive' } },
+                            { state: { contains: location, mode: 'insensitive' } },
+                            { name: { contains: location, mode: 'insensitive' } },
+                        ]
+                    }),
+                    ...(type && type !== 'ALL' && { type: type as any }),
+                }
             },
             include: {
                 rooms: true, // Need rooms to check availability
                 property: true, // Needed for grouping by property
+                offers: {
+                    where: {
+                        isActive: true,
+                        startDate: { lte: checkOutDate },
+                        endDate: { gte: checkInDate },
+                    },
+                    take: 1,
+                },
             },
         });
 
@@ -183,16 +215,14 @@ export class AvailabilityService {
 
             if (availableCount > 0) {
                 // Return the type with availability info
-                // Calculate base price for the duration (simple logic for now)
-
-                // Exclude the raw rooms list from response
-                const { rooms, ...typeData } = type;
+                const { rooms, offers, ...typeData } = type;
+                const activeOffer = offers[0] || null;
 
                 results.push({
                     ...typeData,
                     availableCount,
-                    // If we had a pricing service here, we'd calculate total price
-                    totalPrice: Number(type.basePrice), // Placeholder, ideally calculated based on nights
+                    activeOffer,
+                    totalPrice: Number(type.basePrice), // Placeholder
                 });
             }
         }

@@ -8,11 +8,24 @@ export class ReportsService {
     /**
      * Get dashboard statistics (Today's overview)
      */
-    async getDashboardStats() {
+    async getDashboardStats(user: any) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        // Define property scoping
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            // Filter by properties where user is staff or owner
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
 
         // 1. Today's check-ins
         const checkIns = await this.prisma.booking.count({
@@ -22,6 +35,7 @@ export class ReportsService {
                     lt: tomorrow,
                 },
                 status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+                room: { property: propertyFilter }
             },
         });
 
@@ -33,12 +47,13 @@ export class ReportsService {
                     lt: tomorrow,
                 },
                 status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+                room: { property: propertyFilter }
             },
         });
 
         // 3. Current Occupancy
         const totalRooms = await this.prisma.room.count({
-            where: { isEnabled: true },
+            where: { isEnabled: true, property: propertyFilter },
         });
 
         const occupiedRooms = await this.prisma.booking.count({
@@ -46,6 +61,7 @@ export class ReportsService {
                 status: 'CHECKED_IN',
                 checkInDate: { lte: new Date() },
                 checkOutDate: { gt: new Date() },
+                room: { property: propertyFilter }
             },
         });
 
@@ -54,19 +70,21 @@ export class ReportsService {
                 createdAt: {
                     gte: today,
                     lt: tomorrow
-                }
+                },
+                room: { property: propertyFilter }
             }
         })
 
         // 3.5 Room Status Summary
         const rawAvailableCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'AVAILABLE' }
+            where: { isEnabled: true, status: 'AVAILABLE', property: propertyFilter }
         });
 
         const reservedCount = await this.prisma.room.count({
             where: {
                 isEnabled: true,
                 status: 'AVAILABLE',
+                property: propertyFilter,
                 bookings: {
                     some: {
                         status: 'CONFIRMED',
@@ -80,13 +98,13 @@ export class ReportsService {
         const availableCount = rawAvailableCount - reservedCount;
 
         const occupiedCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'OCCUPIED' }
+            where: { isEnabled: true, status: 'OCCUPIED', property: propertyFilter }
         });
         const maintenanceCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'MAINTENANCE' }
+            where: { isEnabled: true, status: 'MAINTENANCE', property: propertyFilter }
         });
         const blockedCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'BLOCKED' }
+            where: { isEnabled: true, status: 'BLOCKED', property: propertyFilter }
         });
 
         // 4. Today's Revenue (Income created today)
@@ -96,6 +114,10 @@ export class ReportsService {
                     gte: today,
                     lt: tomorrow,
                 },
+                OR: [
+                    { booking: { property: propertyFilter } },
+                    { eventBooking: { event: { property: propertyFilter } } }
+                ]
             },
             _sum: {
                 amount: true,
@@ -111,7 +133,7 @@ export class ReportsService {
                 occupied: occupiedRooms,
                 percentage: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
             },
-            revenue: incomeToday._sum.amount || 0,
+            revenue: Number(incomeToday._sum.amount || 0),
             bookingsCreated: bookedToday,
             roomStatusSummary: {
                 AVAILABLE: availableCount,
@@ -120,24 +142,37 @@ export class ReportsService {
                 MAINTENANCE: maintenanceCount,
                 BLOCKED: blockedCount
             },
-            // Super Admin Stats
-            superAdmin: {
-                totalProperties: await this.prisma.property.count(),
-                activeProperties: await this.prisma.property.count({ where: { isActive: true } }),
-                totalChannelPartners: await this.prisma.channelPartner.count(),
-                activeChannelPartners: await this.prisma.channelPartner.count({ where: { isActive: true } }),
-                pendingCPCommissions: await this.prisma.cPTransaction.aggregate({
-                    where: { type: 'COMMISSION' }, // Simplified for now, real pending logic might differ
-                    _sum: { amount: true }
-                }).then(res => res._sum.amount || 0)
-            }
+            // Super Admin Stats (Only if global admin)
+            ...(isGlobalAdmin && {
+                superAdmin: {
+                    totalProperties: await this.prisma.property.count(),
+                    activeProperties: await this.prisma.property.count({ where: { isActive: true } }),
+                    totalChannelPartners: await this.prisma.channelPartner.count(),
+                    activeChannelPartners: await this.prisma.channelPartner.count({ where: { isActive: true } }),
+                    pendingCPCommissions: await this.prisma.cPTransaction.aggregate({
+                        where: { type: 'COMMISSION' },
+                        _sum: { amount: true }
+                    }).then(res => Number(res._sum.amount || 0))
+                }
+            })
         };
     }
 
     /**
      * Get financial report
      */
-    async getFinancialReport(startDate: Date, endDate: Date) {
+    async getFinancialReport(user: any, startDate: Date, endDate: Date) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
         // 1. Total Income
         const income = await this.prisma.income.aggregate({
             where: {
@@ -145,6 +180,10 @@ export class ReportsService {
                     gte: startDate,
                     lte: endDate,
                 },
+                OR: [
+                    { booking: { property: propertyFilter } },
+                    { eventBooking: { event: { property: propertyFilter } } }
+                ]
             },
             _sum: {
                 amount: true,
@@ -158,14 +197,15 @@ export class ReportsService {
                     gte: startDate,
                     lte: endDate,
                 },
+                property: propertyFilter
             },
             _sum: {
                 amount: true,
             },
         });
 
-        const totalIncome = Number(income._sum.amount || 0);
-        const totalExpense = Number(expense._sum.amount || 0);
+        const totalIncome = Number(income._sum?.amount || 0);
+        const totalExpense = Number(expense._sum?.amount || 0);
         const netProfit = totalIncome - totalExpense;
 
         // 3. Income by Source
@@ -176,6 +216,7 @@ export class ReportsService {
                     gte: startDate,
                     lte: endDate,
                 },
+                propertyId: propertyFilter.OR ? { in: (await this.prisma.property.findMany({ where: propertyFilter, select: { id: true } })).map(p => p.id) } : undefined
             },
             _sum: {
                 amount: true,
@@ -188,7 +229,8 @@ export class ReportsService {
                 date: {
                     gte: startDate,
                     lte: endDate
-                }
+                },
+                propertyId: propertyFilter.OR ? { in: (await this.prisma.property.findMany({ where: propertyFilter, select: { id: true } })).map(p => p.id) } : undefined
             },
             include: {
                 category: true
@@ -228,7 +270,7 @@ export class ReportsService {
     /**
      * Get occupancy report
      */
-    async getOccupancyReport(startDate: Date, endDate: Date) {
+    async getOccupancyReport(user: any, startDate: Date, endDate: Date) {
         // Get all dates in range
         const dates: Date[] = [];
         let currentDate = new Date(startDate);
@@ -237,8 +279,21 @@ export class ReportsService {
             currentDate.setDate(currentDate.getDate() + 1);
         }
 
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
         const report: any[] = [];
-        const totalRooms = await this.prisma.room.count({ where: { isEnabled: true } });
+        const totalRooms = await this.prisma.room.count({
+            where: { isEnabled: true, property: propertyFilter }
+        });
 
         for (const date of dates) {
             const nextDay = new Date(date);
@@ -249,6 +304,7 @@ export class ReportsService {
                     status: { in: ['CHECKED_IN', 'CONFIRMED'] }, // Include confirmed for future dates
                     checkInDate: { lte: date },
                     checkOutDate: { gt: date },
+                    room: { property: propertyFilter }
                 },
             });
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useProperty } from '../../context/PropertyContext';
 import { reportsService } from '../../services/reports';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import {
@@ -26,14 +27,19 @@ import {
 const COLORS = ['#0ea5e9', '#22c55e', '#eab308', '#f97316', '#ef4444', '#8b5cf6'];
 
 export default function Financials() {
+    const { selectedProperty } = useProperty();
     const [dateRange, setDateRange] = useState({
         startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
         endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     });
 
     const { data: report, isLoading, error } = useQuery<any>({
-        queryKey: ['financialReport', dateRange],
-        queryFn: () => reportsService.getFinancialReport(dateRange.startDate, dateRange.endDate),
+        queryKey: ['financialReport', dateRange, selectedProperty?.id],
+        queryFn: () => reportsService.getFinancialReport(
+            dateRange.startDate,
+            dateRange.endDate,
+            selectedProperty?.id
+        ),
     });
 
     if (isLoading) {

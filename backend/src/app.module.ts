@@ -23,6 +23,10 @@ import { ChannelPartnersModule } from './channel-partners/channel-partners.modul
 import { MarketingModule } from './marketing/marketing.module';
 import { EventsModule } from './events/events.module';
 import { EventBookingsModule } from './event-bookings/event-bookings.module';
+import { MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
+import { LoggingMiddleware } from './common/middleware/logging.middleware';
+import { DiscountsModule } from './discounts/discounts.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -52,8 +56,16 @@ import { EventBookingsModule } from './event-bookings/event-bookings.module';
     MarketingModule,
     EventsModule,
     EventBookingsModule,
+    DiscountsModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggingMiddleware)
+      .forRoutes('*');
+  }
+}

@@ -4,8 +4,9 @@ import { AuthGuard } from '@nestjs/passport';
 import { RoomTypesService } from './room-types.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PERMISSIONS } from '../auth/constants/permissions.constant';
 
 @ApiTags('Room Types')
 @Controller('room-types')
@@ -13,8 +14,8 @@ export class RoomTypesController {
     constructor(private readonly roomTypesService: RoomTypesService) { }
 
     @Post()
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.ROOM_TYPES.CREATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create room type' })
     create(@Body() createRoomTypeDto: CreateRoomTypeDto) {
@@ -23,8 +24,11 @@ export class RoomTypesController {
 
     @Get()
     @ApiOperation({ summary: 'Get all room types' })
-    findAll(@Query('publicOnly') publicOnly?: string) {
-        return this.roomTypesService.findAll(publicOnly === 'true');
+    findAll(
+        @Query('publicOnly') publicOnly?: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        return this.roomTypesService.findAll(publicOnly === 'true', propertyId);
     }
 
     @Get(':id')
@@ -34,8 +38,8 @@ export class RoomTypesController {
     }
 
     @Patch(':id')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin', 'Manager')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.ROOM_TYPES.UPDATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update room type' })
     update(@Param('id') id: string, @Body() updateRoomTypeDto: UpdateRoomTypeDto) {
@@ -43,18 +47,20 @@ export class RoomTypesController {
     }
 
     @Delete(':id')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('SuperAdmin', 'Admin')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.ROOM_TYPES.DELETE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Delete room type' })
     remove(@Param('id') id: string) {
         return this.roomTypesService.remove(id);
     }
+
     @Get('admin/all')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.ROOM_TYPES.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'List all room types (Admin)' })
-    findAllAdmin(@Req() req) {
-        return this.roomTypesService.findAllAdmin(req.user);
+    findAllAdmin(@Req() req, @Query('propertyId') propertyId?: string) {
+        return this.roomTypesService.findAllAdmin(req.user, propertyId);
     }
 }

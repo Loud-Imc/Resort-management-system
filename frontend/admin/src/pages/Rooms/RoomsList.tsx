@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useProperty } from '../../context/PropertyContext';
 import { roomsService } from '../../services/rooms';
 import { Room, RoomStatus } from '../../types/room';
 import {
@@ -15,29 +16,41 @@ import {
     Edit2,
     Trash2
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
 
 
 export default function RoomsList() {
+    const { selectedProperty } = useProperty();
+    const [searchParams] = useSearchParams();
+    const urlPropertyId = searchParams.get('propertyId');
+    // Prioritize selected property from context, fallback to URL param
+    const propertyId = selectedProperty?.id || urlPropertyId;
+
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
     const { data: rooms, isLoading, error } = useQuery<Room[]>({
-        queryKey: ['rooms', statusFilter],
-        queryFn: () => roomsService.getAll({ status: statusFilter || undefined }),
+        queryKey: ['rooms', statusFilter, propertyId],
+        queryFn: () => roomsService.getAll({
+            status: statusFilter || undefined,
+            propertyId: propertyId || undefined
+        }),
+        enabled: !!propertyId || true, // Allow fetching all if no property selected (for admins)
     });
 
     const deleteMutation = useMutation({
         mutationFn: roomsService.delete,
         onSuccess: () => {
+            toast.success('Room deleted successfully');
             queryClient.invalidateQueries({ queryKey: ['rooms'] });
             setActiveMenuId(null);
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || 'Failed to delete room');
+            toast.error(error.response?.data?.message || 'Failed to delete room');
         },
     });
 
@@ -98,11 +111,15 @@ export default function RoomsList() {
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Room Management</h1>
-                    <p className="text-sm text-gray-500 mt-1">View and manage hotel rooms</p>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        {propertyId ? 'Property Rooms' : 'Room Management'}
+                    </h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        {propertyId ? 'Manage rooms for this property' : 'View and manage hotel rooms'}
+                    </p>
                 </div>
                 <Link
-                    to="/rooms/create"
+                    to={`/rooms/create${propertyId ? `?propertyId=${propertyId}` : ''}`}
                     className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
                 >
                     <Plus className="h-4 w-4" />
@@ -166,6 +183,11 @@ export default function RoomsList() {
                             <div className="text-sm text-gray-600 mb-4">
                                 <p className="font-medium text-gray-900">{room.roomType.name}</p>
                                 <p>Floor: {room.floor ?? '-'}</p>
+                                {!propertyId && room.property && (
+                                    <p className="text-xs text-primary-600 font-medium mt-1 truncate">
+                                        {room.property.name}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">

@@ -1,193 +1,84 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PERMISSIONS, PERMISSION_GROUPS } from '../src/auth/constants/permissions.constant';
 
 const prisma = new PrismaClient();
 
 async function main() {
     console.log('🌱 Seeding database...');
 
-    // Create Roles
-    const superAdminRole = await prisma.role.upsert({
-        where: { name: 'SuperAdmin' },
-        update: {},
-        create: {
-            name: 'SuperAdmin',
-            description: 'Full system access',
-        },
-    });
+    // Create Roles from PERMISSION_GROUPS
+    for (const roleKey of Object.keys(PERMISSION_GROUPS)) {
+        let roleName = roleKey;
+        if (roleKey === 'SUPER_ADMIN') roleName = 'SuperAdmin';
+        else if (roleKey === 'PROPERTY_OWNER') roleName = 'PropertyOwner';
+        else if (roleKey === 'EVENT_ORGANIZER') roleName = 'EventOrganizer';
+        else if (roleKey === 'VERIFICATION_STAFF') roleName = 'VerificationStaff';
+        else if (roleKey === 'MARKETING') roleName = 'Marketing';
+        else {
+            // Convert CUSTOMER -> Customer, MANAGER -> Manager, STAFF -> Staff
+            roleName = roleKey.charAt(0).toUpperCase() + roleKey.slice(1).toLowerCase();
+        }
 
-    const adminRole = await prisma.role.upsert({
-        where: { name: 'Admin' },
-        update: {},
-        create: {
-            name: 'Admin',
-            description: 'Administrative access',
-        },
-    });
+        await prisma.role.upsert({
+            where: { name: roleName },
+            update: {},
+            create: {
+                name: roleName,
+                description: `${roleName} access role`,
+            },
+        });
+    }
 
-    const managerRole = await prisma.role.upsert({
-        where: { name: 'Manager' },
-        update: {},
-        create: {
-            name: 'Manager',
-            description: 'Manager access',
-        },
-    });
+    const superAdminRole = await prisma.role.findUnique({ where: { name: 'SuperAdmin' } });
+    const ownerRole = await prisma.role.findUnique({ where: { name: 'PropertyOwner' } });
 
-    const staffRole = await prisma.role.upsert({
-        where: { name: 'Staff' },
-        update: {},
-        create: {
-            name: 'Staff',
-            description: 'Staff access',
-        },
-    });
+    if (!superAdminRole || !ownerRole) {
+        throw new Error('Required roles (SuperAdmin/PropertyOwner) not found after creation.');
+    }
 
-    const customerRole = await prisma.role.upsert({
-        where: { name: 'Customer' },
-        update: {},
-        create: {
-            name: 'Customer',
-            description: 'Customer access',
-        },
-    });
-
-    const marketingRole = await prisma.role.upsert({
-        where: { name: 'Marketing' },
-        update: {},
-        create: {
-            name: 'Marketing',
-            description: 'Marketing staff access',
-        },
-    });
-
-    const eventOrganizerRole = await prisma.role.upsert({
-        where: { name: 'EventOrganizer' },
-        update: {},
-        create: {
-            name: 'EventOrganizer',
-            description: 'External event organizer access',
-        },
-    });
-
-    console.log('✅ Roles created');
-
-    // Create Permissions
-    const permissions = [
-        // Users
-        { name: 'users.view', module: 'Users', description: 'View system users' },
-        { name: 'users.create', module: 'Users', description: 'Create new users' },
-        { name: 'users.edit', module: 'Users', description: 'Edit existing users' },
-        { name: 'users.delete', module: 'Users', description: 'Delete users' },
-        { name: 'users.manage', module: 'Users', description: 'Manage user access' },
-
-        // Properties
-        { name: 'properties.view', module: 'Properties', description: 'View properties' },
-        { name: 'properties.create', module: 'Properties', description: 'Add new properties' },
-        { name: 'properties.edit', module: 'Properties', description: 'Edit property details' },
-        { name: 'properties.delete', module: 'Properties', description: 'Delete properties' },
-
-        // Room Types
-        { name: 'roomTypes.view', module: 'Room Types', description: 'View room types' },
-        { name: 'roomTypes.create', module: 'Room Types', description: 'Create room types' },
-        { name: 'roomTypes.edit', module: 'Room Types', description: 'Edit room types' },
-        { name: 'roomTypes.delete', module: 'Room Types', description: 'Delete room types' },
-
-        // Rooms
-        { name: 'rooms.view', module: 'Rooms', description: 'View rooms' },
-        { name: 'rooms.create', module: 'Rooms', description: 'Add individual rooms' },
-        { name: 'rooms.edit', module: 'Rooms', description: 'Edit room status/details' },
-        { name: 'rooms.delete', module: 'Rooms', description: 'Delete rooms' },
-
-        // Bookings
-        { name: 'bookings.view', module: 'Bookings', description: 'View bookings' },
-        { name: 'bookings.create', module: 'Bookings', description: 'Create manual bookings' },
-        { name: 'bookings.edit', module: 'Bookings', description: 'Edit bookings' },
-        { name: 'bookings.delete', module: 'Bookings', description: 'Cancel/Delete bookings' },
-
-        // Payments & Financials
-        { name: 'payments.view', module: 'Financials', description: 'View transaction history' },
-        { name: 'payments.process', module: 'Financials', description: 'Process payments/refunds' },
-        { name: 'financials.view', module: 'Financials', description: 'View financial reports' },
-        { name: 'financials.manage', module: 'Financials', description: 'Manage expenses & pricing' },
-
-        // Marketing
-        { name: 'marketing.view', module: 'Marketing', description: 'View marketing dashboard' },
-        { name: 'marketing.manage', module: 'Marketing', description: 'Manage campaigns & commissions' },
-
-        // Settings
-        { name: 'settings.view', module: 'Settings', description: 'View system settings' },
-        { name: 'settings.manage', module: 'Settings', description: 'Modify system configuration' },
-
-        // Reports
-        { name: 'reports.view', module: 'Reports', description: 'Access system reports' },
-
-        // Events
-        { name: 'events.view', module: 'Events', description: 'View events' },
-        { name: 'events.create', module: 'Events', description: 'Create new events' },
-        { name: 'events.edit', module: 'Events', description: 'Edit events' },
-        { name: 'events.delete', module: 'Events', description: 'Delete events' },
-        { name: 'events.approve', module: 'Events', description: 'Approve pending events' },
-        { name: 'events.verify', module: 'Events', description: 'Verify event tickets' },
-        { name: 'events.view_bookings', module: 'Events', description: 'View all event bookings' },
-    ];
-
-    for (const permission of permissions) {
+    // Create Permissions & Assign to Roles
+    const allPermissions = Object.values(PERMISSIONS).flatMap(group => Object.values(group));
+    for (const permissionName of allPermissions) {
         await prisma.permission.upsert({
-            where: { name: permission.name },
-            update: {},
-            create: permission,
-        });
-    }
-
-    console.log('✅ Permissions created');
-
-    // Assign all permissions to SuperAdmin
-    const allPermissions = await prisma.permission.findMany();
-    for (const permission of allPermissions) {
-        await prisma.rolePermission.upsert({
-            where: {
-                roleId_permissionId: {
-                    roleId: superAdminRole.id,
-                    permissionId: permission.id,
-                },
-            },
+            where: { name: permissionName },
             update: {},
             create: {
-                roleId: superAdminRole.id,
-                permissionId: permission.id,
+                name: permissionName,
+                module: permissionName.split('.')[0],
+                description: `Permission for ${permissionName}`,
             },
         });
     }
 
-    console.log('✅ Permissions assigned to SuperAdmin');
+    for (const [roleKey, permissions] of Object.entries(PERMISSION_GROUPS)) {
+        let dbRoleName = roleKey;
+        if (roleKey === 'SUPER_ADMIN') dbRoleName = 'SuperAdmin';
+        else if (roleKey === 'PROPERTY_OWNER') dbRoleName = 'PropertyOwner';
+        else if (roleKey === 'EVENT_ORGANIZER') dbRoleName = 'EventOrganizer';
+        else if (roleKey === 'VERIFICATION_STAFF') dbRoleName = 'VerificationStaff';
+        else if (roleKey === 'MARKETING') dbRoleName = 'Marketing';
+        else {
+            dbRoleName = roleKey.charAt(0).toUpperCase() + roleKey.slice(1).toLowerCase();
+        }
 
-    // Assign specific permissions to EventOrganizer
-    const eventPermissions = await prisma.permission.findMany({
-        where: {
-            name: {
-                in: ['events.view', 'events.create', 'events.edit'],
-            },
-        },
-    });
+        const role = await prisma.role.findUnique({ where: { name: dbRoleName } });
+        if (!role) {
+            console.warn(`⚠️ Role ${dbRoleName} not found, skipping permissions.`);
+            continue;
+        }
 
-    for (const permission of eventPermissions) {
-        await prisma.rolePermission.upsert({
-            where: {
-                roleId_permissionId: {
-                    roleId: eventOrganizerRole.id,
-                    permissionId: permission.id,
-                },
-            },
-            update: {},
-            create: {
-                roleId: eventOrganizerRole.id,
-                permissionId: permission.id,
-            },
-        });
+        for (const permissionName of permissions) {
+            const permission = await prisma.permission.findUnique({ where: { name: permissionName } });
+            if (permission) {
+                await prisma.rolePermission.upsert({
+                    where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
+                    update: {},
+                    create: { roleId: role.id, permissionId: permission.id },
+                });
+            }
+        }
     }
-
-    console.log('✅ Permissions assigned to EventOrganizer');
 
     // Create Super Admin User
     const hashedPassword = await bcrypt.hash('admin123', 10);
@@ -205,153 +96,229 @@ async function main() {
     });
 
     await prisma.userRole.upsert({
-        where: {
-            userId_roleId: {
-                userId: superAdmin.id,
-                roleId: superAdminRole.id,
-            },
-        },
+        where: { userId_roleId: { userId: superAdmin.id, roleId: superAdminRole.id } },
+        update: {},
+        create: { userId: superAdmin.id, roleId: superAdminRole.id },
+    });
+
+    // Create Sample Property Owner User
+    const ownerPassword = await bcrypt.hash('owner123', 10);
+    const ownerUser = await prisma.user.upsert({
+        where: { email: 'owner@resort.com' },
         update: {},
         create: {
-            userId: superAdmin.id,
-            roleId: superAdminRole.id,
+            email: 'owner@resort.com',
+            password: ownerPassword,
+            firstName: 'Demo',
+            lastName: 'Owner',
+            phone: '+9999999999',
+            isActive: true,
         },
     });
 
-    console.log('✅ Super Admin user created (admin@resort.com / admin123)');
+    await prisma.userRole.upsert({
+        where: { userId_roleId: { userId: ownerUser.id, roleId: ownerRole.id } },
+        update: {},
+        create: { userId: ownerUser.id, roleId: ownerRole.id },
+    });
 
-    // Create Booking Sources
-    const bookingSources = [
-        { name: 'Direct', description: 'Direct bookings', commission: 0 },
-        { name: 'Online', description: 'Website bookings', commission: 0 },
-        { name: 'Booking.com', description: 'Booking.com', commission: 15 },
-        { name: 'Agoda', description: 'Agoda', commission: 15 },
-        { name: 'Broker', description: 'Travel broker', commission: 10 },
-    ];
+    // Create Sample Property
+    const sampleProperty = await prisma.property.upsert({
+        where: { slug: 'demo-resort' },
+        update: {},
+        create: {
+            name: 'The Grand Heritage Resort',
+            slug: 'demo-resort',
+            description: 'Experience luxury at its finest with our world-class amenities and breathtaking views.',
+            address: '456 Hillview Estate, Munnar',
+            city: 'Munnar',
+            state: 'Kerala',
+            country: 'India',
+            pincode: '685612',
+            type: 'RESORT',
+            email: 'bookings@grandheritage.com',
+            phone: '+919988776655',
+            ownerId: ownerUser.id,
+            images: ['https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200'],
+            amenities: ['Private Pool', 'Luxury Spa', 'Fine Dining', 'WiFi', 'EV Charging']
+        }
+    });
 
-    for (const source of bookingSources) {
-        await prisma.bookingSource.upsert({
-            where: { name: source.name },
-            update: {},
-            create: source,
-        });
-    }
+    // --- ENRICHED ROOM TYPES ---
 
-    console.log('✅ Booking sources created');
-
-    // Create Expense Categories
-    const expenseCategories = [
-        { name: 'Maintenance', description: 'Property maintenance' },
-        { name: 'Utilities', description: 'Electricity, water, etc.' },
-        { name: 'Salaries', description: 'Staff salaries' },
-        { name: 'Supplies', description: 'Cleaning supplies, toiletries, etc.' },
-        { name: 'Marketing', description: 'Marketing and advertising' },
-        { name: 'Miscellaneous', description: 'Other expenses' },
-    ];
-
-    for (const category of expenseCategories) {
-        await prisma.expenseCategory.upsert({
-            where: { name: category.name },
-            update: {},
-            create: category,
-        });
-    }
-
-    console.log('✅ Expense categories created');
-
-    // Create Sample Room Types
-    const standardRoom = await prisma.roomType.create({
-        data: {
-            name: 'Standard Room',
-            description: 'Comfortable standard room with essential amenities',
-            amenities: ['WiFi', 'AC', 'TV', 'Attached Bathroom'],
-            basePrice: 3000,
-            extraAdultPrice: 800,
-            extraChildPrice: 400,
-            freeChildrenCount: 1,
+    // 1. Heritage Standard Room
+    await prisma.roomType.upsert({
+        where: { propertyId_name: { propertyId: sampleProperty.id, name: 'Heritage Standard Room' } },
+        update: {},
+        create: {
+            name: 'Heritage Standard Room',
+            description: 'Gracefully designed rooms blending traditional aesthetics with modern comfort.',
+            amenities: ['High-speed WiFi', '42-inch LED TV', 'Tea/Coffee Maker', 'Premium Toiletries', 'Electronic Safe'],
+            basePrice: 4500,
+            extraAdultPrice: 1000,
+            extraChildPrice: 500,
             maxAdults: 2,
-            maxChildren: 2,
-            isPubliclyVisible: true,
-            images: [],
+            maxChildren: 1,
+            images: [
+                'https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=800',
+                'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=800'
+            ],
+            highlights: ['Garden View', 'Traditional Decor', 'Handcrafted Furniture'],
+            inclusions: ['Complimentary Buffet Breakfast', 'Welcome Drink on Arrival'],
+            cancellationPolicy: 'Free cancellation 48 hours before check-in',
+            marketingBadgeText: 'Most Popular',
+            marketingBadgeType: 'POSITIVE',
+            propertyId: sampleProperty.id,
         },
     });
 
-    const deluxeRoom = await prisma.roomType.create({
-        data: {
-            name: 'Deluxe Room',
-            description: 'Spacious deluxe room with premium amenities',
-            amenities: ['WiFi', 'AC', 'Smart TV', 'Mini Bar', 'Balcony', 'Premium Bathroom'],
-            basePrice: 5000,
-            extraAdultPrice: 1200,
-            extraChildPrice: 600,
-            freeChildrenCount: 1,
+    // 2. Luxury Garden Suite
+    const deluxeRoom = await prisma.roomType.upsert({
+        where: { propertyId_name: { propertyId: sampleProperty.id, name: 'Luxury Garden Suite' } },
+        update: {},
+        create: {
+            name: 'Luxury Garden Suite',
+            description: 'An expansive suite featuring a private balcony overlooking our award-winning gardens.',
+            amenities: ['Private Balcony', 'Nespresso Machine', 'Mini Bar', 'Bath Tub', 'King-sized Bed', 'Work Desk'],
+            basePrice: 8500,
+            extraAdultPrice: 1500,
+            extraChildPrice: 750,
             maxAdults: 3,
             maxChildren: 2,
-            isPubliclyVisible: true,
-            images: [],
+            images: [
+                'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800',
+                'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800',
+                'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800'
+            ],
+            highlights: ['Private Balcony', 'Mountain View', 'Separate Living Area'],
+            inclusions: ['Breakfast & Lunch Included', 'Evening High Tea', 'Spa Voucher ₹500 off'],
+            cancellationPolicy: 'Free cancellation 24 hours before check-in',
+            marketingBadgeText: 'Limited Inventory',
+            marketingBadgeType: 'URGENT',
+            propertyId: sampleProperty.id,
         },
     });
 
-    const poolVilla = await prisma.roomType.create({
-        data: {
-            name: 'Pool Villa',
-            description: 'Luxury villa with private pool and garden',
-            amenities: ['WiFi', 'AC', 'Smart TV', 'Mini Bar', 'Private Pool', 'Garden', 'Kitchen', 'Jacuzzi'],
-            basePrice: 12000,
-            extraAdultPrice: 2000,
-            extraChildPrice: 1000,
-            freeChildrenCount: 2,
+    // 3. Royal Presidential Villa
+    await prisma.roomType.upsert({
+        where: { propertyId_name: { propertyId: sampleProperty.id, name: 'Royal Presidential Villa' } },
+        update: {},
+        create: {
+            name: 'Royal Presidential Villa',
+            description: 'The pinnacle of luxury. A standalone villa with its own private infinity pool and personalized butler service.',
+            amenities: ['Private Infinity Pool', 'Butler Service', 'Home Theatre System', 'Kitchenette', 'Steam & Sauna', 'Outdoor Shower'],
+            basePrice: 25000,
+            extraAdultPrice: 3000,
+            extraChildPrice: 1500,
             maxAdults: 4,
-            maxChildren: 3,
-            isPubliclyVisible: true,
-            images: [],
+            maxChildren: 2,
+            images: [
+                'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=800',
+                'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=800',
+                'https://images.unsplash.com/photo-1621293954908-907159247fc8?auto=format&fit=crop&w=800',
+                'https://images.unsplash.com/photo-1602343168117-bb8973059402?auto=format&fit=crop&w=800'
+            ],
+            highlights: ['Private Infinity Pool', '24/7 Butler Service', 'Complete Privacy', 'Stunning Valley Views'],
+            inclusions: ['All Meals Included', 'Airport Transfers', 'Private Candlelight Dinner (Once)', 'Guided Nature Walk'],
+            cancellationPolicy: 'Non-refundable',
+            marketingBadgeText: 'Exclusive Offer',
+            marketingBadgeType: 'POSITIVE',
+            propertyId: sampleProperty.id,
         },
     });
 
-    console.log('✅ Room types created');
+    console.log('✅ Enriched Room types created');
 
     // Create Sample Rooms
-    for (let i = 1; i <= 5; i++) {
-        await prisma.room.create({
-            data: {
-                roomNumber: `101${i}`,
-                floor: 1,
-                status: 'AVAILABLE',
-                isEnabled: true,
-                roomTypeId: standardRoom.id,
-            },
-        });
-    }
-
-    for (let i = 1; i <= 3; i++) {
-        await prisma.room.create({
-            data: {
-                roomNumber: `201${i}`,
-                floor: 2,
-                status: 'AVAILABLE',
-                isEnabled: true,
-                roomTypeId: deluxeRoom.id,
-            },
-        });
-    }
-
-    for (let i = 1; i <= 2; i++) {
-        await prisma.room.create({
-            data: {
-                roomNumber: `301${i}`,
-                floor: 3,
-                status: 'AVAILABLE',
-                isEnabled: true,
-                roomTypeId: poolVilla.id,
-            },
-        });
+    const roomTypes = await prisma.roomType.findMany({ where: { propertyId: sampleProperty.id } });
+    for (const rt of roomTypes) {
+        for (let i = 1; i <= 2; i++) {
+            await prisma.room.upsert({
+                where: { propertyId_roomNumber: { propertyId: sampleProperty.id, roomNumber: `${rt.name.charAt(0)}${i}01` } },
+                update: {},
+                create: {
+                    roomNumber: `${rt.name.charAt(0)}${i}01`,
+                    floor: rt.name.includes('Villa') ? 0 : 1,
+                    status: 'AVAILABLE',
+                    isEnabled: true,
+                    roomTypeId: rt.id,
+                    propertyId: sampleProperty.id,
+                },
+            });
+        }
     }
 
     console.log('✅ Sample rooms created');
-    console.log('\n🎉 Database seeded successfully!');
-    console.log('\n📝 Login credentials:');
-    console.log('   Email: admin@resort.com');
-    console.log('   Password: admin123');
+
+    // --- OFFERS ---
+    const roomTypeHeritage = await prisma.roomType.findFirst({
+        where: { propertyId: sampleProperty.id, name: 'Heritage Standard Room' }
+    });
+    if (roomTypeHeritage) {
+        await prisma.offer.upsert({
+            where: { id: 'sample-offer-1' }, // Using a fixed ID for upsert if possible, or just create
+            update: {},
+            create: {
+                id: 'sample-offer-1',
+                name: 'Inaugural Discount',
+                discountPercentage: 15,
+                startDate: new Date(),
+                endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+                roomTypeId: roomTypeHeritage.id,
+                isActive: true
+            }
+        });
+    }
+
+    // --- COUPONS ---
+    await prisma.coupon.upsert({
+        where: { code: 'WELCOME20' },
+        update: {},
+        create: {
+            code: 'WELCOME20',
+            description: 'Flat 20% off for new users',
+            discountType: 'PERCENTAGE',
+            discountValue: 20,
+            validFrom: new Date(),
+            validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+            isActive: true,
+            maxUses: 1000,
+            minBookingAmount: 5000
+        }
+    });
+
+    await prisma.coupon.upsert({
+        where: { code: 'SAVE500' },
+        update: {},
+        create: {
+            code: 'SAVE500',
+            description: 'Flat ₹500 off',
+            discountType: 'FIXED_AMOUNT',
+            discountValue: 500,
+            validFrom: new Date(),
+            validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+            isActive: true,
+            minBookingAmount: 2000
+        }
+    });
+
+    await prisma.coupon.upsert({
+        where: { code: 'GUEST10' },
+        update: {},
+        create: {
+            code: 'GUEST10',
+            description: 'Special 10% off for guests',
+            discountType: 'PERCENTAGE',
+            discountValue: 10,
+            validFrom: new Date(),
+            validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+            isActive: true,
+            minBookingAmount: 1000
+        }
+    });
+
+    console.log('✅ Sample offers and coupons created');
+    console.log('\n🎉 Database re-seeded with premium content!');
 }
 
 main()

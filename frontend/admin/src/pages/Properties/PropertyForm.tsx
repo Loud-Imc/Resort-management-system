@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, Star } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import { PropertyType, CreatePropertyDto } from '../../types/property';
@@ -31,6 +31,7 @@ export default function PropertyForm() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [marketingUsers, setMarketingUsers] = useState<User[]>([]);
+    const [propertyOwners, setPropertyOwners] = useState<User[]>([]);
 
     // Check roles
     const isAdmin = user?.roles?.some(r => r === 'SuperAdmin' || r === 'Admin');
@@ -51,6 +52,8 @@ export default function PropertyForm() {
         coverImage: '',
         addedById: '',
         marketingCommission: 0,
+        ownerId: '',
+        isFeatured: false,
     });
 
     useEffect(() => {
@@ -58,7 +61,7 @@ export default function PropertyForm() {
             loadProperty(id);
         }
         if (isAdmin) {
-            loadMarketingUsers();
+            loadUsers();
         } else {
             // If not admin (e.g., Marketing staff), auto-set addedById and commission
             if (user?.id) {
@@ -71,12 +74,22 @@ export default function PropertyForm() {
         }
     }, [id, isEdit, isAdmin, user]);
 
-    const loadMarketingUsers = async () => {
+    const loadUsers = async () => {
         try {
             const users = await usersService.getAll();
-            // Filter users who have 'Marketing' role (loose check)
+            // Filter users who have 'Marketing' role
             const marketers = users.filter(u => u.roles.some(r => r.role.name.includes('Marketing')));
             setMarketingUsers(marketers);
+
+            // Filter users who are property owners
+            const owners = users.filter(u =>
+                u.roles.some(r =>
+                    r.role.name.includes('Owner') ||
+                    r.role.name === 'Admin' ||
+                    r.role.name === 'SuperAdmin'
+                )
+            );
+            setPropertyOwners(owners);
         } catch (err) {
             console.error('Failed to load users', err);
         }
@@ -104,6 +117,8 @@ export default function PropertyForm() {
                 longitude: property.longitude,
                 addedById: property.addedBy?.id || '',
                 marketingCommission: property.marketingCommission || 0,
+                ownerId: property.ownerId || '',
+                isFeatured: property.isFeatured || false,
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -138,8 +153,9 @@ export default function PropertyForm() {
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const { name, value, type } = e.target;
+        const finalValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+        setFormData(prev => ({ ...prev, [name]: finalValue }));
     };
 
     const toggleAmenity = (amenity: string) => {
@@ -249,6 +265,38 @@ export default function PropertyForm() {
                     </div>
                 </div>
 
+                {/* Owner Selection - Only visible to Admin/Marketing during creation or update */}
+                <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-500">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Building2 className="h-5 w-5" />
+                        Property Owner (Client)
+                    </h2>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Assign Owner *
+                            </label>
+                            <select
+                                name="ownerId"
+                                value={formData.ownerId}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">-- Select Owner --</option>
+                                {propertyOwners.map(u => (
+                                    <option key={u.id} value={u.id}>
+                                        {u.firstName} {u.lastName} ({u.email})
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                                The user selected here will have full control over this property's operations.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Basic Info */}
                 <div className="bg-white rounded-lg shadow-sm p-6">
                     <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -334,6 +382,33 @@ export default function PropertyForm() {
                         </div>
                     </div>
                 </div>
+
+                {/* Featured Status - Only visible to Admin */}
+                {isAdmin && (
+                    <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-amber-500">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                    <Star className="h-5 w-5 text-amber-500" />
+                                    Featured Property
+                                </h2>
+                                <p className="text-sm text-gray-500">
+                                    Featured properties are showcased on the public homepage.
+                                </p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="isFeatured"
+                                    checked={formData.isFeatured}
+                                    onChange={handleChange}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                            </label>
+                        </div>
+                    </div>
+                )}
 
                 {/* Location */}
                 <div className="bg-white rounded-lg shadow-sm p-6">

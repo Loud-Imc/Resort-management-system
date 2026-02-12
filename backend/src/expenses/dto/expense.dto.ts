@@ -27,6 +27,11 @@ export class CreateExpenseDto {
     @ApiProperty({ example: ['receipt1.pdf', 'receipt2.jpg'], required: false })
     @IsOptional()
     receipts?: string[];
+
+    @ApiProperty({ example: 'property-uuid' })
+    @IsString()
+    @IsNotEmpty()
+    propertyId: string;
 }
 
 export class UpdateExpenseDto {
@@ -55,6 +60,11 @@ export class UpdateExpenseDto {
     @ApiProperty({ example: ['receipt1.pdf'], required: false })
     @IsOptional()
     receipts?: string[];
+
+    @ApiProperty({ example: 'property-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    propertyId?: string;
 }
 
 export class CreateExpenseCategoryDto {

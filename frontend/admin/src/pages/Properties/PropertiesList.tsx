@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, Plus, MapPin, Star, CheckCircle, XCircle, Loader2, Eye, Edit } from 'lucide-react';
+import { Building2, Plus, MapPin, Star, CheckCircle, XCircle, Loader2, Edit, Users } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType } from '../../types/property';
 
@@ -21,6 +21,7 @@ const propertyTypeColors: Record<PropertyType, string> = {
 };
 
 import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
 
 export default function PropertiesList() {
     const navigate = useNavigate();
@@ -38,7 +39,13 @@ export default function PropertiesList() {
     const loadProperties = async () => {
         try {
             setLoading(true);
-            const response = user?.role === 'SuperAdmin' || user?.role === 'Admin'
+            const isManageable = user?.role === 'SuperAdmin' ||
+                user?.role === 'Admin' ||
+                user?.role === 'PropertyOwner' ||
+                user?.role === 'Property Owner' ||
+                user?.role === 'Marketing';
+
+            const response = isManageable
                 ? await propertyService.getAllAdmin({ search, type: typeFilter || undefined })
                 : await propertyService.getAll({ search, type: typeFilter || undefined });
             setProperties(response.data);
@@ -60,7 +67,7 @@ export default function PropertiesList() {
                 p.id === id ? { ...p, isActive: !isActive } : p
             ));
         } catch (err: any) {
-            alert(err.message || 'Failed to update property status');
+            toast.error(err.message || 'Failed to update property status');
         }
     };
 
@@ -201,18 +208,34 @@ export default function PropertiesList() {
                                 {/* Actions */}
                                 <div className="flex items-center gap-2 mt-4 pt-4 border-t">
                                     <button
-                                        onClick={() => navigate(`/properties/${property.id}`)}
-                                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                                        onClick={() => navigate(`/rooms?propertyId=${property.id}`)}
+                                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-primary-600 hover:bg-primary-50 rounded"
+                                        title="Manage Rooms"
                                     >
-                                        <Eye className="h-4 w-4" />
-                                        View
+                                        <Plus className="h-4 w-4" />
+                                        Rooms
+                                    </button>
+                                    <button
+                                        onClick={() => navigate(`/room-types?propertyId=${property.id}`)}
+                                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                                        title="Manage Room Types"
+                                    >
+                                        <Building2 className="h-4 w-4" />
+                                        Types
                                     </button>
                                     <button
                                         onClick={() => navigate(`/properties/${property.id}/edit`)}
-                                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                                        className="flex-1 flex items-center justify-center p-2 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                                        title="Edit Property"
                                     >
                                         <Edit className="h-4 w-4" />
-                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={() => navigate(`/properties/${property.id}/staff`)}
+                                        className="flex-1 flex items-center justify-center p-2 text-sm text-emerald-600 hover:bg-emerald-50 rounded"
+                                        title="Manage Staff"
+                                    >
+                                        <Users className="h-4 w-4" />
                                     </button>
                                     <button
                                         onClick={() => handleToggleActive(property.id, property.isActive)}

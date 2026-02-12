@@ -14,6 +14,9 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PropertiesService } from './properties.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PERMISSIONS } from '../auth/constants/permissions.constant';
 
 @ApiTags('Properties')
 @Controller('properties')
@@ -41,7 +44,8 @@ export class PropertiesController {
     // ============================================
 
     @Post()
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.CREATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create a new property' })
     create(@Request() req, @Body() data: CreatePropertyDto) {
@@ -49,7 +53,8 @@ export class PropertiesController {
     }
 
     @Get('my/properties')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get properties owned by current user' })
     findOwned(@Request() req) {
@@ -57,7 +62,8 @@ export class PropertiesController {
     }
 
     @Get('id/:id')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get property by ID' })
     findById(@Param('id') id: string) {
@@ -65,7 +71,8 @@ export class PropertiesController {
     }
 
     @Put(':id')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update a property' })
     update(
@@ -73,11 +80,12 @@ export class PropertiesController {
         @Request() req,
         @Body() data: UpdatePropertyDto,
     ) {
-        return this.propertiesService.update(id, req.user.id, data);
+        return this.propertiesService.update(id, req.user, data);
     }
 
     @Delete(':id')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.DELETE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Delete a property' })
     delete(@Param('id') id: string, @Request() req) {
@@ -89,7 +97,8 @@ export class PropertiesController {
     // ============================================
 
     @Get('admin/all')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'List all properties including inactive (Admin)' })
     findAllAdmin(@Request() req, @Query() query: PropertyQueryDto) {
@@ -97,7 +106,8 @@ export class PropertiesController {
     }
 
     @Put(':id/verify')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Verify a property (Admin)' })
     verify(@Param('id') id: string) {
@@ -105,7 +115,8 @@ export class PropertiesController {
     }
 
     @Put(':id/toggle-active')
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Toggle property active status (Admin)' })
     toggleActive(@Param('id') id: string, @Body('isActive') isActive: boolean) {

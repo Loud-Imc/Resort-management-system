@@ -15,11 +15,22 @@ export interface RoomType {
     maxAdults: number;
     maxChildren: number;
     amenities: string[];
+    highlights: string[];
+    inclusions: string[];
+    cancellationPolicy?: string;
+    marketingBadgeText?: string;
+    marketingBadgeType?: string;
     images: string[];
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
     freeChildrenCount: number;
+    propertyId: string;
+    property?: {
+        id: string;
+        name: string;
+        city: string;
+    };
 }
 
 export interface CreateRoomTypeDto {
@@ -29,11 +40,17 @@ export interface CreateRoomTypeDto {
     maxAdults: number;
     maxChildren: number;
     amenities: string[];
+    highlights: string[];
+    inclusions: string[];
+    cancellationPolicy?: string;
+    marketingBadgeText?: string;
+    marketingBadgeType?: string;
     images: string[];
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
     freeChildrenCount: number;
+    propertyId?: string;
 }
 
 export interface UpdateRoomTypeDto extends Partial<CreateRoomTypeDto> { }
@@ -47,6 +64,11 @@ export interface Room {
     notes?: string;
     roomTypeId: string;
     roomType: RoomType;
+    propertyId?: string;
+    property?: {
+        name: string;
+        city: string;
+    };
     createdAt: string;
     updatedAt: string;
     bookings?: any[]; // For dashboard reserved status
@@ -58,6 +80,7 @@ export interface CreateRoomDto {
     roomTypeId: string;
     notes?: string;
     isEnabled?: boolean;
+    propertyId?: string;
 }
 
 export interface UpdateRoomDto {
@@ -67,6 +90,7 @@ export interface UpdateRoomDto {
     status?: RoomStatus;
     notes?: string;
     isEnabled?: boolean;
+    propertyId?: string;
 }
 
 export interface BlockRoomDto {

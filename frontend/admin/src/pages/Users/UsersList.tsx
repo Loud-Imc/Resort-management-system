@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useProperty } from '../../context/PropertyContext';
 import { usersService } from '../../services/users';
 import {
     Loader2,
@@ -13,23 +14,28 @@ import {
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import type { User } from '../../types/user';
+import toast from 'react-hot-toast';
 
 export default function UsersList() {
+    const { selectedProperty } = useProperty();
     const [search, setSearch] = useState('');
     const queryClient = useQueryClient();
 
     const { data: users, isLoading } = useQuery<User[]>({
-        queryKey: ['users'],
-        queryFn: usersService.getAll,
+        queryKey: ['users', selectedProperty?.id],
+        queryFn: () => usersService.getAll({
+            propertyId: selectedProperty?.id
+        }),
     });
 
     const deleteMutation = useMutation({
         mutationFn: usersService.delete,
         onSuccess: () => {
+            toast.success('User deleted successfully');
             queryClient.invalidateQueries({ queryKey: ['users'] });
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || 'Failed to delete user');
+            toast.error(error.response?.data?.message || 'Failed to delete user');
         },
     });
 

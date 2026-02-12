@@ -8,8 +8,6 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { toPng } from 'html-to-image';
 import { useRef } from 'react';
-import Navbar from '../components/layout/Navbar';
-import Footer from '../components/layout/Footer';
 import eventsService, { Event } from '../services/events';
 import eventBookingsService, { EventBooking as EventBookingType } from '../services/eventBookings';
 import { paymentService } from '../services/payment';
@@ -186,8 +184,7 @@ export default function EventBookingFlow() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Navbar />
+        <div className="min-h-screen bg-gray-50 flex flex-col pt-16">
 
             <main className="flex-grow pt-28 pb-16 px-4">
                 <div className="max-w-4xl mx-auto">
@@ -440,7 +437,6 @@ export default function EventBookingFlow() {
                 </div>
             </main>
 
-            <Footer />
         </div>
     );
 }

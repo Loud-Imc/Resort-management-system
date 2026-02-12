@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, X, Loader2, Building2 } from 'lucide-react';
-import Navbar from '../components/layout/Navbar';
-import Footer from '../components/layout/Footer';
 import PropertyCard from '../components/PropertyCard';
 import { propertyApi } from '../services/properties';
 import { Property, PropertyType } from '../types';
@@ -78,8 +76,7 @@ export default function PropertiesPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <Navbar />
+        <div className="min-h-screen bg-gray-50 pt-16">
 
             {/* Header */}
             <div className="bg-gradient-to-r from-primary-600 to-primary-700 pt-24 pb-12">
@@ -162,8 +159,8 @@ export default function PropertiesPage() {
                                             key={amenity}
                                             onClick={() => toggleAmenity(amenity)}
                                             className={`px-3 py-1 text-sm rounded-full transition-colors ${selectedAmenities.includes(amenity)
-                                                    ? 'bg-primary-600 text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                ? 'bg-primary-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                                 }`}
                                         >
                                             {amenity}
@@ -238,8 +235,6 @@ export default function PropertiesPage() {
                     </div>
                 </div>
             </div>
-
-            <Footer />
 
             {/* Mobile Filters Modal */}
             {showFilters && (

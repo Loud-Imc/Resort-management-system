@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Users, Loader2, CheckCircle, XCircle, DollarSign, Percent } from 'lucide-react';
 import { channelPartnerService } from '../../services/channel-partners';
 import { ChannelPartner } from '../../types/channel-partner';
+import toast from 'react-hot-toast';
 
 export default function CPList() {
     const [partners, setPartners] = useState<ChannelPartner[]>([]);
@@ -33,7 +34,7 @@ export default function CPList() {
                 p.id === partner.id ? { ...p, isActive: !partner.isActive } : p
             ));
         } catch (err: any) {
-            alert(err.message || 'Failed to update status');
+            toast.error(err.message || 'Failed to update status');
         }
     };
 
@@ -41,17 +42,19 @@ export default function CPList() {
         try {
             const rate = parseFloat(newRate);
             if (isNaN(rate) || rate < 0 || rate > 100) {
-                alert('Please enter a valid rate between 0 and 100');
+                toast.error('Please enter a valid rate between 0 and 100');
                 return;
             }
+
             await channelPartnerService.updateCommissionRate(id, rate);
+            toast.success('Commission rate updated successfully');
             setPartners(partners.map(p =>
                 p.id === id ? { ...p, commissionRate: rate } : p
             ));
             setEditingId(null);
             setNewRate('');
         } catch (err: any) {
-            alert(err.message || 'Failed to update rate');
+            toast.error(err.message || 'Failed to update rate');
         }
     };
 
@@ -159,8 +162,8 @@ export default function CPList() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 text-xs rounded-full ${partner.isActive
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-red-100 text-red-700'
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-red-100 text-red-700'
                                             }`}>
                                             {partner.isActive ? 'Active' : 'Inactive'}
                                         </span>
@@ -169,8 +172,8 @@ export default function CPList() {
                                         <button
                                             onClick={() => handleToggleActive(partner)}
                                             className={`text-sm ${partner.isActive
-                                                    ? 'text-red-600 hover:text-red-700'
-                                                    : 'text-green-600 hover:text-green-700'
+                                                ? 'text-red-600 hover:text-red-700'
+                                                : 'text-green-600 hover:text-green-700'
                                                 }`}
                                         >
                                             {partner.isActive ? 'Disable' : 'Enable'}

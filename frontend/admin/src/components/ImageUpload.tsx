@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { uploadService } from '../services/uploads';
+import toast from 'react-hot-toast';
 
 interface ImageUploadProps {
     images: string[];
@@ -26,7 +27,7 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
                 const file = files[i];
                 // Simple validation
                 if (!file.type.startsWith('image/')) {
-                    alert(`File ${file.name} is not an image`);
+                    toast.error(`File ${file.name} is not an image`);
                     continue;
                 }
 
@@ -37,7 +38,7 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
             onChange(newImages);
         } catch (error) {
             console.error('Upload failed', error);
-            alert('Failed to upload image. Please try again.');
+            toast.error('Failed to upload image. Please try again.');
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) {

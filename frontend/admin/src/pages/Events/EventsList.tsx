@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useProperty } from '../../context/PropertyContext';
 import { eventsService } from '../../services/events';
 import { Event } from '../../types/event';
 import {
@@ -21,14 +22,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 
 export default function EventsList() {
+    const { selectedProperty } = useProperty();
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
     const { data: events, isLoading, error } = useQuery<Event[]>({
-        queryKey: ['events-admin', statusFilter],
-        queryFn: () => eventsService.getAllAdmin(),
+        queryKey: ['events-admin', statusFilter, selectedProperty?.id],
+        queryFn: () => eventsService.getAllAdmin({
+            propertyId: selectedProperty?.id
+        }),
     });
 
     const deleteMutation = useMutation({

@@ -17,14 +17,14 @@ export default function GuestsList() {
 
     const { data: users, isLoading } = useQuery<User[]>({
         queryKey: ['users'],
-        queryFn: usersService.getAll,
+        queryFn: () => usersService.getAll(),
     });
 
     // Filter mainly for users who might be guests. 
     // In a real app, we'd filter by role 'Customer' or check if they have bookings.
     // For now, listing all users but focusing on contact info.
     // Filter for users with 'Customer' role
-    const filteredUsers = users?.filter(user => {
+    const filteredUsers = (users as User[] | undefined)?.filter(user => {
         const isCustomer = user.roles.some((r: any) => r.role.name === 'Customer');
         const matchesSearch =
             user.firstName.toLowerCase().includes(search.toLowerCase()) ||

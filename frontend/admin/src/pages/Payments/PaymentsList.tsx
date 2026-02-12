@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import { paymentsService } from '../../services/payments';
 import {
@@ -68,7 +69,7 @@ export default function PaymentsList() {
                 </div>
                 <button
                     className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 bg-white"
-                    onClick={() => alert("Simulate Export CSV")}
+                    onClick={() => toast("Export CSV simulation activated!", { icon: '📊' })}
                 >
                     <Download className="h-4 w-4" />
                     Export CSV
