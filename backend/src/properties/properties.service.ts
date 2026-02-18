@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
-import { Prisma } from '@prisma/client';
+import { RegisterPropertyDto } from './dto/register-property.dto';
+import { Prisma, PropertyStatus } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class PropertiesService {
@@ -17,7 +19,7 @@ export class PropertiesService {
     }
 
     async create(user: any, data: CreatePropertyDto) {
-        const slug = this.generateSlug(data.name);
+        const slug = await this.generateUniqueSlug(data.name);
 
         // Determine addedBy and commission logic
         const roles = user.roles || []; // Safety check
@@ -29,7 +31,6 @@ export class PropertiesService {
 
         if (isMarketing) {
             addedById = user.id;
-            // Assuming commission comes from data for now, or could be fixed/config based
             if (data.marketingCommission) {
                 commission = new Prisma.Decimal(data.marketingCommission);
             }
@@ -49,10 +50,11 @@ export class PropertiesService {
                 ownerId,
                 addedById,
                 marketingCommission: commission,
-                commissionStatus: commission.greaterThan(0) ? 'PENDING' : 'PENDING',
+                commissionStatus: 'PENDING',
                 latitude: data.latitude ? new Prisma.Decimal(data.latitude) : null,
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : null,
                 isFeatured: data.isFeatured || false,
+                status: PropertyStatus.APPROVED, // Manual creation by staff is auto-approved
             },
             include: {
                 owner: {
@@ -65,12 +67,95 @@ export class PropertiesService {
         });
     }
 
+    async publicRegister(dto: RegisterPropertyDto) {
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email: dto.ownerEmail },
+        });
+
+        if (existingUser) {
+            throw new ConflictException('Email already exists');
+        }
+
+        const slug = await this.generateUniqueSlug(dto.propertyName);
+        const hashedPassword = await bcrypt.hash(dto.ownerPassword, 10);
+
+        // Find PropertyOwner role
+        const ownerRole = await this.prisma.role.findFirst({
+            where: { name: 'PropertyOwner', propertyId: null },
+        });
+
+        if (!ownerRole) {
+            throw new NotFoundException('Property Owner role not found in system');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Create User
+            const user = await tx.user.create({
+                data: {
+                    email: dto.ownerEmail,
+                    password: hashedPassword,
+                    firstName: dto.ownerFirstName,
+                    lastName: dto.ownerLastName,
+                    phone: dto.ownerPhone,
+                    isActive: true,
+                    roles: {
+                        create: {
+                            roleId: ownerRole.id,
+                        },
+                    },
+                },
+            });
+
+            // 2. Create Property
+            const property = await tx.property.create({
+                data: {
+                    name: dto.propertyName,
+                    slug,
+                    description: dto.propertyDescription,
+                    type: dto.propertyType,
+                    address: dto.address,
+                    city: dto.city,
+                    state: dto.state,
+                    country: dto.country,
+                    pincode: dto.pincode,
+                    phone: dto.propertyPhone,
+                    email: dto.propertyEmail,
+                    ownerId: user.id,
+                    images: dto.images || [],
+                    amenities: dto.amenities || [],
+                    status: PropertyStatus.PENDING,
+                },
+            });
+
+            return {
+                id: property.id,
+                slug: property.slug,
+                status: property.status,
+                owner: {
+                    id: user.id,
+                    email: user.email,
+                },
+            };
+        });
+    }
+
+    private async generateUniqueSlug(name: string): Promise<string> {
+        let slug = this.generateSlug(name);
+        let exists = await this.prisma.property.findUnique({ where: { slug } });
+        while (exists) {
+            slug = this.generateSlug(name);
+            exists = await this.prisma.property.findUnique({ where: { slug } });
+        }
+        return slug;
+    }
+
     async findAll(query: PropertyQueryDto) {
         const { city, state, type, search, page = 1, limit = 10 } = query;
         const skip = (page - 1) * limit;
 
         const where: Prisma.PropertyWhereInput = {
             isActive: true,
+            status: PropertyStatus.APPROVED,
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
             ...(type && { type }),
@@ -176,8 +261,11 @@ export class PropertiesService {
     }
 
     async findBySlug(slug: string) {
-        const property = await this.prisma.property.findUnique({
-            where: { slug },
+        const property = await this.prisma.property.findFirst({
+            where: {
+                slug,
+                status: PropertyStatus.APPROVED
+            },
             include: {
                 owner: {
                     select: { id: true, firstName: true, lastName: true, phone: true },
@@ -332,11 +420,14 @@ export class PropertiesService {
         return this.prisma.property.delete({ where: { id } });
     }
 
-    // Admin: Verify a property
-    async verify(id: string) {
+    // Admin: Update status (Approve/Reject)
+    async updateStatus(id: string, status: PropertyStatus) {
         return this.prisma.property.update({
             where: { id },
-            data: { isVerified: true },
+            data: {
+                status,
+                isVerified: status === PropertyStatus.APPROVED ? true : undefined,
+            },
         });
     }
 

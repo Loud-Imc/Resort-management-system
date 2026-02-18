@@ -1,14 +1,17 @@
 // Channel Partner Types for Admin Frontend
 
+export type ChannelPartnerStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
+
 export interface ChannelPartner {
     id: string;
     referralCode: string;
     commissionRate: number;
+    referralDiscountRate: number;
     totalPoints: number;
     availablePoints: number;
     totalEarnings: number;
     paidOut: number;
-    isActive: boolean;
+    status: ChannelPartnerStatus;
     userId: string;
     user?: {
         id: string;
@@ -27,6 +30,7 @@ export interface ChannelPartner {
 export interface CPStats {
     referralCode: string;
     commissionRate: number;
+    referralDiscountRate: number;
     totalPoints: number;
     availablePoints: number;
     totalEarnings: number;
@@ -65,4 +69,32 @@ export interface CPListResponse {
         limit: number;
         totalPages: number;
     };
+}
+
+export interface CPReferralBooking {
+    id: string;
+    bookingNumber: string;
+    totalAmount: number;
+    cpCommission: number;
+    status: string;
+    checkInDate: string;
+    checkOutDate: string;
+    createdAt: string;
+    user?: {
+        firstName: string;
+        lastName: string;
+        email: string;
+    };
+    property?: {
+        id: string;
+        name: string;
+    };
+}
+
+export interface CPPartnerDetails extends ChannelPartner {
+    pendingBalance: number;
+    totalReferrals: number;
+    confirmedReferrals: number;
+    thisMonthReferrals: number;
+    referralBookings: CPReferralBooking[];
 }

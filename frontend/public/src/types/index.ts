@@ -17,6 +17,7 @@ export interface RoomType {
     marketingBadgeType?: string;
     totalPrice?: number;
     offers?: any[];
+    isSoldOut?: boolean;
 }
 
 export interface BookingSearchParams {
@@ -26,6 +27,7 @@ export interface BookingSearchParams {
     children: number;
     location?: string;
     type?: string;
+    includeSoldOut?: boolean;
 }
 
 export interface AvailabilityResponse {
@@ -43,6 +45,7 @@ export interface CreateBookingDto {
     guestPhone: string;
     guests?: any[];
     specialRequests?: string;
+    couponCode?: string;
     referralCode?: string; // CP referral code
 }
 
@@ -76,6 +79,9 @@ export interface Property {
         bookings: number;
     };
     roomTypes?: RoomType[];
+    isSoldOut?: boolean;
+    minPrice?: number;
+    availableRoomCount?: number;
 }
 
 export interface PropertySearchParams {

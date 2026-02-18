@@ -57,12 +57,17 @@ export class ExpensesService {
         categoryId?: string;
         startDate?: Date;
         endDate?: Date;
+        propertyId?: string;
     }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
         const propertyFilter: any = {};
-        if (!isGlobalAdmin) {
+        if (isGlobalAdmin) {
+            // Global view: Only show platform expenses (where propertyId is null)
+            // Unless a specific property filter is intended (matching controller logic)
+            propertyFilter.propertyId = null;
+        } else {
             propertyFilter.OR = [
                 { ownerId: user.id },
                 { staff: { some: { userId: user.id } } }
@@ -76,10 +81,14 @@ export class ExpensesService {
                     gte: filters?.startDate,
                     lte: filters?.endDate,
                 },
+                propertyId: isGlobalAdmin
+                    ? (filters?.propertyId || null)
+                    : (!isGlobalAdmin && filters?.propertyId ? filters.propertyId : (propertyFilter.propertyId || undefined)),
                 property: !isGlobalAdmin ? propertyFilter : undefined,
             },
             include: {
                 category: true,
+                property: true,
             },
             orderBy: {
                 date: 'desc',
@@ -188,7 +197,7 @@ export class ExpensesService {
     /**
      * Get expense summary
      */
-    async getSummary(user: any, startDate: Date, endDate: Date) {
+    async getSummary(user: any, startDate: Date, endDate: Date, propertyId?: string) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
@@ -206,10 +215,14 @@ export class ExpensesService {
                     gte: startDate,
                     lte: endDate,
                 },
-                property: propertyFilter,
+                propertyId: isGlobalAdmin
+                    ? (propertyId || null)
+                    : (propertyId || undefined),
+                property: !isGlobalAdmin ? propertyFilter : undefined,
             },
             include: {
                 category: true,
+                property: true,
             },
         });
 

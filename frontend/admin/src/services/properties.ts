@@ -61,6 +61,12 @@ export const propertyService = {
         const response = await api.put(`/properties/${id}/toggle-active`, { isActive });
         return response.data;
     },
+
+    // Admin: Update property status (Approve/Reject)
+    async updateStatus(id: string, status: 'APPROVED' | 'REJECTED' | 'INACTIVE'): Promise<Property> {
+        const response = await api.patch(`/properties/${id}/status`, { status });
+        return response.data;
+    },
 };
 
 export default propertyService;

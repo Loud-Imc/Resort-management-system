@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Headers, UseGuards, RawBodyRequest, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Headers, UseGuards, RawBodyRequest, Req, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PaymentsService } from './payments.service';
@@ -57,6 +57,15 @@ export class PaymentsController {
         return this.paymentsService.processRefund(paymentId, dto.amount, dto.reason);
     }
 
+    @Post(':paymentId/payout/confirm')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PAYMENTS.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Confirm payout to property' })
+    confirmPayout(@Param('paymentId') paymentId: string) {
+        return this.paymentsService.confirmPayout(paymentId);
+    }
+
     @Get('booking/:bookingId')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
@@ -64,12 +73,21 @@ export class PaymentsController {
     getPaymentDetails(@Param('bookingId') bookingId: string) {
         return this.paymentsService.getPaymentDetails(bookingId);
     }
+    @Get('stats')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PAYMENTS.READ)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get payment statistics' })
+    getStats(@Req() req, @Query('propertyId') propertyId?: string) {
+        return this.paymentsService.getStats(req.user, propertyId);
+    }
+
     @Get()
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.PAYMENTS.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get all payments' })
-    findAll(@Req() req) {
-        return this.paymentsService.findAll(req.user);
+    findAll(@Req() req, @Query('propertyId') propertyId?: string) {
+        return this.paymentsService.findAll(req.user, propertyId);
     }
 }

@@ -35,28 +35,49 @@ export default function SearchResults() {
             checkOutDate: checkOut,
             adults,
             children,
-            location,
-            type: type === 'ALL' ? undefined : type
+            location: location,
+            type: type === 'ALL' ? undefined : type,
+            includeSoldOut: true
         }),
         enabled: !!checkIn && !!checkOut,
     });
 
     // Group available room types by property
-    const availableProperties = useMemo(() => {
+    const groupedProperties = useMemo(() => {
         if (!data?.availableRoomTypes) return [];
 
-        const propertyMap = new Map<string, Property>();
+        const propertyMap = new Map<string, any>();
 
         data.availableRoomTypes.forEach((roomType: any) => {
-            if (roomType.property && !propertyMap.has(roomType.property.id)) {
-                // Attach the room type info or just use the property info
-                propertyMap.set(roomType.property.id, {
-                    ...roomType.property,
-                });
+            if (roomType.property) {
+                const propId = roomType.property.id;
+                if (!propertyMap.has(propId)) {
+                    propertyMap.set(propId, {
+                        ...roomType.property,
+                        isSoldOut: true, // Default to sold out, will be set to false if any room is available
+                        minPrice: roomType.totalPrice,
+                        availableRoomCount: 0
+                    });
+                }
+
+                const property = propertyMap.get(propId);
+                if (!roomType.isSoldOut) {
+                    property.isSoldOut = false;
+                    property.availableRoomCount += (roomType.availableCount || 0);
+                    if (roomType.totalPrice < property.minPrice) {
+                        property.minPrice = roomType.totalPrice;
+                    }
+                }
             }
         });
 
-        return Array.from(propertyMap.values());
+        // Sort: Available first, then by price
+        return Array.from(propertyMap.values()).sort((a, b) => {
+            if (a.isSoldOut !== b.isSoldOut) {
+                return a.isSoldOut ? 1 : -1;
+            }
+            return a.minPrice - b.minPrice;
+        });
     }, [data]);
 
 
@@ -113,21 +134,23 @@ export default function SearchResults() {
                 <div className="lg:col-span-3 space-y-6">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-900">
-                            {availableProperties.length} Properties Available
+                            {groupedProperties.filter(p => !p.isSoldOut).length} Properties Available
+                            {groupedProperties.some(p => p.isSoldOut) && (
+                                <span className="text-sm font-normal text-gray-400 ml-2">
+                                    ({groupedProperties.filter(p => p.isSoldOut).length} sold out)
+                                </span>
+                            )}
                         </h2>
                     </div>
 
-                    {availableProperties.length === 0 ? (
+                    {groupedProperties.length === 0 ? (
                         <div className="bg-white p-8 rounded-xl text-center border border-gray-100">
                             <p className="text-gray-500 mb-4">No properties found for your selected dates and guest count.</p>
                             <p className="text-sm text-gray-400">Try changing your dates or number of guests.</p>
-                            {/* Debug info if needed 
-                            <p className="text-xs text-gray-300 mt-4">Debug: {data?.availableRoomTypes?.length || 0} rooms found</p>
-                            */}
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {availableProperties.map((property) => (
+                            {groupedProperties.map((property) => (
                                 <div key={property.id} className="relative">
                                     <PropertyCard property={property} />
                                 </div>

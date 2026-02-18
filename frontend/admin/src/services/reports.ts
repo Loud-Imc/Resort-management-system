@@ -24,6 +24,12 @@ export interface DashboardStats {
         totalChannelPartners: number;
         activeChannelPartners: number;
         pendingCPCommissions: number;
+        platformStats?: {
+            totalVolume: number;
+            count: number;
+            totalFees: number;
+            netEarnings: number;
+        };
     };
 }
 
@@ -38,6 +44,27 @@ export const reportsService = {
     getFinancialReport: async (startDate: string, endDate: string, propertyId?: string) => {
         const { data } = await api.get<any>('/reports/financial', {
             params: { startDate, endDate, propertyId },
+        });
+        return data;
+    },
+
+    getOccupancyReport: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get<any>('/reports/occupancy', {
+            params: { startDate, endDate, propertyId },
+        });
+        return data;
+    },
+
+    getRoomPerformanceReport: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get<any[]>('/reports/room-performance', {
+            params: { startDate, endDate, propertyId },
+        });
+        return data;
+    },
+
+    getPartnerReport: async (startDate: string, endDate: string) => {
+        const { data } = await api.get<any[]>('/reports/partners', {
+            params: { startDate, endDate },
         });
         return data;
     },

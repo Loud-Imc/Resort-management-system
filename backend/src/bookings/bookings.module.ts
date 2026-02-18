@@ -4,9 +4,10 @@ import { BookingsController } from './bookings.controller';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
 import { AuditModule } from '../audit/audit.module';
+import { ChannelPartnersModule } from '../channel-partners/channel-partners.module';
 
 @Module({
-    imports: [AuditModule],
+    imports: [AuditModule, ChannelPartnersModule],
     controllers: [BookingsController],
     providers: [BookingsService, AvailabilityService, PricingService],
     exports: [BookingsService],

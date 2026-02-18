@@ -22,14 +22,14 @@ export default function DashboardHome() {
     if (statsLoading || roomsLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
 
     if (statsError) {
         return (
-            <div className="bg-red-50 text-red-600 p-4 rounded-lg">
+            <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
                 Error loading dashboard statistics. Please try again.
             </div>
         );
@@ -81,11 +81,11 @@ export default function DashboardHome() {
             return 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100';
         }
         switch (status) {
-            case 'AVAILABLE': return 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100';
-            case 'OCCUPIED': return 'bg-blue-50 border-blue-200 text-blue-700';
-            case 'MAINTENANCE': return 'bg-red-50 border-red-200 text-red-700';
-            case 'BLOCKED': return 'bg-gray-100 border-gray-300 text-gray-700';
-            default: return 'bg-gray-50 border-gray-200 text-gray-700';
+            case 'AVAILABLE': return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20';
+            case 'OCCUPIED': return 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400';
+            case 'MAINTENANCE': return 'bg-destructive/10 border-destructive/20 text-destructive';
+            case 'BLOCKED': return 'bg-muted border-border text-muted-foreground';
+            default: return 'bg-muted border-border text-muted-foreground';
         }
     };
 
@@ -94,8 +94,8 @@ export default function DashboardHome() {
             {/* Header & Quick Actions */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <h1 className="text-2xl font-bold text-foreground">Dashboard Overview</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
                         {new Date().toLocaleDateString('en-US', {
                             weekday: 'long',
                             year: 'numeric',
@@ -124,22 +124,37 @@ export default function DashboardHome() {
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div>
+                            <p className="text-gray-400 text-sm">Platform Volume</p>
+                            <p className="text-2xl font-bold mt-1 text-white">₹{stats.superAdmin.platformStats?.totalVolume.toLocaleString()}</p>
+                            <p className="text-xs text-primary-400 mt-1">{stats.superAdmin.platformStats?.count || 0} Paid Transactions</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">Platform Fees</p>
+                            <p className="text-2xl font-bold mt-1 text-rose-400">₹{stats.superAdmin.platformStats?.totalFees.toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">Total Earnings</p>
+                            <p className="text-2xl font-bold mt-1 text-emerald-400">₹{stats.superAdmin.platformStats?.netEarnings.toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">Today's Revenue</p>
+                            <p className="text-2xl font-bold mt-1 text-primary-400">₹{stats.revenue.toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8 pt-6 border-t border-gray-700">
+                        <div>
                             <p className="text-gray-400 text-sm">Total Properties</p>
-                            <p className="text-2xl font-bold mt-1">{stats.superAdmin.totalProperties}</p>
+                            <p className="text-xl font-bold mt-1">{stats.superAdmin.totalProperties}</p>
                             <p className="text-xs text-green-400 mt-1">{stats.superAdmin.activeProperties} Active</p>
                         </div>
                         <div>
                             <p className="text-gray-400 text-sm">Channel Partners</p>
-                            <p className="text-2xl font-bold mt-1">{stats.superAdmin.totalChannelPartners}</p>
+                            <p className="text-xl font-bold mt-1">{stats.superAdmin.totalChannelPartners}</p>
                             <p className="text-xs text-green-400 mt-1">{stats.superAdmin.activeChannelPartners} Active</p>
                         </div>
                         <div>
                             <p className="text-gray-400 text-sm">Pending CP Payouts</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.superAdmin.pendingCPCommissions.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-400 text-sm">Global Revenue (Today)</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.revenue.toLocaleString()}</p>
+                            <p className="text-xl font-bold mt-1">₹{stats.superAdmin.pendingCPCommissions.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
@@ -150,16 +165,16 @@ export default function DashboardHome() {
                 {statCards.map((stat, index) => (
                     <div
                         key={index}
-                        className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between transition-all hover:shadow-md"
+                        className="bg-card p-6 rounded-xl shadow-sm border border-border flex items-start justify-between transition-all hover:shadow-md"
                     >
                         <div>
-                            <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
-                            <p className="text-2xl font-bold text-gray-900 mt-2">{stat.value}</p>
+                            <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
+                            <p className="text-2xl font-bold text-card-foreground mt-2">{stat.value}</p>
                             {stat.subtext && (
-                                <p className="text-xs text-gray-400 mt-1">{stat.subtext}</p>
+                                <p className="text-xs text-muted-foreground mt-1">{stat.subtext}</p>
                             )}
                         </div>
-                        <div className={`p-3 rounded-lg ${stat.bg}`}>
+                        <div className={`p-4 rounded-xl ${stat.bg} bg-opacity-10 dark:bg-opacity-20`}>
                             <stat.icon className={`h-6 w-6 ${stat.color}`} />
                         </div>
                     </div>
@@ -167,11 +182,11 @@ export default function DashboardHome() {
             </div>
 
             {/* Live Room Status Grid */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden lg:col-span-1">
+                <div className="p-6 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h2 className="text-lg font-bold text-gray-900">Live Room Status</h2>
-                        <p className="text-sm text-gray-500">Real-time room occupancy and maintenance status</p>
+                        <h2 className="text-lg font-bold text-card-foreground">Live Room Status</h2>
+                        <p className="text-sm text-muted-foreground">Real-time room occupancy and maintenance status</p>
                     </div>
                     <div className="flex items-center gap-4 text-xs">
                         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500"></span> Available</div>
@@ -224,20 +239,20 @@ export default function DashboardHome() {
                         })}
                     </div>
                 </div>
-                <div className="bg-gray-50 px-6 py-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
-                    <Info size={14} />
-                    <span>Click on an <strong>Available</strong> room to start a new walk-in booking for that unit.</span>
+                <div className="bg-muted px-6 py-4 border-t border-border flex items-center gap-2 text-xs text-muted-foreground">
+                    <Info size={14} className="text-primary" />
+                    <span>Click on an <strong className="text-foreground">Available</strong> room to start a new walk-in booking for that unit.</span>
                 </div>
             </div>
 
             {/* Room Summary by Category */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 className="text-gray-900 font-bold mb-4">Manual Booking Tip</h3>
-                    <div className="space-y-3 text-sm text-gray-600">
-                        <p>1. Check the <strong>Live Room Status</strong> grid above.</p>
+                <div className="md:col-span-2 bg-card p-6 rounded-xl shadow-sm border border-border">
+                    <h3 className="text-card-foreground font-bold mb-4">Manual Booking Tip</h3>
+                    <div className="space-y-3 text-sm text-muted-foreground">
+                        <p>1. Check the <strong className="text-foreground">Live Room Status</strong> grid above.</p>
                         <p>2. Identify green colored rooms (Available).</p>
-                        <p>3. Hover over the room and click the <strong>+</strong> icon to instantly start the registration process.</p>
+                        <p>3. Hover over the room and click the <strong className="text-foreground">+</strong> icon to instantly start the registration process.</p>
                         <p>4. The system will pre-fill the room details to speed up the checkout.</p>
                     </div>
                 </div>

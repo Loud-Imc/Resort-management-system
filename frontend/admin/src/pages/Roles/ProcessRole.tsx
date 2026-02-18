@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { rolesService } from '../../services/roles';
-import { Loader2, ArrowLeft, Save, AlertCircle, Shield } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { Loader2, ArrowLeft, Save, AlertCircle, Shield, Building2, Calendar, Star } from 'lucide-react';
 import clsx from 'clsx';
 import { useEffect } from 'react';
 import { Role } from '../../types/user';
@@ -13,6 +14,7 @@ import toast from 'react-hot-toast';
 const roleSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().optional(),
+    category: z.enum(['SYSTEM', 'PROPERTY', 'EVENT']),
     permissions: z.array(z.string()),
 });
 
@@ -23,17 +25,21 @@ export default function ProcessRole() {
     const isEditing = !!id;
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const isSuperAdmin = user?.roles?.includes('SuperAdmin');
 
     const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<RoleFormData>({
         resolver: zodResolver(roleSchema),
         defaultValues: {
             name: '',
             description: '',
+            category: 'PROPERTY',
             permissions: [],
         },
     });
 
     const selectedPermissions = watch('permissions') || [];
+    const currentCategory = watch('category');
 
     const { data: role, isLoading: isLoadingRole } = useQuery<Role>({
         queryKey: ['role', id],
@@ -51,6 +57,7 @@ export default function ProcessRole() {
             reset({
                 name: role.name,
                 description: role.description,
+                category: role.category || 'PROPERTY',
                 permissions: role.permissions || [],
             });
         }
@@ -111,10 +118,14 @@ export default function ProcessRole() {
     if ((isEditing && isLoadingRole) || isLoadingPermissions) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="h-8 w-8 text-primary-500 animate-spin" />
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
             </div>
         );
     }
+
+    // Restriction check
+    const isUpdatingSystemRole = isEditing && role?.isSystem;
+    const canEditProtectedFields = isSuperAdmin || !role?.isSystem;
 
     const groupedPermissions = availablePermissions.reduce((acc, perm) => {
         const group = perm.module || 'Other';
@@ -132,47 +143,88 @@ export default function ProcessRole() {
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => navigate('/roles')}
-                        className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                        className="p-2 text-muted-foreground hover:bg-muted rounded-full transition-colors"
                     >
                         <ArrowLeft className="h-5 w-5" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">
+                        <h1 className="text-2xl font-bold text-foreground">
                             {isEditing ? 'Edit Role' : 'Create Role'}
                         </h1>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                             {isEditing ? 'Update role details and permissions' : 'Define a new role and its access levels'}
                         </p>
                     </div>
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 pb-20">
                 {/* Basic Info */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                        <Shield className="h-5 w-5 text-primary-500" />
+                <div className="bg-card p-6 rounded-xl shadow-sm border border-border">
+                    <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-foreground">
+                        <Shield className="h-5 w-5 text-primary" />
                         Role Details
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">Role Name</label>
                             <input
                                 {...register('name')}
-                                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all outline-none"
+                                disabled={!canEditProtectedFields}
+                                className="w-full px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all underline-none disabled:opacity-60"
                                 placeholder="e.g. Shift Manager"
                             />
                             {errors.name && (
-                                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                                <p className="mt-1 text-sm text-destructive flex items-center gap-1">
                                     <AlertCircle className="h-4 w-4" /> {errors.name.message}
                                 </p>
                             )}
+                            {isUpdatingSystemRole && !isSuperAdmin && (
+                                <p className="mt-2 text-xs text-amber-500 font-medium italic">
+                                    * System roles names cannot be modified by property owners.
+                                </p>
+                            )}
                         </div>
+
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <input
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">Category (The "Box")</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { id: 'SYSTEM', icon: Star, label: 'System' },
+                                    { id: 'PROPERTY', icon: Building2, label: 'Property' },
+                                    { id: 'EVENT', icon: Calendar, label: 'Event' }
+                                ].map((cat) => (
+                                    <button
+                                        key={cat.id}
+                                        type="button"
+                                        disabled={!isSuperAdmin}
+                                        onClick={() => setValue('category', cat.id as any)}
+                                        className={clsx(
+                                            "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all text-xs font-bold",
+                                            currentCategory === cat.id
+                                                ? "bg-primary border-primary text-primary-foreground shadow-sm"
+                                                : "bg-muted border-border text-muted-foreground hover:bg-muted/80",
+                                            !isSuperAdmin && "opacity-50 cursor-not-allowed"
+                                        )}
+                                    >
+                                        <cat.icon className="h-4 w-4" />
+                                        {cat.label}
+                                    </button>
+                                ))}
+                            </div>
+                            {!isSuperAdmin && (
+                                <p className="mt-2 text-xs text-muted-foreground italic">
+                                    * Only platform admins can change role categories.
+                                </p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-muted-foreground mb-1">Description</label>
+                            <textarea
                                 {...register('description')}
-                                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all outline-none"
+                                rows={3}
+                                className="w-full px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
                                 placeholder="Brief description of responsibilities"
                             />
                         </div>
@@ -180,17 +232,17 @@ export default function ProcessRole() {
                 </div>
 
                 {/* Permissions */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-lg font-semibold">Access Permissions</h2>
+                <div className="bg-card p-6 rounded-xl shadow-sm border border-border">
+                    <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+                        <h2 className="text-lg font-semibold text-foreground">Access Permissions</h2>
                         <button
                             type="button"
                             onClick={toggleAll}
                             className={clsx(
-                                "text-sm font-medium px-4 py-2 rounded-lg transition-colors",
+                                "text-sm font-medium px-4 py-2 rounded-lg transition-colors w-full sm:w-auto",
                                 allPermissionsSelected
-                                    ? "bg-red-50 text-red-600 hover:bg-red-100"
-                                    : "bg-primary-50 text-primary-600 hover:bg-primary-100"
+                                    ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                                    : "bg-primary/10 text-primary hover:bg-primary/20"
                             )}
                         >
                             {allPermissionsSelected ? 'Deselect All' : 'Select All Permissions'}
@@ -203,13 +255,13 @@ export default function ProcessRole() {
                             const isGroupSelected = groupIds.every(id => (selectedPermissions || []).includes(id));
 
                             return (
-                                <div key={group}>
-                                    <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
-                                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{group}</h3>
+                                <div key={group} className="bg-muted/30 p-4 rounded-xl border border-border/50">
+                                    <div className="flex items-center justify-between mb-4 border-b border-border/50 pb-2">
+                                        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{group}</h3>
                                         <button
                                             type="button"
                                             onClick={() => toggleGroup(permissions)}
-                                            className="text-xs font-medium text-primary-600 hover:text-primary-800"
+                                            className="text-xs font-medium text-primary hover:text-primary/80"
                                         >
                                             {isGroupSelected ? 'Deselect Group' : 'Select Group'}
                                         </button>
@@ -222,25 +274,28 @@ export default function ProcessRole() {
                                                 className={clsx(
                                                     "cursor-pointer p-3 rounded-lg border text-sm font-medium transition-all flex items-center gap-3",
                                                     selectedPermissions?.includes(perm.name)
-                                                        ? "bg-primary-50 border-primary-200 text-primary-700 shadow-sm"
-                                                        : "bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100"
+                                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                                        : "bg-card border-border text-muted-foreground hover:bg-muted"
                                                 )}
                                             >
                                                 <div className={clsx(
                                                     "w-4 h-4 rounded border flex items-center justify-center transition-colors",
                                                     selectedPermissions?.includes(perm.name)
-                                                        ? "bg-primary-500 border-primary-500"
-                                                        : "border-gray-400 bg-white"
+                                                        ? "bg-white border-white"
+                                                        : "border-muted-foreground bg-background"
                                                 )}>
                                                     {selectedPermissions?.includes(perm.name) && (
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
                                                         </svg>
                                                     )}
                                                 </div>
-                                                <div className='flex flex-col'>
-                                                    <span>{perm.description}</span>
-                                                    <span className='text-xs text-gray-400 font-normal'>{perm.name}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold">{perm.description}</span>
+                                                    <span className={clsx(
+                                                        "text-[10px] font-normal",
+                                                        selectedPermissions?.includes(perm.name) ? "text-primary-foreground/80" : "text-muted-foreground"
+                                                    )}>{perm.name}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -251,14 +306,14 @@ export default function ProcessRole() {
                     </div>
                 </div>
 
-                <div className="flex justify-end pt-4">
+                <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-background/80 backdrop-blur-md border-t border-border p-4 flex justify-end z-10">
                     <button
                         type="submit"
                         disabled={mutation.isPending || isSubmitting}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 disabled:opacity-70"
+                        className="flex items-center gap-2 px-8 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-70 font-bold"
                     >
                         {mutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-                        Save Role
+                        {isEditing ? 'Update Role' : 'Create Role'}
                     </button>
                 </div>
             </form>

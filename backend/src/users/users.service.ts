@@ -18,7 +18,7 @@ export class UsersService {
             throw new ConflictException('Email already exists');
         }
 
-        const customerRole = await this.prisma.role.findUnique({
+        const customerRole = await this.prisma.role.findFirst({
             where: { name: 'Customer' },
         });
 
@@ -155,12 +155,44 @@ export class UsersService {
         });
     }
 
-    async findAll(user: any, propertyId?: string) {
+    async findAll(user: any, params?: { propertyId?: string, isStaffOnly?: string }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
+        const where: any = {};
+
+        if (params?.isStaffOnly === 'true') {
+            // Filter users who have at least one role in PROPERTY category
+            // AND exclude those who only have CUSTOMER role
+            where.roles = {
+                some: {
+                    role: {
+                        category: 'PROPERTY'
+                    }
+                }
+            };
+        }
+
         if (isGlobalAdmin) {
+            let adminWhere: any = { ...where };
+
+            if (params?.propertyId) {
+                adminWhere.OR = [
+                    {
+                        propertyStaff: {
+                            some: { propertyId: params.propertyId }
+                        }
+                    },
+                    {
+                        bookings: {
+                            some: { propertyId: params.propertyId }
+                        }
+                    }
+                ];
+            }
+
             return this.prisma.user.findMany({
+                where: adminWhere,
                 include: {
                     roles: {
                         include: {
@@ -171,24 +203,33 @@ export class UsersService {
             });
         }
 
-        // For Property Owners or Managers, only show staff associated with their properties
-        // OR users created by them
-        return this.prisma.user.findMany({
-            where: {
-                OR: [
-                    {
-                        propertyStaff: {
-                            some: {
-                                property: {
-                                    ownerId: user.id,
-                                    ...(propertyId && { id: propertyId }),
-                                }
-                            }
+        // For Property Owners or Managers
+        where.OR = [
+            {
+                propertyStaff: {
+                    some: {
+                        property: {
+                            ownerId: user.id,
+                            ...(params?.propertyId && { id: params.propertyId }),
                         }
-                    },
-                    { createdById: user.id }
-                ]
+                    }
+                }
             },
+            {
+                bookings: {
+                    some: {
+                        property: {
+                            ownerId: user.id,
+                            ...(params?.propertyId && { id: params.propertyId }),
+                        }
+                    }
+                }
+            },
+            { createdById: user.id }
+        ];
+
+        return this.prisma.user.findMany({
+            where,
             include: {
                 roles: {
                     include: {

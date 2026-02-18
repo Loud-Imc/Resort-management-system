@@ -68,7 +68,11 @@ export default function CreateRoom() {
     };
 
     if (loadingTypes) {
-        return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
     }
 
 
@@ -78,56 +82,60 @@ export default function CreateRoom() {
             <div className="flex items-center gap-4 mb-6">
                 <button
                     onClick={() => navigate(selectedPropertyId ? `/rooms?propertyId=${selectedPropertyId}` : '/rooms')}
-                    className="p-2 hover:bg-gray-100 rounded-full"
+                    className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                    <ArrowLeft className="h-6 w-6 text-gray-600" />
+                    <ArrowLeft className="h-5 w-5 text-foreground" />
                 </button>
-                <h1 className="text-2xl font-bold text-gray-900">Add New Room</h1>
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">Add New Room</h1>
+                    <p className="text-muted-foreground font-medium">Create a new room in the system</p>
+                </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="bg-card rounded-lg shadow-sm border border-border p-6">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Room Number</label>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">Room Number *</label>
                         <input
                             {...register('roomNumber')}
                             placeholder="e.g. 101"
-                            className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                            className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                         />
-                        {errors.roomNumber && <p className="text-red-500 text-xs mt-1">{errors.roomNumber.message}</p>}
+                        {errors.roomNumber && <p className="text-destructive text-xs mt-1">{errors.roomNumber.message}</p>}
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">Room Type *</label>
                         <select
                             {...register('roomTypeId')}
-                            className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                            className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!selectedPropertyId}
                         >
                             <option value="">Select Type</option>
                             {roomTypes?.map((type) => (
                                 <option key={type.id} value={type.id}>{type.name}</option>
                             ))}
                         </select>
-                        {errors.roomTypeId && <p className="text-red-500 text-xs mt-1">{errors.roomTypeId.message}</p>}
+                        {errors.roomTypeId && <p className="text-destructive text-xs mt-1">{errors.roomTypeId.message}</p>}
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Floor (Optional)</label>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">Floor (Optional)</label>
                         <input
                             type="number"
                             {...register('floor', { valueAsNumber: true })}
-                            className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                            className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">Notes (Optional)</label>
                         <textarea
                             {...register('notes')}
                             rows={3}
-                            className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                            className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                         />
                     </div>
 
@@ -136,9 +144,9 @@ export default function CreateRoom() {
                             type="checkbox"
                             {...register('isEnabled')}
                             id="isEnabled"
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                            className="h-4 w-4 text-primary focus:ring-primary border-border rounded"
                         />
-                        <label htmlFor="isEnabled" className="ml-2 block text-sm text-gray-900">
+                        <label htmlFor="isEnabled" className="ml-2 block text-sm text-foreground">
                             Room is enabled (Available for booking)
                         </label>
                     </div>
@@ -147,7 +155,7 @@ export default function CreateRoom() {
                         <button
                             type="submit"
                             disabled={isSubmitting || createRoomMutation.isPending}
-                            className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 flex items-center gap-2"
+                            className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 flex items-center gap-2 transition-colors"
                         >
                             {createRoomMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />}
                             Create Room

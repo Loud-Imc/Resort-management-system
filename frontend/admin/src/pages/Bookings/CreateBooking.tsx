@@ -10,14 +10,17 @@ import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { usersService } from '../../services/users';
-import { Loader2, Calendar, Users, DollarSign, CheckCircle, AlertCircle, ArrowLeft, Briefcase } from 'lucide-react';
+import { Loader2, Calendar, Users, DollarSign, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Building2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { PriceCalculationResult } from '../../types/booking';
 import type { RoomType } from '../../types/room';
 import type { User } from '../../types/user';
 
+import { useProperty } from '../../context/PropertyContext';
+
 // Schema for form validation
 const bookingSchema = z.object({
+    propertyId: z.string().min(1, 'Property is required'),
     checkInDate: z.string().min(1, 'Check-in date is required'),
     checkOutDate: z.string().min(1, 'Check-out date is required'),
     roomTypeId: z.string().min(1, 'Room type is required'),
@@ -34,6 +37,8 @@ const bookingSchema = z.object({
         email: z.string().email('Invalid email').optional().or(z.literal('')),
         phone: z.string().optional(),
         age: z.number().optional(),
+        idType: z.string().optional(),
+        idNumber: z.string().optional(),
     })).min(1, 'At least 1 guest is required'),
 });
 
@@ -42,6 +47,7 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 export default function CreateBooking() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const { selectedProperty, properties } = useProperty();
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
@@ -49,13 +55,55 @@ export default function CreateBooking() {
     const preSelectedRoomId = searchParams.get('roomId');
     const preSelectedRoomTypeId = searchParams.get('roomTypeId');
 
-    // Fetch Room Types
-    const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
-        queryKey: ['roomTypes'],
-        queryFn: () => roomTypesService.getAll(),
+    const {
+        register,
+        control,
+        handleSubmit,
+        formState: { errors },
+        getValues,
+        setValue,
+        watch,
+    } = useForm<BookingFormData>({
+        resolver: zodResolver(bookingSchema),
+        defaultValues: {
+            propertyId: selectedProperty?.id || '',
+            checkInDate: format(new Date(), 'yyyy-MM-dd'),
+            checkOutDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+            adultsCount: 1,
+            childrenCount: 0,
+            roomTypeId: preSelectedRoomTypeId || '',
+            roomId: preSelectedRoomId || undefined,
+            isManualBooking: true,
+            guests: [{ firstName: '', lastName: '' }],
+        },
     });
 
-    // Fetch Booking Sources
+    const currentPropertyId = watch('propertyId');
+
+    // Fetch Room Types for the selected property
+    const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
+        queryKey: ['roomTypes', currentPropertyId],
+        queryFn: () => roomTypesService.getAll({ propertyId: currentPropertyId }),
+        enabled: Boolean(currentPropertyId),
+    });
+
+    // Reset roomTypeId if property changes
+    useEffect(() => {
+        if (currentPropertyId && currentPropertyId !== selectedProperty?.id && !preSelectedRoomTypeId) {
+            setValue('roomTypeId', '');
+            setAvailability(null);
+            setPriceDetails(null);
+        }
+    }, [currentPropertyId, selectedProperty, setValue, preSelectedRoomTypeId]);
+
+    // Sync from context
+    useEffect(() => {
+        if (selectedProperty?.id) {
+            setValue('propertyId', selectedProperty.id);
+        }
+    }, [selectedProperty, setValue]);
+
+    // Fetch Booking Sources (can be global or filtered if we add propertyId later, for now global is fine as per schema)
     const { data: bookingSources } = useQuery<any[]>({
         queryKey: ['bookingSources'],
         queryFn: () => bookingSourcesService.getAll(),
@@ -67,29 +115,7 @@ export default function CreateBooking() {
         queryFn: () => usersService.getAll(),
     });
 
-    // Filter users who have 'Agent' role (assuming logic or just listing all for now and user filters)
-    // Ideally backend should provide a filter for this, or we filter on frontend if roles are populated
     const agents = (users as User[] | undefined)?.filter(u => u.roles?.some((r: any) => r.role.name === 'Agent' || r.role.name === 'Manager')) || [];
-
-    const {
-        register,
-        control,
-        handleSubmit,
-        formState: { errors },
-        getValues,
-    } = useForm<BookingFormData>({
-        resolver: zodResolver(bookingSchema),
-        defaultValues: {
-            checkInDate: format(new Date(), 'yyyy-MM-dd'),
-            checkOutDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-            adultsCount: 1,
-            childrenCount: 0,
-            roomTypeId: preSelectedRoomTypeId || '',
-            roomId: preSelectedRoomId || undefined,
-            isManualBooking: true,
-            guests: [{ firstName: '', lastName: '' }],
-        },
-    });
 
     // Auto-check availability if pre-selected
     useEffect(() => {
@@ -186,6 +212,29 @@ export default function CreateBooking() {
                 <div className="lg:col-span-2 space-y-6">
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
+                        {/* Property Selection - Only shown if not selected in context */}
+                        {!selectedProperty && (
+                            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-blue-500">
+                                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                    <Building2 className="h-5 w-5 text-blue-600" />
+                                    Property Selection
+                                </h2>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Property *</label>
+                                    <select
+                                        {...register('propertyId')}
+                                        className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">-- Choose Resort/Hotel --</option>
+                                        {properties.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                    {errors.propertyId && <p className="text-red-500 text-xs mt-1">{errors.propertyId.message}</p>}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Booking Details Section */}
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -194,29 +243,31 @@ export default function CreateBooking() {
                             </h2>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
+                                <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
                                     <select
                                         {...register('roomTypeId')}
-                                        className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                        disabled={!currentPropertyId || loadingRoomTypes}
+                                        className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                                     >
-                                        <option value="">Select Room Type</option>
+                                        <option value="">
+                                            {!currentPropertyId ? 'Select Property first' : (loadingRoomTypes ? 'Loading types...' : 'Select Room Type')}
+                                        </option>
                                         {roomTypes?.map((type) => (
                                             <option key={type.id} value={type.id}>
-                                                {type.name} - ${type.basePrice}/night
+                                                {type.name} - ₹{type.basePrice}/night
                                             </option>
                                         ))}
                                     </select>
                                     {errors.roomTypeId && <p className="text-red-500 text-xs mt-1">{errors.roomTypeId.message}</p>}
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Checking Availability</label>
+                                <div className="md:col-span-2 mt-2">
                                     <button
                                         type="button"
                                         onClick={handleCheckAvailability}
-                                        disabled={checkingAvailability}
-                                        className="w-full bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                                        disabled={checkingAvailability || !currentPropertyId}
+                                        className="w-full bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         {checkingAvailability ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Check Availability & Price'}
                                     </button>
@@ -413,6 +464,26 @@ export default function CreateBooking() {
                                                         className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
                                                     />
                                                 </div>
+                                                <div>
+                                                    <select
+                                                        {...register(`guests.${index}.idType`)}
+                                                        className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                                    >
+                                                        <option value="">-- ID Type --</option>
+                                                        <option value="AADHAR">Aadhar Card</option>
+                                                        <option value="PASSPORT">Passport</option>
+                                                        <option value="VOTER_ID">Voter ID</option>
+                                                        <option value="DRIVING_LICENSE">Driving License</option>
+                                                        <option value="OTHER">Other</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <input
+                                                        {...register(`guests.${index}.idNumber`)}
+                                                        placeholder="ID Number (Optional)"
+                                                        className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -444,8 +515,8 @@ export default function CreateBooking() {
                 <div className="lg:col-span-1">
                     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 sticky top-6">
                         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-gray-700" />
-                            Price Summary
+
+                            ₹ Price Summary
                         </h2>
 
                         {!priceDetails ? (

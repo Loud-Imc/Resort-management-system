@@ -9,6 +9,7 @@ export interface PricingBreakdown {
     taxAmount: number;
     offerDiscountAmount: number;
     couponDiscountAmount: number;
+    referralDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
     numberOfNights: number;
@@ -33,6 +34,7 @@ export class PricingService {
         adultsCount: number,
         childrenCount: number,
         couponCode?: string,
+        referralCode?: string,
     ): Promise<PricingBreakdown> {
         // 1. Get room type pricing configuration
         const roomType = await this.prisma.roomType.findUnique({
@@ -116,7 +118,20 @@ export class PricingService {
         // 8. Calculate tax (18% GST) on the discounted subtotal
         const taxAmount = subtotal * this.TAX_RATE;
 
-        // 9. Apply coupon discount (Apply at the end after Tax?) 
+        // 9. Apply referral discount if applicable
+        let referralDiscountAmount = 0;
+        if (referralCode) {
+            const cp = await this.prisma.channelPartner.findFirst({
+                where: { referralCode, status: 'APPROVED' as any }
+            });
+            if (cp) {
+                const discountRate = Number(cp.referralDiscountRate || 0);
+                referralDiscountAmount = (subtotal * discountRate) / 100;
+                subtotal -= referralDiscountAmount;
+            }
+        }
+
+        // 10. Apply coupon discount (Apply at the end after Tax?) 
         // Usually coupons are applied to subtotal before tax, but let's follow the previous logic: subtotal + tax - discount
         let couponDiscountAmount = 0;
         if (couponCode) {
@@ -127,7 +142,7 @@ export class PricingService {
             );
         }
 
-        // 10. Calculate final total
+        // 11. Calculate final total
         const totalAmount = subtotal + taxAmount - couponDiscountAmount;
 
         return {
@@ -137,7 +152,8 @@ export class PricingService {
             taxAmount,
             offerDiscountAmount,
             couponDiscountAmount,
-            discountAmount: offerDiscountAmount + couponDiscountAmount,
+            referralDiscountAmount,
+            discountAmount: offerDiscountAmount + couponDiscountAmount + referralDiscountAmount,
             totalAmount,
             numberOfNights,
             pricePerNight: basePricePerNight,

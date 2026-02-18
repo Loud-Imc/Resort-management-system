@@ -33,4 +33,9 @@ export class SearchRoomsDto {
     @ApiProperty({ example: 'RESORT', required: false })
     @IsOptional()
     type?: string;
+
+    @ApiProperty({ example: false, required: false })
+    @IsOptional()
+    @Type(() => Boolean)
+    includeSoldOut?: boolean;
 }

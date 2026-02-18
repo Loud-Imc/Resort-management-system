@@ -34,4 +34,9 @@ export class CalculatePriceDto {
     @IsString()
     @IsOptional()
     couponCode?: string;
+
+    @ApiProperty({ example: 'REF123', required: false })
+    @IsString()
+    @IsOptional()
+    referralCode?: string;
 }

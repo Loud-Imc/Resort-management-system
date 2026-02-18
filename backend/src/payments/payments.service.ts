@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { BookingsService } from '../bookings/bookings.service';
 import { MailService } from '../mail/mail.service';
+import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
 
@@ -14,6 +15,7 @@ export class PaymentsService {
         private prisma: PrismaService,
         private configService: ConfigService,
         private mailService: MailService,
+        private channelPartnersService: ChannelPartnersService,
     ) {
         const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -163,6 +165,7 @@ export class PaymentsService {
                     include: {
                         user: true,
                         roomType: true,
+                        property: true,
                     }
                 },
                 eventBooking: {
@@ -203,6 +206,7 @@ export class PaymentsService {
                 razorpayPaymentId,
                 razorpaySignature,
                 paymentDate: new Date(),
+                ...this.calculateFinancials(payment),
             },
         });
 
@@ -228,6 +232,16 @@ export class PaymentsService {
 
             // Send confirmation email
             await this.mailService.sendBookingConfirmation(payment.booking);
+
+            // Process Channel Partner Reward (Pending)
+            if (payment.booking.channelPartnerId) {
+                await this.channelPartnersService.processReferralCommission(
+                    payment.bookingId,
+                    payment.booking.channelPartnerId,
+                    Number(payment.booking.totalAmount),
+                    true // isPending = true
+                );
+            }
         } else if (payment.eventBookingId && payment.eventBooking) {
             // Update event booking status to PAID
             await this.prisma.eventBooking.update({
@@ -301,6 +315,7 @@ export class PaymentsService {
                     include: {
                         user: true,
                         roomType: true,
+                        property: true,
                     }
                 },
                 eventBooking: {
@@ -329,6 +344,7 @@ export class PaymentsService {
                 razorpayPaymentId: paymentData.id,
                 paymentMethod: paymentData.method,
                 paymentDate: new Date(paymentData.created_at * 1000),
+                ...this.calculateFinancials(payment),
             },
         });
 
@@ -354,6 +370,16 @@ export class PaymentsService {
 
             // Send confirmation email
             await this.mailService.sendBookingConfirmation(payment.booking);
+
+            // Process Channel Partner Reward (Pending)
+            if (payment.booking?.channelPartnerId) {
+                await this.channelPartnersService.processReferralCommission(
+                    payment.bookingId,
+                    payment.booking.channelPartnerId,
+                    Number(payment.booking.totalAmount),
+                    true // isPending = true
+                );
+            }
         } else if (payment.eventBookingId) {
             await this.prisma.eventBooking.update({
                 where: { id: payment.eventBookingId },
@@ -469,19 +495,93 @@ export class PaymentsService {
         };
     }
 
-    async findAll(user: any) {
+    /**
+     * Confirm payout to property owner
+     */
+    async confirmPayout(id: string) {
+        const payment = await this.prisma.payment.findUnique({
+            where: { id },
+            include: {
+                booking: {
+                    include: { property: true }
+                },
+                eventBooking: {
+                    include: { event: { include: { property: true } } }
+                }
+            }
+        });
+
+        if (!payment) {
+            throw new NotFoundException('Payment not found');
+        }
+
+        if (payment.status !== 'PAID') {
+            throw new BadRequestException('Can only confirm payouts for paid transactions');
+        }
+
+        const financials = this.calculateFinancials(payment);
+
+        return this.prisma.payment.update({
+            where: { id },
+            data: {
+                payoutStatus: 'PAID',
+                ...financials
+            },
+        });
+    }
+
+    private calculateFinancials(payment: any) {
+        try {
+            let amount = 0;
+            let commissionRate = 10; // Default 10%
+
+            if (payment.bookingId && payment.booking?.property) {
+                amount = Number(payment.amount);
+                commissionRate = Number(payment.booking.property.platformCommission ?? 10);
+            } else if (payment.eventBookingId && payment.eventBooking?.event?.property) {
+                amount = Number(payment.amount);
+                commissionRate = Number(payment.eventBooking.event.property.platformCommission ?? 10);
+            } else {
+                // If we can't find property/commission, return defaults or empty
+                // For now, let's still calculate with 10% if amount exists
+                if (payment.amount) {
+                    amount = Number(payment.amount);
+                    return {
+                        platformFee: (amount * 10) / 100,
+                        netAmount: (amount * 90) / 100,
+                    };
+                }
+                return {};
+            }
+
+            const platformFee = (amount * commissionRate) / 100;
+            const netAmount = amount - platformFee;
+
+            return {
+                platformFee,
+                netAmount,
+            };
+        } catch (error) {
+            console.error('[PaymentsService] Error calculating financials:', error);
+            return {};
+        }
+    }
+
+    async findAll(user: any, propertyId?: string) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
         const propertyFilter: any = {};
-        if (!isGlobalAdmin) {
+        if (propertyId) {
+            propertyFilter.id = propertyId;
+        } else if (!isGlobalAdmin) {
             propertyFilter.OR = [
                 { ownerId: user.id },
                 { staff: { some: { userId: user.id } } }
             ];
         }
 
-        const finalFilter = !isGlobalAdmin ? {
+        const finalFilter = (propertyId || !isGlobalAdmin) ? {
             OR: [
                 { booking: { property: propertyFilter } },
                 { eventBooking: { event: { property: propertyFilter } } }
@@ -495,12 +595,15 @@ export class PaymentsService {
                     include: {
                         user: true,
                         roomType: true,
+                        property: true,
                     },
                 },
                 eventBooking: {
                     include: {
                         user: true,
-                        event: true,
+                        event: {
+                            include: { property: true }
+                        },
                     },
                 },
             },
@@ -508,6 +611,48 @@ export class PaymentsService {
                 createdAt: 'desc',
             },
         });
+    }
+
+    async getStats(user: any, propertyId?: string) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (propertyId) {
+            propertyFilter.id = propertyId;
+        } else if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
+        const finalFilter = (propertyId || !isGlobalAdmin) ? {
+            status: 'PAID' as any,
+            OR: [
+                { booking: { property: propertyFilter } },
+                { eventBooking: { event: { property: propertyFilter } } }
+            ]
+        } : { status: 'PAID' as any };
+
+        const stats = await this.prisma.payment.aggregate({
+            where: finalFilter,
+            _sum: {
+                amount: true,
+                platformFee: true,
+                netAmount: true,
+            },
+            _count: {
+                id: true,
+            },
+        });
+
+        return {
+            totalVolume: Number(stats._sum.amount || 0),
+            totalFees: Number(stats._sum.platformFee || 0),
+            netEarnings: Number(stats._sum.netAmount || 0),
+            count: stats._count.id,
+        };
     }
 
     /**

@@ -21,13 +21,13 @@ export default function EventBookings() {
     const getStatusStyles = (status: string) => {
         switch (status) {
             case 'PAID':
-                return 'bg-green-100 text-green-800 border-green-200';
+                return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
             case 'PENDING':
-                return 'bg-amber-100 text-amber-800 border-amber-200';
+                return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
             case 'CANCELLED':
-                return 'bg-red-100 text-red-800 border-red-200';
+                return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
             default:
-                return 'bg-gray-100 text-gray-800 border-gray-200';
+                return 'bg-muted text-muted-foreground border-border';
         }
     };
 
@@ -45,14 +45,14 @@ export default function EventBookings() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="bg-red-50 text-red-600 p-4 rounded-lg">
+            <div className="bg-destructive/10 text-destructive p-4 rounded-xl border border-destructive/20 font-bold">
                 Error loading bookings. Please try again.
             </div>
         );
@@ -66,12 +66,12 @@ export default function EventBookings() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Event Attendees</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage ticket holders and check payment status</p>
+                    <h1 className="text-2xl font-bold text-foreground">Event Attendees</h1>
+                    <p className="text-sm text-muted-foreground mt-1">Manage ticket holders and check payment status</p>
                 </div>
                 <button
                     disabled
-                    className="bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm opacity-50 cursor-not-allowed"
+                    className="bg-muted text-muted-foreground px-6 py-2.5 rounded-xl border border-border hover:bg-muted/80 transition-all flex items-center gap-2 shadow-sm opacity-50 cursor-not-allowed font-bold"
                 >
                     <Download className="h-4 w-4" />
                     Export CSV
@@ -80,55 +80,55 @@ export default function EventBookings() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-primary-600 mb-2">
+                <div className="bg-card p-6 rounded-xl border border-border shadow-sm group hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 text-emerald-500 mb-2">
                         <DollarSign className="h-5 w-5" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Total Revenue</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Total Revenue</span>
                     </div>
-                    <div className="text-2xl font-black text-gray-900">₹{totalRevenue.toLocaleString()}</div>
-                    <div className="text-[10px] text-gray-400 mt-1 font-medium">Gross ticket sales for filtered events</div>
+                    <div className="text-2xl font-black text-foreground">₹{totalRevenue.toLocaleString()}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 font-bold">Gross ticket sales for filtered events</div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-indigo-600 mb-2">
+                <div className="bg-card p-6 rounded-xl border border-border shadow-sm group hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 text-primary mb-2">
                         <Ticket className="h-5 w-5" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Tickets Sold</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Tickets Sold</span>
                     </div>
-                    <div className="text-2xl font-black text-gray-900">{totalTickets}</div>
-                    <div className="text-[10px] text-gray-400 mt-1 font-medium">Total bookings across all statuses</div>
+                    <div className="text-2xl font-black text-foreground">{totalTickets}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 font-bold">Total bookings across all statuses</div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-green-600 mb-2">
+                <div className="bg-card p-6 rounded-xl border border-border shadow-sm group hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 text-emerald-400 mb-2">
                         <CheckCircle className="h-5 w-5" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Physical Turnout</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Physical Turnout</span>
                     </div>
-                    <div className="text-2xl font-black text-gray-900">{checkedInCount} / {totalTickets}</div>
-                    <div className="text-[10px] text-gray-400 mt-1 font-medium">
+                    <div className="text-2xl font-black text-foreground">{checkedInCount} / {totalTickets}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 font-bold">
                         {totalTickets > 0 ? Math.round((checkedInCount / totalTickets) * 100) : 0}% attendance rate verified
                     </div>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 {/* Filters */}
-                <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 bg-gray-50/50">
+                <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 bg-muted/30">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <input
                             type="text"
                             placeholder="Search by guest, ticket, or event..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                            className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold placeholder:text-muted-foreground/30"
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-gray-400" />
+                        <Filter className="h-4 w-4 text-muted-foreground" />
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                            className="bg-background text-foreground border border-border rounded-xl px-4 py-2 focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold text-sm"
                         >
                             <option value="">All Statuses</option>
                             <option value="PAID">Paid</option>
@@ -139,46 +139,46 @@ export default function EventBookings() {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                    <table className="min-w-full divide-y divide-border">
+                        <thead className="bg-muted/50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket & Event</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest Details</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
+                                <th className="px-6 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Ticket & Event</th>
+                                <th className="px-6 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Guest Details</th>
+                                <th className="px-6 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Amount</th>
+                                <th className="px-6 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Status</th>
+                                <th className="px-6 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Check-in</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-card divide-y divide-border">
                             {filteredBookings?.map((booking) => (
-                                <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                <tr key={booking.id} className="hover:bg-muted/30 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
-                                            <div className="p-2 bg-primary-50 rounded-lg mr-3">
-                                                <Ticket className="h-5 w-5 text-primary-600" />
+                                            <div className="p-2.5 bg-primary/10 rounded-xl mr-3">
+                                                <Ticket className="h-5 w-5 text-primary" />
                                             </div>
                                             <div>
-                                                <div className="text-sm font-mono font-bold text-gray-900">{booking.ticketId}</div>
-                                                <div className="text-xs text-gray-500 mt-0.5">{booking.event?.title}</div>
+                                                <div className="text-sm font-mono font-black text-foreground">{booking.ticketId}</div>
+                                                <div className="text-[10px] text-muted-foreground mt-0.5 font-bold">{booking.event?.title}</div>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{booking.guestName || 'Registered User'}</div>
+                                        <div className="text-sm font-bold text-foreground">{booking.guestName || 'Registered User'}</div>
                                         <div className="flex flex-col gap-0.5 mt-1">
-                                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                                            <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-bold">
                                                 <Mail className="h-3 w-3" /> {booking.guestEmail}
                                             </span>
                                             {booking.guestPhone && (
-                                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-bold">
                                                     <Phone className="h-3 w-3" /> {booking.guestPhone}
                                                 </span>
                                             )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-bold text-gray-900">₹{Number(booking.amountPaid).toLocaleString()}</div>
-                                        <div className="text-[10px] text-gray-400 uppercase tracking-tight mt-0.5">Total Paid</div>
+                                        <div className="text-sm font-black text-foreground">₹{Number(booking.amountPaid).toLocaleString()}</div>
+                                        <div className="text-[10px] text-muted-foreground uppercase tracking-tight mt-0.5 font-bold">Total Paid</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={clsx(
@@ -191,15 +191,15 @@ export default function EventBookings() {
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {booking.checkedIn ? (
                                             <div className="flex flex-col">
-                                                <span className="flex items-center gap-1.5 text-green-600 text-xs font-bold">
+                                                <span className="flex items-center gap-1.5 text-emerald-500 text-xs font-black uppercase">
                                                     <CheckCircle className="h-4 w-4" /> Checked In
                                                 </span>
-                                                <span className="text-[10px] text-gray-400 mt-1 pl-5">
+                                                <span className="text-[10px] text-muted-foreground mt-1 pl-5 font-bold">
                                                     {new Date(booking.checkInTime!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                         ) : (
-                                            <span className="flex items-center gap-1.5 text-gray-400 text-xs font-medium italic">
+                                            <span className="flex items-center gap-1.5 text-muted-foreground text-xs font-bold italic uppercase tracking-widest opacity-50">
                                                 <Clock className="h-4 w-4" /> Waiting
                                             </span>
                                         )}
@@ -211,9 +211,9 @@ export default function EventBookings() {
                 </div>
 
                 {filteredBookings?.length === 0 && (
-                    <div className="p-12 text-center text-gray-500">
-                        <User className="h-12 w-12 text-gray-400 mx-auto mb-4 opacity-20" />
-                        <p className="text-lg font-medium text-gray-400">No attendees found.</p>
+                    <div className="p-12 text-center text-muted-foreground bg-muted/20 border-t border-border">
+                        <User className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-10" />
+                        <p className="text-xl font-black text-foreground uppercase tracking-tight">No Attendees Found</p>
                     </div>
                 )}
             </div>

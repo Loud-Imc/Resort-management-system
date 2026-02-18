@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -7,8 +7,12 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 export class RolesService {
     constructor(private prisma: PrismaService) { }
 
-    async create(createRoleDto: CreateRoleDto) {
-        const { permissions, ...roleData } = createRoleDto;
+    async create(createRoleDto: CreateRoleDto, user?: any) {
+        const { permissions, propertyId, ...roleData } = createRoleDto;
+
+        // Determination of system status
+        const isGlobalAdmin = user?.roles?.includes('SuperAdmin') || user?.roles?.includes('Admin');
+        const isSystem = isGlobalAdmin && !propertyId;
 
         // Resolve permission names to IDs
         let permissionConnect: { permission: { connect: { id: string } } }[] = [];
@@ -24,6 +28,8 @@ export class RolesService {
         return this.prisma.role.create({
             data: {
                 ...roleData,
+                isSystem,
+                propertyId: propertyId || (isGlobalAdmin ? null : user?.propertyId), // Fallback if needed
                 permissions: {
                     create: permissionConnect.map(p => ({
                         permission: { connect: { id: p.permission.connect.id } }
@@ -40,14 +46,32 @@ export class RolesService {
         });
     }
 
-    async findAll(user?: any) {
+    async findAll(user?: any, query?: { propertyId?: string, category?: any }) {
         let where: any = {};
 
         if (user) {
             const roles = user.roles || [];
             const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
-            if (!isGlobalAdmin) {
+            if (isGlobalAdmin) {
+                // Admin sees everything by default, but can filter
+                if (query?.propertyId) where.propertyId = query.propertyId;
+                if (query?.category) where.category = query.category;
+            } else if (user.roles.includes('PropertyOwner')) {
+                // Property owner sees SYSTEM roles (templates) only if they are PROPERTY or EVENT categories
+                // and their own custom property roles
+                where = {
+                    OR: [
+                        {
+                            isSystem: true,
+                            category: { in: ['PROPERTY', 'EVENT'] }
+                        },
+                        { propertyId: user.propertyId }
+                    ]
+                };
+                if (query?.category) where.category = query.category;
+            } else {
+                // Others see limited
                 const manageableRoleNames = this.getManageableRoleNames(roles);
                 where = {
                     name: { in: manageableRoleNames }
@@ -114,13 +138,24 @@ export class RolesService {
         };
     }
 
-    async update(id: string, updateRoleDto: UpdateRoleDto) {
+    async update(id: string, updateRoleDto: any, user?: any) {
         const { permissions, ...roleData } = updateRoleDto;
 
         const role = await this.prisma.role.findUnique({ where: { id } });
         if (!role) throw new NotFoundException(`Role with ID ${id} not found`);
 
+        // Check permissions: Owners cannot edit System roles
+        const isGlobalAdmin = user?.roles?.includes('SuperAdmin') || user?.roles?.includes('Admin');
+        if (!isGlobalAdmin && role.isSystem) {
+            throw new ForbiddenException('Cannot modify system roles');
+        }
+
         const updateData: any = { ...roleData };
+        // Owners can't change isSystem or propertyId
+        if (!isGlobalAdmin) {
+            delete updateData.isSystem;
+            delete updateData.propertyId;
+        }
 
         if (permissions) {
             // Delete existing

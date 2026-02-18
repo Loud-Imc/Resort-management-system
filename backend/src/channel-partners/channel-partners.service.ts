@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, ChannelPartnerStatus, PartnerType, RedemptionStatus } from '@prisma/client';
+import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class ChannelPartnersService {
@@ -16,7 +18,7 @@ export class ChannelPartnersService {
         return code;
     }
 
-    // Register as a Channel Partner
+    // Register as a Channel Partner (Manual/Staff version)
     async register(userId: string) {
         // Check if user is already a CP
         const existing = await this.prisma.channelPartner.findUnique({
@@ -28,6 +30,92 @@ export class ChannelPartnersService {
         }
 
         // Generate unique referral code
+        const referralCode = await this.getUniqueReferralCode();
+
+        return this.prisma.channelPartner.create({
+            data: {
+                userId,
+                referralCode,
+                status: ChannelPartnerStatus.APPROVED, // Manual registration by staff is auto-approved
+            },
+            include: {
+                user: {
+                    select: { id: true, firstName: true, lastName: true, email: true },
+                },
+            },
+        });
+    }
+
+    // Public Registration for Channel Partners
+    async publicRegister(dto: RegisterChannelPartnerDto) {
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email: dto.email },
+        });
+
+        if (existingUser) {
+            throw new ConflictException('Email already exists');
+        }
+
+        const referralCode = await this.getUniqueReferralCode();
+        const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+        // Find ChannelPartner role
+        const cpRole = await this.prisma.role.findFirst({
+            where: { name: 'ChannelPartner', propertyId: null },
+        });
+
+        if (!cpRole) {
+            throw new NotFoundException('Channel Partner role not found in system');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Create User
+            const user = await tx.user.create({
+                data: {
+                    email: dto.email,
+                    password: hashedPassword,
+                    firstName: dto.firstName,
+                    lastName: dto.lastName,
+                    phone: dto.phone,
+                    isActive: true, // User is active, but CP status is PENDING
+                    roles: {
+                        create: {
+                            roleId: cpRole.id,
+                        },
+                    },
+                },
+            });
+
+            // 2. Create Channel Partner record
+            const cp = await tx.channelPartner.create({
+                data: {
+                    userId: user.id,
+                    referralCode,
+                    partnerType: dto.partnerType,
+                    status: ChannelPartnerStatus.PENDING,
+                    organizationName: dto.organizationName,
+                    taxId: dto.taxId,
+                    businessAddress: dto.businessAddress,
+                    authorizedPersonName: dto.authorizedPersonName,
+                    commissionRate: 5.0, // Default base commission
+                },
+            });
+
+            return {
+                id: cp.id,
+                referralCode: cp.referralCode,
+                status: cp.status,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                },
+            };
+        });
+    }
+
+    private async getUniqueReferralCode(): Promise<string> {
         let referralCode = this.generateReferralCode();
         let exists = await this.prisma.channelPartner.findUnique({
             where: { referralCode },
@@ -39,18 +127,7 @@ export class ChannelPartnersService {
                 where: { referralCode },
             });
         }
-
-        return this.prisma.channelPartner.create({
-            data: {
-                userId,
-                referralCode,
-            },
-            include: {
-                user: {
-                    select: { id: true, firstName: true, lastName: true, email: true },
-                },
-            },
-        });
+        return referralCode;
     }
 
     // Get CP by referral code (for applying during booking)
@@ -64,7 +141,7 @@ export class ChannelPartnersService {
             },
         });
 
-        if (!cp || !cp.isActive) {
+        if (!cp || cp.status !== ChannelPartnerStatus.APPROVED) {
             throw new NotFoundException('Invalid or inactive referral code');
         }
 
@@ -80,7 +157,7 @@ export class ChannelPartnersService {
                     select: { id: true, firstName: true, lastName: true, email: true, phone: true },
                 },
                 referrals: {
-                    take: 10,
+                    take: 50,
                     orderBy: { createdAt: 'desc' },
                     select: {
                         id: true,
@@ -89,6 +166,14 @@ export class ChannelPartnersService {
                         cpCommission: true,
                         createdAt: true,
                         status: true,
+                        checkInDate: true,
+                        checkOutDate: true,
+                        property: {
+                            select: { name: true }
+                        },
+                        user: {
+                            select: { firstName: true, lastName: true }
+                        }
                     },
                 },
                 transactions: {
@@ -140,33 +225,51 @@ export class ChannelPartnersService {
             commissionRate: cp.commissionRate,
             totalPoints: cp.totalPoints,
             availablePoints: cp.availablePoints,
+            pendingPoints: cp.pendingPoints,
             totalEarnings: cp.totalEarnings,
+            pendingEarnings: cp.pendingEarnings,
             paidOut: cp.paidOut,
             pendingBalance: Number(cp.totalEarnings) - Number(cp.paidOut),
             totalReferrals,
             confirmedReferrals,
             thisMonthReferrals,
+            status: cp.status,
+            referralDiscountRate: cp.referralDiscountRate,
         };
     }
 
-    // Process referral commission (called after booking is confirmed)
-    async processReferralCommission(bookingId: string, channelPartnerId: string, bookingAmount: number) {
+    // Process referral commission (initially as PENDING on payment)
+    async processReferralCommission(bookingId: string, channelPartnerId: string, bookingAmount: number, isPending = true) {
         const cp = await this.prisma.channelPartner.findUnique({
             where: { id: channelPartnerId },
         });
 
-        if (!cp || !cp.isActive) return null;
+        if (!cp || cp.status !== ChannelPartnerStatus.APPROVED) return null;
 
-        const commission = bookingAmount * (Number(cp.commissionRate) / 100);
+        // Determine commission rate based on levels if not overridden
+        let currentRate = Number(cp.commissionRate);
+        if (!cp.isRateOverridden) {
+            const level = await this.getCurrentLevel(cp.totalPoints);
+            if (level) {
+                currentRate = Number(level.commissionRate);
+            }
+        }
+
+        const commission = bookingAmount * (currentRate / 100);
         const points = Math.floor(bookingAmount / 100); // 1 point per ₹100
 
-        // Update CP earnings and points
+        // Update CP earnings and points (Pending vs Finalized)
         await this.prisma.channelPartner.update({
             where: { id: channelPartnerId },
             data: {
-                totalEarnings: { increment: commission },
-                totalPoints: { increment: points },
-                availablePoints: { increment: points },
+                ...(isPending ? {
+                    pendingEarnings: { increment: commission },
+                    pendingPoints: { increment: points },
+                } : {
+                    totalEarnings: { increment: commission },
+                    totalPoints: { increment: points },
+                    availablePoints: { increment: points },
+                })
             },
         });
 
@@ -174,9 +277,10 @@ export class ChannelPartnersService {
         await this.prisma.cPTransaction.create({
             data: {
                 type: 'COMMISSION',
+                status: isPending ? 'PENDING' : 'FINALIZED',
                 amount: commission,
                 points,
-                description: `Commission for booking ${bookingId}`,
+                description: `Commission for booking ${bookingId} (${isPending ? 'Pending Check-in' : 'Finalized'})`,
                 channelPartnerId,
                 bookingId,
             },
@@ -191,12 +295,95 @@ export class ChannelPartnersService {
         return { commission, points };
     }
 
+    // Finalize referral commission (called after customer checks in)
+    async finalizeReferralCommission(bookingId: string) {
+        const transaction = await this.prisma.cPTransaction.findFirst({
+            where: {
+                bookingId,
+                type: 'COMMISSION',
+                status: 'PENDING'
+            }
+        });
+
+        if (!transaction) return;
+
+        // Move from pending to available
+        await this.prisma.$transaction([
+            this.prisma.channelPartner.update({
+                where: { id: transaction.channelPartnerId },
+                data: {
+                    pendingEarnings: { decrement: transaction.amount },
+                    pendingPoints: { decrement: transaction.points },
+                    totalEarnings: { increment: transaction.amount },
+                    totalPoints: { increment: transaction.points },
+                    availablePoints: { increment: transaction.points },
+                }
+            }),
+            this.prisma.cPTransaction.update({
+                where: { id: transaction.id },
+                data: {
+                    status: 'FINALIZED',
+                    description: `${transaction.description} - Finalized on Check-in`
+                }
+            })
+        ]);
+    }
+
+    // Revert referral commission (called after booking cancellation)
+    async revertReferralCommission(bookingId: string) {
+        const transaction = await this.prisma.cPTransaction.findFirst({
+            where: {
+                bookingId,
+                type: 'COMMISSION'
+            }
+        });
+
+        if (!transaction) return;
+
+        // Only revert if it's PENDING or FINALIZED
+        if (transaction.status === 'PENDING') {
+            await this.prisma.$transaction([
+                this.prisma.channelPartner.update({
+                    where: { id: transaction.channelPartnerId },
+                    data: {
+                        pendingEarnings: { decrement: transaction.amount },
+                        pendingPoints: { decrement: transaction.points },
+                    }
+                }),
+                this.prisma.cPTransaction.update({
+                    where: { id: transaction.id },
+                    data: { status: 'VOID' }
+                })
+            ]);
+        } else if (transaction.status === 'FINALIZED') {
+            await this.prisma.$transaction([
+                this.prisma.channelPartner.update({
+                    where: { id: transaction.channelPartnerId },
+                    data: {
+                        totalEarnings: { decrement: transaction.amount },
+                        totalPoints: { decrement: transaction.points },
+                        availablePoints: { decrement: transaction.points },
+                    }
+                }),
+                this.prisma.cPTransaction.update({
+                    where: { id: transaction.id },
+                    data: { status: 'VOID' }
+                })
+            ]);
+        }
+    }
+
     // Admin: List all CPs
-    async findAll(page = 1, limit = 20) {
+    async findAll(page = 1, limit = 20, status?: ChannelPartnerStatus) {
         const skip = (page - 1) * limit;
+
+        const where: Prisma.ChannelPartnerWhereInput = {
+            ...(status && { status }),
+        };
 
         const [cps, total] = await Promise.all([
             this.prisma.channelPartner.findMany({
+                where,
                 skip,
                 take: limit,
                 orderBy: { createdAt: 'desc' },
@@ -209,7 +396,7 @@ export class ChannelPartnersService {
                     },
                 },
             }),
-            this.prisma.channelPartner.count(),
+            this.prisma.channelPartner.count({ where }),
         ]);
 
         return {
@@ -218,19 +405,243 @@ export class ChannelPartnersService {
         };
     }
 
-    // Admin: Update CP commission rate
-    async updateCommissionRate(id: string, commissionRate: number) {
-        return this.prisma.channelPartner.update({
+    // Admin: Get a single partner's details with referral bookings
+    async adminGetPartnerDetails(id: string) {
+        const cp = await this.prisma.channelPartner.findUnique({
             where: { id },
-            data: { commissionRate },
+            include: {
+                user: {
+                    select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+                },
+                _count: {
+                    select: { referrals: true },
+                },
+            },
+        });
+
+        if (!cp) throw new NotFoundException('Channel partner not found');
+
+        const [referralBookings, totalReferrals, confirmedReferrals, thisMonthReferrals] = await Promise.all([
+            this.prisma.booking.findMany({
+                where: { channelPartnerId: id },
+                orderBy: { createdAt: 'desc' },
+                take: 50,
+                select: {
+                    id: true,
+                    bookingNumber: true,
+                    totalAmount: true,
+                    cpCommission: true,
+                    status: true,
+                    checkInDate: true,
+                    checkOutDate: true,
+                    createdAt: true,
+                    user: {
+                        select: { firstName: true, lastName: true, email: true },
+                    },
+                    property: {
+                        select: { id: true, name: true },
+                    },
+                },
+            }),
+            this.prisma.booking.count({ where: { channelPartnerId: id } }),
+            this.prisma.booking.count({
+                where: {
+                    channelPartnerId: id,
+                    status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
+                },
+            }),
+            this.prisma.booking.count({
+                where: {
+                    channelPartnerId: id,
+                    createdAt: {
+                        gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+                    },
+                },
+            }),
+        ]);
+
+        return {
+            ...cp,
+            pendingBalance: Number(cp.totalEarnings) - Number(cp.paidOut),
+            totalReferrals,
+            confirmedReferrals,
+            thisMonthReferrals,
+            referralBookings,
+            referralDiscountRate: cp.referralDiscountRate,
+        };
+    }
+
+    // Get current level based on points
+    private async getCurrentLevel(points: number) {
+        return this.prisma.partnerLevel.findFirst({
+            where: {
+                minPoints: { lte: points },
+            },
+            orderBy: {
+                minPoints: 'desc',
+            },
         });
     }
 
-    // Admin: Toggle CP active status
-    async toggleActive(id: string, isActive: boolean) {
+    // Admin: Approve/Reject/Deactivate CP
+    async updateStatus(id: string, status: ChannelPartnerStatus) {
         return this.prisma.channelPartner.update({
             where: { id },
-            data: { isActive },
+            data: { status },
         });
     }
+
+    // Admin: Override commission rate
+    async updateCommissionRate(id: string, commissionRate: number, isRateOverridden = true) {
+        return this.prisma.channelPartner.update({
+            where: { id },
+            data: {
+                commissionRate,
+                isRateOverridden
+            },
+        });
+    }
+
+    // Admin: Update referral discount rate
+    async updateReferralDiscountRate(id: string, referralDiscountRate: number) {
+        return this.prisma.channelPartner.update({
+            where: { id },
+            data: { referralDiscountRate },
+        });
+    }
+
+    // ============================================
+    // REWARDS REDEMPTION
+    // ============================================
+
+    async redeemReward(userId: string, rewardId: string) {
+        const cp = await this.prisma.channelPartner.findUnique({
+            where: { userId },
+        });
+
+        if (!cp) {
+            throw new NotFoundException('Channel Partner not found');
+        }
+
+        const reward = await this.prisma.reward.findUnique({
+            where: { id: rewardId, isActive: true },
+        });
+
+        if (!reward) {
+            throw new NotFoundException('Reward not found or inactive');
+        }
+
+        if (cp.availablePoints < reward.pointCost) {
+            throw new ForbiddenException('Insufficient points');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Deduct points
+            await tx.channelPartner.update({
+                where: { id: cp.id },
+                data: {
+                    availablePoints: {
+                        decrement: reward.pointCost,
+                    },
+                },
+            });
+
+            // 2. Create redemption record
+            return tx.cPRewardRedemption.create({
+                data: {
+                    channelPartnerId: cp.id,
+                    rewardId: reward.id,
+                    status: RedemptionStatus.PENDING,
+                },
+                include: {
+                    reward: true,
+                },
+            });
+        });
+    }
+
+    async getMyRedemptions(userId: string) {
+        const cp = await this.prisma.channelPartner.findUnique({
+            where: { userId },
+        });
+
+        if (!cp) {
+            throw new NotFoundException('Channel Partner not found');
+        }
+
+        return this.prisma.cPRewardRedemption.findMany({
+            where: { channelPartnerId: cp.id },
+            include: {
+                reward: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    async findAllRedemptions(status?: RedemptionStatus) {
+        return this.prisma.cPRewardRedemption.findMany({
+            where: status ? { status } : {},
+            include: {
+                reward: true,
+                channelPartner: {
+                    include: {
+                        user: {
+                            select: { id: true, firstName: true, lastName: true, email: true },
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    async updateRedemptionStatus(id: string, status: RedemptionStatus, notes?: string) {
+        return this.prisma.cPRewardRedemption.update({
+            where: { id },
+            data: { status, notes },
+        });
+    }
+
+    // Update my profile
+    async updateMyProfile(userId: string, dto: any) {
+        const {
+            firstName, lastName, email, phone, password,
+            bankName, accountHolderName, accountNumber, ifscCode, upiId,
+            notificationPrefs
+        } = dto;
+
+        // 1. Update User Record if personal info provided
+        const userUpdateData: any = {};
+        if (firstName) userUpdateData.firstName = firstName;
+        if (lastName) userUpdateData.lastName = lastName;
+        if (email) userUpdateData.email = email;
+        if (phone) userUpdateData.phone = phone;
+        if (password) userUpdateData.password = await bcrypt.hash(password, 10);
+
+        if (Object.keys(userUpdateData).length > 0) {
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: userUpdateData,
+            });
+        }
+
+        // 2. Update Channel Partner Record if payout/notification info provided
+        const cpUpdateData: any = {};
+        if (bankName !== undefined) cpUpdateData.bankName = bankName;
+        if (accountHolderName !== undefined) cpUpdateData.accountHolderName = accountHolderName;
+        if (accountNumber !== undefined) cpUpdateData.accountNumber = accountNumber;
+        if (ifscCode !== undefined) cpUpdateData.ifscCode = ifscCode;
+        if (upiId !== undefined) cpUpdateData.upiId = upiId;
+        if (notificationPrefs !== undefined) cpUpdateData.notificationPrefs = notificationPrefs;
+
+        if (Object.keys(cpUpdateData).length > 0) {
+            await this.prisma.channelPartner.update({
+                where: { userId },
+                data: cpUpdateData,
+            });
+        }
+
+        return this.getMyProfile(userId);
+    }
 }
+

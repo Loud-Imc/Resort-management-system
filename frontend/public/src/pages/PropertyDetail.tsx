@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { clsx } from 'clsx';
 import {
     MapPin, Star, Phone, Mail, CheckCircle, ArrowLeft,
     Wifi, Car, Coffee, Dumbbell, Waves, Loader2,
     Building2, Users, Maximize, BedDouble, Bath, ChevronRight, Clock, Info, Utensils,
-    Tv, Trees, Sparkles, Lock, ConciergeBell, Ticket, Snowflake, Sunset, Mountain
+    Tv, Trees, Sparkles, Lock, ConciergeBell, Ticket, Snowflake, Sunset, Mountain,
+    AlertCircle
 } from 'lucide-react';
 import { propertyApi } from '../services/properties';
-import { Property } from '../types';
+import { bookingService } from '../services/booking';
+import { Property, RoomType } from '../types';
 
 const getFeatureIcon = (text: string) => {
     const lowerText = text.toLowerCase();
@@ -45,6 +48,8 @@ export default function PropertyDetail() {
     const children = searchParams.get('children') || '0';
 
     const [property, setProperty] = useState<Property | null>(null);
+    const [availability, setAvailability] = useState<RoomType[] | null>(null);
+    const [loadingAvailability, setLoadingAvailability] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +58,31 @@ export default function PropertyDetail() {
             loadProperty(slug);
         }
     }, [slug]);
+
+    // Fetch availability if dates are selected
+    useEffect(() => {
+        if (property && checkIn && checkOut) {
+            fetchAvailability();
+        }
+    }, [property, checkIn, checkOut]);
+
+    const fetchAvailability = async () => {
+        try {
+            setLoadingAvailability(true);
+            const data = await bookingService.checkAvailability({
+                checkInDate: checkIn,
+                checkOutDate: checkOut,
+                adults: Number(adults),
+                children: Number(children),
+                includeSoldOut: true
+            });
+            setAvailability(data.availableRoomTypes);
+        } catch (err) {
+            console.error('Error fetching availability:', err);
+        } finally {
+            setLoadingAvailability(false);
+        }
+    };
 
     const loadProperty = async (propertySlug: string) => {
         try {
@@ -176,200 +206,249 @@ export default function PropertyDetail() {
                                     <h2 className="text-2xl font-bold text-gray-900">Available Accommodations</h2>
                                 </div>
                                 <div className="divide-y divide-gray-100">
-                                    {property.roomTypes.map((roomType) => (
-                                        <div key={roomType.id} className="p-6 hover:bg-gray-50/30 transition-colors">
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                                                {/* Left: Photos & Basic Info */}
-                                                <div className="md:col-span-1 space-y-4">
-                                                    <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-sm group">
-                                                        {roomType.images && roomType.images.length > 0 ? (
-                                                            <img
-                                                                src={roomType.images[0]}
-                                                                alt={roomType.name}
-                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                                                                <Building2 className="h-10 w-10 text-gray-300" />
-                                                            </div>
-                                                        )}
-                                                        <Link
-                                                            to={`/properties/${property.slug}/rooms/${roomType.id}`}
-                                                            className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1.5 border border-white/10 hover:bg-black/80 transition-colors"
-                                                        >
-                                                            <span>{roomType.images?.length || 0} PHOTOS</span>
-                                                            <ChevronRight className="h-2.5 w-2.5" />
-                                                        </Link>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-start justify-between">
-                                                            <h3 className="text-lg font-bold text-gray-900 leading-tight">
-                                                                {roomType.name}
-                                                            </h3>
-                                                            {roomType.marketingBadgeText && (
-                                                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border shadow-sm shrink-0 whitespace-nowrap ml-2 ${roomType.marketingBadgeType === 'URGENT'
-                                                                    ? 'bg-red-50 text-red-600 border-red-200 shadow-red-100/50'
-                                                                    : roomType.marketingBadgeType === 'NEUTRAL'
-                                                                        ? 'bg-gray-50 text-gray-600 border-gray-200'
-                                                                        : 'bg-green-50 text-green-600 border-green-200'
-                                                                    }`}>
-                                                                    {roomType.marketingBadgeText}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex flex-col gap-2 pt-2">
-                                                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                                <Maximize className="h-3.5 w-3.5 text-primary-500" />
-                                                                <span>{roomType.size || 280} sq.ft (26 sq.mt)</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                                <BedDouble className="h-3.5 w-3.5 text-primary-500" />
-                                                                <span>{roomType.maxAdults} Adult(s) & {roomType.maxChildren} Child(ren)</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                                <Bath className="h-3.5 w-3.5 text-primary-500" />
-                                                                <span>Private Bathroom</span>
-                                                            </div>
-                                                        </div>
-                                                        <Link
-                                                            to={`/properties/${property.slug}/rooms/${roomType.id}`}
-                                                            className="text-primary-600 text-xs font-semibold hover:underline flex items-center gap-1 mt-3"
-                                                        >
-                                                            View Details <Info className="h-3 w-3" />
-                                                        </Link>
-                                                    </div>
-                                                </div>
+                                    {property.roomTypes.map((roomType) => {
+                                        const availabilityInfo = availability?.find(a => a.id === roomType.id);
 
-                                                {/* Middle: Highlights & Features */}
-                                                <div className="md:col-span-2 space-y-4 border-l border-gray-100 pl-8">
-                                                    <div className="space-y-3">
-                                                        <h4 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Room Highlights & Inclusions</h4>
-                                                        <ul className="space-y-2.5">
-                                                            {/* Cancellation Policy */}
-                                                            {roomType.cancellationPolicy ? (
-                                                                <li className="flex items-start gap-2.5 text-sm text-green-700 font-medium bg-green-50/50 p-2 rounded-lg border border-green-100/50">
-                                                                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                                                                    <span>{roomType.cancellationPolicy}</span>
-                                                                </li>
+                                        // A room is "fundamentally" sold out if it has rooms defined but none are AVAILABLE
+                                        const isFundamentallySoldOut = roomType.rooms && roomType.rooms.length > 0 &&
+                                            roomType.rooms.every((r: any) => r.status !== 'AVAILABLE');
+
+                                        const isSoldOut = (checkIn && checkOut)
+                                            ? availabilityInfo?.isSoldOut
+                                            : isFundamentallySoldOut;
+
+                                        const availableCount = (checkIn && checkOut)
+                                            ? availabilityInfo?.availableCount
+                                            : roomType.rooms?.filter((r: any) => r.status === 'AVAILABLE').length;
+
+                                        return (
+                                            <div key={roomType.id} className={clsx(
+                                                "p-6 hover:bg-gray-50/30 transition-colors relative",
+                                                isSoldOut && "opacity-75 grayscale-[0.5]"
+                                            )}>
+                                                {isSoldOut && (
+                                                    <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                                        <div className="bg-white/90 shadow-xl border border-rose-200 px-6 py-3 rounded-2xl flex flex-col items-center gap-1 transform -rotate-3">
+                                                            <span className="text-rose-600 font-black text-xl uppercase tracking-tighter">Fully Booked</span>
+                                                            <span className="text-gray-500 text-[10px] font-bold">Try different dates for this room</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                                    {/* Left: Photos & Basic Info */}
+                                                    <div className="md:col-span-1 space-y-4">
+                                                        <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-sm group">
+                                                            {roomType.images && roomType.images.length > 0 ? (
+                                                                <img
+                                                                    src={roomType.images[0]}
+                                                                    alt={roomType.name}
+                                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                                />
                                                             ) : (
-                                                                <li className="flex items-start gap-2.5 text-sm text-gray-600">
-                                                                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                                                                    <span>Standard Cancellation Policy applies</span>
-                                                                </li>
+                                                                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                                                    <Building2 className="h-10 w-10 text-gray-300" />
+                                                                </div>
                                                             )}
+                                                            <Link
+                                                                to={`/properties/${property.slug}/rooms/${roomType.id}`}
+                                                                className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1.5 border border-white/10 hover:bg-black/80 transition-colors"
+                                                            >
+                                                                <span>{roomType.images?.length || 0} PHOTOS</span>
+                                                                <ChevronRight className="h-2.5 w-2.5" />
+                                                            </Link>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-start justify-between">
+                                                                <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                                                                    {roomType.name}
+                                                                </h3>
+                                                                {isSoldOut ? (
+                                                                    <span className="bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-rose-200 shadow-sm shrink-0 whitespace-nowrap ml-2">
+                                                                        Sold Out
+                                                                    </span>
+                                                                ) : roomType.marketingBadgeText && (
+                                                                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border shadow-sm shrink-0 whitespace-nowrap ml-2 ${roomType.marketingBadgeType === 'URGENT'
+                                                                        ? 'bg-red-50 text-red-600 border-red-200 shadow-red-100/50'
+                                                                        : roomType.marketingBadgeType === 'NEUTRAL'
+                                                                            ? 'bg-gray-50 text-gray-600 border-gray-200'
+                                                                            : 'bg-green-50 text-green-600 border-green-200'
+                                                                        }`}>
+                                                                        {roomType.marketingBadgeText}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {/* Availability Warning */}
+                                                            {checkIn && checkOut && !isSoldOut && availableCount !== undefined && availableCount <= 3 && (
+                                                                <div className="flex items-center gap-1.5 text-[10px] font-black text-rose-600 uppercase tracking-tight py-1">
+                                                                    <AlertCircle className="h-3 w-3 animate-pulse" />
+                                                                    Only {availableCount} room{availableCount > 1 ? 's' : ''} left at this price!
+                                                                </div>
+                                                            )}
+                                                            <div className="flex flex-col gap-2 pt-2">
+                                                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                    <Maximize className="h-3.5 w-3.5 text-primary-500" />
+                                                                    <span>{roomType.size || 280} sq.ft (26 sq.mt)</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                    <BedDouble className="h-3.5 w-3.5 text-primary-500" />
+                                                                    <span>{roomType.maxAdults} Adult(s) & {roomType.maxChildren} Child(ren)</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                    <Bath className="h-3.5 w-3.5 text-primary-500" />
+                                                                    <span>Private Bathroom</span>
+                                                                </div>
+                                                            </div>
+                                                            <Link
+                                                                to={`/properties/${property.slug}/rooms/${roomType.id}`}
+                                                                className="text-primary-600 text-xs font-semibold hover:underline flex items-center gap-1 mt-3"
+                                                            >
+                                                                View Details <Info className="h-3 w-3" />
+                                                            </Link>
+                                                        </div>
+                                                    </div>
 
-                                                            {/* Inclusions */}
-                                                            {roomType.inclusions && roomType.inclusions.length > 0 ? (
-                                                                roomType.inclusions.map((inclusion, idx) => (
-                                                                    <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-700">
-                                                                        <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
-                                                                            {getFeatureIcon(inclusion)}
-                                                                        </div>
-                                                                        <span className="pt-0.5">{inclusion}</span>
+                                                    {/* Middle: Highlights & Features */}
+                                                    <div className="md:col-span-2 space-y-4 border-l border-gray-100 pl-8">
+                                                        <div className="space-y-3">
+                                                            <h4 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Room Highlights & Inclusions</h4>
+                                                            <ul className="space-y-2.5">
+                                                                {/* Cancellation Policy */}
+                                                                {roomType.cancellationPolicy ? (
+                                                                    <li className="flex items-start gap-2.5 text-sm text-green-700 font-medium bg-green-50/50 p-2 rounded-lg border border-green-100/50">
+                                                                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                                        <span>{roomType.cancellationPolicy}</span>
                                                                     </li>
-                                                                ))
+                                                                ) : (
+                                                                    <li className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                                        <span>Standard Cancellation Policy applies</span>
+                                                                    </li>
+                                                                )}
+
+                                                                {/* Inclusions */}
+                                                                {roomType.inclusions && roomType.inclusions.length > 0 ? (
+                                                                    roomType.inclusions.map((inclusion, idx) => (
+                                                                        <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                            <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
+                                                                                {getFeatureIcon(inclusion)}
+                                                                            </div>
+                                                                            <span className="pt-0.5">{inclusion}</span>
+                                                                        </li>
+                                                                    ))
+                                                                ) : (
+                                                                    roomType.amenities.includes('Breakfast') && (
+                                                                        <li className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                            <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
+                                                                                <Utensils className="h-3.5 w-3.5" />
+                                                                            </div>
+                                                                            <span className="pt-0.5">Complimentary Breakfast included</span>
+                                                                        </li>
+                                                                    )
+                                                                )}
+
+                                                                {/* Highlights */}
+                                                                {roomType.highlights && roomType.highlights.length > 0 && roomType.highlights.map((highlight, idx) => (
+                                                                    <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                        <div className="bg-blue-50 p-1.5 rounded-md text-blue-500">
+                                                                            {getFeatureIcon(highlight)}
+                                                                        </div>
+                                                                        <span className="pt-0.5">{highlight}</span>
+                                                                    </li>
+                                                                ))}
+
+                                                                {(!roomType.highlights || roomType.highlights.length === 0) && (
+                                                                    <li className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                        <div className="bg-blue-50 p-1 rounded-md">
+                                                                            <Clock className="h-3 w-3 text-blue-500 shrink-0" />
+                                                                        </div>
+                                                                        <span>Early Check-In (subject to availability)</span>
+                                                                    </li>
+                                                                )}
+                                                            </ul>
+                                                        </div>
+
+                                                        <div className="pt-4 mt-4 border-t border-dashed border-gray-100">
+                                                            <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+                                                                {roomType.amenities.slice(0, 6).map((amenity) => (
+                                                                    <div key={amenity} className="flex items-center gap-2 text-[11px] text-gray-500">
+                                                                        <div className="w-1 h-1 bg-gray-300 rounded-full" />
+                                                                        {amenity}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Right: Pricing & CTA */}
+                                                    <div className="md:col-span-1 border-l border-gray-100 pl-8 flex flex-col justify-between">
+                                                        <div className="text-right space-y-1">
+                                                            {roomType.offers && roomType.offers.length > 0 ? (
+                                                                <>
+                                                                    <div className="text-gray-400 text-xs line-through decoration-red-400">
+                                                                        ₹{roomType.basePrice.toLocaleString()}
+                                                                    </div>
+                                                                    <div className="text-3xl font-black text-gray-900">
+                                                                        ₹{Math.round(roomType.basePrice * (1 - Number(roomType.offers[0].discountPercentage) / 100)).toLocaleString()}
+                                                                    </div>
+                                                                </>
                                                             ) : (
-                                                                roomType.amenities.includes('Breakfast') && (
-                                                                    <li className="flex items-start gap-2.5 text-sm text-gray-700">
-                                                                        <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
-                                                                            <Utensils className="h-3.5 w-3.5" />
-                                                                        </div>
-                                                                        <span className="pt-0.5">Complimentary Breakfast included</span>
-                                                                    </li>
-                                                                )
+                                                                <>
+                                                                    <div className="text-gray-400 text-xs line-through decoration-gray-300">
+                                                                        ₹{Math.round(roomType.basePrice * 1.25).toLocaleString()}
+                                                                    </div>
+                                                                    <div className="text-3xl font-black text-gray-900">
+                                                                        ₹{roomType.basePrice.toLocaleString()}
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            <div className="text-[10px] text-gray-500 font-medium">
+                                                                + ₹{Math.round(roomType.basePrice * 0.12).toLocaleString()} Taxes & fees / night
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-3 mt-8">
+                                                            {roomType.offers && roomType.offers.length > 0 ? (
+                                                                <div className="bg-orange-50 text-orange-700 p-3 rounded-lg border border-orange-100">
+                                                                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Limited Time Deal</p>
+                                                                    <p className="text-[11px] leading-snug">Save {roomType.offers[0].discountPercentage}% with this special offer!</p>
+                                                                </div>
+                                                            ) : roomType.marketingBadgeText ? (
+                                                                <div className="bg-primary-50 text-primary-700 p-3 rounded-lg border border-primary-100">
+                                                                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1">{roomType.marketingBadgeType || 'Member Benefit'}</p>
+                                                                    <p className="text-[11px] leading-snug">{roomType.marketingBadgeText}</p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="bg-green-50 text-green-700 p-3 rounded-lg border border-green-100">
+                                                                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Best Value</p>
+                                                                    <p className="text-[11px] leading-snug">Lowest price guaranteed for today.</p>
+                                                                </div>
                                                             )}
 
-                                                            {/* Highlights */}
-                                                            {roomType.highlights && roomType.highlights.length > 0 && roomType.highlights.map((highlight, idx) => (
-                                                                <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-600">
-                                                                    <div className="bg-blue-50 p-1.5 rounded-md text-blue-500">
-                                                                        {getFeatureIcon(highlight)}
-                                                                    </div>
-                                                                    <span className="pt-0.5">{highlight}</span>
-                                                                </li>
-                                                            ))}
-
-                                                            {(!roomType.highlights || roomType.highlights.length === 0) && (
-                                                                <li className="flex items-start gap-2.5 text-sm text-gray-600">
-                                                                    <div className="bg-blue-50 p-1 rounded-md">
-                                                                        <Clock className="h-3 w-3 text-blue-500 shrink-0" />
-                                                                    </div>
-                                                                    <span>Early Check-In (subject to availability)</span>
-                                                                </li>
+                                                            {isSoldOut ? (
+                                                                <button
+                                                                    disabled
+                                                                    className="block w-full py-4 px-6 bg-gray-100 text-gray-400 text-center font-bold rounded-xl border border-gray-200 cursor-not-allowed text-sm uppercase tracking-wider"
+                                                                >
+                                                                    Sold Out
+                                                                </button>
+                                                            ) : (
+                                                                <Link
+                                                                    to={`/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn}&checkOut=${checkOut}&adults=${adults}&children=${children}`}
+                                                                    className="block w-full py-4 px-6 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-xl shadow-lg shadow-primary-500/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-sm uppercase tracking-wider"
+                                                                >
+                                                                    Book Now
+                                                                </Link>
                                                             )}
-                                                        </ul>
-                                                    </div>
-
-                                                    <div className="pt-4 mt-4 border-t border-dashed border-gray-100">
-                                                        <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-                                                            {roomType.amenities.slice(0, 6).map((amenity) => (
-                                                                <div key={amenity} className="flex items-center gap-2 text-[11px] text-gray-500">
-                                                                    <div className="w-1 h-1 bg-gray-300 rounded-full" />
-                                                                    {amenity}
-                                                                </div>
-                                                            ))}
+                                                            <p className="text-[10px] text-center text-gray-400">
+                                                                Instant confirmation • Secure payment
+                                                            </p>
                                                         </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Right: Pricing & CTA */}
-                                                <div className="md:col-span-1 border-l border-gray-100 pl-8 flex flex-col justify-between">
-                                                    <div className="text-right space-y-1">
-                                                        {roomType.offers && roomType.offers.length > 0 ? (
-                                                            <>
-                                                                <div className="text-gray-400 text-xs line-through decoration-red-400">
-                                                                    ₹{roomType.basePrice.toLocaleString()}
-                                                                </div>
-                                                                <div className="text-3xl font-black text-gray-900">
-                                                                    ₹{Math.round(roomType.basePrice * (1 - Number(roomType.offers[0].discountPercentage) / 100)).toLocaleString()}
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <div className="text-gray-400 text-xs line-through decoration-gray-300">
-                                                                    ₹{Math.round(roomType.basePrice * 1.25).toLocaleString()}
-                                                                </div>
-                                                                <div className="text-3xl font-black text-gray-900">
-                                                                    ₹{roomType.basePrice.toLocaleString()}
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                        <div className="text-[10px] text-gray-500 font-medium">
-                                                            + ₹{Math.round(roomType.basePrice * 0.12).toLocaleString()} Taxes & fees / night
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="space-y-3 mt-8">
-                                                        {roomType.offers && roomType.offers.length > 0 ? (
-                                                            <div className="bg-orange-50 text-orange-700 p-3 rounded-lg border border-orange-100">
-                                                                <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Limited Time Deal</p>
-                                                                <p className="text-[11px] leading-snug">Save {roomType.offers[0].discountPercentage}% with this special offer!</p>
-                                                            </div>
-                                                        ) : roomType.marketingBadgeText ? (
-                                                            <div className="bg-primary-50 text-primary-700 p-3 rounded-lg border border-primary-100">
-                                                                <p className="text-[10px] font-bold uppercase tracking-wider mb-1">{roomType.marketingBadgeType || 'Member Benefit'}</p>
-                                                                <p className="text-[11px] leading-snug">{roomType.marketingBadgeText}</p>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="bg-green-50 text-green-700 p-3 rounded-lg border border-green-100">
-                                                                <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Best Value</p>
-                                                                <p className="text-[11px] leading-snug">Lowest price guaranteed for today.</p>
-                                                            </div>
-                                                        )}
-                                                        <Link
-                                                            to={`/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn}&checkOut=${checkOut}&adults=${adults}&children=${children}`}
-                                                            className="block w-full py-4 px-6 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-xl shadow-lg shadow-primary-500/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-sm uppercase tracking-wider"
-                                                        >
-                                                            Book Now
-                                                        </Link>
-                                                        <p className="text-[10px] text-center text-gray-400">
-                                                            Instant confirmation • Secure payment
-                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

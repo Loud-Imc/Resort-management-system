@@ -18,8 +18,12 @@ export class UsersController {
     @Get()
     @Permissions(PERMISSIONS.USERS.READ)
     @ApiOperation({ summary: 'Get all users' })
-    findAll(@Request() req, @Query('propertyId') propertyId?: string) {
-        return this.usersService.findAll(req.user, propertyId);
+    findAll(
+        @Request() req,
+        @Query('propertyId') propertyId?: string,
+        @Query('isStaffOnly') isStaffOnly?: string
+    ) {
+        return this.usersService.findAll(req.user, { propertyId, isStaffOnly });
     }
 
     @Post()

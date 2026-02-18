@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreatePartnerLevelDto, UpdatePartnerLevelDto, CreateRewardDto, UpdateRewardDto } from './dto/marketing-items.dto';
 
 @Injectable()
 export class MarketingService {
@@ -51,4 +52,64 @@ export class MarketingService {
             }
         });
     }
+
+    // ============================================
+    // PARTNER LEVELS CRUD
+    // ============================================
+
+    async findAllLevels() {
+        return this.prisma.partnerLevel.findMany({
+            orderBy: { minPoints: 'asc' },
+        });
+    }
+
+    async createLevel(dto: CreatePartnerLevelDto) {
+        return this.prisma.partnerLevel.create({
+            data: dto,
+        });
+    }
+
+    async updateLevel(id: string, dto: UpdatePartnerLevelDto) {
+        return this.prisma.partnerLevel.update({
+            where: { id },
+            data: dto,
+        });
+    }
+
+    async deleteLevel(id: string) {
+        return this.prisma.partnerLevel.delete({
+            where: { id },
+        });
+    }
+
+    // ============================================
+    // REWARDS CRUD
+    // ============================================
+
+    async findAllRewards(onlyActive = false) {
+        return this.prisma.reward.findMany({
+            where: onlyActive ? { isActive: true } : {},
+            orderBy: { pointCost: 'asc' },
+        });
+    }
+
+    async createReward(dto: CreateRewardDto) {
+        return this.prisma.reward.create({
+            data: dto,
+        });
+    }
+
+    async updateReward(id: string, dto: UpdateRewardDto) {
+        return this.prisma.reward.update({
+            where: { id },
+            data: dto,
+        });
+    }
+
+    async deleteReward(id: string) {
+        return this.prisma.reward.delete({
+            where: { id },
+        });
+    }
 }
+

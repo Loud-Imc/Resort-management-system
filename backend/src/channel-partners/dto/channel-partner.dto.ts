@@ -27,3 +27,8 @@ export class CPPayoutRequestDto {
     @IsString()
     notes?: string;
 }
+export class UpdateReferralDiscountRateDto {
+    @ApiProperty({ example: 10.0 })
+    @IsNumber()
+    referralDiscountRate: number;
+}

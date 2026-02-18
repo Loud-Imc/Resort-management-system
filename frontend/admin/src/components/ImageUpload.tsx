@@ -56,7 +56,7 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
         <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {images.map((url, index) => (
-                    <div key={index} className="relative group aspect-video bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                    <div key={index} className="relative group aspect-video bg-muted rounded-lg overflow-hidden border border-border">
                         <img
                             src={url}
                             alt={`Uploaded ${index + 1}`}
@@ -65,7 +65,7 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
                         <button
                             type="button"
                             onClick={() => removeImage(index)}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                             <X className="h-4 w-4" />
                         </button>
@@ -77,14 +77,14 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
-                        className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-border rounded-lg hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
                     >
                         {isUploading ? (
-                            <Loader2 className="h-6 w-6 text-primary-500 animate-spin" />
+                            <Loader2 className="h-6 w-6 text-primary animate-spin" />
                         ) : (
                             <>
-                                <Upload className="h-6 w-6 text-gray-400 mb-2" />
-                                <span className="text-sm text-gray-500">Upload Image</span>
+                                <Upload className="h-6 w-6 text-muted-foreground group-hover:text-primary mb-2 transition-colors" />
+                                <span className="text-sm text-muted-foreground group-hover:text-primary transition-colors">Upload Image</span>
                             </>
                         )}
                     </button>
@@ -99,7 +99,7 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
                 multiple
                 className="hidden"
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
                 Supported formats: JPG, PNG, WEBP. Max {maxImages} images.
             </p>
         </div>

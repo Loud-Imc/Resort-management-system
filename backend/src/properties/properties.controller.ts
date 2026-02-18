@@ -3,6 +3,7 @@ import {
     Get,
     Post,
     Put,
+    Patch,
     Delete,
     Body,
     Param,
@@ -14,9 +15,11 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PropertiesService } from './properties.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
+import { RegisterPropertyDto } from './dto/register-property.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
+import { PropertyStatus } from '@prisma/client';
 
 @ApiTags('Properties')
 @Controller('properties')
@@ -26,6 +29,12 @@ export class PropertiesController {
     // ============================================
     // PUBLIC ENDPOINTS
     // ============================================
+
+    @Post('public-register')
+    @ApiOperation({ summary: 'Public registration for Property Owners' })
+    publicRegister(@Body() dto: RegisterPropertyDto) {
+        return this.propertiesService.publicRegister(dto);
+    }
 
     @Get()
     @ApiOperation({ summary: 'List all properties (public)' })
@@ -105,13 +114,16 @@ export class PropertiesController {
         return this.propertiesService.findAllAdmin(req.user, query);
     }
 
-    @Put(':id/verify')
+    @Patch(':id/status')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Verify a property (Admin)' })
-    verify(@Param('id') id: string) {
-        return this.propertiesService.verify(id);
+    @ApiOperation({ summary: 'Approve/Reject/Update property status (Admin)' })
+    updateStatus(
+        @Param('id') id: string,
+        @Body('status') status: PropertyStatus,
+    ) {
+        return this.propertiesService.updateStatus(id, status);
     }
 
     @Put(':id/toggle-active')
@@ -123,3 +135,4 @@ export class PropertiesController {
         return this.propertiesService.toggleActive(id, isActive);
     }
 }
+

@@ -27,6 +27,11 @@ export class CreateUserDto {
     @IsOptional()
     phone?: string;
 
+    @ApiProperty({ required: false })
+    @IsString()
+    @IsOptional()
+    whatsappNumber?: string;
+
     @ApiProperty({ required: false, default: true })
     @IsBoolean()
     @IsOptional()

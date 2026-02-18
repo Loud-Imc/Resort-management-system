@@ -31,17 +31,26 @@ export const PropertyProvider = ({ children }: { children: ReactNode }) => {
             const propertiesList = response.data.data || [];
 
             setProperties(propertiesList);
+            const isGlobalAdmin = user?.roles?.includes('SuperAdmin') || user?.roles?.includes('Admin');
 
             // Auto-select first property if none selected or if previously selected is not in list
             if (propertiesList.length > 0) {
                 // Check if we have a stored preference
                 const storedId = localStorage.getItem('selectedPropertyId');
-                const found = propertiesList.find((p: Property) => p.id === storedId);
 
-                if (found) {
-                    setSelectedProperty(found);
-                } else if (!selectedProperty) {
-                    setSelectedProperty(propertiesList[0]);
+                if (storedId === 'all' && isGlobalAdmin) {
+                    setSelectedProperty(null);
+                } else {
+                    const found = propertiesList.find((p: Property) => p.id === storedId);
+
+                    if (found) {
+                        setSelectedProperty(found);
+                    } else if (isGlobalAdmin) {
+                        // For admins, default to All if no valid stored property
+                        setSelectedProperty(null);
+                    } else if (!selectedProperty) {
+                        setSelectedProperty(propertiesList[0]);
+                    }
                 }
             } else {
                 setSelectedProperty(null);
@@ -66,8 +75,10 @@ export const PropertyProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (selectedProperty) {
             localStorage.setItem('selectedPropertyId', selectedProperty.id);
+        } else if (selectedProperty === null && isAuthenticated) {
+            localStorage.setItem('selectedPropertyId', 'all');
         }
-    }, [selectedProperty]);
+    }, [selectedProperty, isAuthenticated]);
 
     return (
         <PropertyContext.Provider

@@ -28,10 +28,10 @@ export class CreateExpenseDto {
     @IsOptional()
     receipts?: string[];
 
-    @ApiProperty({ example: 'property-uuid' })
+    @ApiProperty({ example: 'property-uuid', required: false })
+    @IsOptional()
     @IsString()
-    @IsNotEmpty()
-    propertyId: string;
+    propertyId?: string;
 }
 
 export class UpdateExpenseDto {

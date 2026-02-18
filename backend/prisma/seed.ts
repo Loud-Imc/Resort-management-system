@@ -15,23 +15,49 @@ async function main() {
         else if (roleKey === 'EVENT_ORGANIZER') roleName = 'EventOrganizer';
         else if (roleKey === 'VERIFICATION_STAFF') roleName = 'VerificationStaff';
         else if (roleKey === 'MARKETING') roleName = 'Marketing';
+        else if (roleKey === 'CHANNEL_PARTNER') roleName = 'ChannelPartner';
         else {
             // Convert CUSTOMER -> Customer, MANAGER -> Manager, STAFF -> Staff
             roleName = roleKey.charAt(0).toUpperCase() + roleKey.slice(1).toLowerCase();
         }
 
-        await prisma.role.upsert({
-            where: { name: roleName },
-            update: {},
-            create: {
-                name: roleName,
-                description: `${roleName} access role`,
-            },
+        let category = 'SYSTEM';
+        const eventRoles = ['EventOrganizer', 'VerificationStaff'];
+        const propertyRoles = ['Manager', 'Staff', 'Receptionist', 'Housekeeping', 'Kitchen'];
+
+        if (eventRoles.includes(roleName)) {
+            category = 'EVENT';
+        } else if (propertyRoles.includes(roleName)) {
+            category = 'PROPERTY';
+        }
+
+        const existingRole = await prisma.role.findFirst({
+            where: { name: roleName, propertyId: null }
         });
+
+        if (existingRole) {
+            await prisma.role.update({
+                where: { id: existingRole.id },
+                data: {
+                    isSystem: true,
+                    category: category as any,
+                    description: `${roleName} access role`
+                }
+            });
+        } else {
+            await prisma.role.create({
+                data: {
+                    name: roleName,
+                    description: `${roleName} access role`,
+                    isSystem: true,
+                    category: category as any
+                }
+            });
+        }
     }
 
-    const superAdminRole = await prisma.role.findUnique({ where: { name: 'SuperAdmin' } });
-    const ownerRole = await prisma.role.findUnique({ where: { name: 'PropertyOwner' } });
+    const superAdminRole = await prisma.role.findFirst({ where: { name: 'SuperAdmin', propertyId: null } });
+    const ownerRole = await prisma.role.findFirst({ where: { name: 'PropertyOwner', propertyId: null } });
 
     if (!superAdminRole || !ownerRole) {
         throw new Error('Required roles (SuperAdmin/PropertyOwner) not found after creation.');
@@ -62,7 +88,7 @@ async function main() {
             dbRoleName = roleKey.charAt(0).toUpperCase() + roleKey.slice(1).toLowerCase();
         }
 
-        const role = await prisma.role.findUnique({ where: { name: dbRoleName } });
+        const role = await prisma.role.findFirst({ where: { name: dbRoleName, propertyId: null } });
         if (!role) {
             console.warn(`⚠️ Role ${dbRoleName} not found, skipping permissions.`);
             continue;

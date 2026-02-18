@@ -59,62 +59,62 @@ export default function UsersList() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage staff access, roles, and permissions</p>
+                    <h1 className="text-2xl font-bold text-foreground">User Management</h1>
+                    <p className="text-sm text-muted-foreground mt-1">Manage staff access, roles, and permissions</p>
                 </div>
                 <Link
                     to="/users/create"
-                    className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
                 >
                     <Plus className="h-4 w-4" />
                     Add New User
                 </Link>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-card p-4 rounded-lg shadow-sm border border-border">
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
                         type="text"
                         placeholder="Search users..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                        className="w-full pl-10 border-border bg-background text-foreground rounded-lg focus:ring-primary focus:border-primary"
                     />
                 </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                    <table className="min-w-full divide-y divide-border">
+                        <thead className="bg-muted/50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roles</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">User</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Roles</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-card divide-y divide-border">
                             {filteredUsers?.map((user) => (
-                                <tr key={user.id} className="hover:bg-gray-50">
+                                <tr key={user.id} className="hover:bg-muted/30 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
                                             <div className="h-10 w-10 flex-shrink-0">
-                                                <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
+                                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                                     <UserIcon className="h-5 w-5" />
                                                 </div>
                                             </div>
                                             <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</div>
-                                                <div className="text-sm text-gray-500">{user.email}</div>
+                                                <div className="text-sm font-medium text-foreground">{user.firstName} {user.lastName}</div>
+                                                <div className="text-sm text-muted-foreground">{user.email}</div>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-wrap gap-1">
                                             {user.roles.map((ur, idx) => (
-                                                <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">
                                                     <Shield className="h-3 w-3 mr-1" />
                                                     {ur.role.name}
                                                 </span>
@@ -124,7 +124,7 @@ export default function UsersList() {
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={clsx(
                                             "px-2 inline-flex text-xs leading-5 font-semibold rounded-full",
-                                            user.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                            user.isActive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 text-destructive"
                                         )}>
                                             {user.isActive ? 'Active' : 'Inactive'}
                                         </span>
@@ -133,13 +133,13 @@ export default function UsersList() {
                                         <div className="flex justify-end gap-2">
                                             <Link
                                                 to={`/users/edit/${user.id}`}
-                                                className="text-primary-600 hover:text-primary-900 bg-primary-50 p-2 rounded-full"
+                                                className="text-primary hover:bg-primary/10 p-2 rounded-full transition-colors"
                                             >
                                                 <Edit2 className="h-4 w-4" />
                                             </Link>
                                             <button
                                                 onClick={() => handleDelete(user.id)}
-                                                className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
+                                                className="text-destructive hover:bg-destructive/10 p-2 rounded-full transition-colors"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </button>
@@ -150,7 +150,7 @@ export default function UsersList() {
 
                             {filteredUsers?.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                                    <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground font-medium">
                                         No users found matching your search.
                                     </td>
                                 </tr>

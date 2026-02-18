@@ -1,6 +1,7 @@
 import { IsString, IsOptional, IsEnum, IsEmail, IsArray, IsBoolean, IsNumber, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { PropertyStatus } from '@prisma/client';
 
 export enum PropertyType {
     RESORT = 'RESORT',
@@ -64,6 +65,11 @@ export class CreatePropertyDto {
     @IsString()
     phone: string;
 
+    @ApiProperty({ example: '+91 98765 43210' })
+    @IsOptional()
+    @IsString()
+    whatsappNumber?: string;
+
     @ApiProperty({ example: ['WiFi', 'Pool', 'Restaurant'] })
     @IsOptional()
     @IsArray()
@@ -92,6 +98,11 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsNumber()
     marketingCommission?: number;
+
+    @ApiProperty({ example: 10.00, description: 'Commission percentage for the platform' })
+    @IsOptional()
+    @IsNumber()
+    platformCommission?: number;
 
     @ApiProperty({ example: 'user-uuid-123', description: 'ID of the user who will own this property' })
     @IsOptional()
@@ -154,6 +165,10 @@ export class UpdatePropertyDto {
     phone?: string;
 
     @IsOptional()
+    @IsString()
+    whatsappNumber?: string;
+
+    @IsOptional()
     @IsArray()
     amenities?: string[];
 
@@ -194,6 +209,11 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsNumber()
     marketingCommission?: number;
+
+    @ApiProperty({ description: 'Commission percentage for the platform' })
+    @IsOptional()
+    @IsNumber()
+    platformCommission?: number;
 }
 
 export class PropertyQueryDto {
@@ -246,4 +266,9 @@ export class PropertyQueryDto {
     @IsBoolean()
     @Type(() => Boolean)
     isVerified?: boolean;
+
+    @IsOptional()
+    @IsEnum(PropertyStatus)
+    status?: PropertyStatus;
 }
+

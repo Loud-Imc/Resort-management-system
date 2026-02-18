@@ -18,10 +18,14 @@ export class GuestInfoDto {
     @IsOptional()
     email?: string;
 
-    @ApiProperty({ example: '+1234567890', required: false })
     @IsString()
     @IsOptional()
     phone?: string;
+
+    @ApiProperty({ example: '+1234567890', required: false })
+    @IsString()
+    @IsOptional()
+    whatsappNumber?: string;
 
     @ApiProperty({ example: 30, required: false })
     @IsInt()
@@ -128,4 +132,14 @@ export class CreateBookingDto {
     @IsString()
     @IsOptional()
     guestPhone?: string;
+
+    @ApiProperty({ example: '+1234567890', required: false })
+    @IsString()
+    @IsOptional()
+    whatsappNumber?: string;
+
+    @ApiProperty({ example: 'REF123', required: false })
+    @IsString()
+    @IsOptional()
+    referralCode?: string;
 }

@@ -15,6 +15,8 @@ async function bootstrap() {
     origin: [
       process.env.ADMIN_URL || 'http://localhost:5173',
       process.env.PUBLIC_URL || 'http://localhost:5174',
+      process.env.CHANNEL_PARTNER_URL || 'http://localhost:5176',
+      process.env.PROPERTY_URL || 'http://localhost:5178',
     ],
     credentials: true,
   });

@@ -21,7 +21,10 @@ model User {
   firstName String
   lastName  String
   phone     String?
+  whatsappNumber String?
   isActive  Boolean  @default(true)
+  idType    String?  // Passport, Aadhar, etc.
+  idNumber  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -53,16 +56,29 @@ model User {
 
 model Role {
   id          String   @id @default(uuid())
-  name        String   @unique // SuperAdmin, Admin, Manager, Staff, Customer
+  name        String
   description String?
+  isSystem    Boolean  @default(false)
+  category    RoleCategory @default(SYSTEM)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Multi-tenant
+  propertyId String?
+  property   Property? @relation("PropertyRoles", fields: [propertyId], references: [id])
 
   // Relations
   users       UserRole[]
   permissions RolePermission[]
 
+  @@unique([name, propertyId], name: "name_propertyId")
   @@map("roles")
+}
+
+enum RoleCategory {
+  SYSTEM
+  PROPERTY
+  EVENT
 }
 
 model Permission {
@@ -440,6 +456,10 @@ model Payment {
   razorpayPaymentId String? @unique
   razorpaySignature String?
 
+  platformFee      Decimal? @db.Decimal(10, 2)
+  netAmount        Decimal? @db.Decimal(10, 2)
+  payoutStatus     PayoutStatus @default(PENDING)
+
   // Payment Details
   paymentMethod String? // card, netbanking, upi, wallet
   paymentDate   DateTime?
@@ -467,6 +487,12 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  CANCELLED
 }
 
 // ============================================
@@ -607,6 +633,7 @@ model Property {
   isActive   Boolean @default(true)
   isVerified Boolean @default(false)
   isFeatured Boolean @default(false)
+  status     PropertyStatus @default(PENDING)
 
   // Owner
   ownerId String
@@ -620,6 +647,7 @@ model Property {
   rooms     Room[]
   bookings  Booking[]
   staff     PropertyStaff[]
+  roles     Role[]           @relation("PropertyRoles")
   events    Event[]
   incomes   Income[]
   expenses  Expense[]
@@ -628,10 +656,20 @@ model Property {
   addedById           String?
   addedBy             User?            @relation("PropertyAddedBy", fields: [addedById], references: [id])
   marketingCommission Decimal          @default(0) @db.Decimal(10, 2)
+  platformCommission  Decimal          @default(10.00) @db.Decimal(5, 2)
   commissionStatus    CommissionStatus @default(PENDING)
+  whatsappNumber      String?
 
   @@map("properties")
 }
+
+enum PropertyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  INACTIVE
+}
+
 
 enum PropertyType {
   RESORT
@@ -666,19 +704,39 @@ model ChannelPartner {
   id           String @id @default(uuid())
   referralCode String @unique // Auto-generated: CP-XXXXXX
 
+  // Registration Type
+  partnerType  PartnerType @default(INDIVIDUAL)
+  status       ChannelPartnerStatus @default(PENDING)
+
+  // Organization details (if applicable)
+  organizationName     String?
+  authorizedPersonName String?
+  taxId               String?  // GST/PAN
+  businessAddress      String?
+
   // Commission Settings
-  commissionRate Decimal @default(5.00) @db.Decimal(5, 2) // Default 5%
+  commissionRate   Decimal @default(5.00) @db.Decimal(5, 2) // Default 5%
+  referralDiscountRate Decimal @default(10.00) @db.Decimal(5, 2) // Customer discount % when using this code
+  isRateOverridden Boolean @default(false) // If true, use this rate instead of level-based rate
 
   // Points & Balance
   totalPoints     Int     @default(0)
   availablePoints Int     @default(0)
+  pendingPoints   Int     @default(0)
   totalEarnings   Decimal @default(0) @db.Decimal(12, 2)
+  pendingEarnings Decimal @default(0) @db.Decimal(12, 2)
   paidOut         Decimal @default(0) @db.Decimal(12, 2)
 
-  // Status
-  isActive Boolean @default(true)
+  // Payout Details
+  bankName           String?
+  accountHolderName  String?
+  accountNumber      String?
+  ifscCode           String?
+  upiId              String?
 
-  // User Relation
+  // Notifications
+  notificationPrefs  Json?   @default("{\"emailReferrals\":true,\"emailRewards\":true,\"pushBookings\":true}")
+
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
 
@@ -688,13 +746,28 @@ model ChannelPartner {
   // Relations
   referrals    Booking[]       @relation("CPReferrals")
   transactions CPTransaction[]
+  redemptions  CPRewardRedemption[]
 
   @@map("channel_partners")
 }
 
+enum PartnerType {
+  INDIVIDUAL
+  ORGANIZATION
+}
+
+enum ChannelPartnerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  INACTIVE
+}
+
+
 model CPTransaction {
   id          String            @id @default(uuid())
   type        CPTransactionType
+  status      CPTransactionStatus @default(FINALIZED)
   amount      Decimal           @db.Decimal(10, 2)
   points      Int               @default(0)
   description String?
@@ -716,11 +789,75 @@ enum CPTransactionType {
   PAYOUT
 }
 
+enum CPTransactionStatus {
+  PENDING
+  FINALIZED
+  VOID
+}
+
+// ============================================
+// CP TIERS & REWARDS
+// ============================================
+
+model PartnerLevel {
+  id             String  @id @default(uuid())
+  name           String  @unique // Bronze, Silver, Gold, Platinum
+  minPoints      Int     @unique
+  commissionRate Decimal @db.Decimal(5, 2)
+  description    String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("partner_levels")
+}
+
+model Reward {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  pointCost   Int
+  imageUrl    String?
+  isActive    Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  redemptions CPRewardRedemption[]
+
+  @@map("rewards")
+}
+
+model CPRewardRedemption {
+  id      String @id @default(uuid())
+  status  RedemptionStatus @default(PENDING)
+  notes   String?
+
+  channelPartnerId String
+  channelPartner   ChannelPartner @relation(fields: [channelPartnerId], references: [id])
+
+  rewardId String
+  reward   Reward @relation(fields: [rewardId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cp_reward_redemptions")
+}
+
+enum RedemptionStatus {
+  PENDING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
 enum CommissionStatus {
   PENDING
   PAID
   CANCELLED
 }
+
 
 // ============================================
 // EVENTS MANAGEMENT

@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
 import { AuditService } from '../audit/audit.service';
+import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
+import { differenceInDays, format, addDays } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -13,6 +15,7 @@ export class BookingsService {
         private availabilityService: AvailabilityService,
         private pricingService: PricingService,
         private auditService: AuditService,
+        private channelPartnersService: ChannelPartnersService,
     ) { }
 
     /**
@@ -29,6 +32,7 @@ export class BookingsService {
             roomId,
             specialRequests,
             couponCode,
+            referralCode,
             bookingSourceId: rawBookingSourceId,
             isManualBooking = false,
             overrideTotal,
@@ -45,7 +49,7 @@ export class BookingsService {
 
         // Handle Guest User Creation
         const lowercaseEmail = createBookingDto.guestEmail?.toLowerCase();
-        console.log(`[BookingsService] INCOMING: userId=${userId}, guestEmail=${lowercaseEmail}`);
+        console.log(`[BookingsService] INCOMING: userId = ${userId}, guestEmail = ${lowercaseEmail}`);
         let bookingUserId = userId;
         if (userId === 'GUEST_USER') {
             if (!lowercaseEmail) {
@@ -69,6 +73,7 @@ export class BookingsService {
                         firstName: createBookingDto.guestName?.split(' ')[0] || 'Guest',
                         lastName: createBookingDto.guestName?.split(' ').slice(1).join(' ') || 'User',
                         phone: createBookingDto.guestPhone,
+                        whatsappNumber: createBookingDto.whatsappNumber,
                         password: await bcrypt.hash('GUEST_PASSWORD_PLACEHOLDER', 10),
                         roles: roleId ? {
                             create: {
@@ -81,12 +86,12 @@ export class BookingsService {
             bookingUserId = user.id;
         }
 
-        console.log(`[BookingsService] DERIVED bookingUserId=${bookingUserId}`);
+        console.log(`[BookingsService] DERIVED bookingUserId = ${bookingUserId}`);
 
         // 1. Check for existing PENDING_PAYMENT from the SAME USER for this roomType
         // This prevents "Self-Blocking" on retries.
         // We match by EMAIL in the relation for maximum reliability.
-        console.log(`[BookingsService] Checking for self-block: email=${lowercaseEmail}, roomTypeId=${roomTypeId}`);
+        console.log(`[BookingsService] Checking for self-block: email = ${lowercaseEmail}, roomTypeId = ${roomTypeId}`);
         const existingPending = await this.prisma.booking.findFirst({
             where: {
                 status: 'PENDING_PAYMENT',
@@ -124,6 +129,7 @@ export class BookingsService {
             adultsCount,
             childrenCount,
             couponCode,
+            referralCode,
         );
 
         // 3. Handle price override for manual bookings
@@ -169,7 +175,7 @@ export class BookingsService {
         // 5. Generate booking number
         const bookingNumber = await this.generateBookingNumber();
 
-        // 6. Get coupon if provided
+        // 6. Resolve Coupon & referralCode
         let couponId: string | undefined;
         if (couponCode) {
             const coupon = await this.prisma.coupon.findUnique({
@@ -178,22 +184,45 @@ export class BookingsService {
             couponId = coupon?.id;
         }
 
-        // 6.5 Calculate Commission
-        let commissionAmount = 0;
+        let channelPartnerId: string | undefined;
+        let cpCommission = 0;
 
-        // If booking source is provided, check for default commission
+        if (referralCode) {
+            const cp = await this.prisma.channelPartner.findFirst({
+                where: { referralCode, status: 'APPROVED' as any },
+            });
+
+            if (cp) {
+                channelPartnerId = cp.id;
+                // Calculate Commission
+                let rate = Number(cp.commissionRate);
+
+                // If not overridden, check level-based rate
+                if (!cp.isRateOverridden) {
+                    const level = await this.prisma.partnerLevel.findFirst({
+                        where: { minPoints: { lte: cp.totalPoints } },
+                        orderBy: { minPoints: 'desc' },
+                    });
+                    if (level) {
+                        rate = Number(level.commissionRate);
+                    }
+                }
+                cpCommission = (finalTotal * rate) / 100;
+            } else {
+                throw new BadRequestException('Invalid or inactive referral code');
+            }
+        }
+
+        // 6.5 Calculate Booking Source Commission
+        let commissionAmount = 0;
         if (bookingSourceId) {
             const source = await this.prisma.bookingSource.findUnique({
                 where: { id: bookingSourceId }
             });
-            // Explicitly cast to unknown then to number to handle Decimal type mismatch safely, or just use Number()
             if (source?.commission) {
                 commissionAmount = (finalTotal * Number(source.commission)) / 100;
             }
         }
-
-        // If agent is involved, they might override or take precedence (future logic)
-        // For now, if source commission exists, use it.
 
         // 7. Create booking
         const booking = await this.prisma.booking.create({
@@ -223,6 +252,9 @@ export class BookingsService {
                 bookingSourceId,
                 agentId,
                 commissionAmount,
+                channelPartnerId,
+                cpCommission,
+                cpDiscount: pricing.referralDiscountAmount,
                 couponId,
                 confirmedAt: isManualBooking ? new Date() : null,
                 guests: {
@@ -263,6 +295,16 @@ export class BookingsService {
             newValue: booking,
             bookingId: booking.id,
         });
+
+        // 10. Process Channel Partner Reward for Manual Bookings (Pending)
+        if (isManualBooking && channelPartnerId) {
+            await this.channelPartnersService.processReferralCommission(
+                booking.id,
+                channelPartnerId,
+                finalTotal,
+                true // isPending = true
+            );
+        }
 
         // 10. Create income record for confirmed bookings
         if (isManualBooking) {
@@ -353,6 +395,7 @@ export class BookingsService {
                     },
                 },
                 bookingSource: true,
+                guests: true,
             },
             orderBy: {
                 createdAt: 'desc',
@@ -409,11 +452,36 @@ export class BookingsService {
     /**
      * Check-in a booking
      */
-    async checkIn(id: string, user: any) {
+    async checkIn(id: string, user: any, dto?: any) {
         const booking = await this.findOne(id, user);
 
         if (booking.status !== 'CONFIRMED') {
             throw new BadRequestException('Only confirmed bookings can be checked in');
+        }
+
+        // 1. Update guest details if provided
+        if (dto?.guests && dto.guests.length > 0) {
+            for (const guestUpdate of dto.guests) {
+                await this.prisma.bookingGuest.update({
+                    where: { id: guestUpdate.id },
+                    data: {
+                        idType: guestUpdate.idType,
+                        idNumber: guestUpdate.idNumber,
+                    },
+                });
+            }
+
+            // Sync to User profile (Primary Guest/Account Holder)
+            const primaryGuest = dto.guests[0];
+            if (primaryGuest?.idType && primaryGuest?.idNumber) {
+                await this.prisma.user.update({
+                    where: { id: booking.userId },
+                    data: {
+                        idType: primaryGuest.idType,
+                        idNumber: primaryGuest.idNumber,
+                    },
+                });
+            }
         }
 
         const updated = await this.prisma.booking.update({
@@ -444,6 +512,9 @@ export class BookingsService {
             newValue: { status: 'CHECK_IN' },
             bookingId: id,
         });
+
+        // Finalize Channel Partner Commission
+        await this.channelPartnersService.finalizeReferralCommission(id);
 
         return updated;
     }
@@ -522,6 +593,9 @@ export class BookingsService {
             newValue: { status: 'CANCELLED', reason },
             bookingId: id,
         });
+
+        // Revert Channel Partner Commission
+        await this.channelPartnersService.revertReferralCommission(id);
 
         return updated;
     }

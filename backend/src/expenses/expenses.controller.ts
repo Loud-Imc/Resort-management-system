@@ -27,16 +27,19 @@ export class ExpensesController {
     @ApiQuery({ name: 'categoryId', required: false })
     @ApiQuery({ name: 'startDate', required: false })
     @ApiQuery({ name: 'endDate', required: false })
+    @ApiQuery({ name: 'propertyId', required: false })
     findAll(
         @Request() req,
         @Query('categoryId') categoryId?: string,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
+        @Query('propertyId') propertyId?: string,
     ) {
         return this.expensesService.findAll(req.user, {
             categoryId,
             startDate: startDate ? new Date(startDate) : undefined,
             endDate: endDate ? new Date(endDate) : undefined,
+            propertyId,
         });
     }
 
@@ -45,12 +48,19 @@ export class ExpensesController {
     @ApiOperation({ summary: 'Get expense summary' })
     @ApiQuery({ name: 'startDate', required: true })
     @ApiQuery({ name: 'endDate', required: true })
+    @ApiQuery({ name: 'propertyId', required: false })
     getSummary(
         @Request() req,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
     ) {
-        return this.expensesService.getSummary(req.user, new Date(startDate), new Date(endDate));
+        return this.expensesService.getSummary(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId
+        );
     }
 
     @Get(':id')

@@ -1,5 +1,5 @@
 import api from './api';
-import { ChannelPartner, CPStats, CPListResponse } from '../types/channel-partner';
+import { ChannelPartner, CPStats, CPListResponse, CPPartnerDetails, ChannelPartnerStatus } from '../types/channel-partner';
 
 // Channel Partner API Service
 export const channelPartnerService = {
@@ -41,15 +41,27 @@ export const channelPartnerService = {
         return response.data;
     },
 
+    // Admin: Get partner details with referral bookings
+    async getPartnerDetails(id: string): Promise<CPPartnerDetails> {
+        const response = await api.get(`/channel-partners/${id}`);
+        return response.data;
+    },
+
     // Admin: Update commission rate
     async updateCommissionRate(id: string, commissionRate: number): Promise<ChannelPartner> {
         const response = await api.put(`/channel-partners/${id}/commission-rate`, { commissionRate });
         return response.data;
     },
 
-    // Admin: Toggle active status
-    async toggleActive(id: string, isActive: boolean): Promise<ChannelPartner> {
-        const response = await api.put(`/channel-partners/${id}/toggle-active`, { isActive });
+    // Admin: Update partner status
+    async updateStatus(id: string, status: ChannelPartnerStatus): Promise<ChannelPartner> {
+        const response = await api.patch(`/channel-partners/${id}/status`, { status });
+        return response.data;
+    },
+
+    // Admin: Update referral discount rate
+    async updateReferralDiscountRate(id: string, referralDiscountRate: number): Promise<ChannelPartner> {
+        const response = await api.put(`/channel-partners/${id}/referral-discount-rate`, { referralDiscountRate });
         return response.data;
     },
 };

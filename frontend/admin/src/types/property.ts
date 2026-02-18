@@ -17,6 +17,7 @@ export interface Property {
     longitude?: number;
     email: string;
     phone: string;
+    whatsappNumber?: string;
     images: string[];
     coverImage?: string;
     amenities: string[];
@@ -26,6 +27,7 @@ export interface Property {
     isActive: boolean;
     isVerified: boolean;
     isFeatured: boolean;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     ownerId: string;
     owner?: {
         id: string;
@@ -41,6 +43,7 @@ export interface Property {
         rooms: number;
     };
     marketingCommission?: number;
+    platformCommission?: number;
     commissionStatus?: 'PENDING' | 'PAID' | 'CANCELLED';
     addedBy?: {
         id: string;
@@ -62,12 +65,14 @@ export interface CreatePropertyDto {
     longitude?: number;
     email: string;
     phone: string;
+    whatsappNumber?: string;
     amenities?: string[];
     images?: string[];
     coverImage?: string;
     policies?: Record<string, any>;
     addedById?: string;
     marketingCommission?: number;
+    platformCommission?: number;
     ownerId?: string;
     isFeatured?: boolean;
 }

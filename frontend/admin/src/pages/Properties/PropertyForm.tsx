@@ -35,6 +35,8 @@ export default function PropertyForm() {
 
     // Check roles
     const isAdmin = user?.roles?.some(r => r === 'SuperAdmin' || r === 'Admin');
+    const isMarketing = user?.roles?.includes('Marketing');
+    const isPropertyOwner = user?.roles?.includes('PropertyOwner');
 
     const [formData, setFormData] = useState<CreatePropertyDto>({
         name: '',
@@ -54,25 +56,35 @@ export default function PropertyForm() {
         marketingCommission: 0,
         ownerId: '',
         isFeatured: false,
+        platformCommission: 10,
+        whatsappNumber: '',
     });
 
     useEffect(() => {
         if (isEdit && id) {
             loadProperty(id);
         }
-        if (isAdmin) {
+
+        if (isAdmin || isMarketing) {
             loadUsers();
-        } else {
-            // If not admin (e.g., Marketing staff), auto-set addedById and commission
+        }
+
+        // Auto-set defaults for non-admins
+        if (!isAdmin) {
             if (user?.id) {
                 setFormData(prev => ({
                     ...prev,
-                    addedById: user.id,
-                    marketingCommission: user.commissionPercentage || 0
+                    ...(isMarketing && {
+                        addedById: user.id,
+                        marketingCommission: user.commissionPercentage || 0
+                    }),
+                    ...(isPropertyOwner && !isEdit && {
+                        ownerId: user.id
+                    })
                 }));
             }
         }
-    }, [id, isEdit, isAdmin, user]);
+    }, [id, isEdit, isAdmin, isMarketing, isPropertyOwner, user]);
 
     const loadUsers = async () => {
         try {
@@ -119,6 +131,8 @@ export default function PropertyForm() {
                 marketingCommission: property.marketingCommission || 0,
                 ownerId: property.ownerId || '',
                 isFeatured: property.isFeatured || false,
+                platformCommission: property.platformCommission || 10,
+                whatsappNumber: property.whatsappNumber || '',
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -137,6 +151,7 @@ export default function PropertyForm() {
             const submissionData = {
                 ...formData,
                 marketingCommission: Number(formData.marketingCommission),
+                platformCommission: Number(formData.platformCommission),
             };
 
             if (isEdit && id) {
@@ -170,7 +185,7 @@ export default function PropertyForm() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -181,15 +196,15 @@ export default function PropertyForm() {
             <div className="flex items-center gap-4 mb-6">
                 <button
                     onClick={() => navigate('/properties')}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
+                    className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                    <ArrowLeft className="h-5 w-5" />
+                    <ArrowLeft className="h-5 w-5 text-foreground" />
                 </button>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
+                    <h1 className="text-2xl font-bold text-foreground">
                         {isEdit ? 'Edit Property' : 'Add New Property'}
                     </h1>
-                    <p className="text-gray-500">
+                    <p className="text-muted-foreground">
                         {isEdit ? 'Update property details' : 'Create a new property listing'}
                     </p>
                 </div>
@@ -197,21 +212,21 @@ export default function PropertyForm() {
 
             {/* Error */}
             {error && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">{error}</div>
+                <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 mb-6">{error}</div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
 
                 {/* Marketing & Commission - Only visible to Admin or if Marketing adding it (commission) */}
-                <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-emerald-500">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm p-6 border-l-4 border-emerald-500 border border-border">
+                    <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
 
                         ₹ Marketing & Commission
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {isAdmin && (
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-bold text-muted-foreground mb-1">
                                     Added By (Marketing Staff)
                                 </label>
                                 <select
@@ -234,7 +249,7 @@ export default function PropertyForm() {
                                             }));
                                         }
                                     }}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
                                 >
                                     <option value="">-- Select Staff --</option>
                                     {marketingUsers.map(u => (
@@ -246,7 +261,7 @@ export default function PropertyForm() {
                             </div>
                         )}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Commission Percentage (%)
                             </label>
                             <input
@@ -258,55 +273,78 @@ export default function PropertyForm() {
                                 max="100"
                                 step="0.01"
                                 readOnly
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-gray-100 cursor-not-allowed"
+                                className="w-full px-4 py-2 bg-muted text-muted-foreground border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 cursor-not-allowed opacity-70"
                                 placeholder="e.g. 10.00"
                             />
                         </div>
+                        {isAdmin && (
+                            <div>
+                                <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                    Platform Commission (%)
+                                </label>
+                                <input
+                                    type="number"
+                                    name="platformCommission"
+                                    value={formData.platformCommission}
+                                    onChange={handleChange}
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
+                                    placeholder="e.g. 10.00"
+                                />
+                                <p className="text-xs text-muted-foreground mt-1 font-medium italic">
+                                    * This is the percentage the platform takes from each booking.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Owner Selection - Only visible to Admin/Marketing during creation or update */}
-                <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-500">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Building2 className="h-5 w-5" />
-                        Property Owner (Client)
-                    </h2>
-                    <div className="grid grid-cols-1 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Assign Owner *
-                            </label>
-                            <select
-                                name="ownerId"
-                                value={formData.ownerId}
-                                onChange={handleChange}
-                                required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">-- Select Owner --</option>
-                                {propertyOwners.map(u => (
-                                    <option key={u.id} value={u.id}>
-                                        {u.firstName} {u.lastName} ({u.email})
-                                    </option>
-                                ))}
-                            </select>
-                            <p className="text-xs text-gray-500 mt-1">
-                                The user selected here will have full control over this property's operations.
-                            </p>
+                {/* Owner Selection - Only visible to Admin/Marketing */}
+                {(isAdmin || isMarketing) && (
+                    <div className="bg-card rounded-xl shadow-sm p-6 border-l-4 border-blue-500 border border-border">
+                        <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
+                            <Building2 className="h-5 w-5" />
+                            Property Owner (Client)
+                        </h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                    Assign Owner *
+                                </label>
+                                <select
+                                    name="ownerId"
+                                    value={formData.ownerId}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                >
+                                    <option value="">-- Select Owner --</option>
+                                    {propertyOwners.map(u => (
+                                        <option key={u.id} value={u.id}>
+                                            {u.firstName} {u.lastName} ({u.email})
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-muted-foreground mt-2 font-medium">
+                                    The user selected here will have full control over this property's operations.
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 {/* Basic Info */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
+                    <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
                         <Building2 className="h-5 w-5" />
                         Basic Information
                     </h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Property Name *
                             </label>
                             <input
@@ -315,13 +353,13 @@ export default function PropertyForm() {
                                 value={formData.name}
                                 onChange={handleChange}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="e.g., Nature Haven Resort"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Property Type *
                             </label>
                             <select
@@ -329,7 +367,7 @@ export default function PropertyForm() {
                                 value={formData.type}
                                 onChange={handleChange}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                             >
                                 {propertyTypes.map(type => (
                                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -338,7 +376,7 @@ export default function PropertyForm() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Email *
                             </label>
                             <input
@@ -347,13 +385,13 @@ export default function PropertyForm() {
                                 value={formData.email}
                                 onChange={handleChange}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="contact@property.com"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Phone *
                             </label>
                             <input
@@ -362,13 +400,27 @@ export default function PropertyForm() {
                                 value={formData.phone}
                                 onChange={handleChange}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="+91 98765 43210"
                             />
                         </div>
 
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                WhatsApp Number
+                            </label>
+                            <input
+                                type="tel"
+                                name="whatsappNumber"
+                                value={formData.whatsappNumber}
+                                onChange={handleChange}
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                placeholder="+91 98765 43210 (WhatsApp)"
+                            />
+                        </div>
+
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Description
                             </label>
                             <textarea
@@ -376,7 +428,7 @@ export default function PropertyForm() {
                                 value={formData.description}
                                 onChange={handleChange}
                                 rows={4}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all resize-none"
                                 placeholder="Describe your property..."
                             />
                         </div>
@@ -385,14 +437,14 @@ export default function PropertyForm() {
 
                 {/* Featured Status - Only visible to Admin */}
                 {isAdmin && (
-                    <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-amber-500">
+                    <div className="bg-card rounded-xl shadow-sm p-6 border-l-4 border-amber-500 border border-border">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
                                     <Star className="h-5 w-5 text-amber-500" />
                                     Featured Property
                                 </h2>
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-muted-foreground font-medium">
                                     Featured properties are showcased on the public homepage.
                                 </p>
                             </div>
@@ -404,22 +456,22 @@ export default function PropertyForm() {
                                     onChange={handleChange}
                                     className="sr-only peer"
                                 />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
                             </label>
                         </div>
                     </div>
                 )}
 
                 {/* Location */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
+                    <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
                         <MapPin className="h-5 w-5" />
                         Location
                     </h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Address *
                             </label>
                             <input
@@ -428,13 +480,13 @@ export default function PropertyForm() {
                                 value={formData.address}
                                 onChange={handleChange}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="Full street address"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 City *
                             </label>
                             <input
@@ -443,13 +495,13 @@ export default function PropertyForm() {
                                 value={formData.city}
                                 onChange={handleChange}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="e.g., Wayanad"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 State *
                             </label>
                             <input
@@ -458,13 +510,13 @@ export default function PropertyForm() {
                                 value={formData.state}
                                 onChange={handleChange}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="e.g., Kerala"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Country
                             </label>
                             <input
@@ -472,12 +524,12 @@ export default function PropertyForm() {
                                 name="country"
                                 value={formData.country}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Pincode
                             </label>
                             <input
@@ -485,7 +537,7 @@ export default function PropertyForm() {
                                 name="pincode"
                                 value={formData.pincode}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="673123"
                             />
                         </div>
@@ -493,8 +545,8 @@ export default function PropertyForm() {
                 </div>
 
                 {/* Amenities */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Amenities</h2>
+                <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
+                    <h2 className="text-lg font-bold text-card-foreground mb-4">Amenities</h2>
 
                     <div className="flex flex-wrap gap-2">
                         {defaultAmenities.map(amenity => (
@@ -502,9 +554,9 @@ export default function PropertyForm() {
                                 key={amenity}
                                 type="button"
                                 onClick={() => toggleAmenity(amenity)}
-                                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${formData.amenities?.includes(amenity)
-                                    ? 'bg-primary-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${formData.amenities?.includes(amenity)
+                                    ? 'bg-primary text-primary-foreground shadow-md'
+                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
                                     }`}
                             >
                                 {amenity}
@@ -514,15 +566,15 @@ export default function PropertyForm() {
                 </div>
 
                 {/* Images */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
+                    <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
                         <Image className="h-5 w-5" />
                         Images
                     </h2>
 
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2">
                                 Cover Image
                             </label>
                             <ImageUpload
@@ -530,13 +582,13 @@ export default function PropertyForm() {
                                 onChange={(urls) => setFormData(prev => ({ ...prev, coverImage: urls[0] || '' }))}
                                 maxImages={1}
                             />
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-muted-foreground mt-2 font-medium">
                                 Used as the main thumbnail for the property.
                             </p>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2">
                                 Gallery Images
                             </label>
                             <ImageUpload
@@ -544,7 +596,7 @@ export default function PropertyForm() {
                                 onChange={(urls) => setFormData(prev => ({ ...prev, images: urls }))}
                                 maxImages={10}
                             />
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-muted-foreground mt-2 font-medium">
                                 Add up to 10 photos of the property.
                             </p>
                         </div>
@@ -556,14 +608,14 @@ export default function PropertyForm() {
                     <button
                         type="button"
                         onClick={() => navigate('/properties')}
-                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        className="px-6 py-2 bg-muted text-foreground border border-border rounded-lg hover:bg-muted/80 font-bold transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         type="submit"
                         disabled={saving}
-                        className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+                        className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-bold transition-all shadow-md"
                     >
                         {saving ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

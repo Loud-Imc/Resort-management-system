@@ -69,6 +69,7 @@ export const PERMISSIONS = {
     PAYMENTS: {
         READ: 'payments.read',
         CREATE: 'payments.create',
+        UPDATE: 'payments.update',
         REFUND: 'payments.refund',
     },
 
@@ -192,9 +193,10 @@ export const PERMISSION_GROUPS = {
         // Properties: Read/Update own property
         PERMISSIONS.PROPERTIES.READ, PERMISSIONS.PROPERTIES.UPDATE,
 
-        // Financials: Read Only
+        // Financials: Full Control for own property
         PERMISSIONS.PAYMENTS.READ,
-        PERMISSIONS.EXPENSES.READ,
+        ...Object.values(PERMISSIONS.EXPENSES),
+        ...Object.values(PERMISSIONS.INCOME),
 
         // Events: Full Control for own property
         PERMISSIONS.EVENTS.CREATE, PERMISSIONS.EVENTS.READ, PERMISSIONS.EVENTS.UPDATE,
@@ -211,6 +213,9 @@ export const PERMISSION_GROUPS = {
         PERMISSIONS.USERS.DELETE, // To delete team accounts
         PERMISSIONS.PROPERTY_STAFF.MANAGE, // To add/remove staff
         PERMISSIONS.ROLES.READ, // To see available roles when creating users
+        PERMISSIONS.ROLES.CREATE, // To create property roles
+        PERMISSIONS.ROLES.UPDATE, // To edit property roles
+        PERMISSIONS.ROLES.DELETE, // To delete property roles
 
         // Marketing: Offers
         PERMISSIONS.MARKETING.MANAGE_OFFERS,
@@ -242,5 +247,13 @@ export const PERMISSION_GROUPS = {
         PERMISSIONS.BOOKINGS.READ,
         PERMISSIONS.EVENTS.READ,
         PERMISSIONS.EVENT_BOOKINGS.READ,
+    ],
+
+    CHANNEL_PARTNER: [
+        PERMISSIONS.BOOKINGS.READ, // To see their referrals
+        PERMISSIONS.REPORTS.VIEW_DASHBOARD, // For their own dashboard stats
+        PERMISSIONS.CHANNEL_PARTNERS.READ, // To read their own profile
+        PERMISSIONS.CHANNEL_PARTNERS.UPDATE, // To update their own profile
     ]
 };
+

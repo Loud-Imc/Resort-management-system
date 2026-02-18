@@ -3,6 +3,9 @@ export interface Payment {
     amount: number;
     currency: string;
     status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
+    payoutStatus: 'PENDING' | 'PAID' | 'CANCELLED';
+    platformFee?: number;
+    netAmount?: number;
     paymentMethod?: string;
     paymentDate?: string;
     razorpayOrderId?: string;
@@ -20,6 +23,10 @@ export interface Payment {
         };
         roomType: {
             name: string;
+        };
+        property: {
+            name: string;
+            platformCommission?: number;
         };
     };
     createdAt: string;

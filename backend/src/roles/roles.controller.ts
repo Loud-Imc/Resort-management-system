@@ -18,8 +18,8 @@ export class RolesController {
     @Post()
     @Permissions(PERMISSIONS.ROLES.CREATE)
     @ApiOperation({ summary: 'Create new role' })
-    create(@Body() createRoleDto: CreateRoleDto) {
-        return this.rolesService.create(createRoleDto);
+    create(@Body() createRoleDto: CreateRoleDto, @Req() req) {
+        return this.rolesService.create(createRoleDto, req.user);
     }
 
     @Get('permissions')
@@ -46,8 +46,8 @@ export class RolesController {
     @Patch(':id')
     @Permissions(PERMISSIONS.ROLES.UPDATE)
     @ApiOperation({ summary: 'Update role' })
-    update(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
-        return this.rolesService.update(id, updateRoleDto);
+    update(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto, @Req() req) {
+        return this.rolesService.update(id, updateRoleDto, req.user);
     }
 
     @Delete(':id')

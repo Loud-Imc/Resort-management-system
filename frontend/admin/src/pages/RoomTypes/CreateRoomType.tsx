@@ -11,6 +11,30 @@ import { Loader2, ArrowLeft, Save, Plus, X, Image as ImageIcon, Ticket, Trash2, 
 import ImageUpload from '../../components/ImageUpload';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { Check } from 'lucide-react';
+
+const COMMON_HIGHLIGHTS = [
+    'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
+    'Valley View', 'Forest View', 'Sunset View', 'Private Balcony', 'Jacuzzi',
+    'Fireplace', 'King Size Bed', 'Queen Size Bed', 'Twin Beds', 'Spacious Room',
+    'Interconnected Rooms', 'Soundproofed', 'Attached Washroom', 'Bathtub'
+];
+
+const COMMON_INCLUSIONS = [
+    'Breakfast Included', 'Lunch Included', 'Dinner Included',
+    'All Meals Included (MAP)', 'Welcome Drink', 'Fruit Basket', 'Free Wi-Fi',
+    'Airport Transfer', 'Railway Station Pickup', 'Evening Snacks',
+    'Tea/Coffee Maker', 'Nature Walk', 'Yoga Session', 'Trekking',
+    'Plantation Tour', 'Campfire', 'Bird Watching', 'Indoor Games'
+];
+
+const COMMON_AMENITIES = [
+    'Wi-Fi', 'Air Conditioning (AC)', 'Fan', 'Room Heater', 'LED TV',
+    'Mini Fridge', 'Electric Kettle', 'Safe Box', 'Telephone', 'Hair Dryer',
+    'Iron & Board', 'Daily Housekeeping', 'Toiletries', 'Desk & Chair',
+    'Wardrobe', 'Sofa / Seating Area', 'Extra Mattress', 'Bathrobes',
+    'Plush Towels', 'Laundry Service'
+];
 
 const roomTypeSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -197,259 +221,374 @@ export default function CreateRoomType() {
         }
     };
 
+    const toggleItem = (value: string, fields: any[], append: Function, remove: Function) => {
+        const index = fields.findIndex(f => f.value === value);
+        if (index > -1) {
+            remove(index);
+        } else {
+            append({ value });
+        }
+    };
+
     if (loadingType) {
-        return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
+        return (
+            <div className="flex justify-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
     }
 
 
 
     return (
-        <div className="max-w-4xl mx-auto">
-            <div className="flex items-center gap-4 mb-6">
+        <div className="max-w-4xl mx-auto space-y-8">
+            <div className="flex items-center gap-4">
                 <button
                     onClick={() => navigate('/room-types')}
-                    className="p-2 hover:bg-gray-100 rounded-full"
+                    className="p-2 hover:bg-muted rounded-lg transition-colors border border-border bg-card shadow-sm"
                 >
-                    <ArrowLeft className="h-6 w-6 text-gray-600" />
+                    <ArrowLeft className="h-5 w-5 text-card-foreground" />
                 </button>
-                <h1 className="text-2xl font-bold text-gray-900">
-                    {isEditMode ? 'Edit Room Type' : 'Create Room Type'}
-                </h1>
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">
+                        {isEditMode ? 'Edit Room Type' : 'Add New Room Type'}
+                    </h1>
+                    <p className="text-sm text-muted-foreground font-medium">Define room features, pricing, and availability</p>
+                </div>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6 pb-12">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-8">
+                    <div className="flex items-center gap-2 border-b border-border pb-4">
+                        <div className="w-1 h-6 bg-primary rounded-full"></div>
+                        <h2 className="text-lg font-bold text-card-foreground">General Information</h2>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Room Type Name</label>
                             <input
                                 {...register('name')}
                                 placeholder="e.g. Deluxe Suite"
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold placeholder:text-muted-foreground/30"
                             />
-                            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
+                            {errors.name && <p className="text-destructive text-xs mt-1 font-bold">{errors.name.message}</p>}
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Base Price / Night</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Base Price / Night (₹)</label>
                             <input
                                 type="number"
                                 {...register('basePrice', { valueAsNumber: true })}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-black"
                             />
-                            {errors.basePrice && <p className="text-red-500 text-xs mt-1">{errors.basePrice.message}</p>}
+                            {errors.basePrice && <p className="text-destructive text-xs mt-1 font-bold">{errors.basePrice.message}</p>}
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Description</label>
                             <textarea
                                 {...register('description')}
                                 rows={3}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all min-h-[100px]"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Max Adults</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Max Adults</label>
                             <input
                                 type="number"
                                 {...register('maxAdults', { valueAsNumber: true })}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Max Children</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Max Children</label>
                             <input
                                 type="number"
                                 {...register('maxChildren', { valueAsNumber: true })}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Extra Adult Price</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Extra Adult Price (₹)</label>
                             <input
                                 type="number"
                                 {...register('extraAdultPrice', { valueAsNumber: true })}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Extra Child Price</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Extra Child Price (₹)</label>
                             <input
                                 type="number"
                                 {...register('extraChildPrice', { valueAsNumber: true })}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Free Children Count</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Free Children Count</label>
                             <input
                                 type="number"
                                 {...register('freeChildrenCount', { valueAsNumber: true })}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                             />
                         </div>
 
-                        <div className="flex items-center md:pt-6">
-                            <input
-                                type="checkbox"
-                                {...register('isPubliclyVisible')}
-                                id="isPubliclyVisible"
-                                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                            />
-                            <label htmlFor="isPubliclyVisible" className="ml-2 block text-sm text-gray-900">
-                                Publicly Visible
+                        <div className="flex items-center md:pt-4">
+                            <label className="relative inline-flex items-center cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    {...register('isPubliclyVisible')}
+                                    id="isPubliclyVisible"
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                <span className="ml-3 text-sm font-bold text-card-foreground group-hover:text-primary transition-colors">Publicly Visible</span>
                             </label>
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation Policy</label>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">Cancellation Policy</label>
                             <input
                                 {...register('cancellationPolicy')}
                                 placeholder="e.g. Free cancellation until 24 hours before check-in"
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all placeholder:text-muted-foreground/30 font-medium"
                             />
                         </div>
 
                         {/* Marketing Badge Section */}
-                        <div className="md:col-span-1 border-t border-gray-100 pt-4">
-                            <label className="block text-sm font-bold text-primary-600 uppercase tracking-wider mb-2">Marketing Badge Text</label>
+                        <div className="md:col-span-1 border-t border-border pt-6">
+                            <label className="block text-[10px] font-black text-primary uppercase tracking-widest mb-2">Marketing Badge Text</label>
                             <input
                                 {...register('marketingBadgeText')}
                                 placeholder="e.g. Selling Fast, Early Bird Offer"
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold placeholder:text-muted-foreground/30"
                             />
-                            <p className="mt-1 text-xs text-gray-500 italic">This text appears as a prominent tag on the room card.</p>
+                            <p className="mt-1 text-[10px] text-muted-foreground font-medium italic">This text appears as a prominent tag on the room card.</p>
                         </div>
 
-                        <div className="md:col-span-1 border-t border-gray-100 pt-4">
-                            <label className="block text-sm font-bold text-primary-600 uppercase tracking-wider mb-2">Badge Style</label>
+                        <div className="md:col-span-1 border-t border-border pt-6">
+                            <label className="block text-[10px] font-black text-primary uppercase tracking-widest mb-2">Badge Style</label>
                             <select
                                 {...register('marketingBadgeType')}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold"
                             >
                                 <option value="POSITIVE">Positive (Green/Trust)</option>
                                 <option value="URGENT">Urgent (Red/Eye-catching)</option>
                                 <option value="NEUTRAL">Neutral (Gray/Subtle)</option>
                             </select>
-                            <p className="mt-1 text-xs text-gray-500 italic">Determines the color profile of the badge.</p>
+                            <p className="mt-1 text-[10px] text-muted-foreground font-medium italic">Determines the color profile of the badge.</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Highlights Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">Room Highlights</h2>
-                        <button
-                            type="button"
-                            onClick={() => appendHighlight({ value: '' })}
-                            className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1"
-                        >
-                            <Plus className="h-4 w-4" /> Add Highlight
-                        </button>
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-6">
+                    <div className="flex items-center justify-between border-b border-border pb-4">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1 h-6 bg-primary rounded-full"></div>
+                            <h2 className="text-lg font-bold text-card-foreground">Room Highlights</h2>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {highlightsFields.map((field, index) => (
-                            <div key={field.id} className="flex gap-2">
-                                <input
-                                    {...register(`highlights.${index}.value`)}
-                                    placeholder="e.g. Mountain View"
-                                    className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                />
+
+                    {/* Predefined Chips */}
+                    <div className="flex flex-wrap gap-2">
+                        {COMMON_HIGHLIGHTS.map(item => {
+                            const isSelected = highlightsFields.some(f => f.value === item);
+                            return (
                                 <button
+                                    key={item}
                                     type="button"
-                                    onClick={() => removeHighlight(index)}
-                                    className="p-2 text-gray-400 hover:text-red-500"
+                                    onClick={() => toggleItem(item, highlightsFields, appendHighlight, removeHighlight)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border ${isSelected
+                                        ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                                        : 'bg-muted/50 border-border text-muted-foreground hover:border-muted-foreground/30'
+                                        }`}
                                 >
-                                    <X className="h-5 w-5" />
+                                    {isSelected && <Check className="h-3 w-3" />}
+                                    {item}
                                 </button>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
-                    {highlightsFields.length === 0 && (
-                        <p className="text-sm text-gray-400 italic text-center py-2">No highlights added. Add highlights like "Ocean View", "Private Pool", etc.</p>
-                    )}
+
+                    <div className="pt-4 border-t border-dashed border-border">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Custom Highlights</h3>
+                            <button
+                                type="button"
+                                onClick={() => appendHighlight({ value: '' })}
+                                className="text-primary hover:text-primary/80 text-xs font-black uppercase tracking-widest flex items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                                <Plus className="h-3 w-3" /> Add More
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {highlightsFields.filter(f => !COMMON_HIGHLIGHTS.includes(f.value)).map((field) => {
+                                // Find the actual index in the full list for react-hook-form
+                                const realIndex = highlightsFields.findIndex(f => f.id === field.id);
+                                return (
+                                    <div key={field.id} className="flex gap-2 group">
+                                        <input
+                                            {...register(`highlights.${realIndex}.value`)}
+                                            placeholder="e.g. Mountain View"
+                                            className="flex-1 px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all placeholder:text-muted-foreground/30 font-medium"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeHighlight(realIndex)}
+                                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                                        >
+                                            <X className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Inclusions Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">What's Included</h2>
-                        <button
-                            type="button"
-                            onClick={() => appendInclusion({ value: '' })}
-                            className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1"
-                        >
-                            <Plus className="h-4 w-4" /> Add Inclusion
-                        </button>
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-6">
+                    <div className="flex items-center justify-between border-b border-border pb-4">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1 h-6 bg-primary rounded-full"></div>
+                            <h2 className="text-lg font-bold text-card-foreground">What's Included</h2>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {inclusionsFields.map((field, index) => (
-                            <div key={field.id} className="flex gap-2">
-                                <input
-                                    {...register(`inclusions.${index}.value`)}
-                                    placeholder="e.g. Complimentary Breakfast"
-                                    className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                />
+
+                    {/* Predefined Chips */}
+                    <div className="flex flex-wrap gap-2">
+                        {COMMON_INCLUSIONS.map(item => {
+                            const isSelected = inclusionsFields.some(f => f.value === item);
+                            return (
                                 <button
+                                    key={item}
                                     type="button"
-                                    onClick={() => removeInclusion(index)}
-                                    className="p-2 text-gray-400 hover:text-red-500"
+                                    onClick={() => toggleItem(item, inclusionsFields, appendInclusion, removeInclusion)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border ${isSelected
+                                        ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                                        : 'bg-muted/50 border-border text-muted-foreground hover:border-muted-foreground/30'
+                                        }`}
                                 >
-                                    <X className="h-5 w-5" />
+                                    {isSelected && <Check className="h-3 w-3" />}
+                                    {item}
                                 </button>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
-                    {inclusionsFields.length === 0 && (
-                        <p className="text-sm text-gray-400 italic text-center py-2">No inclusions added. Add items like "Free WiFi", "Breakfast included", etc.</p>
-                    )}
+
+                    <div className="pt-4 border-t border-dashed border-border">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Custom Inclusions</h3>
+                            <button
+                                type="button"
+                                onClick={() => appendInclusion({ value: '' })}
+                                className="text-primary hover:text-primary/80 text-xs font-black uppercase tracking-widest flex items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                                <Plus className="h-3 w-3" /> Add More
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {inclusionsFields.filter(f => !COMMON_INCLUSIONS.includes(f.value)).map((field) => {
+                                const realIndex = inclusionsFields.findIndex(f => f.id === field.id);
+                                return (
+                                    <div key={field.id} className="flex gap-2 group">
+                                        <input
+                                            {...register(`inclusions.${realIndex}.value`)}
+                                            placeholder="e.g. Complimentary Breakfast"
+                                            className="flex-1 px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all placeholder:text-muted-foreground/30 font-medium"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeInclusion(realIndex)}
+                                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                                        >
+                                            <X className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Amenities Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">Amenities</h2>
-                        <button
-                            type="button"
-                            onClick={() => appendAmenity({ value: '' })}
-                            className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1"
-                        >
-                            <Plus className="h-4 w-4" /> Add Amenity
-                        </button>
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-6">
+                    <div className="flex items-center justify-between border-b border-border pb-4">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1 h-6 bg-primary rounded-full"></div>
+                            <h2 className="text-lg font-bold text-card-foreground">Amenities</h2>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {amenitiesFields.map((field, index) => (
-                            <div key={field.id} className="flex gap-2">
-                                <input
-                                    {...register(`amenities.${index}.value`)}
-                                    placeholder="e.g. Free WiFi"
-                                    className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                                />
+
+                    {/* Predefined Chips */}
+                    <div className="flex flex-wrap gap-2">
+                        {COMMON_AMENITIES.map(item => {
+                            const isSelected = amenitiesFields.some(f => f.value === item);
+                            return (
                                 <button
+                                    key={item}
                                     type="button"
-                                    onClick={() => removeAmenity(index)}
-                                    className="p-2 text-gray-400 hover:text-red-500"
+                                    onClick={() => toggleItem(item, amenitiesFields, appendAmenity, removeAmenity)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border ${isSelected
+                                        ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                                        : 'bg-muted/50 border-border text-muted-foreground hover:border-muted-foreground/30'
+                                        }`}
                                 >
-                                    <X className="h-5 w-5" />
+                                    {isSelected && <Check className="h-3 w-3" />}
+                                    {item}
                                 </button>
-                            </div>
-                        ))}
+                            );
+                        })}
+                    </div>
+
+                    <div className="pt-4 border-t border-dashed border-border">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Custom Amenities</h3>
+                            <button
+                                type="button"
+                                onClick={() => appendAmenity({ value: '' })}
+                                className="text-primary hover:text-primary/80 text-xs font-black uppercase tracking-widest flex items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                                <Plus className="h-3 w-3" /> Add More
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {amenitiesFields.filter(f => !COMMON_AMENITIES.includes(f.value)).map((field) => {
+                                const realIndex = amenitiesFields.findIndex(f => f.id === field.id);
+                                return (
+                                    <div key={field.id} className="flex gap-2 group">
+                                        <input
+                                            {...register(`amenities.${realIndex}.value`)}
+                                            placeholder="e.g. Free WiFi"
+                                            className="flex-1 px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all placeholder:text-muted-foreground/30 font-medium"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAmenity(realIndex)}
+                                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                                        >
+                                            <X className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
                 {/* Images Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <ImageIcon className="h-5 w-5 text-gray-500" />
-                        <h2 className="text-lg font-semibold text-gray-900">Room Type Images</h2>
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-6">
+                    <div className="flex items-center gap-2 border-b border-border pb-4">
+                        <div className="w-1 h-6 bg-primary rounded-full"></div>
+                        <h2 className="text-lg font-bold text-card-foreground">Room Type Images</h2>
                     </div>
                     <ImageUpload
                         images={watch('images') || []}
@@ -460,11 +599,11 @@ export default function CreateRoomType() {
 
                 {/* Active Offers Section (Edit Mode Only) */}
                 {isEditMode && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center justify-between mb-4">
+                    <div className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-6">
+                        <div className="flex items-center justify-between border-b border-border pb-4">
                             <div className="flex items-center gap-2">
-                                <Ticket className="h-5 w-5 text-primary-600" />
-                                <h2 className="text-lg font-semibold text-gray-900">Active Offers / Deals</h2>
+                                <div className="w-1 h-6 bg-primary rounded-full"></div>
+                                <h2 className="text-lg font-bold text-card-foreground">Active Offers / Deals</h2>
                             </div>
                             <button
                                 type="button"
@@ -479,23 +618,23 @@ export default function CreateRoomType() {
                                     });
                                     setIsOfferModalOpen(true);
                                 }}
-                                className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1"
+                                className="text-primary hover:text-primary/80 text-xs font-black uppercase tracking-widest flex items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-lg transition-all"
                             >
-                                <Plus className="h-4 w-4" /> Add Offer
+                                <Plus className="h-3 w-3" /> Add Offer
                             </button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-3">
                             {offers.map((offer) => (
-                                <div key={offer.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div key={offer.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border group hover:border-primary/50 transition-all">
                                     <div>
-                                        <div className="font-semibold text-gray-900 flex items-center gap-2">
+                                        <div className="font-bold text-foreground flex items-center gap-2">
                                             {offer.name}
-                                            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] rounded-full font-bold uppercase">
+                                            <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] rounded-full font-black uppercase shadow-sm">
                                                 {offer.discountPercentage}% OFF
                                             </span>
                                         </div>
-                                        <div className="text-xs text-gray-500">
+                                        <div className="text-xs text-muted-foreground font-medium mt-1">
                                             Valid: {format(new Date(offer.startDate), 'MMM d')} - {format(new Date(offer.endDate), 'MMM d, yyyy')}
                                         </div>
                                     </div>
@@ -511,14 +650,14 @@ export default function CreateRoomType() {
                                                 });
                                                 setIsOfferModalOpen(true);
                                             }}
-                                            className="p-1.5 text-gray-400 hover:text-primary-600"
+                                            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                                         >
                                             <Edit2 className="h-4 w-4" />
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => handleDeleteOffer(offer.id)}
-                                            className="p-1.5 text-gray-400 hover:text-red-500"
+                                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </button>
@@ -526,7 +665,7 @@ export default function CreateRoomType() {
                                 </div>
                             ))}
                             {offers.length === 0 && (
-                                <p className="text-sm text-gray-400 italic text-center py-2">No active offers for this room type. Add a deal to boost bookings!</p>
+                                <p className="text-sm text-muted-foreground italic text-center py-4 bg-muted/30 rounded-lg border border-dashed border-border">No active offers for this room type. Add a deal to boost bookings!</p>
                             )}
                         </div>
                     </div>
@@ -534,47 +673,53 @@ export default function CreateRoomType() {
 
                 {/* Offer Modal */}
                 {isOfferModalOpen && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-                            <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                                <h3 className="font-bold text-gray-900">{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
-                                <button type="button" onClick={() => setIsOfferModalOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-border animate-in fade-in zoom-in duration-200">
+                            <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/50">
+                                <h3 className="font-bold text-foreground">{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsOfferModalOpen(false)}
+                                    className="p-1 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
                             </div>
-                            <div className="p-4 space-y-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Offer Name</label>
+                            <div className="p-6 space-y-5">
+                                <div className="space-y-1.5">
+                                    <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest">Offer Name</label>
                                     <input
                                         type="text"
-                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                                        className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold placeholder:text-muted-foreground/30"
                                         placeholder="e.g., Summer Special"
                                         value={offerFormData.name}
                                         onChange={(e) => setOfferFormData({ ...offerFormData, name: e.target.value })}
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Discount %</label>
+                                <div className="space-y-1.5">
+                                    <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest">Discount %</label>
                                     <input
                                         type="number"
-                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                                        className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all font-black"
                                         value={offerFormData.discountPercentage}
                                         onChange={(e) => setOfferFormData({ ...offerFormData, discountPercentage: Number(e.target.value) })}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Start Date</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest">Start Date</label>
                                         <input
                                             type="date"
-                                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm"
+                                            className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm font-bold [color-scheme:dark]"
                                             value={offerFormData.startDate}
                                             onChange={(e) => setOfferFormData({ ...offerFormData, startDate: e.target.value })}
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">End Date</label>
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest">End Date</label>
                                         <input
                                             type="date"
-                                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm"
+                                            className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm font-bold [color-scheme:dark]"
                                             value={offerFormData.endDate}
                                             onChange={(e) => setOfferFormData({ ...offerFormData, endDate: e.target.value })}
                                         />
@@ -584,16 +729,16 @@ export default function CreateRoomType() {
                                     <button
                                         type="button"
                                         onClick={() => setIsOfferModalOpen(false)}
-                                        className="flex-1 py-2 text-gray-600 font-medium hover:bg-gray-50 rounded-lg"
+                                        className="flex-1 py-2.5 bg-muted text-muted-foreground font-bold hover:bg-muted/80 rounded-xl transition-all"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="button"
                                         onClick={handleSaveOffer}
-                                        className="flex-1 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 shadow-md shadow-primary-500/20"
+                                        className="flex-1 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                                     >
-                                        Save Deal
+                                        <Save className="h-4 w-4" /> Save Deal
                                     </button>
                                 </div>
                             </div>
@@ -601,21 +746,21 @@ export default function CreateRoomType() {
                     </div>
                 )}
 
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end items-center gap-4 pt-4 border-t border-border mt-8">
                     <button
                         type="button"
                         onClick={() => navigate('/room-types')}
-                        className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        className="px-6 py-2.5 bg-muted text-muted-foreground font-bold hover:bg-muted/80 rounded-xl transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         type="submit"
                         disabled={isSubmitting || mutation.isPending}
-                        className="bg-primary-600 text-white px-8 py-2 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 flex items-center gap-2"
+                        className="bg-primary text-primary-foreground px-10 py-2.5 rounded-xl hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-lg shadow-primary/20 disabled:opacity-50 transition-all flex items-center gap-2 font-black uppercase tracking-widest"
                     >
                         {mutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <Save className="h-5 w-5" />}
-                        {isEditMode ? 'Update' : 'Create'} Room Type
+                        {isEditMode ? 'Update' : 'Create'} Type
                     </button>
                 </div>
             </form>

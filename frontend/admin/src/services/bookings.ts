@@ -36,8 +36,8 @@ export const bookingsService = {
     },
 
     // Check in
-    checkIn: async (id: string) => {
-        const { data } = await api.post<Booking>(`/bookings/${id}/check-in`);
+    checkIn: async ({ id, data: checkInData }: { id: string; data?: any }) => {
+        const { data } = await api.post<Booking>(`/bookings/${id}/check-in`, checkInData);
         return data;
     },
 

@@ -12,6 +12,8 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
 
+import { CheckInDto } from './dto/check-in.dto';
+
 @ApiTags('Bookings')
 @Controller('bookings')
 export class BookingsController {
@@ -52,6 +54,7 @@ export class BookingsController {
             dto.children || 0,
             dto.location,
             dto.type,
+            dto.includeSoldOut || false,
         );
 
         return {
@@ -69,6 +72,7 @@ export class BookingsController {
             dto.adultsCount,
             dto.childrenCount,
             dto.couponCode,
+            dto.referralCode,
         );
     }
 
@@ -138,8 +142,12 @@ export class BookingsController {
     @Permissions(PERMISSIONS.BOOKINGS.CHECK_IN)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Check-in booking' })
-    checkIn(@Param('id') id: string, @Request() req) {
-        return this.bookingsService.checkIn(id, req.user);
+    checkIn(
+        @Param('id') id: string,
+        @Body() dto: CheckInDto,
+        @Request() req
+    ) {
+        return this.bookingsService.checkIn(id, req.user, dto);
     }
 
     @Post(':id/check-out')

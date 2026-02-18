@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PropertyStatus } from '@prisma/client';
 
 @Injectable()
 export class AvailabilityService {
@@ -37,7 +38,9 @@ export class AvailabilityService {
             where: {
                 roomTypeId,
                 isEnabled: true,
-                status: 'AVAILABLE',
+                status: {
+                    in: ['AVAILABLE', 'OCCUPIED'],
+                },
             },
         });
 
@@ -163,6 +166,7 @@ export class AvailabilityService {
         children: number,
         location?: string,
         type?: string,
+        includeSoldOut: boolean = false,
     ) {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
@@ -177,6 +181,7 @@ export class AvailabilityService {
                 isPubliclyVisible: true, // Only public ones
                 property: {
                     isActive: true,
+                    status: PropertyStatus.APPROVED,
                     ...(location && {
                         OR: [
                             { city: { contains: location, mode: 'insensitive' } },
@@ -204,7 +209,7 @@ export class AvailabilityService {
 
         const results: any[] = [];
 
-        // 2. For each type, check if there's at least one room available
+        // 2. For each type, check availability
         for (const type of suitableTypes) {
             // Get count of available rooms for this type in date range
             const availableCount = await this.getAvailableRoomCount(
@@ -213,9 +218,9 @@ export class AvailabilityService {
                 checkOutDate,
             );
 
-            if (availableCount > 0) {
+            if (availableCount > 0 || includeSoldOut) {
                 // Return the type with availability info
-                const { rooms, offers, ...typeData } = type;
+                const { rooms, offers, ...typeData }: any = type;
                 const activeOffer = offers[0] || null;
 
                 results.push({
@@ -223,6 +228,7 @@ export class AvailabilityService {
                     availableCount,
                     activeOffer,
                     totalPrice: Number(type.basePrice), // Placeholder
+                    isSoldOut: availableCount === 0,
                 });
             }
         }

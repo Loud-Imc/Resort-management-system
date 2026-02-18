@@ -59,6 +59,16 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                     </div>
                 )}
 
+                {/* Sold Out Badge */}
+                {property.isSoldOut && (
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                        <div className="bg-white/90 shadow-xl border border-rose-200 px-4 py-2 rounded-xl flex flex-col items-center gap-0.5 transform -rotate-2">
+                            <span className="text-rose-600 font-black text-sm uppercase tracking-tighter">Fully Booked</span>
+                            <span className="text-gray-500 text-[8px] font-bold">Try different dates</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Gradient Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>

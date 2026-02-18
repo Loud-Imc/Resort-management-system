@@ -64,15 +64,15 @@ export default function RoomsList() {
     const getStatusColor = (status: RoomStatus) => {
         switch (status) {
             case RoomStatus.AVAILABLE:
-                return 'bg-green-100 text-green-800';
+                return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
             case RoomStatus.OCCUPIED:
-                return 'bg-blue-100 text-blue-800';
+                return 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
             case RoomStatus.MAINTENANCE:
-                return 'bg-orange-100 text-orange-800';
+                return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
             case RoomStatus.BLOCKED:
-                return 'bg-red-100 text-red-800';
+                return 'bg-destructive/10 text-destructive';
             default:
-                return 'bg-gray-100 text-gray-800';
+                return 'bg-muted text-muted-foreground';
         }
     };
 
@@ -94,14 +94,14 @@ export default function RoomsList() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="bg-red-50 text-red-600 p-4 rounded-lg">
+            <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">
                 Error loading rooms. Please try again.
             </div>
         );
@@ -111,39 +111,39 @@ export default function RoomsList() {
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
+                    <h1 className="text-2xl font-bold text-foreground">
                         {propertyId ? 'Property Rooms' : 'Room Management'}
                     </h1>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         {propertyId ? 'Manage rooms for this property' : 'View and manage hotel rooms'}
                     </p>
                 </div>
                 <Link
                     to={`/rooms/create${propertyId ? `?propertyId=${propertyId}` : ''}`}
-                    className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-all shadow-sm flex items-center gap-2 font-bold"
                 >
                     <Plus className="h-4 w-4" />
                     Add Room
                 </Link>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 {/* Filters */}
-                <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4">
+                <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <input
                             type="text"
                             placeholder="Search by room number..."
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full pl-10 pr-4 py-2 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-gray-500" />
+                        <Filter className="h-4 w-4 text-muted-foreground" />
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="bg-background text-foreground border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         >
                             <option value="">All Statuses</option>
                             <option value="AVAILABLE">Available</option>
@@ -160,19 +160,19 @@ export default function RoomsList() {
                         <div
                             key={room.id}
                             className={clsx(
-                                "border rounded-lg p-4 transition-all hover:shadow-md",
-                                room.status === RoomStatus.AVAILABLE ? "border-gray-200 bg-white" :
-                                    room.status === RoomStatus.OCCUPIED ? "border-blue-200 bg-blue-50" :
-                                        room.status === RoomStatus.MAINTENANCE ? "border-orange-200 bg-orange-50" :
-                                            "border-red-200 bg-red-50"
+                                "border rounded-xl p-4 transition-all hover:shadow-md group",
+                                room.status === RoomStatus.AVAILABLE ? "border-border bg-card" :
+                                    room.status === RoomStatus.OCCUPIED ? "border-blue-500/20 bg-blue-500/5" :
+                                        room.status === RoomStatus.MAINTENANCE ? "border-amber-500/20 bg-amber-500/5" :
+                                            "border-destructive/20 bg-destructive/5"
                             )}
                         >
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-xl font-bold text-gray-900">
+                                <span className="text-xl font-bold text-card-foreground">
                                     {room.roomNumber}
                                 </span>
                                 <span className={clsx(
-                                    "px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1",
+                                    "px-2.5 py-1 rounded-full text-xs font-bold transition-all shadow-sm flex items-center gap-1",
                                     getStatusColor(room.status)
                                 )}>
                                     {getStatusIcon(room.status)}
@@ -180,39 +180,39 @@ export default function RoomsList() {
                                 </span>
                             </div>
 
-                            <div className="text-sm text-gray-600 mb-4">
-                                <p className="font-medium text-gray-900">{room.roomType.name}</p>
+                            <div className="text-sm text-muted-foreground mb-4">
+                                <p className="font-bold text-card-foreground">{room.roomType.name}</p>
                                 <p>Floor: {room.floor ?? '-'}</p>
                                 {!propertyId && room.property && (
-                                    <p className="text-xs text-primary-600 font-medium mt-1 truncate">
+                                    <p className="text-xs text-primary font-bold mt-1 truncate">
                                         {room.property.name}
                                     </p>
                                 )}
                             </div>
 
                             <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-muted-foreground font-medium">
                                     {room.isEnabled ? 'Enabled' : 'Disabled'}
                                 </span>
                                 <div className="relative">
                                     <button
                                         onClick={() => setActiveMenuId(activeMenuId === room.id ? null : room.id)}
-                                        className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                                        className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors opacity-70 group-hover:opacity-100"
                                     >
                                         <MoreVertical className="h-5 w-5" />
                                     </button>
 
                                     {activeMenuId === room.id && (
-                                        <div className="absolute right-0 bottom-full mb-2 w-32 bg-white rounded-lg shadow-lg border border-gray-100 z-10 m-1">
+                                        <div className="absolute right-0 bottom-full mb-2 w-32 bg-card rounded-xl shadow-xl border border-border z-10 m-1 overflow-hidden">
                                             <button
                                                 onClick={() => navigate(`/rooms/edit/${room.id}`)}
-                                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 first:rounded-t-lg"
+                                                className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted flex items-center gap-2 font-medium transition-colors"
                                             >
-                                                <Edit2 className="h-3 w-3" /> Edit
+                                                <Edit2 className="h-3 w-3 text-blue-500" /> Edit
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(room.id, room.roomNumber)}
-                                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 last:rounded-b-lg"
+                                                className="w-full text-left px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 flex items-center gap-2 font-medium transition-colors"
                                             >
                                                 <Trash2 className="h-3 w-3" /> Delete
                                             </button>
@@ -234,7 +234,7 @@ export default function RoomsList() {
                 )}
 
                 {rooms?.length === 0 && (
-                    <div className="p-8 text-center text-gray-500">
+                    <div className="p-8 text-center text-muted-foreground font-medium opacity-50">
                         No rooms found.
                     </div>
                 )}

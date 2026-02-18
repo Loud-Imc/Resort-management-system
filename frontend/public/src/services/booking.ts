@@ -10,7 +10,8 @@ export const bookingService = {
             adults: params.adults,
             children: params.children,
             location: params.location,
-            type: params.type
+            type: params.type,
+            includeSoldOut: params.includeSoldOut
         });
         return data;
     },
@@ -52,6 +53,7 @@ export const bookingService = {
         adultsCount: number;
         childrenCount: number;
         couponCode?: string;
+        referralCode?: string;
     }) => {
         const { data } = await api.post('/bookings/calculate-price', params);
         return data;

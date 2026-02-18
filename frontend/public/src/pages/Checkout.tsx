@@ -21,7 +21,10 @@ const userSchema = z.object({
     lastName: z.string().min(2, 'Last name is required'),
     email: z.string().email('Invalid email address'),
     phone: z.string().min(10, 'Valid phone number is required'),
+    whatsappNumber: z.string().optional(),
     specialRequests: z.string().optional(),
+    idType: z.string().optional(),
+    idNumber: z.string().optional(),
 });
 
 type FormData = z.infer<typeof userSchema>;
@@ -31,7 +34,8 @@ export default function Checkout() {
     const navigate = useNavigate();
     const [isProcessing, setIsProcessing] = useState(false);
     const [couponCode, setCouponCode] = useState('');
-    const [appliedCoupon, setAppliedCoupon] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+    const [appliedReferralCode, setAppliedReferralCode] = useState<string | null>(null);
     const [user, setUser] = useState<any>(null);
     const [token, setToken] = useState<string | null>(null);
 
@@ -61,6 +65,7 @@ export default function Checkout() {
             setValue('lastName', userData.lastName || '');
             setValue('email', userData.email || '');
             setValue('phone', userData.phone || '');
+            setValue('whatsappNumber', userData.whatsappNumber || '');
         }
     }, []);
 
@@ -99,29 +104,39 @@ export default function Checkout() {
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['pricing', roomId, checkIn, checkOut, adults, children, appliedCoupon],
+        queryKey: ['pricing', roomId, checkIn, checkOut, adults, children, appliedCoupon, appliedReferralCode],
         queryFn: () => bookingService.calculatePrice({
             roomTypeId: roomId!,
             checkInDate: checkIn,
             checkOutDate: checkOut,
-            adultsCount: adults,
-            childrenCount: children,
-            couponCode: appliedCoupon || undefined
+            adultsCount: Number(adults),
+            childrenCount: Number(children),
+            couponCode: appliedCoupon || undefined,
+            referralCode: appliedReferralCode || undefined,
         }),
-        enabled: !!roomId && !!appliedCoupon,
+        enabled: !!roomId && (!!appliedCoupon || !!appliedReferralCode),
         retry: false,
     });
 
     // Derive effective pricing to display
-    const effectivePricing = (appliedCoupon && couponPricing && !isPricingError) ? couponPricing : basePricing;
+    const effectivePricing = (appliedCoupon || appliedReferralCode) && couponPricing && !isPricingError ? couponPricing : basePricing;
     const pricingLoading = couponPricingLoading;
 
     // Const Selected Room is now fetched directly
     const nights = effectivePricing?.numberOfNights || differenceInDays(new Date(checkOut), new Date(checkIn)) || 1;
 
-    const handleApplyCoupon = (e: React.FormEvent) => {
-        e.preventDefault();
-        setAppliedCoupon(couponCode);
+    const handleApplyCoupon = (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+        if (e) e.preventDefault();
+        const code = couponCode.trim().toUpperCase();
+        if (!code) return;
+
+        if (code.startsWith('CP-')) {
+            setAppliedReferralCode(code);
+            setAppliedCoupon(null);
+        } else {
+            setAppliedCoupon(code);
+            setAppliedReferralCode(null);
+        }
     };
 
 
@@ -131,41 +146,33 @@ export default function Checkout() {
         setIsProcessing(true);
         try {
             // 1. Create the booking (Status: PENDING_PAYMENT)
+            const bookingData = {
+                roomTypeId: selectedRoom.id,
+                checkInDate: checkIn,
+                checkOutDate: checkOut,
+                adultsCount: adults,
+                childrenCount: children,
+                guestName: `${userData.firstName} ${userData.lastName}`,
+                guestEmail: userData.email,
+                guestPhone: userData.phone,
+                whatsappNumber: userData.whatsappNumber,
+                specialRequests: userData.specialRequests,
+                couponCode: appliedCoupon || undefined,
+                referralCode: appliedReferralCode || undefined,
+                guests: [{
+                    firstName: userData.firstName,
+                    lastName: userData.lastName,
+                    email: userData.email,
+                    phone: userData.phone,
+                    whatsappNumber: userData.whatsappNumber || undefined,
+                    idType: userData.idType || undefined,
+                    idNumber: userData.idNumber || undefined
+                }]
+            };
+
             const booking = token
-                ? await bookingService.createAuthenticatedBooking({
-                    roomTypeId: selectedRoom.id,
-                    checkInDate: checkIn,
-                    checkOutDate: checkOut,
-                    adultsCount: adults,
-                    childrenCount: children,
-                    guestName: `${userData.firstName} ${userData.lastName}`,
-                    guestEmail: userData.email,
-                    guestPhone: userData.phone,
-                    specialRequests: userData.specialRequests,
-                    guests: [{
-                        firstName: userData.firstName,
-                        lastName: userData.lastName,
-                        email: userData.email,
-                        phone: userData.phone
-                    }]
-                })
-                : await bookingService.createBooking({
-                    roomTypeId: selectedRoom.id,
-                    checkInDate: checkIn,
-                    checkOutDate: checkOut,
-                    adultsCount: adults,
-                    childrenCount: children,
-                    guestName: `${userData.firstName} ${userData.lastName}`,
-                    guestEmail: userData.email,
-                    guestPhone: userData.phone,
-                    specialRequests: userData.specialRequests,
-                    guests: [{
-                        firstName: userData.firstName,
-                        lastName: userData.lastName,
-                        email: userData.email,
-                        phone: userData.phone
-                    }]
-                });
+                ? await bookingService.createAuthenticatedBooking(bookingData)
+                : await bookingService.createBooking(bookingData);
 
             // 2. Initiate Payment (Create Razorpay Order)
             const paymentInfo = await paymentService.initiatePayment({ bookingId: booking.id });
@@ -320,6 +327,40 @@ export default function Checkout() {
                                 />
                                 {errors.phone && <span className="text-xs text-red-500">{errors.phone.message}</span>}
                             </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">WhatsApp Number (Optional)</label>
+                                <input
+                                    {...register('whatsappNumber')}
+                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                                    placeholder="+91 9876543210"
+                                />
+                                {errors.whatsappNumber && <span className="text-xs text-red-500">{errors.whatsappNumber.message}</span>}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">ID Type (Optional)</label>
+                                <select
+                                    {...register('idType')}
+                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                                >
+                                    <option value="">Select ID Type</option>
+                                    <option value="AADHAR">Aadhar Card</option>
+                                    <option value="PASSPORT">Passport</option>
+                                    <option value="VOTER_ID">Voter ID</option>
+                                    <option value="DRIVING_LICENSE">Driving License</option>
+                                    <option value="OTHER">Other</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">ID Number (Optional)</label>
+                                <input
+                                    {...register('idNumber')}
+                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                                    placeholder="Enter your ID number"
+                                />
+                            </div>
                         </div>
 
                         <div className="space-y-2">
@@ -332,11 +373,70 @@ export default function Checkout() {
                             />
                         </div>
 
-                        <div className="border-t border-gray-100 pt-6">
-                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <div className="border-t border-gray-100 pt-6 space-y-6">
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
                                 <CreditCard className="h-5 w-5 text-primary-600" />
-                                Payment Method
+                                Payment & Offers
                             </h3>
+
+                            {/* Applied Offers / Coupon Section (Div instead of Form to avoid nesting) */}
+                            <div className="bg-gray-50 border border-gray-100 rounded-xl p-5">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Apply Coupon or Partner Code</label>
+                                        {(appliedCoupon || appliedReferralCode) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setAppliedCoupon(null);
+                                                    setAppliedReferralCode(null);
+                                                    setCouponCode('');
+                                                }}
+                                                className="text-[10px] text-red-500 font-bold hover:underline"
+                                            >
+                                                REMOVE
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={couponCode}
+                                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    handleApplyCoupon();
+                                                }
+                                            }}
+                                            placeholder="GUEST10 or CP-XXXXXX"
+                                            className="flex-1 p-3 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleApplyCoupon()}
+                                            disabled={pricingLoading}
+                                            className="px-6 py-3 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors disabled:opacity-50"
+                                        >
+                                            {pricingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                                        </button>
+                                    </div>
+
+                                    {(appliedCoupon || appliedReferralCode) && !pricingLoading && !isPricingError && (
+                                        <p className="text-xs text-green-600 font-medium flex items-center gap-1.5 mt-1">
+                                            <ShieldCheck className="h-3.5 w-3.5" />
+                                            {appliedReferralCode ? `Referral code "${appliedReferralCode}" applied!` : `Coupon "${appliedCoupon}" applied!`}
+                                        </p>
+                                    )}
+
+                                    {isPricingError && (appliedCoupon || appliedReferralCode) && (
+                                        <p className="text-xs text-red-500 font-medium italic mt-1">
+                                            {pricingError?.response?.data?.message || 'Invalid code'}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
                             <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
                                 <ShieldCheck className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
                                 <div>
@@ -394,32 +494,7 @@ export default function Checkout() {
 
                                 <div className="border-t border-dashed border-gray-200 my-4"></div>
 
-                                <form onSubmit={handleApplyCoupon} className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-500 uppercase">Apply Coupon</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={couponCode}
-                                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                            placeholder="GUEST10"
-                                            className="flex-1 p-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
-                                        />
-                                        <button
-                                            type="submit"
-                                            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors"
-                                        >
-                                            Apply
-                                        </button>
-                                    </div>
-                                    {appliedCoupon && !pricingLoading && !isPricingError && (
-                                        <p className="text-[10px] text-green-600 font-medium italic">Coupon "{appliedCoupon}" applied!</p>
-                                    )}
-                                    {isPricingError && appliedCoupon && (
-                                        <p className="text-[10px] text-red-500 font-medium italic">
-                                            {pricingError?.response?.data?.message || 'Invalid coupon code'}
-                                        </p>
-                                    )}
-                                </form>
+                                {/* Coupon form removed from here and moved to main area */}
 
                                 <div className="border-t border-gray-100 pt-4 space-y-2">
                                     <div className="flex justify-between text-sm">
@@ -456,6 +531,13 @@ export default function Checkout() {
                                         </div>
                                     )}
 
+                                    {appliedReferralCode && !isPricingError && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
+                                            <span>Referral Discount ({appliedReferralCode})</span>
+                                            <span>-₹{effectivePricing.referralDiscountAmount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    )}
+
                                     <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
                                         <span className="text-lg font-bold text-gray-900">Total</span>
                                         <span className="text-2xl font-black text-primary-600">₹{effectivePricing?.totalAmount?.toLocaleString('en-IN') || '0'}</span>
@@ -469,7 +551,7 @@ export default function Checkout() {
                         )}
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

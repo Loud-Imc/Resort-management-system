@@ -39,8 +39,8 @@ export default function Login() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -56,29 +56,29 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-                <div className="text-center mb-8 flex flex-col items-center">
-                    <img src={logo} alt="Route Guide" className="h-50 w-auto mb-1" />
-                    <h1 className="text-3xl font-bold text-gray-900">Route Guide Admin</h1>
-                    <p className="text-gray-500 mt-2">Sign in to manage your resort</p>
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-card rounded-xl shadow-xl border border-border p-8 transition-colors duration-300">
+                <div className="text-center mb-10 flex flex-col items-center">
+                    <img src={logo} alt="Route Guide" className="h-24 w-auto mb-4" />
+                    <h1 className="text-4xl font-bold text-foreground tracking-tight">Route Guide</h1>
+                    <p className="text-muted-foreground mt-2 font-medium">Platform Administration</p>
                 </div>
 
                 {error && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-md mb-6 text-sm">
+                    <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 mb-8 text-sm font-medium">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Email Address
+                        <label className="block text-sm font-semibold text-muted-foreground mb-2">
+                            Email address
                         </label>
                         <input
                             {...register('email')}
                             type="email"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="w-full px-4 py-3 border border-border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                             placeholder="admin@example.com"
                         />
                         {errors.email && (
@@ -87,29 +87,29 @@ export default function Login() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Password
+                        <label className="block text-sm font-semibold text-muted-foreground mb-2">
+                            Security password
                         </label>
                         <input
                             {...register('password')}
                             type="password"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="w-full px-4 py-3 border border-border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                             placeholder="••••••••"
                         />
                         {errors.password && (
-                            <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
+                            <p className="text-destructive text-xs mt-2 font-medium">{errors.password.message}</p>
                         )}
                     </div>
 
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        className="w-full bg-primary text-primary-foreground py-3 px-6 rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-card disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-bold text-lg transition-all active:scale-[0.98]"
                     >
                         {isSubmitting ? (
-                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <Loader2 className="h-6 w-6 animate-spin" />
                         ) : (
-                            'Sign In'
+                            'Sign in to platform'
                         )}
                     </button>
                 </form>

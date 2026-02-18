@@ -4,6 +4,8 @@ export interface Role {
     description?: string;
     permissions?: string[];
     isSystem?: boolean;
+    category?: 'SYSTEM' | 'PROPERTY' | 'EVENT';
+    propertyId?: string | null;
 }
 
 export interface Permission {
@@ -23,6 +25,8 @@ export interface User {
     roles: { role: Role }[];
     bookings?: any[];
     lastLogin?: string;
+    idType?: string;
+    idNumber?: string;
     commissionPercentage?: string | number | null;
 }
 
