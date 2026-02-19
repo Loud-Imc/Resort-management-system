@@ -15,8 +15,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ label, current, target, unit 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                 <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{label}</span>
                 <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                    {current} <span style={{ color: 'var(--primary-gold)' }}>/ {target} {unit}</span>
+                    {current} <span style={{ color: 'var(--primary-teal)' }}>/ {target} {unit}</span>
                 </span>
+
             </div>
 
             <div style={{
@@ -29,11 +30,13 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ label, current, target, unit 
                 <div style={{
                     width: `${percentage}%`,
                     height: '100%',
-                    background: 'linear-gradient(90deg, var(--primary-gold) 0%, #ecd06f 100%)',
+                    background: 'linear-gradient(90deg, var(--primary-teal) 0%, #0c6a75 100%)',
                     borderRadius: 'var(--radius-full)',
-                    boxShadow: '0 0 10px var(--primary-gold-glow)',
+                    boxShadow: '0 0 10px rgba(8, 71, 78, 0.1)',
                     transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
                 }} />
+
+
             </div>
 
             <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--text-dim)' }}>

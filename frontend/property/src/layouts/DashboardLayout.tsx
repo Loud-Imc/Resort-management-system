@@ -108,11 +108,12 @@ export default function DashboardLayout() {
             <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border fixed h-full z-10 transition-colors duration-300">
                 <div className="p-6 border-b border-border">
                     <Link to="/" className="flex items-center gap-2 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-600 to-teal-800 flex items-center justify-center">
                             <Building2 className="h-4 w-4 text-white" />
                         </div>
                         <span className="text-xl font-bold text-primary tracking-tight">Property</span>
                     </Link>
+
 
                     {/* Property Switcher */}
                     {properties.length > 1 && (
@@ -207,11 +208,12 @@ export default function DashboardLayout() {
             {/* Mobile Header */}
             <div className="md:hidden fixed w-full bg-card border-b border-border z-20 flex items-center justify-between p-4">
                 <Link to="/" className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-600 to-teal-800 flex items-center justify-center">
                         <Building2 className="h-4 w-4 text-white" />
                     </div>
                     <span className="text-lg font-bold text-primary">Property</span>
                 </Link>
+                Broadway
                 <div className="flex items-center gap-2">
                     <button
                         onClick={toggleTheme}

@@ -7,6 +7,8 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (credentials: LoginCredentials) => Promise<void>;
+    register: (data: any) => Promise<void>;
+    registerProperty: (data: any) => Promise<void>;
     logout: () => void;
 }
 
@@ -36,6 +38,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(true);
     };
 
+    const register = async (formData: any) => {
+        await api.post('/auth/register', formData);
+    };
+
+    const registerProperty = async (formData: any) => {
+        await api.post('/properties/public-register', formData);
+    };
+
     const logout = () => {
         localStorage.removeItem('property_token');
         localStorage.removeItem('property_user');
@@ -44,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, registerProperty, logout }}>
             {children}
         </AuthContext.Provider>
     );

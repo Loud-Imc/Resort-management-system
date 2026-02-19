@@ -71,14 +71,17 @@ const Bookings: React.FC = () => {
                 return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {isCompleted && <BadgeCheck size={16} color="#10b981" />}
-                        {isPending && <Clock size={16} color="#6366f1" />}
+                        {isPending && <Clock size={16} color="#d97706" />}
+
                         {isCancelled && <XCircle size={16} color="#ef4444" />}
                         <span style={{
                             fontSize: '0.85rem',
                             fontWeight: 600,
-                            color: isCompleted ? '#10b981' : isPending ? '#6366f1' : '#ef4444',
+                            color: isCompleted ? '#10b981' : isPending ? '#d97706' : '#ef4444',
+
                             textTransform: 'capitalize'
                         }}>
+
                             {item.status.toLowerCase().replace('_', ' ')}
                         </span>
                     </div>
@@ -91,10 +94,11 @@ const Bookings: React.FC = () => {
     if (isLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-                <Loader2 size={32} className="animate-spin" color="var(--primary-gold)" />
+                <Loader2 size={32} className="animate-spin" color="var(--primary-teal)" />
             </div>
         );
     }
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

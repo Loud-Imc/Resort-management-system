@@ -45,18 +45,19 @@ const Referrals: React.FC = () => {
         {
             header: 'Status',
             accessor: (item: Referral) => {
-                const isConfirmed = ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'].includes(item.status);
+                const isCompleted = ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'].includes(item.status);
                 const isPending = ['PENDING', 'PENDING_PAYMENT'].includes(item.status);
+                const isCancelled = item.status === 'CANCELLED';
 
                 return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {isConfirmed && <BadgeCheck size={16} color="#10b981" />}
-                        {isPending && <Clock size={16} color="#f59e0b" />}
-                        {item.status === 'CANCELLED' && <XCircle size={16} color="#ef4444" />}
+                        {isCompleted && <BadgeCheck size={16} color="#10b981" />}
+                        {isPending && <Clock size={16} color="#d97706" />}
+                        {isCancelled && <XCircle size={16} color="#ef4444" />}
                         <span style={{
                             fontSize: '0.85rem',
                             fontWeight: 600,
-                            color: isConfirmed ? '#10b981' : isPending ? '#f59e0b' : '#ef4444',
+                            color: isCompleted ? '#10b981' : isPending ? '#d97706' : '#ef4444',
                             textTransform: 'capitalize'
                         }}>
                             {item.status.toLowerCase().replace('_', ' ')}
@@ -68,9 +69,10 @@ const Referrals: React.FC = () => {
         {
             header: 'Commission',
             accessor: (item: Referral) => (
-                <span style={{ fontWeight: 600, color: 'var(--primary-gold)' }}>{item.commission}</span>
+                <span style={{ fontWeight: 600, color: 'var(--primary-teal)' }}>{item.commission}</span>
             )
         },
+
         { header: 'Points', accessor: 'points' as keyof Referral, align: 'center' as const },
         {
             header: 'Actions',
@@ -86,10 +88,11 @@ const Referrals: React.FC = () => {
     if (isLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-                <div style={{ color: 'var(--primary-gold)' }}>Loading referrals...</div>
+                <div style={{ color: 'var(--primary-teal)' }}>Loading referrals...</div>
             </div>
         );
     }
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

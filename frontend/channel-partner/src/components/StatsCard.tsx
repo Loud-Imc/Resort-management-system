@@ -17,8 +17,9 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, icon: Icon, trend, 
                 <div style={{
                     padding: '0.6rem',
                     borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-card-hover)',
-                    color: 'var(--primary-gold)'
+                    background: 'rgba(8, 71, 78, 0.05)',
+                    color: 'var(--primary-teal)',
+                    border: '1px solid var(--border-teal)'
                 }}>
                     <Icon size={20} />
                 </div>

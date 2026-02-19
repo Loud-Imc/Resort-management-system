@@ -24,9 +24,11 @@ export default function Footer() {
                         <h4 className="font-bold mb-6 uppercase text-sm tracking-widest text-primary-400">Quick Links</h4>
                         <ul className="space-y-4">
                             <li><a href="/" className="text-gray-400 hover:text-white transition-colors">Home</a></li>
+                            <li><a href="/properties" className="text-gray-400 hover:text-white transition-colors">Resorts</a></li>
                             <li><a href="/about" className="text-gray-400 hover:text-white transition-colors">About Us</a></li>
-                            <li><a href="/gallery" className="text-gray-400 hover:text-white transition-colors">Gallery</a></li>
-                            <li><a href="/rooms" className="text-gray-400 hover:text-white transition-colors">Rooms & Suites</a></li>
+                            <li><a href="/#events" className="text-gray-400 hover:text-white transition-colors">Events</a></li>
+                            <li><a href="/contact" className="text-gray-400 hover:text-white transition-colors">Contact</a></li>
+                            <li><a href="http://localhost:5175/register" target="_blank" rel="noopener noreferrer" className="text-primary-400 font-bold hover:text-primary-300 transition-colors">List Your Property</a></li>
                         </ul>
                     </div>
 

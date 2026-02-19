@@ -51,10 +51,11 @@ const Home: React.FC = () => {
     if (isLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-                <div style={{ color: 'var(--primary-gold)' }}>Loading your dashboard...</div>
+                <div style={{ color: 'var(--primary-teal)' }}>Loading your dashboard...</div>
             </div>
         );
     }
+
 
     if (stats && stats.status !== 'APPROVED') {
         return (
@@ -68,7 +69,8 @@ const Home: React.FC = () => {
                 padding: '2rem'
             }}>
                 <div className="glass-pane" style={{ padding: '3rem', maxWidth: '500px' }}>
-                    <Handshake size={64} style={{ color: 'var(--primary-gold)', marginBottom: '1.5rem' }} />
+                    <Handshake size={64} style={{ color: 'var(--primary-teal)', marginBottom: '1.5rem' }} />
+
                     <h2 style={{ fontSize: '1.8rem', marginBottom: '1rem' }}>
                         {stats.status === 'PENDING' ? 'Registration Pending' : 'Account Inactive'}
                     </h2>
@@ -77,11 +79,13 @@ const Home: React.FC = () => {
                             ? "Thank you for joining! Our team is currently reviewing your registration. You'll receive full access to the dashboard once your account is approved."
                             : "Your account is currently inactive. Please contact the administrator for more information."}
                     </p>
-                    <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(236, 208, 111, 0.1)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(236, 208, 111, 0.2)' }}>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--primary-gold)' }}>
+                    <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(8, 71, 78, 0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-teal)' }}>
+                        <p style={{ fontSize: '0.9rem', color: 'var(--primary-teal)', fontWeight: 600 }}>
                             <strong>Status:</strong> {stats.status}
                         </p>
                     </div>
+
+
                 </div>
             </div>
         );
@@ -99,16 +103,21 @@ const Home: React.FC = () => {
                     className="glass-pane-hover"
                     style={{
                         padding: '0.8rem 1.5rem',
-                        background: 'linear-gradient(135deg, var(--primary-gold) 0%, #ecd06f 100%)',
-                        color: 'var(--bg-dark)',
+                        background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                        color: '#ffffff',
                         fontWeight: 700,
                         borderRadius: 'var(--radius-md)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        transition: 'all 0.3s ease'
+                        transition: 'all 0.3s ease',
+                        boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)',
+                        border: 'none',
+                        cursor: 'pointer'
                     }}
+
                 >
+
                     {copied ? <Check size={18} /> : <Copy size={18} />}
                     {copied ? 'Copied!' : `Code: ${stats?.referralCode}`}
                 </button>
@@ -167,9 +176,10 @@ const Home: React.FC = () => {
                                 <span style={{ fontWeight: 600 }}>{stats?.commissionRate}%</span>
                             </li>
                             <li style={{ fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-dim)' }}>Points per ₹100</span>
-                                <span style={{ fontWeight: 600, color: 'var(--primary-gold)' }}>1 pt</span>
+                                <span style={{ color: 'var(--text-dim) ' }}>Points per ₹100</span>
+                                <span style={{ fontWeight: 600, color: 'var(--primary-teal)' }}>1 pt</span>
                             </li>
+
                             <li style={{ fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
                                 <span style={{ color: 'var(--text-dim)' }}>Payout Frequency</span>
                                 <span style={{ fontWeight: 600, color: '#10b981' }}>Monthly</span>

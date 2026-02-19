@@ -21,8 +21,6 @@ const Login: React.FC = () => {
 
         try {
             const response: any = await api.post('/auth/login', { email, password });
-            // Note: The backend returns user and token. 
-            // We should verify if the user has the 'ChannelPartner' role.
             if (response.user.role !== 'ChannelPartner' && response.user.role !== 'SuperAdmin') {
                 throw new Error('Access denied. This dashboard is for Channel Partners only.');
             }
@@ -42,7 +40,7 @@ const Login: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'radial-gradient(circle at top right, var(--accent-indigo-glow) 0%, transparent 40%), radial-gradient(circle at bottom left, var(--primary-gold-glow) 0%, transparent 40%), var(--bg-dark)',
+            background: 'radial-gradient(circle at top right, rgba(8, 71, 78, 0.05) 0%, transparent 40%), radial-gradient(circle at bottom left, rgba(8, 71, 78, 0.03) 0%, transparent 40%), #f1f5f9',
             padding: '2rem'
         }}>
             <div className="glass-pane animate-fade-in" style={{
@@ -83,7 +81,7 @@ const Login: React.FC = () => {
                                 style={{
                                     width: '100%',
                                     padding: '0.8rem 1rem 0.8rem 3rem',
-                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    background: '#ffffff',
                                     border: '1px solid var(--border-glass)',
                                     borderRadius: 'var(--radius-md)',
                                     color: 'var(--text-main)',
@@ -108,7 +106,7 @@ const Login: React.FC = () => {
                                 style={{
                                     width: '100%',
                                     padding: '0.8rem 3rem 0.8rem 3rem',
-                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    background: '#ffffff',
                                     border: '1px solid var(--border-glass)',
                                     borderRadius: 'var(--radius-md)',
                                     color: 'var(--text-main)',
@@ -138,8 +136,8 @@ const Login: React.FC = () => {
                         disabled={isLoading}
                         style={{
                             padding: '1rem',
-                            background: 'linear-gradient(135deg, var(--primary-gold) 0%, #ecd06f 100%)',
-                            color: 'var(--bg-dark)',
+                            background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                            color: '#ffffff',
                             borderRadius: 'var(--radius-md)',
                             fontWeight: 700,
                             fontSize: '1rem',
@@ -148,8 +146,10 @@ const Login: React.FC = () => {
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '0.5rem',
-                            boxShadow: '0 4px 15px var(--primary-gold-glow)',
-                            opacity: isLoading ? 0.7 : 1
+                            boxShadow: '0 4px 15px rgba(8, 71, 78, 0.2)',
+                            opacity: isLoading ? 0.7 : 1,
+                            border: 'none',
+                            cursor: 'pointer'
                         }}
                     >
                         {isLoading ? 'Authenticating...' : (
@@ -165,7 +165,7 @@ const Login: React.FC = () => {
                     Don't have a partner account? {' '}
                     <button
                         onClick={() => navigate('/register')}
-                        style={{ background: 'none', color: 'var(--primary-gold)', fontWeight: 600 }}
+                        style={{ background: 'none', color: 'var(--primary-teal)', fontWeight: 600 }}
                     >
                         Apply Now
                     </button>

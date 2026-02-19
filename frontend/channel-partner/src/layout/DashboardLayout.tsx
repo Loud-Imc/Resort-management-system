@@ -32,14 +32,14 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
             {/* Sidebar */}
-            <aside className="glass-pane" style={{
+            <aside style={{
                 width: '280px',
                 height: '100vh',
                 position: 'fixed',
                 left: 0,
                 top: 0,
-                borderRadius: 0,
-                borderLeft: 'none',
+                background: '#ffffff',
+                borderRight: '1px solid var(--border-glass)',
                 display: 'flex',
                 flexDirection: 'column',
                 padding: '2rem 1.5rem',
@@ -61,14 +61,15 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                                         gap: '1rem',
                                         padding: '0.8rem 1rem',
                                         borderRadius: 'var(--radius-md)',
-                                        color: location.pathname === item.path ? 'var(--primary-gold)' : 'var(--text-dim)',
-                                        background: location.pathname === item.path ? 'var(--bg-card-hover)' : 'transparent',
-                                        transition: 'all 0.2s'
+                                        color: location.pathname === item.path ? 'var(--primary-teal)' : '#64748b',
+                                        background: location.pathname === item.path ? 'rgba(8, 71, 78, 0.05)' : 'transparent',
+                                        transition: 'all 0.2s',
+                                        fontWeight: 600
                                     }}
                                     className="glass-pane-hover"
                                 >
                                     <item.icon size={20} />
-                                    <span style={{ fontWeight: 500 }}>{item.label}</span>
+                                    <span style={{ fontWeight: 600 }}>{item.label}</span>
                                 </Link>
                             </li>
                         ))}
@@ -86,14 +87,16 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                             padding: '0.8rem 1rem',
                             color: '#ef4444',
                             background: 'transparent',
-                            textAlign: 'left'
+                            textAlign: 'left',
+                            fontWeight: 600
                         }}
                     >
                         <LogOut size={20} />
-                        <span style={{ fontWeight: 500 }}>Sign Out</span>
+                        <span style={{ fontWeight: 600 }}>Sign Out</span>
                     </button>
                 </div>
             </aside>
+
 
             {/* Main Content */}
             <main style={{ flex: 1, marginLeft: '280px', padding: '2rem 3rem' }}>
@@ -110,19 +113,23 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <div style={{ textAlign: 'right' }}>
                             <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{user?.firstName} {user?.lastName}</p>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Gold Partner</p>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--primary-teal)' }}>Partner Network</p>
                         </div>
+
                         <div className="glass-pane" style={{
                             width: '40px',
                             height: '40px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, var(--primary-gold) 0%, #ecd06f 100%)',
+                            background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontWeight: 700,
-                            color: 'var(--bg-dark)'
+                            color: '#ffffff',
+                            boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)'
                         }}>
+
+
                             {user?.firstName?.[0]}
                         </div>
                     </div>

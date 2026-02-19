@@ -4,7 +4,6 @@ import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { propertyApi } from '../services/properties';
-import EventsSection from '../components/home/EventsSection';
 import PromoBanner from '../components/home/PromoBanner';
 import PropertyCard from '../components/PropertyCard';
 import { Property } from '../types';
@@ -64,7 +63,7 @@ export default function Home() {
             </section>
 
             {/* Events Section */}
-            <EventsSection />
+            {/* <EventsSection /> */}
 
             {/* Promo Banner (Replaces Secondary Banner) */}
             <PromoBanner />

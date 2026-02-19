@@ -1,20 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  /* Color Palette */
-  --bg-dark: #0a0a0b;
-  --bg-card: rgba(255, 255, 255, 0.03);
-  --bg-card-hover: rgba(255, 255, 255, 0.05);
+  /* Color Palette - White Major (Light Theme) */
+  --bg-dark: #f8fafc;
+  /* Light Gray Background */
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
 
-  --primary-gold: #d4af37;
-  --primary-gold-glow: rgba(212, 175, 55, 0.3);
-  --accent-indigo: #6366f1;
-  --accent-indigo-glow: rgba(99, 102, 241, 0.3);
+  --primary-teal: #08474e;
+  --primary-teal-glow: rgba(8, 71, 78, 0.1);
+  --accent-white: #ffffff;
+  --accent-white-glow: rgba(8, 71, 78, 0.05);
 
-  --text-main: #f8fafc;
-  --text-dim: #94a3b8;
-  --border-glass: rgba(255, 255, 255, 0.1);
-  --border-gold: rgba(212, 175, 55, 0.2);
+  --text-main: #062d32;
+  /* Deep Dark Teal */
+  --text-dim: #64748b;
+  --border-glass: #e2e8f0;
+  --border-teal: rgba(8, 71, 78, 0.2);
 
   /* Spacing & Radii */
   --radius-sm: 8px;
@@ -26,8 +28,9 @@
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
+  color-scheme: light;
 }
+
 
 * {
   box-sizing: border-box;
@@ -43,37 +46,41 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Glassmorphism Utilities */
+/* Light Theme Pane Utilities */
 .glass-pane {
   background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-md);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+
 .glass-pane-hover:hover {
   background: var(--bg-card-hover);
-  border-color: var(--border-gold);
+  border-color: var(--border-teal);
   transform: translateY(-2px);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 15px -3px rgba(8, 71, 78, 0.1), 0 4px 6px -2px rgba(8, 71, 78, 0.05);
 }
+
+
 
 /* Gradient Text */
 .text-gold-gradient {
-  background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
+  background: linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .text-premium-gradient {
-  background: linear-gradient(135deg, #d4af37 0%, #f9e29f 50%, #d4af37 100%);
+  background: linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+
 
 /* Animations */
 @keyframes fadeIn {
@@ -107,8 +114,9 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-gold);
+  background: var(--border-teal);
 }
+
 
 a {
   text-decoration: none;

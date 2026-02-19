@@ -13,10 +13,10 @@ async function bootstrap() {
   // CORS
   app.enableCors({
     origin: [
-      process.env.ADMIN_URL || 'http://localhost:5173',
+      process.env.ADMIN_URL || 'http://localhost:5175',
       process.env.PUBLIC_URL || 'http://localhost:5174',
-      process.env.CHANNEL_PARTNER_URL || 'http://localhost:5176',
-      process.env.PROPERTY_URL || 'http://localhost:5178',
+      process.env.CHANNEL_PARTNER_URL || 'http://localhost:5174',
+      process.env.PROPERTY_URL || 'http://localhost:5176',
     ],
     credentials: true,
   });

@@ -47,9 +47,11 @@ const Register: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'radial-gradient(circle at top right, var(--accent-indigo-glow) 0%, transparent 40%), radial-gradient(circle at bottom left, var(--primary-gold-glow) 0%, transparent 40%), var(--bg-dark)',
+            background: 'radial-gradient(circle at top right, rgba(8, 71, 78, 0.05) 0%, transparent 40%), radial-gradient(circle at bottom left, rgba(8, 71, 78, 0.03) 0%, transparent 40%), #f1f5f9',
             padding: '4rem 2rem'
         }}>
+
+
             <div className="glass-pane animate-fade-in" style={{
                 width: '100%',
                 maxWidth: '600px',
@@ -85,11 +87,12 @@ const Register: React.FC = () => {
                             style={{
                                 width: '100%',
                                 padding: '0.8rem 1rem',
-                                background: 'rgba(255, 255, 255, 0.05)',
+                                background: '#ffffff',
                                 border: '1px solid var(--border-glass)',
                                 borderRadius: 'var(--radius-md)',
                                 color: 'var(--text-main)',
                                 outline: 'none'
+
                             }}
                             className="glass-pane-hover"
                         >
@@ -142,8 +145,8 @@ const Register: React.FC = () => {
                         style={{
                             gridColumn: 'span 2',
                             padding: '1rem',
-                            background: 'linear-gradient(135deg, var(--primary-gold) 0%, #ecd06f 100%)',
-                            color: 'var(--bg-dark)',
+                            background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                            color: '#ffffff',
                             borderRadius: 'var(--radius-md)',
                             fontWeight: 700,
                             fontSize: '1rem',
@@ -152,10 +155,14 @@ const Register: React.FC = () => {
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '0.5rem',
-                            boxShadow: '0 4px 15px var(--primary-gold-glow)',
-                            opacity: isLoading ? 0.7 : 1
+                            boxShadow: '0 4px 15px rgba(8, 71, 78, 0.2)',
+                            opacity: isLoading ? 0.7 : 1,
+                            border: 'none',
+                            cursor: 'pointer'
+
                         }}
                     >
+
                         {isLoading ? 'Submitting Application...' : (
                             <>
                                 <UserPlus size={20} />
@@ -169,8 +176,9 @@ const Register: React.FC = () => {
                     Already have an account? {' '}
                     <button
                         onClick={() => navigate('/login')}
-                        style={{ background: 'none', color: 'var(--primary-gold)', fontWeight: 600 }}
+                        style={{ background: 'none', color: 'var(--primary-teal)', fontWeight: 600 }}
                     >
+
                         Sign In
                     </button>
                 </div>
@@ -182,11 +190,12 @@ const Register: React.FC = () => {
 const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '0.8rem 1rem',
-    background: 'rgba(255, 255, 255, 0.05)',
+    background: '#ffffff',
     border: '1px solid var(--border-glass)',
     borderRadius: 'var(--radius-md)',
     color: 'var(--text-main)',
     outline: 'none'
+
 };
 
 export default Register;

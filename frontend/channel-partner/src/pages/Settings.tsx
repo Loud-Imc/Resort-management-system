@@ -115,10 +115,11 @@ const Settings: React.FC = () => {
     if (isLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-                <Loader2 size={32} className="animate-spin" color="var(--primary-gold)" />
+                <Loader2 size={32} className="animate-spin" color="var(--primary-teal)" />
             </div>
         );
     }
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -130,21 +131,25 @@ const Settings: React.FC = () => {
                 <button
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="glass-pane"
+                    className="glass-pane-hover"
                     style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.8rem',
                         padding: '0.8rem 1.5rem',
-                        background: 'var(--primary-gold)',
-                        color: 'black',
+                        background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                        color: '#ffffff',
                         fontWeight: 700,
                         border: 'none',
                         cursor: isSaving ? 'not-allowed' : 'pointer',
                         opacity: isSaving ? 0.7 : 1,
-                        transition: 'all 0.3s ease'
+                        transition: 'all 0.3s ease',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)'
                     }}
+
                 >
+
                     {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                     {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -219,8 +224,9 @@ const Settings: React.FC = () => {
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Partner Code</label>
-                                    <input value={formData.referralCode} readOnly style={{ ...inputStyle, color: 'var(--primary-gold)', fontWeight: 700, opacity: 0.7 }} />
+                                    <input value={formData.referralCode} readOnly style={{ ...inputStyle, color: 'var(--primary-teal)', fontWeight: 700, opacity: 0.7 }} />
                                 </div>
+
                             </div>
                         </div>
                     )}
@@ -312,14 +318,16 @@ const TabButton: React.FC<{ active: boolean, onClick: () => void, icon: React.Re
             alignItems: 'center',
             gap: '1rem',
             padding: '0.8rem 1rem',
-            background: active ? 'rgba(212, 175, 55, 0.1)' : 'transparent',
-            color: active ? 'var(--primary-gold)' : 'var(--text-dim)',
+            background: active ? 'rgba(8, 71, 78, 0.05)' : 'transparent',
+            color: active ? 'var(--primary-teal)' : '#64748b',
             width: '100%',
             borderRadius: 'var(--radius-md)',
-            border: active ? '1px solid rgba(212, 175, 55, 0.3)' : '1px solid transparent',
+            border: active ? '1px solid var(--border-teal)' : '1px solid transparent',
+
             cursor: 'pointer',
             transition: 'all 0.3s ease'
         }}
+
     >
         {icon} <span style={{ fontWeight: 600 }}>{label}</span>
     </button>
@@ -336,12 +344,14 @@ const NotificationToggle: React.FC<{ label: string, description: string, active:
             style={{
                 width: '44px',
                 height: '24px',
-                background: active ? 'var(--primary-gold)' : 'rgba(255,255,255,0.1)',
+                background: active ? 'var(--primary-teal)' : '#e2e8f0',
+
                 borderRadius: '12px',
                 position: 'relative',
                 cursor: 'pointer',
                 transition: 'background 0.3s ease'
             }}
+
         >
             <div style={{
                 width: '18px',
@@ -367,12 +377,13 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '0.8rem 1rem',
-    background: 'rgba(255, 255, 255, 0.05)',
+    background: '#ffffff',
     border: '1px solid var(--border-glass)',
     borderRadius: 'var(--radius-md)',
     color: 'var(--text-main)',
     outline: 'none',
     transition: 'border-color 0.3s ease'
+
 };
 
 export default Settings;
