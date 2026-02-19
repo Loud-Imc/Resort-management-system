@@ -49,7 +49,7 @@ export default function PropertyDetail() {
 
     const [property, setProperty] = useState<Property | null>(null);
     const [availability, setAvailability] = useState<RoomType[] | null>(null);
-    const [loadingAvailability, setLoadingAvailability] = useState(false);
+    const [, setLoadingAvailability] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 

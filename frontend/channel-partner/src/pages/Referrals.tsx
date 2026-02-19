@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import PremiumTable from '../components/PremiumTable';
-import { useAuth } from '../context/AuthContext';
 import { BadgeCheck, Clock, XCircle, ExternalLink } from 'lucide-react';
 import api from '../services/api';
 

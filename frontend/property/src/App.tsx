@@ -7,7 +7,7 @@ import { Toaster } from 'react-hot-toast';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
 import Login from './pages/Login';
-import PlaceholderPage from './pages/PlaceholderPage';
+
 
 // Pages
 import BookingsList from './pages/Bookings/BookingsList';

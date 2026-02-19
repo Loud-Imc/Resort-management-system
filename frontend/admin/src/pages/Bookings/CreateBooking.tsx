@@ -10,7 +10,7 @@ import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { usersService } from '../../services/users';
-import { Loader2, Calendar, Users, DollarSign, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Building2 } from 'lucide-react';
+import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Building2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { PriceCalculationResult } from '../../types/booking';
 import type { RoomType } from '../../types/room';

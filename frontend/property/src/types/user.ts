@@ -9,4 +9,5 @@ export interface User {
     idNumber?: string;
     roles: { role: { name: string } }[];
     createdAt: string;
+    bookings?: any[];
 }

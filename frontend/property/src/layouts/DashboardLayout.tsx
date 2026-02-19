@@ -17,7 +17,6 @@ import {
     Briefcase,
     Shield,
     Loader2,
-    Settings,
     Sun,
     Moon,
     ChevronDown,

@@ -156,7 +156,7 @@ export default function ProcessRole() {
                     </div>
 
                     <div className="space-y-8">
-                        {Object.entries(groupedPermissions).map(([group, permissions]: [string, any[]]) => {
+                        {(Object.entries(groupedPermissions) as [string, any[]][]).map(([group, permissions]) => {
                             const groupIds = permissions.map((p: any) => p.name);
                             const isGroupSelected = groupIds.every((id: string) => (selectedPermissions || []).includes(id));
 

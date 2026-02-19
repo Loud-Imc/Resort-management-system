@@ -18,6 +18,8 @@ export interface RoomType {
     totalPrice?: number;
     offers?: any[];
     isSoldOut?: boolean;
+    rooms?: { id: string; status: string }[];
+    property?: Property;
 }
 
 export interface BookingSearchParams {

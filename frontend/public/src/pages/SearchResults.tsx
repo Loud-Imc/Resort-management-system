@@ -6,7 +6,6 @@ import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { format, addDays } from 'date-fns';
-import { Property } from '../types';
 
 export default function SearchResults() {
     const [searchParams] = useSearchParams();

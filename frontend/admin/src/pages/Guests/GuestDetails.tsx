@@ -75,9 +75,9 @@ export default function GuestDetails() {
                             <div className="flex items-center justify-center md:justify-start gap-2">
                                 <h2 className="text-2xl font-black text-card-foreground">{user.firstName} {user.lastName}</h2>
                                 {user.idType && user.idNumber ? (
-                                    <ShieldCheck className="h-5 w-5 text-emerald-500" title="Verified Guest" />
+                                    <ShieldCheck className="h-5 w-5 text-emerald-500" />
                                 ) : (
-                                    <Shield className="h-5 w-5 text-muted-foreground opacity-30" title="Unverified" />
+                                    <Shield className="h-5 w-5 text-muted-foreground opacity-30" />
                                 )}
                             </div>
                             <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2">

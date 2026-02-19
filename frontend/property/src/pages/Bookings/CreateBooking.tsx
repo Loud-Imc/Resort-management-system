@@ -52,7 +52,7 @@ export default function CreateBooking() {
 
     const {
         register, control, handleSubmit,
-        formState: { errors }, getValues, setValue, watch,
+        formState: { errors }, getValues, setValue,
     } = useForm<BookingFormData>({
         resolver: zodResolver(bookingSchema),
         defaultValues: {

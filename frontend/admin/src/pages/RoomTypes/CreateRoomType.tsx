@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
 import { discountService, Offer } from '../../services/discounts';
 import { useProperty } from '../../context/PropertyContext';
-import { Loader2, ArrowLeft, Save, Plus, X, Image as ImageIcon, Ticket, Trash2, Edit2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Plus, X, Trash2, Edit2 } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';

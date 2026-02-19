@@ -5,3 +5,12 @@ node_modules
 /dist
 /uploads
 /generated/prisma
+
+# Logs and temporary files
+*.log
+*.txt
+test_prisma.ts
+seed-expenses.ts
+.next
+.DS_Store
+

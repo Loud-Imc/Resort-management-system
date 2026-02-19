@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { reportsService } from '../../services/reports';
 import { expensesService } from '../../services/expenses';

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, ChannelPartnerStatus, PartnerType, RedemptionStatus } from '@prisma/client';
+import { Prisma, ChannelPartnerStatus, RedemptionStatus } from '@prisma/client';
 import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
 import * as bcrypt from 'bcrypt';
 

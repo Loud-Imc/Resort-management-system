@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PremiumTable from '../components/PremiumTable';
-import { BadgeCheck, Clock, MapPin, Calendar as CalendarIcon, XCircle, Loader2 } from 'lucide-react';
+import { BadgeCheck, Clock, MapPin, XCircle, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 interface Booking {

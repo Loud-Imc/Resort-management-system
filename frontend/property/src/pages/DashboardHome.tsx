@@ -54,7 +54,6 @@ export default function DashboardHome() {
     // Room status summary from API (or compute from rooms list)
     const statusSummary = stats?.roomStatusSummary || {
         AVAILABLE: roomsList.filter(r => r.status === 'AVAILABLE').length,
-        RESERVED: roomsList.filter(r => r.status === 'RESERVED').length,
         OCCUPIED: roomsList.filter(r => r.status === 'OCCUPIED').length,
         MAINTENANCE: roomsList.filter(r => r.status === 'MAINTENANCE').length,
         BLOCKED: roomsList.filter(r => r.status === 'BLOCKED').length,
@@ -165,7 +164,6 @@ export default function DashboardHome() {
                 <div className="flex flex-wrap items-center gap-4 text-sm">
                     {[
                         { label: 'Available', count: statusSummary.AVAILABLE, color: 'bg-emerald-500' },
-                        { label: 'Reserved', count: statusSummary.RESERVED || 0, color: 'bg-indigo-500' },
                         { label: 'Occupied', count: statusSummary.OCCUPIED, color: 'bg-blue-500' },
                         { label: 'Maintenance', count: statusSummary.MAINTENANCE, color: 'bg-amber-500' },
                         { label: 'Blocked', count: statusSummary.BLOCKED, color: 'bg-red-500' },

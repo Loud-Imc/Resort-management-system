@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { UserPlus, Mail, Lock, User, Building, Phone, MapPin } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 
 const Register: React.FC = () => {
     const [formData, setFormData] = useState({

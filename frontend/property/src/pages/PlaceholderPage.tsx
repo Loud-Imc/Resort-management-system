@@ -1,4 +1,4 @@
-import { Building2, Loader2 } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 
 // A simple placeholder page for sections that will be ported from admin
 export default function PlaceholderPage({ title, description }: { title: string; description?: string }) {

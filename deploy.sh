@@ -37,22 +37,28 @@ fi
 pm2 save
 cd ..
 
-# 3. Deploy Admin Frontend
-echo "🏗️ Building Admin Frontend..."
-cd frontend/admin
-npm install
-npm run build
-# Uncomment and update the path below if using Nginx to serve static files
-# sudo cp -r dist/* /var/www/routeguide-admin/
-cd ../..
+# 3. Deploy Frontends
+# Map folder names to subdomain prefixes
+FRONTENDS=("admin" "public" "channel-partner" "property")
+# Mapping for folder -> subdomain/directory naming
+declare -A APP_MAP
+APP_MAP["admin"]="admin"
+APP_MAP["public"]="public"
+APP_MAP["channel-partner"]="channel-partner"
+APP_MAP["property"]="property"
 
-# 4. Deploy Public Frontend
-echo "🏗️ Building Public Frontend..."
-cd frontend/public
-npm install
-npm run build
-# Uncomment and update the path below if using Nginx to serve static files
-# sudo cp -r dist/* /var/www/routeguide-public/
-cd ../..
+# Path on the server as seen in Nginx config
+WEB_ROOT="/var/www/Resort-management-system"
+
+for APP in "${FRONTENDS[@]}"; do
+    echo "🏗️ Building $APP Frontend..."
+    cd "frontend/$APP"
+    npm install
+    npm run build
+    # No copy needed because Nginx points directly to the dist folders inside the repo
+    cd ../..
+done
+
+
 
 echo "✅ Deployment Complete!"
