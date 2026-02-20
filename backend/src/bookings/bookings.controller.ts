@@ -55,6 +55,8 @@ export class BookingsController {
             dto.location,
             dto.type,
             dto.includeSoldOut || false,
+            dto.rooms || 1,
+            dto.categoryId,
         );
 
         return {

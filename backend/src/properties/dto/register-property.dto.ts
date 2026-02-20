@@ -38,6 +38,10 @@ export class RegisterPropertyDto {
     @IsNotEmpty()
     propertyType: PropertyType;
 
+    @IsOptional()
+    @IsString()
+    categoryId?: string;
+
     @IsString()
     @IsNotEmpty()
     address: string;

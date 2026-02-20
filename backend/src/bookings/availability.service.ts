@@ -167,21 +167,28 @@ export class AvailabilityService {
         location?: string,
         type?: string,
         includeSoldOut: boolean = false,
+        rooms: number = 1,
+        categoryId?: string,
     ) {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
         checkOut.setHours(0, 0, 0, 0);
 
+        // Required capacity per room
+        const minAdultsPerRoom = Math.ceil(adults / rooms);
+        const minChildrenPerRoom = Math.ceil(children / rooms);
+
         // 1. Get all room types that fit the guest capacity
         const suitableTypes = await this.prisma.roomType.findMany({
             where: {
-                maxAdults: { gte: adults },
-                maxChildren: { gte: children },
+                maxAdults: { gte: minAdultsPerRoom },
+                maxChildren: { gte: minChildrenPerRoom },
                 isPubliclyVisible: true, // Only public ones
                 property: {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
+                    categoryId: categoryId || undefined,
                     ...(location && {
                         OR: [
                             { city: { contains: location, mode: 'insensitive' } },
@@ -195,7 +202,16 @@ export class AvailabilityService {
             },
             include: {
                 rooms: true, // Need rooms to check availability
-                property: true, // Needed for grouping by property
+                property: {
+                    include: {
+                        _count: {
+                            select: {
+                                rooms: true,
+                                bookings: true
+                            }
+                        }
+                    }
+                }, // Needed for grouping by property
                 offers: {
                     where: {
                         isActive: true,
@@ -218,9 +234,9 @@ export class AvailabilityService {
                 checkOutDate,
             );
 
-            if (availableCount > 0 || includeSoldOut) {
+            if (availableCount >= rooms || includeSoldOut) {
                 // Return the type with availability info
-                const { rooms, offers, ...typeData }: any = type;
+                const { rooms: _rooms, offers, ...typeData }: any = type;
                 const activeOffer = offers[0] || null;
 
                 results.push({
@@ -228,7 +244,7 @@ export class AvailabilityService {
                     availableCount,
                     activeOffer,
                     totalPrice: Number(type.basePrice), // Placeholder
-                    isSoldOut: availableCount === 0,
+                    isSoldOut: availableCount < rooms,
                 });
             }
         }

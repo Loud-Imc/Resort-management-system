@@ -37,6 +37,7 @@ export class BookingsService {
             isManualBooking = false,
             overrideTotal,
             overrideReason,
+            whatsappNumber,
         } = createBookingDto;
 
         const bookingSourceId = rawBookingSourceId || undefined;
@@ -243,6 +244,7 @@ export class BookingsService {
                 isPriceOverridden,
                 overrideReason,
                 specialRequests,
+                whatsappNumber,
                 isManualBooking,
                 status: isManualBooking ? 'CONFIRMED' : 'PENDING_PAYMENT',
                 roomId: selectedRoom.id,

@@ -29,7 +29,9 @@ export interface BookingSearchParams {
     children: number;
     location?: string;
     type?: string;
+    categoryId?: string;
     includeSoldOut?: boolean;
+    rooms?: number;
 }
 
 export interface AvailabilityResponse {
@@ -54,11 +56,21 @@ export interface CreateBookingDto {
 // Marketplace Types
 export type PropertyType = 'RESORT' | 'HOMESTAY' | 'HOTEL' | 'VILLA' | 'OTHER';
 
+export interface PropertyCategory {
+    id: string;
+    name: string;
+    slug: string;
+    icon?: string;
+    description?: string;
+}
+
 export interface Property {
     id: string;
     name: string;
     slug: string;
     type: PropertyType;
+    categoryId?: string;
+    category?: PropertyCategory;
     description?: string;
     address: string;
     city: string;
@@ -90,6 +102,7 @@ export interface PropertySearchParams {
     search?: string;
     city?: string;
     type?: PropertyType;
+    categoryId?: string;
     minPrice?: number;
     maxPrice?: number;
     amenities?: string[];

@@ -7,6 +7,13 @@ export interface Property {
     name: string;
     slug: string;
     type: PropertyType;
+    categoryId?: string;
+    category?: {
+        id: string;
+        name: string;
+        slug: string;
+        icon?: string;
+    };
     description?: string;
     address: string;
     city: string;
@@ -55,6 +62,7 @@ export interface Property {
 export interface CreatePropertyDto {
     name: string;
     type: PropertyType;
+    categoryId?: string;
     description?: string;
     address: string;
     city: string;
@@ -86,6 +94,7 @@ export interface PropertyQueryParams {
     city?: string;
     state?: string;
     type?: PropertyType;
+    categoryId?: string;
     search?: string;
     page?: number;
     limit?: number;

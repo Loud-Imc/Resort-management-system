@@ -63,6 +63,8 @@ import CheckIn from './pages/Events/CheckIn';
 import EventBookings from './pages/Events/EventBookings';
 
 
+// Categories
+import CategoryList from './pages/PropertyCategories/CategoryList';
 
 const queryClient = new QueryClient();
 
@@ -120,6 +122,7 @@ function App() {
                   <Route path="properties/:id" element={<PropertyForm />} />
                   <Route path="properties/:id/edit" element={<PropertyForm />} />
                   <Route path="properties/:id/staff" element={<StaffList />} />
+                  <Route path="property-categories" element={<CategoryList />} />
 
                   {/* Channel Partners */}
                   <Route path="channel-partners" element={<CPList />} />

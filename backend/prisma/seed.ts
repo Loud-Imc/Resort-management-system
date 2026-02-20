@@ -148,10 +148,38 @@ async function main() {
         create: { userId: ownerUser.id, roleId: ownerRole.id },
     });
 
+    // --- PROPERTY CATEGORIES ---
+    const categories = [
+        { name: 'Resort', slug: 'resort', icon: 'Palmtree', description: 'Luxury resorts with full amenities' },
+        { name: 'Hotel', slug: 'hotel', icon: 'Hotel', description: 'Standard and boutique hotels' },
+        { name: 'Villa', slug: 'villa', icon: 'Home', description: 'Private villas and vacation rentals' },
+        { name: 'Homestay', slug: 'homestay', icon: 'Coffee', description: 'Cozy homestays and bed & breakfasts' },
+        { name: 'Other', slug: 'other', icon: 'Layout', description: 'Other types of accommodations' },
+    ];
+
+    const createdCategories: any[] = [];
+    for (const cat of categories) {
+        const category = await prisma.propertyCategory.upsert({
+            where: { slug: cat.slug },
+            update: {
+                name: cat.name,
+                icon: cat.icon,
+                description: cat.description,
+            },
+            create: cat,
+        });
+        createdCategories.push(category);
+    }
+    console.log('✅ Property categories seeded');
+
+    const resortCategory = createdCategories.find(c => c.slug === 'resort');
+
     // Create Sample Property
     const sampleProperty = await prisma.property.upsert({
         where: { slug: 'demo-resort' },
-        update: {},
+        update: {
+            categoryId: resortCategory?.id
+        },
         create: {
             name: 'The Grand Heritage Resort',
             slug: 'demo-resort',
@@ -162,6 +190,7 @@ async function main() {
             country: 'India',
             pincode: '685612',
             type: 'RESORT',
+            categoryId: resortCategory?.id,
             email: 'bookings@grandheritage.com',
             phone: '+919988776655',
             ownerId: ownerUser.id,

@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Building2, Plus, MapPin, Star, CheckCircle, XCircle, Loader2, Edit, Users } from 'lucide-react';
 import propertyService from '../../services/properties';
-import { Property, PropertyType } from '../../types/property';
+import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
+import { categoryService } from '../../services/category';
+import { PropertyCategory } from '../../types/category';
 
 const propertyTypeLabels: Record<PropertyType, string> = {
     RESORT: 'Resort',
@@ -32,9 +34,12 @@ export default function PropertiesList() {
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState<PropertyType | ''>('');
+    const [categoryId, setCategoryId] = useState('');
+    const [categories, setCategories] = useState<PropertyCategory[]>([]);
 
     useEffect(() => {
         loadProperties();
+        loadCategories();
     }, []);
 
     const loadProperties = async () => {
@@ -46,14 +51,29 @@ export default function PropertiesList() {
                 user?.role === 'Property Owner' ||
                 user?.role === 'Marketing';
 
+            const params: PropertyQueryParams = {
+                search,
+                type: typeFilter || undefined,
+                categoryId: categoryId || undefined
+            };
+
             const response = isManageable
-                ? await propertyService.getAllAdmin({ search, type: typeFilter || undefined })
-                : await propertyService.getAll({ search, type: typeFilter || undefined });
+                ? await propertyService.getAllAdmin(params)
+                : await propertyService.getAll(params);
             setProperties(response.data);
         } catch (err: any) {
             setError(err.message || 'Failed to load properties');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadCategories = async () => {
+        try {
+            const data = await categoryService.getAll();
+            setCategories(data);
+        } catch (err) {
+            console.error('Failed to load categories', err);
         }
     };
 
@@ -131,6 +151,17 @@ export default function PropertiesList() {
                             <option key={value} value={value}>{label}</option>
                         ))}
                     </select>
+
+                    <select
+                        value={categoryId}
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        className="px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                    >
+                        <option value="">All Categories</option>
+                        {categories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                    </select>
                     <button
                         onClick={handleSearch}
                         className="px-6 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
@@ -179,9 +210,9 @@ export default function PropertiesList() {
                                         <Building2 className="h-12 w-12 text-muted-foreground opacity-50" />
                                     </div>
                                 )}
-                                {/* Type Badge */}
+                                {/* Type/Category Badge */}
                                 <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold rounded shadow-sm ${propertyTypeColors[property.type]} opacity-90 transition-opacity hover:opacity-100`}>
-                                    {propertyTypeLabels[property.type]}
+                                    {property.category?.name || propertyTypeLabels[property.type]}
                                 </span>
                                 {/* Status Badges */}
                                 <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">

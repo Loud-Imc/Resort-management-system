@@ -55,6 +55,7 @@ export class PropertiesService {
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : null,
                 isFeatured: data.isFeatured || false,
                 status: PropertyStatus.APPROVED, // Manual creation by staff is auto-approved
+                categoryId: data.categoryId || null,
             },
             include: {
                 owner: {
@@ -62,7 +63,8 @@ export class PropertiesService {
                 },
                 addedBy: {
                     select: { id: true, firstName: true, email: true }
-                }
+                },
+                category: true,
             },
         });
     }
@@ -113,6 +115,7 @@ export class PropertiesService {
                     slug,
                     description: dto.propertyDescription,
                     type: dto.propertyType,
+                    categoryId: dto.categoryId || null,
                     address: dto.address,
                     city: dto.city,
                     state: dto.state,
@@ -159,6 +162,7 @@ export class PropertiesService {
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
             ...(type && { type }),
+            ...(query.categoryId && { categoryId: query.categoryId }),
             ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
             ...(search && {
@@ -180,6 +184,7 @@ export class PropertiesService {
                     owner: {
                         select: { id: true, firstName: true, lastName: true },
                     },
+                    category: true,
                     _count: {
                         select: { rooms: true, bookings: true },
                     },
@@ -219,6 +224,7 @@ export class PropertiesService {
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
             ...(type && { type }),
+            ...(query.categoryId && { categoryId: query.categoryId }),
             ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
             ...(search && {
@@ -241,6 +247,7 @@ export class PropertiesService {
                     owner: {
                         select: { id: true, firstName: true, lastName: true, email: true },
                     },
+                    category: true,
                     _count: {
                         select: { rooms: true, bookings: true },
                     },
@@ -400,6 +407,7 @@ export class PropertiesService {
                 ...updateData,
                 latitude: data.latitude ? new Prisma.Decimal(data.latitude) : undefined,
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : undefined,
+                categoryId: data.categoryId !== undefined ? data.categoryId : undefined,
             },
         });
     }

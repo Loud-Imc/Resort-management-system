@@ -11,7 +11,9 @@ export const bookingService = {
             children: params.children,
             location: params.location,
             type: params.type,
-            includeSoldOut: params.includeSoldOut
+            categoryId: params.categoryId,
+            includeSoldOut: params.includeSoldOut,
+            rooms: params.rooms
         });
         return data;
     },

@@ -275,6 +275,7 @@ model Booking {
 
   // Special Requests
   specialRequests String?
+  whatsappNumber  String?
 
   // Booking Type
   isManualBooking Boolean @default(false) // Staff created vs online
@@ -343,6 +344,7 @@ model BookingGuest {
   lastName  String
   email     String?
   phone     String?
+  whatsappNumber String?
   age       Int?
   idType    String? // Passport, Aadhar, etc.
   idNumber  String?
@@ -639,6 +641,10 @@ model Property {
   ownerId String
   owner   User   @relation("PropertyOwner", fields: [ownerId], references: [id])
 
+  // Category
+  categoryId String?
+  category   PropertyCategory? @relation(fields: [categoryId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -677,6 +683,21 @@ enum PropertyType {
   HOTEL
   VILLA
   OTHER
+}
+
+model PropertyCategory {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  slug        String     @unique
+  icon        String?    // Lucide icon name or image URL
+  description String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  properties  Property[]
+
+  @@map("property_categories")
 }
 
 model PropertyStaff {

@@ -4,12 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
-import { Loader2, AlertCircle } from 'lucide-react';
+import PropertyFilters from '../components/PropertyFilters';
+import { Loader2, AlertCircle, Search } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 export default function SearchResults() {
-    const [searchParams] = useSearchParams();
-    // const navigate = useNavigate(); // Not using navigate for direct booking anymore
+    const [searchParams, setSearchParams] = useSearchParams();
 
     // Use state to hold stable default dates that don't change on re-renders
     const [defaults] = useState(() => {
@@ -20,26 +20,67 @@ export default function SearchResults() {
         };
     });
 
+    // URL Param values
     const checkIn = searchParams.get('checkIn') || defaults.checkIn;
     const checkOut = searchParams.get('checkOut') || defaults.checkOut;
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
-    const location = searchParams.get('location') || '';
-    const type = searchParams.get('type') || 'ALL';
+    const locationParam = searchParams.get('location') || '';
+    const categoryIdParam = searchParams.get('categoryId') || '';
+    const rooms = Number(searchParams.get('rooms')) || 1;
+
+    // Local filter state
+    const [search, setSearch] = useState(locationParam);
+    const [categoryId, setCategoryId] = useState<string>(categoryIdParam);
+    const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['availability', checkIn, checkOut, adults, children, location, type],
+        queryKey: ['availability', checkIn, checkOut, adults, children, rooms, locationParam, categoryIdParam],
         queryFn: () => bookingService.searchRooms({
             checkInDate: checkIn,
             checkOutDate: checkOut,
             adults,
             children,
-            location: location,
-            type: type === 'ALL' ? undefined : type,
-            includeSoldOut: true
+            location: locationParam,
+            categoryId: categoryIdParam || undefined,
+            includeSoldOut: false,
+            rooms
         }),
         enabled: !!checkIn && !!checkOut,
     });
+
+    const handleApplyFilters = () => {
+        const params = new URLSearchParams(searchParams);
+        if (search) params.set('location', search);
+        else params.delete('location');
+
+        if (categoryId) params.set('categoryId', categoryId);
+        else params.delete('categoryId');
+
+        setSearchParams(params);
+    };
+
+    const clearFilters = () => {
+        setSearch('');
+        setCategoryId('');
+        setSelectedAmenities([]);
+        const params = new URLSearchParams(searchParams);
+        params.delete('location');
+        params.delete('categoryId');
+        setSearchParams(params);
+    };
+
+    const toggleAmenity = (amenity: string) => {
+        if (amenity === 'CLEAR_ALL') {
+            setSelectedAmenities([]);
+            return;
+        }
+        setSelectedAmenities(prev =>
+            prev.includes(amenity)
+                ? prev.filter(a => a !== amenity)
+                : [...prev, amenity]
+        );
+    };
 
     // Group available room types by property
     const groupedProperties = useMemo(() => {
@@ -53,7 +94,7 @@ export default function SearchResults() {
                 if (!propertyMap.has(propId)) {
                     propertyMap.set(propId, {
                         ...roomType.property,
-                        isSoldOut: true, // Default to sold out, will be set to false if any room is available
+                        isSoldOut: true,
                         minPrice: roomType.totalPrice,
                         availableRoomCount: 0
                     });
@@ -70,7 +111,6 @@ export default function SearchResults() {
             }
         });
 
-        // Sort: Available first, then by price
         return Array.from(propertyMap.values()).sort((a, b) => {
             if (a.isSoldOut !== b.isSoldOut) {
                 return a.isSoldOut ? 1 : -1;
@@ -79,15 +119,6 @@ export default function SearchResults() {
         });
     }, [data]);
 
-
-    if (isLoading) {
-        return (
-            <div className="min-h-[70vh] flex items-center justify-center bg-gray-50 px-4 py-12 pt-28">
-                <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
-                <p className="text-gray-500">Finding the perfect stay for you...</p>
-            </div>
-        );
-    }
 
     if (error) {
         return (
@@ -101,61 +132,78 @@ export default function SearchResults() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8 pt-28">
-            {/* Modify Search */}
-            <div className="mb-8">
-                <SearchForm variant="inline" theme="light" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Filters Sidebar (Placeholder) */}
-                <div className="hidden lg:block space-y-6">
-                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                        <h3 className="font-semibold mb-4 text-gray-900">Your Stay</h3>
-                        <div className="space-y-3 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-gray-500">Check In</span>
-                                <span className="font-medium text-gray-900">{format(new Date(checkIn), 'MMM d, yyyy')}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-gray-500">Check Out</span>
-                                <span className="font-medium text-gray-900">{format(new Date(checkOut), 'MMM d, yyyy')}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-gray-500">Guests</span>
-                                <span className="font-medium text-gray-900">{adults} Ad, {children} Ch</span>
-                            </div>
-                        </div>
+        <div className="min-h-screen bg-gray-50 pt-28">
+            <div className="max-w-7xl mx-auto px-4 py-8">
+                {/* Search Bar Refinement */}
+                <div className="mb-12">
+                    <div className="max-w-4xl mx-auto">
+                        <SearchForm variant="inline" theme="light" />
                     </div>
                 </div>
 
-                {/* Results List */}
-                <div className="lg:col-span-3 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-gray-900">
-                            {groupedProperties.filter(p => !p.isSoldOut).length} Properties Available
-                            {groupedProperties.some(p => p.isSoldOut) && (
-                                <span className="text-sm font-normal text-gray-400 ml-2">
-                                    ({groupedProperties.filter(p => p.isSoldOut).length} sold out)
-                                </span>
-                            )}
-                        </h2>
+                <div className="space-y-8">
+                    {/* Horizontal Filters */}
+                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
+                        <PropertyFilters
+                            search={search}
+                            onSearchChange={setSearch}
+                            categoryId={categoryId}
+                            onCategoryChange={setCategoryId}
+                            selectedAmenities={selectedAmenities}
+                            onAmenityToggle={toggleAmenity}
+                            onApply={handleApplyFilters}
+                            onClear={clearFilters}
+                            resultsCount={groupedProperties.length}
+                            isLoading={isLoading}
+                        />
                     </div>
 
-                    {groupedProperties.length === 0 ? (
-                        <div className="bg-white p-8 rounded-xl text-center border border-gray-100">
-                            <p className="text-gray-500 mb-4">No properties found for your selected dates and guest count.</p>
-                            <p className="text-sm text-gray-400">Try changing your dates or number of guests.</p>
+                    {/* Results List */}
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <h2 className="text-xl font-bold text-gray-900">
+                                {isLoading ? (
+                                    <span className="flex items-center gap-2">
+                                        <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+                                        Updating results...
+                                    </span>
+                                ) : (
+                                    <>
+                                        {groupedProperties.length} Accommodations Available
+                                    </>
+                                )}
+                            </h2>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {groupedProperties.map((property) => (
-                                <div key={property.id} className="relative">
-                                    <PropertyCard property={property} />
-                                </div>
-                            ))}
-                        </div>
-                    )}
+
+                        {/* Property Cards Grid */}
+                        {!isLoading && groupedProperties.length === 0 ? (
+                            <div className="bg-white p-16 rounded-3xl text-center border border-gray-100 shadow-sm max-w-2xl mx-auto">
+                                <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                                <h2 className="text-xl font-bold text-gray-900 mb-2">No matching properties</h2>
+                                <p className="text-gray-500 mb-8">We couldn't find any stays matching your filters. Try clearing them to see more options.</p>
+                                <button
+                                    onClick={clearFilters}
+                                    className="px-8 py-3 bg-primary-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-500/20"
+                                >
+                                    Clear all filters
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {isLoading && groupedProperties.length === 0 ? (
+                                    [1, 2, 3, 4, 5, 6].map(n => (
+                                        <div key={n} className="h-[400px] bg-gray-100 rounded-3xl animate-pulse" />
+                                    ))
+                                ) : (
+                                    groupedProperties.map((property) => (
+                                        <div key={property.id} className="relative group animate-in fade-in zoom-in-95 duration-300">
+                                            <PropertyCard property={property} />
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

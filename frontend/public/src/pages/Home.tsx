@@ -4,7 +4,8 @@ import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { propertyApi } from '../services/properties';
-import PromoBanner from '../components/home/PromoBanner';
+// import EventsSection from '../components/home/EventsSection';
+// import PromoBanner from '../components/home/PromoBanner';
 import PropertyCard from '../components/PropertyCard';
 import { Property } from '../types';
 
@@ -66,7 +67,7 @@ export default function Home() {
             {/* <EventsSection /> */}
 
             {/* Promo Banner (Replaces Secondary Banner) */}
-            <PromoBanner />
+            {/* <PromoBanner /> */}
 
             {/* Featured Properties */}
             <section className="bg-gray-50 py-24">
@@ -117,7 +118,7 @@ export default function Home() {
             </section>
 
             {/* CTA Section */}
-            <section className="bg-primary-900 text-white py-20 relative overflow-hidden">
+            {/* <section className="bg-primary-900 text-white py-20 relative overflow-hidden">
                 <div className="absolute top-0 right-0 opacity-10">
                     <svg width="400" height="400" viewBox="0 0 200 200">
                         <path fill="currentColor" d="M45.7,-76.3C58.9,-69.3,69.1,-55.6,76.3,-41.4C83.5,-27.2,87.7,-12.4,85.3,1.4C82.9,15.2,73.9,28,63.6,38.3C53.3,48.6,41.7,56.3,29.8,62.5C17.9,68.7,5.6,73.4,-7.6,75.1C-20.8,76.8,-35,75.5,-47.2,69.5C-59.4,63.5,-69.6,52.8,-76.3,40.5C-83,28.2,-86.2,14.1,-84.6,0.9C-83,-12.3,-76.6,-24.6,-68.2,-35.1C-59.8,-45.6,-49.4,-54.3,-37.9,-62.4C-26.4,-70.5,-13.8,-78,0.7,-79.1C15.2,-80.3,30.4,-75,43.3,-67.2L45.7,-76.3Z" transform="translate(100 100)" />
@@ -138,7 +139,7 @@ export default function Home() {
                         </a>
                     </div>
                 </div>
-            </section>
+            </section> */}
         </div>
     );
 }

@@ -27,6 +27,7 @@ import { MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { DiscountsModule } from './discounts/discounts.module';
 import { MailModule } from './mail/mail.module';
+import { PropertyCategoriesModule } from './property-categories/property-categories.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { MailModule } from './mail/mail.module';
     EventBookingsModule,
     DiscountsModule,
     MailModule,
+    PropertyCategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

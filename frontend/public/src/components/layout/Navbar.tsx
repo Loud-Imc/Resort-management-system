@@ -3,7 +3,7 @@ import { Menu, X, User as UserIcon, LogOut, Home as HomeIcon } from 'lucide-reac
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import logo from '../../assets/routeguide.svg';
-import mobileLogo from '../../assets/routeguide-mobile.svg';
+// import mobileLogo from '../../assets/routeguide-mobile.svg';
 
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -43,8 +43,8 @@ export default function Navbar() {
     };
 
     const navBg = isHome
-        ? (isScrolled ? 'bg-white shadow-md' : 'bg-transparent')
-        : 'bg-white shadow-sm';
+        ? (isScrolled ? 'bg-white/20 backdrop-blur-lg shadow-md' : 'bg-transparent')
+        : 'bg-white/20 backdrop-blur-lg shadow-sm';
 
     const textColor = isHome && !isScrolled
         ? 'text-white'
@@ -54,7 +54,7 @@ export default function Navbar() {
         <nav className={clsx(
             "fixed w-full z-50 transition-all duration-300",
             navBg,
-            isHome && !isScrolled ? "py-6" : "py-4"
+            isHome && !isScrolled ? "py-6" : "py-1"
         )}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16 md:h-20">
@@ -65,19 +65,28 @@ export default function Navbar() {
                                 src={logo}
                                 alt="Route Guide"
                                 className={clsx(
-                                    "h-40 md:h-50 w-auto transition-all hidden md:block",
+                                    "h-40 md:h-50 w-auto transition-all ",
                                     isHome && !isScrolled ? "brightness-0 invert" : ""
                                 )}
                             />
                             {/* Mobile Logo */}
-                            <img
+
+                            {/* <img
+                                src={logo}
+                                alt="Route Guide"
+                                className={clsx(
+                                    "h-45 md:h-50 w-auto transition-all ",
+                                    isHome && !isScrolled ? "brightness-0 invert" : ""
+                                )}
+                            /> */}
+                            {/* <img
                                 src={mobileLogo}
                                 alt="Route Guide"
                                 className={clsx(
-                                    "h-12 w-auto transition-all md:hidden",
-                                    isHome && !isScrolled ? "brightness-0 invert" : ""
+                                    "h-13 w-auto transition-all md:hidden",
+                                    // isHome && !isScrolled ? "brightness-0 invert" : ""
                                 )}
-                            />
+                            /> */}
                         </Link>
                     </div>
 

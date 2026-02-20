@@ -1,4 +1,4 @@
-import { IsDateString, IsNotEmpty, IsNumber, Min, IsOptional } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsNumber, Min, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -26,13 +26,26 @@ export class SearchRoomsDto {
     @IsOptional()
     children: number;
 
+    @ApiProperty({ example: 1, required: false })
+    @IsOptional()
+    @IsNumber()
+    @Min(1)
+    @Type(() => Number)
+    rooms?: number;
+
     @ApiProperty({ example: 'Wayanad', required: false })
     @IsOptional()
     location?: string;
 
     @ApiProperty({ example: 'RESORT', required: false })
     @IsOptional()
+    @IsString()
     type?: string;
+
+    @ApiProperty({ example: 'uuid-of-category', required: false })
+    @IsOptional()
+    @IsString()
+    categoryId?: string;
 
     @ApiProperty({ example: false, required: false })
     @IsOptional()

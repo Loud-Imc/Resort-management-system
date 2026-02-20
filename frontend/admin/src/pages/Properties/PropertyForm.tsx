@@ -7,6 +7,8 @@ import { PropertyType, CreatePropertyDto } from '../../types/property';
 import { User } from '../../types/user';
 import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
+import { categoryService } from '../../services/category';
+import { PropertyCategory } from '../../types/category';
 
 const propertyTypes: { value: PropertyType; label: string }[] = [
     { value: 'RESORT', label: 'Resort' },
@@ -32,6 +34,7 @@ export default function PropertyForm() {
     const [error, setError] = useState<string | null>(null);
     const [marketingUsers, setMarketingUsers] = useState<User[]>([]);
     const [propertyOwners, setPropertyOwners] = useState<User[]>([]);
+    const [categories, setCategories] = useState<PropertyCategory[]>([]);
 
     // Check roles
     const isAdmin = user?.roles?.some(r => r === 'SuperAdmin' || r === 'Admin');
@@ -58,6 +61,7 @@ export default function PropertyForm() {
         isFeatured: false,
         platformCommission: 10,
         whatsappNumber: '',
+        categoryId: '',
     });
 
     useEffect(() => {
@@ -67,6 +71,7 @@ export default function PropertyForm() {
 
         if (isAdmin || isMarketing) {
             loadUsers();
+            loadCategories();
         }
 
         // Auto-set defaults for non-admins
@@ -85,6 +90,15 @@ export default function PropertyForm() {
             }
         }
     }, [id, isEdit, isAdmin, isMarketing, isPropertyOwner, user]);
+
+    const loadCategories = async () => {
+        try {
+            const data = await categoryService.getAll();
+            setCategories(data);
+        } catch (err) {
+            console.error('Failed to load categories', err);
+        }
+    };
 
     const loadUsers = async () => {
         try {
@@ -133,6 +147,7 @@ export default function PropertyForm() {
                 isFeatured: property.isFeatured || false,
                 platformCommission: property.platformCommission || 10,
                 whatsappNumber: property.whatsappNumber || '',
+                categoryId: property.categoryId || '',
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -371,6 +386,33 @@ export default function PropertyForm() {
                             >
                                 {propertyTypes.map(type => (
                                     <option key={type.value} value={type.value}>{type.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                Category *
+                            </label>
+                            <select
+                                name="categoryId"
+                                value={formData.categoryId}
+                                onChange={(e) => {
+                                    const catId = e.target.value;
+                                    const selectedCat = categories.find(c => c.id === catId);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        categoryId: catId,
+                                        // Auto-sync type if possible for backward compatibility
+                                        type: (selectedCat?.slug?.toUpperCase() as any) || prev.type
+                                    }));
+                                }}
+                                required
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                            >
+                                <option value="">-- Select Category --</option>
+                                {categories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
                                 ))}
                             </select>
                         </div>

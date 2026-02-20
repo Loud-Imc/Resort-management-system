@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Property, PropertySearchParams, PropertyListResponse, ChannelPartnerInfo } from '../types';
+import { Property, PropertySearchParams, PropertyListResponse, ChannelPartnerInfo, PropertyCategory } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -30,6 +30,12 @@ export const propertyApi = {
             params: { limit, isFeatured: true }
         });
         return response.data.data;
+    },
+
+    // Get all active property categories
+    async getCategories(): Promise<PropertyCategory[]> {
+        const response = await api.get('/property-categories');
+        return response.data;
     },
 };
 

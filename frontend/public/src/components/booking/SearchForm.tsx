@@ -1,18 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Palmtree, Hotel, Home, Tent } from 'lucide-react';
 import { addDays } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
+import { propertyApi } from '../../services/properties';
 import SearchDesktop from './SearchDesktop';
 import SearchMobile from './SearchMobile';
 import SearchInline from './SearchInline';
-
-const CATEGORIES = [
-    { id: 'ALL', label: 'All Stays', icon: Building2 },
-    { id: 'RESORT', label: 'Resorts', icon: Palmtree },
-    { id: 'HOTEL', label: 'Hotels', icon: Hotel },
-    { id: 'HOMESTAY', label: 'Homestays', icon: Tent },
-    { id: 'VILLA', label: 'Villas', icon: Home },
-];
 
 export default function SearchForm({
     className = "",
@@ -25,12 +18,18 @@ export default function SearchForm({
 }) {
     const navigate = useNavigate();
     const [location, setLocation] = useState('');
-    const [propertyType, setPropertyType] = useState('');
+    const [categoryId, setCategoryId] = useState('');
     const [checkIn, setCheckIn] = useState<Date | null>(new Date());
     const [checkOut, setCheckOut] = useState<Date | null>(addDays(new Date(), 1));
     const [adults, setAdults] = useState(2);
     const [children, setChildren] = useState(0);
+    const [rooms, setRooms] = useState(1);
     const [isExpanded, setIsExpanded] = useState(false);
+
+    const { data: categories } = useQuery({
+        queryKey: ['property-categories'],
+        queryFn: () => propertyApi.getCategories(),
+    });
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,11 +37,12 @@ export default function SearchForm({
 
         const params = new URLSearchParams({
             location,
-            type: propertyType,
+            categoryId,
             checkIn: checkIn.toISOString(),
             checkOut: checkOut.toISOString(),
             adults: adults.toString(),
             children: children.toString(),
+            rooms: rooms.toString(),
         });
 
         navigate(`/search?${params.toString()}`);
@@ -50,13 +50,14 @@ export default function SearchForm({
 
     const sharedProps = {
         location, setLocation,
-        propertyType, setPropertyType,
+        categoryId, setCategoryId,
         checkIn, setCheckIn,
         checkOut, setCheckOut,
         adults, setAdults,
         children, setChildren,
+        rooms, setRooms,
         handleSearch,
-        CATEGORIES
+        categories: categories || []
     };
 
     if (variant === 'inline') {

@@ -113,6 +113,11 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsBoolean()
     isFeatured?: boolean;
+
+    @ApiProperty({ example: 'category-uuid-123' })
+    @IsOptional()
+    @IsString()
+    categoryId?: string;
 }
 
 export class UpdatePropertyDto {
@@ -214,6 +219,10 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsNumber()
     platformCommission?: number;
+
+    @IsOptional()
+    @IsString()
+    categoryId?: string;
 }
 
 export class PropertyQueryDto {
@@ -232,6 +241,10 @@ export class PropertyQueryDto {
     @IsOptional()
     @IsString()
     search?: string;
+
+    @IsOptional()
+    @IsString()
+    categoryId?: string;
 
     @IsOptional()
     @IsNumber()

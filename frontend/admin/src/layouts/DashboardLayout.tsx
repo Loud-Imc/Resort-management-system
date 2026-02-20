@@ -62,6 +62,9 @@ export default function DashboardLayout() {
         ...(hasPermission('properties.read') ? [
             { icon: Building2, label: isSuperAdmin ? 'All Properties' : 'Properties', path: '/properties' },
         ] : []),
+        ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [
+            { icon: LayoutDashboard, label: 'Categories', path: '/property-categories' },
+        ] : []),
 
         // Bookings & Rooms
         ...(hasPermission('bookings.read') ? [
