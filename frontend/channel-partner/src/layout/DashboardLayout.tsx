@@ -14,6 +14,8 @@ import {
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 
+import logo from '../assets/routeguide.svg';
+
 const navItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/' },
     { icon: BedDouble, label: 'Book a Stay', path: '/book' },
@@ -59,15 +61,24 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 padding: '2rem 1.5rem',
                 zIndex: 100
             }}>
-                <div style={{ marginBottom: '3rem' }}>
-                    <h2 className="text-premium-gradient" style={{ fontSize: '1.8rem', fontWeight: 700 }}>CP.ROOT</h2>
+                <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    <img
+                        src={logo}
+                        alt="Route Guide"
+                        style={{
+                            height: '160px',
+                            width: 'auto',
+                            objectFit: 'contain',
+                            margin: '-40px 0' // Compensate for SVG empty space
+                        }}
+                    />
                 </div>
 
                 <nav style={{ flex: 1 }}>
                     <ul style={{ listStyle: 'none' }}>
                         {navItems.map((item) => {
                             // If status is not approved, only show Overview
-                            if (status && status !== 'APPROVED' && item.path !== '/') {
+                            if (status && status !== 'APPROVED' && item.label !== 'Overview') {
                                 return null;
                             }
 

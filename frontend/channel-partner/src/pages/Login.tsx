@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import logo from '../assets/routeguide.svg';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -49,9 +50,17 @@ const Login: React.FC = () => {
                 padding: '3rem',
                 textAlign: 'center'
             }}>
-                <div style={{ marginBottom: '2.5rem' }}>
-                    <h2 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Partner Access</h2>
-                    <p style={{ color: 'var(--text-dim)' }}>Welcome back to the Route Guide network.</p>
+                <div style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
+                    <img
+                        src={logo}
+                        alt="Route Guide"
+                        style={{
+                            height: '240px',
+                            marginBottom: '0',
+                            objectFit: 'contain',
+                            margin: '-70px 0' // Compensate for SVG empty space
+                        }}
+                    />
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

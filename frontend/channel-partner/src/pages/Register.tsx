@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { UserPlus } from 'lucide-react';
+import logo from '../assets/routeguide.svg';
 
 const Register: React.FC = () => {
     const [formData, setFormData] = useState({
@@ -58,9 +59,17 @@ const Register: React.FC = () => {
                 padding: '3rem',
                 textAlign: 'center'
             }}>
-                <div style={{ marginBottom: '2.5rem' }}>
-                    <h2 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Partner Application</h2>
-                    <p style={{ color: 'var(--text-dim)' }}>Join our network and start earning commissions.</p>
+                <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
+                    <img
+                        src={logo}
+                        alt="Route Guide"
+                        style={{
+                            height: '240px',
+                            marginBottom: '0',
+                            objectFit: 'contain',
+                            margin: '-70px 0' // Compensate for SVG empty space
+                        }}
+                    />
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem', textAlign: 'left' }}>
