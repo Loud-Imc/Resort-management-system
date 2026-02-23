@@ -55,50 +55,53 @@ export default function DashboardLayout() {
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
 
-        // Bookings & Guests
-        ...(hasPermission('bookings.read') ? [
-            { icon: Calendar, label: 'Bookings', path: '/bookings' },
-            { icon: Users, label: 'Guests', path: '/guests' },
+        // Only show operational links if property is approved
+        ...(selectedProperty?.status === 'APPROVED' ? [
+            // Bookings & Guests
+            ...(hasPermission('bookings.read') ? [
+                { icon: Calendar, label: 'Bookings', path: '/bookings' },
+                { icon: Users, label: 'Guests', path: '/guests' },
+            ] : []),
+
+            // Rooms
+            ...(hasPermission('rooms.read') ? [
+                { icon: BedDouble, label: 'Rooms', path: '/rooms' },
+            ] : []),
+
+            // Room Types
+            ...(hasPermission('roomTypes.read') ? [
+                { icon: BedDouble, label: 'Room Types', path: '/room-types' },
+            ] : []),
+
+            // Financials
+            ...(hasPermission('payments.read') ? [
+                { icon: CreditCard, label: 'Payments', path: '/payments' },
+            ] : []),
+
+            ...(hasPermission('reports.viewFinancial') ? [
+                { icon: DollarSign, label: 'Financials', path: '/financials' },
+            ] : []),
+
+            ...(hasPermission('bookingSources.read') ? [
+                { icon: Briefcase, label: 'Sources', path: '/booking-sources' },
+            ] : []),
+
+            // Team & Roles
+            ...(hasPermission('users.read') ? [
+                { icon: Users, label: 'My Team', path: '/team' },
+            ] : []),
+
+            ...(hasPermission('roles.read') ? [
+                { icon: Shield, label: 'Roles', path: '/roles' },
+            ] : []),
+
+            // Reports
+            ...(hasPermission('reports.viewDashboard') ? [
+                { icon: PieChart, label: 'Reports', path: '/reports' }
+            ] : []),
         ] : []),
 
-        // Rooms
-        ...(hasPermission('rooms.read') ? [
-            { icon: BedDouble, label: 'Rooms', path: '/rooms' },
-        ] : []),
-
-        // Room Types
-        ...(hasPermission('roomTypes.read') ? [
-            { icon: BedDouble, label: 'Room Types', path: '/room-types' },
-        ] : []),
-
-        // Financials
-        ...(hasPermission('payments.read') ? [
-            { icon: CreditCard, label: 'Payments', path: '/payments' },
-        ] : []),
-
-        ...(hasPermission('reports.viewFinancial') ? [
-            { icon: DollarSign, label: 'Financials', path: '/financials' },
-        ] : []),
-
-        ...(hasPermission('bookingSources.read') ? [
-            { icon: Briefcase, label: 'Sources', path: '/booking-sources' },
-        ] : []),
-
-        // Team & Roles
-        ...(hasPermission('users.read') ? [
-            { icon: Users, label: 'My Team', path: '/team' },
-        ] : []),
-
-        ...(hasPermission('roles.read') ? [
-            { icon: Shield, label: 'Roles', path: '/roles' },
-        ] : []),
-
-        // Reports
-        ...(hasPermission('reports.viewDashboard') ? [
-            { icon: PieChart, label: 'Reports', path: '/reports' }
-        ] : []),
-
-        // My Property
+        // My Property is always accessible
         { icon: Building2, label: 'My Property', path: '/my-property' },
     ];
 

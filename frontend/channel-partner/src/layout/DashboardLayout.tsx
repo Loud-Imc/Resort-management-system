@@ -12,6 +12,7 @@ import {
     BedDouble,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import api from '../services/api';
 
 const navItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/' },
@@ -27,6 +28,15 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const [status, setStatus] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        api.get('/channel-partners/me/stats').then((res: any) => {
+            setStatus(res.status);
+        }).catch(() => {
+            setStatus('INACTIVE');
+        });
+    }, []);
 
     const handleLogout = () => {
         logout();
@@ -55,28 +65,35 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
                 <nav style={{ flex: 1 }}>
                     <ul style={{ listStyle: 'none' }}>
-                        {navItems.map((item) => (
-                            <li key={item.path} style={{ marginBottom: '0.5rem' }}>
-                                <Link
-                                    to={item.path}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '1rem',
-                                        padding: '0.8rem 1rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        color: location.pathname === item.path ? 'var(--primary-teal)' : '#64748b',
-                                        background: location.pathname === item.path ? 'rgba(8, 71, 78, 0.05)' : 'transparent',
-                                        transition: 'all 0.2s',
-                                        fontWeight: 600
-                                    }}
-                                    className="glass-pane-hover"
-                                >
-                                    <item.icon size={20} />
-                                    <span style={{ fontWeight: 600 }}>{item.label}</span>
-                                </Link>
-                            </li>
-                        ))}
+                        {navItems.map((item) => {
+                            // If status is not approved, only show Overview
+                            if (status && status !== 'APPROVED' && item.path !== '/') {
+                                return null;
+                            }
+
+                            return (
+                                <li key={item.path} style={{ marginBottom: '0.5rem' }}>
+                                    <Link
+                                        to={item.path}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '1rem',
+                                            padding: '0.8rem 1rem',
+                                            borderRadius: 'var(--radius-md)',
+                                            color: location.pathname === item.path ? 'var(--primary-teal)' : '#64748b',
+                                            background: location.pathname === item.path ? 'rgba(8, 71, 78, 0.05)' : 'transparent',
+                                            transition: 'all 0.2s',
+                                            fontWeight: 600
+                                        }}
+                                        className="glass-pane-hover"
+                                    >
+                                        <item.icon size={20} />
+                                        <span style={{ fontWeight: 600 }}>{item.label}</span>
+                                    </Link>
+                                </li>
+                            );
+                        })}
                     </ul>
                 </nav>
 
