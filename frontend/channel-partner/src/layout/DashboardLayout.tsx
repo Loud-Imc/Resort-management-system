@@ -7,12 +7,16 @@ import {
     Award,
     Settings,
     LogOut,
-    Bell
+    Bell,
+    Wallet,
+    BedDouble,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 const navItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/' },
+    { icon: BedDouble, label: 'Book a Stay', path: '/book' },
+    { icon: Wallet, label: 'Wallet', path: '/wallet' },
     { icon: Users, label: 'Referrals', path: '/referrals' },
     { icon: Award, label: 'Rewards', path: '/rewards' },
     { icon: Calendar, label: 'Bookings', path: '/bookings' },

@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, User as UserIcon, LogOut, Home as HomeIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
+import CurrencySwitcher from './CurrencySwitcher';
 import logo from '../../assets/routeguide.svg';
 // import mobileLogo from '../../assets/routeguide-mobile.svg';
 
@@ -91,6 +92,7 @@ export default function Navbar() {
                     </div>
 
                     <div className="hidden md:flex items-center space-x-6">
+                        <CurrencySwitcher />
                         {!isHome && (
                             <Link
                                 to="/"

@@ -1,4 +1,4 @@
-import { Search, Filter, X, ChevronDown, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe, MapPin } from 'lucide-react';
 // import { PropertyCategory } from '../types';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -30,6 +30,10 @@ interface PropertyFiltersProps {
     onClear: () => void;
     resultsCount?: number;
     isLoading?: boolean;
+    radius?: number;
+    onRadiusChange?: (radius: number) => void;
+    onNearMe?: () => void;
+    isNearMeActive?: boolean;
 }
 
 export default function PropertyFilters({
@@ -42,7 +46,11 @@ export default function PropertyFilters({
     onApply,
     onClear,
     resultsCount,
-    isLoading: isParentLoading
+    isLoading: isParentLoading,
+    radius,
+    onRadiusChange,
+    onNearMe,
+    isNearMeActive
 }: PropertyFiltersProps) {
     const [isAmenitiesOpen, setIsAmenitiesOpen] = useState(false);
     const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
@@ -180,6 +188,44 @@ export default function PropertyFilters({
                                 </div>
                             </div>
 
+                            {/* Near Me & Radius */}
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Location Search</label>
+                                <div className="space-y-4">
+                                    <button
+                                        onClick={onNearMe}
+                                        type="button"
+                                        className={`w-full flex items-center justify-center gap-2 p-4 rounded-2xl border transition-all ${isNearMeActive
+                                            ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-500/20'
+                                            : 'bg-white border-gray-100 text-gray-900 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <MapPin className={`h-4 w-4 ${isNearMeActive ? 'text-white' : 'text-primary-600'}`} />
+                                        <span className="text-xs font-black uppercase tracking-widest">
+                                            {isNearMeActive ? 'Using my location' : 'Browse Near Me'}
+                                        </span>
+                                    </button>
+
+                                    {isNearMeActive && onRadiusChange && (
+                                        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-3">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Search Radius</span>
+                                                <span className="text-xs font-bold text-primary-600">{radius} km</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="5"
+                                                max="200"
+                                                step="5"
+                                                value={radius}
+                                                onChange={(e) => onRadiusChange(Number(e.target.value))}
+                                                className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* Amenities */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between px-1">
@@ -274,6 +320,37 @@ export default function PropertyFilters({
                             );
                         })}
                     </div>
+
+                    {/* Radius Slider (Compact) */}
+                    {isNearMeActive && (
+                        <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-gray-50/50 rounded-xl border border-gray-100 min-w-[200px]">
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black uppercase text-gray-400 leading-none mb-1">Radius</span>
+                                <span className="text-[10px] font-bold text-primary-600 whitespace-nowrap">{radius} km</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="5"
+                                max="200"
+                                step="5"
+                                value={radius}
+                                onChange={(e) => onRadiusChange?.(Number(e.target.value))}
+                                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                            />
+                        </div>
+                    )}
+
+                    {/* Near Me Button */}
+                    <button
+                        onClick={onNearMe}
+                        className={`hidden lg:flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isNearMeActive
+                            ? 'bg-primary-50 text-primary-700 border-2 border-primary-600'
+                            : 'bg-white text-gray-500 border border-gray-100 hover:border-gray-200'
+                            }`}
+                    >
+                        <MapPin className="h-4 w-4" />
+                        Near Me
+                    </button>
 
                     {/* Apply Button */}
                     <button

@@ -265,6 +265,9 @@ model Booking {
   offerDiscountAmount Decimal @default(0) @db.Decimal(10, 2)
   couponDiscountAmount Decimal @default(0) @db.Decimal(10, 2)
   totalAmount      Decimal @db.Decimal(10, 2)
+  paidAmount       Decimal @default(0) @db.Decimal(10, 2)
+  paymentStatus    BookingPaymentStatus @default(UNPAID)
+  paymentOption    BookingPaymentOption @default(FULL)
 
   // Pricing override (for manual bookings)
   isPriceOverridden Boolean @default(false)
@@ -311,6 +314,11 @@ model Booking {
   cpCommission     Decimal?        @db.Decimal(10, 2)
   cpDiscount       Decimal?        @db.Decimal(10, 2)
 
+  // Multi-currency Support
+  bookingCurrency          String   @default("INR")
+  amountInBookingCurrency Decimal  @default(0) @db.Decimal(10, 2)
+  exchangeRate             Decimal  @default(1.0) @db.Decimal(10, 4)
+
   // Timestamps
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -338,6 +346,17 @@ enum BookingStatus {
   REFUNDED
 }
 
+enum BookingPaymentStatus {
+  UNPAID
+  PARTIAL
+  FULL
+}
+
+enum BookingPaymentOption {
+  FULL
+  PARTIAL
+}
+
 model BookingGuest {
   id        String  @id @default(uuid())
   firstName String
@@ -348,6 +367,7 @@ model BookingGuest {
   age       Int?
   idType    String? // Passport, Aadhar, etc.
   idNumber  String?
+  idImage   String? // URL to uploaded ID image
 
   bookingId String
   booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -606,6 +626,7 @@ model Property {
   name        String
   slug        String       @unique // URL-friendly identifier
   type        PropertyType // RESORT, HOMESTAY, HOTEL, VILLA
+  baseCurrency String      @default("INR")
   description String?
   address     String
   city        String
@@ -736,8 +757,8 @@ model ChannelPartner {
   businessAddress      String?
 
   // Commission Settings
-  commissionRate   Decimal @default(5.00) @db.Decimal(5, 2) // Default 5%
-  referralDiscountRate Decimal @default(10.00) @db.Decimal(5, 2) // Customer discount % when using this code
+  commissionRate   Decimal @default(10.00) @db.Decimal(5, 2) // Default 10%
+  referralDiscountRate Decimal @default(5.00) @db.Decimal(5, 2) // Customer discount % when using this code
   isRateOverridden Boolean @default(false) // If true, use this rate instead of level-based rate
 
   // Points & Balance
@@ -747,6 +768,7 @@ model ChannelPartner {
   totalEarnings   Decimal @default(0) @db.Decimal(12, 2)
   pendingEarnings Decimal @default(0) @db.Decimal(12, 2)
   paidOut         Decimal @default(0) @db.Decimal(12, 2)
+  walletBalance   Decimal @default(0) @db.Decimal(12, 2)
 
   // Payout Details
   bankName           String?
@@ -808,12 +830,25 @@ enum CPTransactionType {
   POINTS_EARNED
   POINTS_REDEEMED
   PAYOUT
+  WALLET_TOPUP
+  WALLET_PAYMENT
 }
 
 enum CPTransactionStatus {
   PENDING
   FINALIZED
   VOID
+}
+
+model Currency {
+  code      String   @id // "INR", "AED", "USD"
+  symbol    String   // "₹", "AED", "$"
+  rateToINR Decimal  @db.Decimal(10, 4) // How many INR for 1 unit of this currency
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("currencies")
 }
 
 // ============================================

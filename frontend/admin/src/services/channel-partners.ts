@@ -64,6 +64,18 @@ export const channelPartnerService = {
         const response = await api.put(`/channel-partners/${id}/referral-discount-rate`, { referralDiscountRate });
         return response.data;
     },
+
+    // Admin: Get partner's transaction history
+    async getTransactions(id: string): Promise<any[]> {
+        const response = await api.get(`/channel-partners/${id}/transactions`);
+        return response.data;
+    },
+
+    // Admin: Adjust partner's wallet balance
+    async adjustWallet(id: string, amount: number, description: string): Promise<ChannelPartner> {
+        const response = await api.post(`/channel-partners/${id}/adjust-wallet`, { amount, description });
+        return response.data;
+    },
 };
 
 export default channelPartnerService;

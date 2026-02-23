@@ -3,11 +3,15 @@ import { useSearchParams, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn } from 'lucide-react';
+import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn, Camera } from 'lucide-react';
 import { differenceInDays, format, addDays } from 'date-fns';
 import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
+import { uploadService } from '../services/upload';
+import { channelPartnerService } from '../services/channelPartner';
 import { useQuery } from '@tanstack/react-query';
+import { useCurrency } from '../context/CurrencyContext';
+import { formatPrice } from '../utils/currency';
 
 // Extend window object for Razorpay
 declare global {
@@ -38,6 +42,10 @@ export default function Checkout() {
     const [appliedReferralCode, setAppliedReferralCode] = useState<string | null>(null);
     const [user, setUser] = useState<any>(null);
     const [token, setToken] = useState<string | null>(null);
+    const [idImage, setIdImage] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState<'ONLINE' | 'WALLET'>('ONLINE');
+    const { selectedCurrency, rates } = useCurrency();
 
 
     // Load Razorpay Script
@@ -91,20 +99,21 @@ export default function Checkout() {
 
     // Fetch NON-COUPON pricing (Permanent baseline)
     const { data: basePricing } = useQuery<any>({
-        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children],
+        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children, selectedCurrency],
         queryFn: () => bookingService.calculatePrice({
             roomTypeId: roomId!,
             checkInDate: checkIn,
             checkOutDate: checkOut,
             adultsCount: adults,
             childrenCount: children,
+            currency: selectedCurrency,
         }),
         enabled: !!roomId,
     });
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['pricing', roomId, checkIn, checkOut, adults, children, appliedCoupon, appliedReferralCode],
+        queryKey: ['pricing', roomId, checkIn, checkOut, adults, children, appliedCoupon, appliedReferralCode, selectedCurrency],
         queryFn: () => bookingService.calculatePrice({
             roomTypeId: roomId!,
             checkInDate: checkIn,
@@ -113,9 +122,23 @@ export default function Checkout() {
             childrenCount: Number(children),
             couponCode: appliedCoupon || undefined,
             referralCode: appliedReferralCode || undefined,
+            currency: selectedCurrency,
         }),
         enabled: !!roomId && (!!appliedCoupon || !!appliedReferralCode),
         retry: false,
+    });
+
+    // Fetch CP Stats if logged in
+    const { data: cpStats } = useQuery<any>({
+        queryKey: ['cp-stats'],
+        queryFn: () => channelPartnerService.getStats(),
+        enabled: !!token,
+    });
+
+    const { data: cpProfile } = useQuery<any>({
+        queryKey: ['cp-profile'],
+        queryFn: () => channelPartnerService.getMyProfile(),
+        enabled: !!token,
     });
 
     // Derive effective pricing to display
@@ -133,12 +156,37 @@ export default function Checkout() {
         if (code.startsWith('CP-')) {
             setAppliedReferralCode(code);
             setAppliedCoupon(null);
+            // If the code matches current user's code, allow wallet payment
+            if (cpProfile && code === cpProfile.referralCode) {
+                // We'll show the wallet option
+            } else {
+                setPaymentMethod('ONLINE');
+            }
         } else {
             setAppliedCoupon(code);
             setAppliedReferralCode(null);
+            setPaymentMethod('ONLINE');
         }
     };
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const data = await uploadService.uploadFile(file);
+            setIdImage(data.url);
+        } catch (error) {
+            console.error('Upload failed', error);
+            alert('Failed to upload ID image');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+
+    const [paymentOption, setPaymentOption] = useState<'FULL' | 'PARTIAL'>('FULL');
 
     const onSubmit = async (userData: FormData) => {
         if (!selectedRoom) return;
@@ -159,6 +207,9 @@ export default function Checkout() {
                 specialRequests: userData.specialRequests,
                 couponCode: appliedCoupon || undefined,
                 referralCode: appliedReferralCode || undefined,
+                paymentMethod: paymentMethod,
+                paymentOption: paymentOption,
+                currency: selectedCurrency,
                 guests: [{
                     firstName: userData.firstName,
                     lastName: userData.lastName,
@@ -166,13 +217,25 @@ export default function Checkout() {
                     phone: userData.phone,
                     whatsappNumber: userData.whatsappNumber || undefined,
                     idType: userData.idType || undefined,
-                    idNumber: userData.idNumber || undefined
+                    idNumber: userData.idNumber || undefined,
+                    idImage: idImage || undefined,
                 }]
             };
 
             const booking = token
                 ? await bookingService.createAuthenticatedBooking(bookingData)
                 : await bookingService.createBooking(bookingData);
+
+            if (paymentMethod === 'WALLET') {
+                // For wallet payment, the booking is confirmed immediately
+                navigate('/confirmation', {
+                    state: {
+                        booking: { ...booking, status: 'CONFIRMED' },
+                        email: userData.email
+                    }
+                });
+                return;
+            }
 
             // 2. Initiate Payment (Create Razorpay Order)
             const paymentInfo = await paymentService.initiatePayment({ bookingId: booking.id });
@@ -364,6 +427,32 @@ export default function Checkout() {
                         </div>
 
                         <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Upload Guest ID (Optional)</label>
+                            <div className="flex items-center gap-4">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    id="idImage-upload"
+                                />
+                                <label
+                                    htmlFor="idImage-upload"
+                                    className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600 flex items-center gap-2"
+                                >
+                                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                    {idImage ? 'Change ID Image' : 'Click to Upload ID Image'}
+                                </label>
+                                {idImage && (
+                                    <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
+                                        <ShieldCheck className="h-4 w-4" /> ID Image Uploaded
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-gray-400 italic">Accepted formats: JPG, PNG. Max 5MB.</p>
+                        </div>
+
+                        <div className="space-y-2">
                             <label className="text-sm font-medium text-gray-700">Special Requests (Optional)</label>
                             <textarea
                                 {...register('specialRequests')}
@@ -376,7 +465,42 @@ export default function Checkout() {
                         <div className="border-t border-gray-100 pt-6 space-y-6">
                             <h3 className="text-lg font-semibold flex items-center gap-2">
                                 <CreditCard className="h-5 w-5 text-primary-600" />
-                                Payment & Offers
+                                Payment Strategy
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentOption('FULL')}
+                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'FULL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                >
+                                    <div className="flex items-center justify-between w-full">
+                                        <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'FULL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Full Amount</span>
+                                        {paymentOption === 'FULL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
+                                    </div>
+                                    <span className="text-lg font-bold text-gray-900">{formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates)}</span>
+                                    <p className="text-[10px] text-gray-500 italic">Highly recommended for faster check-in</p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentOption('PARTIAL')}
+                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'PARTIAL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                >
+                                    <div className="flex items-center justify-between w-full">
+                                        <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'PARTIAL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay 1/3rd Advance</span>
+                                        {paymentOption === 'PARTIAL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
+                                    </div>
+                                    <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round(effectivePricing?.totalAmount / 3), selectedCurrency, rates)}</span>
+                                    <p className="text-[10px] text-gray-500 italic">Pay the remaining balance at the property</p>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-6 space-y-6">
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <CreditCard className="h-5 w-5 text-primary-600" />
+                                Offers & Coupons
                             </h3>
 
                             {/* Applied Offers / Coupon Section (Div instead of Form to avoid nesting) */}
@@ -436,17 +560,50 @@ export default function Checkout() {
                                     )}
                                 </div>
                             </div>
-
-                            <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
-                                <ShieldCheck className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="text-sm text-blue-800 font-medium">Secure Razorpay Checkout</p>
-                                    <p className="text-xs text-blue-600 mt-1">
-                                        You will be redirected to Razorpay to complete your payment securely.
-                                    </p>
-                                </div>
-                            </div>
                         </div>
+
+                        {cpProfile && appliedReferralCode === cpProfile.referralCode && (
+                            <div className="bg-primary-50 p-5 rounded-xl border border-primary-100 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-bold text-primary-900">Payment Option</h4>
+                                    <div className="text-xs font-bold text-primary-700 bg-white px-2 py-1 rounded shadow-sm border border-primary-200">
+                                        Wallet Balance: {formatPrice(Number(cpStats?.walletBalance || 0), 'INR', rates)}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod('ONLINE')}
+                                        className={`p-3 border rounded-lg text-sm font-bold flex flex-col items-center gap-2 transition-all ${paymentMethod === 'ONLINE' ? 'bg-primary-600 border-primary-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-primary-300'}`}
+                                    >
+                                        <CreditCard className="h-5 w-5" />
+                                        Online Payment
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod('WALLET')}
+                                        disabled={Number(cpStats?.walletBalance || 0) < (effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0))}
+                                        className={`p-3 border rounded-lg text-sm font-bold flex flex-col items-center gap-2 transition-all ${paymentMethod === 'WALLET' ? 'bg-primary-600 border-primary-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-primary-300 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                                    >
+                                        <CreditCard className="h-5 w-5" />
+                                        CP Wallet
+                                    </button>
+                                </div>
+
+                                {paymentMethod === 'WALLET' && (
+                                    <p className="text-[11px] text-primary-700 font-medium italic">
+                                        Amount to be deducted: {formatPrice((effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0)), selectedCurrency, rates)} (Total - Your 10% Commission)
+                                    </p>
+                                )}
+
+                                {paymentMethod === 'WALLET' && Number(cpStats?.walletBalance || 0) < (effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0)) && (
+                                    <p className="text-[11px] text-red-500 font-bold">
+                                        Insufficient wallet balance. Please use online payment or top up your wallet.
+                                    </p>
+                                )}
+                            </div>
+                        )}
 
                         <button
                             type="submit"
@@ -458,7 +615,7 @@ export default function Checkout() {
                                     <Loader2 className="animate-spin h-5 w-5" /> Processing...
                                 </>
                             ) : (
-                                `Reserve & Pay ₹${effectivePricing?.totalAmount?.toLocaleString('en-IN') || '...'}`
+                                `Reserve & Pay ${formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates) || '...'}`
                             )}
                         </button>
                     </form>
@@ -499,48 +656,48 @@ export default function Checkout() {
                                 <div className="border-t border-gray-100 pt-4 space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-600">Base Room Charges</span>
-                                        <span>₹{effectivePricing?.baseAmount?.toLocaleString('en-IN') || '0'}</span>
+                                        <span>{formatPrice(effectivePricing?.baseAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
                                     {(effectivePricing?.extraAdultAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-600">Extra Adult Charges</span>
-                                            <span>₹{effectivePricing.extraAdultAmount.toLocaleString('en-IN')}</span>
+                                            <span>{formatPrice(effectivePricing.extraAdultAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
                                     {(effectivePricing?.extraChildAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-600">Extra Child Charges</span>
-                                            <span>₹{effectivePricing.extraChildAmount.toLocaleString('en-IN')}</span>
+                                            <span>{formatPrice(effectivePricing.extraChildAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
                                     {effectivePricing?.offerDiscountAmount > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-medium">
                                             <span>Offer Discount</span>
-                                            <span>-₹{effectivePricing.offerDiscountAmount.toLocaleString('en-IN')}</span>
+                                            <span>-{formatPrice(effectivePricing.offerDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-600">Taxes & Fees ({Math.round((effectivePricing?.taxRate || 0.18) * 100)}%)</span>
-                                        <span>₹{effectivePricing?.taxAmount?.toLocaleString('en-IN') || '0'}</span>
+                                        <span>{formatPrice(effectivePricing?.taxAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
 
                                     {appliedCoupon && !isPricingError && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Coupon Discount ({appliedCoupon})</span>
-                                            <span>-₹{effectivePricing.couponDiscountAmount.toLocaleString('en-IN')}</span>
+                                            <span>-{formatPrice(effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
                                     {appliedReferralCode && !isPricingError && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Referral Discount ({appliedReferralCode})</span>
-                                            <span>-₹{effectivePricing.referralDiscountAmount.toLocaleString('en-IN')}</span>
+                                            <span>-{formatPrice(effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
                                     <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
                                         <span className="text-lg font-bold text-gray-900">Total</span>
-                                        <span className="text-2xl font-black text-primary-600">₹{effectivePricing?.totalAmount?.toLocaleString('en-IN') || '0'}</span>
+                                        <span className="text-2xl font-black text-primary-600">{formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
                                 </div>
                             </div>

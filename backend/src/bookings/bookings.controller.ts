@@ -57,6 +57,10 @@ export class BookingsController {
             dto.includeSoldOut || false,
             dto.rooms || 1,
             dto.categoryId,
+            dto.latitude,
+            dto.longitude,
+            dto.radius,
+            dto.currency,
         );
 
         return {
@@ -75,6 +79,7 @@ export class BookingsController {
             dto.childrenCount,
             dto.couponCode,
             dto.referralCode,
+            dto.currency,
         );
     }
 

@@ -53,23 +53,32 @@ export class PaymentsService {
                 throw new BadRequestException('Booking is not pending payment');
             }
 
+            // Calculate amount to charge
+            let chargeAmount = Number(booking.totalAmount);
+            if (booking.paymentOption === 'PARTIAL') {
+                // If it's a partial payment, charge 1/3rd for the first payment
+                // We use Math.round to avoid paise rounding issues with Razorpay
+                chargeAmount = Math.round(chargeAmount / 3);
+            }
+
             // Create Razorpay order
             const order = await this.razorpay.orders.create({
-                amount: Math.round(Number(booking.totalAmount) * 100), // Convert to paise
+                amount: Math.round(chargeAmount * 100), // Convert to paise
                 currency: 'INR',
                 receipt: booking.bookingNumber,
                 notes: {
                     bookingId: booking.id,
                     bookingNumber: booking.bookingNumber,
                     customerEmail: booking.user.email,
-                    type: 'RESORT_BOOKING'
+                    type: 'RESORT_BOOKING',
+                    paymentOption: booking.paymentOption
                 },
             });
 
             // Create payment record
             const payment = await this.prisma.payment.create({
                 data: {
-                    amount: booking.totalAmount,
+                    amount: chargeAmount,
                     currency: 'INR',
                     status: 'PENDING',
                     razorpayOrderId: order.id,
@@ -211,12 +220,18 @@ export class PaymentsService {
         });
 
         if (payment.bookingId && payment.booking) {
-            // Update booking status to CONFIRMED
+            // Calculate new paid amount
+            const newPaidAmount = Number(payment.booking.paidAmount) + Number(payment.amount);
+            const isFullyPaid = newPaidAmount >= Number(payment.booking.totalAmount);
+
+            // Update booking status and payment tracking
             await this.prisma.booking.update({
                 where: { id: payment.bookingId },
                 data: {
                     status: 'CONFIRMED',
-                    confirmedAt: new Date(),
+                    confirmedAt: payment.booking.confirmedAt || new Date(),
+                    paidAmount: newPaidAmount,
+                    paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
                 },
             });
 
@@ -349,12 +364,17 @@ export class PaymentsService {
         });
 
         // Confirm booking or event booking
-        if (payment.bookingId) {
+        if (payment.bookingId && payment.booking) {
+            const newPaidAmount = Number(payment.booking.paidAmount) + Number(payment.amount);
+            const isFullyPaid = newPaidAmount >= Number(payment.booking.totalAmount);
+
             await this.prisma.booking.update({
                 where: { id: payment.bookingId },
                 data: {
                     status: 'CONFIRMED',
-                    confirmedAt: new Date(),
+                    confirmedAt: payment.booking.confirmedAt || new Date(),
+                    paidAmount: newPaidAmount,
+                    paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
                 },
             });
 

@@ -147,6 +147,27 @@ async function main() {
         update: {},
         create: { userId: ownerUser.id, roleId: ownerRole.id },
     });
+    console.log('✅ Base roles and users created');
+
+    // --- CURRENCIES ---
+    const currencies = [
+        { code: 'INR', symbol: '₹', rateToINR: 1.0, isActive: true },
+        { code: 'AED', symbol: 'AED', rateToINR: 22.7, isActive: true },
+        { code: 'USD', symbol: '$', rateToINR: 83.0, isActive: true },
+    ];
+
+    for (const currency of currencies) {
+        await prisma.currency.upsert({
+            where: { code: currency.code },
+            update: {
+                symbol: currency.symbol,
+                rateToINR: currency.rateToINR,
+                isActive: currency.isActive,
+            },
+            create: currency,
+        });
+    }
+    console.log('✅ Currencies seeded');
 
     // --- PROPERTY CATEGORIES ---
     const categories = [
@@ -178,7 +199,8 @@ async function main() {
     const sampleProperty = await prisma.property.upsert({
         where: { slug: 'demo-resort' },
         update: {
-            categoryId: resortCategory?.id
+            categoryId: resortCategory?.id,
+            baseCurrency: 'INR'
         },
         create: {
             name: 'The Grand Heritage Resort',
@@ -190,6 +212,7 @@ async function main() {
             country: 'India',
             pincode: '685612',
             type: 'RESORT',
+            baseCurrency: 'INR',
             categoryId: resortCategory?.id,
             email: 'bookings@grandheritage.com',
             phone: '+919988776655',

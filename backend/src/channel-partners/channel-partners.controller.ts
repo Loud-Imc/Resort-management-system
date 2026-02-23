@@ -67,6 +67,42 @@ export class ChannelPartnersController {
         return this.cpService.getStats(req.user.id);
     }
 
+    @Post('me/top-up/initiate')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Initiate wallet top-up via Razorpay' })
+    initiateTopUp(@Request() req, @Body('amount') amount: number) {
+        return this.cpService.initiateWalletTopUp(req.user.id, Number(amount));
+    }
+
+    @Post('me/top-up/verify')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Verify Razorpay payment and credit wallet' })
+    verifyTopUp(
+        @Request() req,
+        @Body('razorpayOrderId') razorpayOrderId: string,
+        @Body('razorpayPaymentId') razorpayPaymentId: string,
+        @Body('razorpaySignature') razorpaySignature: string,
+        @Body('amount') amount: number,
+    ) {
+        return this.cpService.verifyAndTopUp(
+            req.user.id,
+            razorpayOrderId,
+            razorpayPaymentId,
+            razorpaySignature,
+            Number(amount),
+        );
+    }
+
+    @Get('me/transactions')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get my transaction history' })
+    getMyTransactions(@Request() req) {
+        return this.cpService.getMyTransactions(req.user.id);
+    }
+
     // ============================================
     // ADMIN ENDPOINTS
     // ============================================
@@ -122,6 +158,29 @@ export class ChannelPartnersController {
         @Body() data: UpdateReferralDiscountRateDto,
     ) {
         return this.cpService.updateReferralDiscountRate(id, data.referralDiscountRate);
+    }
+
+    @Get(':id/transactions')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get CP transaction history (Admin)' })
+    adminGetTransactions(@Param('id') id: string) {
+        return this.cpService.adminGetTransactions(id);
+    }
+
+    @Post(':id/adjust-wallet')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Adjust CP wallet balance (Admin)' })
+    adjustWallet(
+        @Param('id') id: string,
+        @Body() data: { amount: number, description: string }
+    ) {
+        if (data.amount > 0) {
+            return this.cpService.addWalletBalance(id, data.amount, data.description || 'Admin Adjustment');
+        } else {
+            return this.cpService.deductWalletBalance(id, Math.abs(data.amount), data.description || 'Admin Adjustment');
+        }
     }
 
     // ============================================

@@ -11,6 +11,8 @@ import { useRef } from 'react';
 import eventsService, { Event } from '../services/events';
 import eventBookingsService, { EventBooking as EventBookingType } from '../services/eventBookings';
 import { paymentService } from '../services/payment';
+import { useCurrency } from '../context/CurrencyContext';
+import { formatPrice } from '../utils/currency';
 
 declare global {
     interface Window {
@@ -28,6 +30,7 @@ export default function EventBookingFlow() {
     const [step, setStep] = useState(1); // 1: Info, 2: Payment, 3: Confirmation
     const [booking, setBooking] = useState<EventBookingType | null>(null);
     const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+    const { selectedCurrency, rates } = useCurrency();
 
     const [formData, setFormData] = useState({
         guestName: '',
@@ -285,11 +288,11 @@ export default function EventBookingFlow() {
                                         <div className="border border-gray-200 rounded-2xl p-6">
                                             <div className="flex items-center justify-between mb-4">
                                                 <span className="text-gray-600 font-medium">Standard Admission</span>
-                                                <span className="font-bold">{event.price || 'Free'}</span>
+                                                <span className="font-bold">{event.price ? formatPrice(Number(event.price), selectedCurrency, rates) : 'Free'}</span>
                                             </div>
                                             <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
                                                 <span className="text-xl font-bold text-gray-900">Total Amount</span>
-                                                <span className="text-2xl font-bold text-primary-700">{event.price || '0.00'}</span>
+                                                <span className="text-2xl font-bold text-primary-700">{event.price ? formatPrice(Number(event.price), selectedCurrency, rates) : '0.00'}</span>
                                             </div>
                                         </div>
 
@@ -368,7 +371,7 @@ export default function EventBookingFlow() {
                                                 </div>
                                                 <div>
                                                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Admission</div>
-                                                    <div className="text-xs font-bold text-gray-700">{booking.amountPaid > 0 ? `Paid ₹${booking.amountPaid}` : 'Free Access'}</div>
+                                                    <div className="text-xs font-bold text-gray-700">{booking.amountPaid > 0 ? `Paid ${formatPrice(booking.amountPaid, selectedCurrency, rates)}` : 'Free Access'}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -428,7 +431,7 @@ export default function EventBookingFlow() {
 
                                     <div className="pt-6 border-t border-gray-100">
                                         <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 text-center">Price per person</div>
-                                        <div className="text-3xl font-bold text-center text-primary-900">{event.price || 'Free'}</div>
+                                        <div className="text-3xl font-bold text-center text-primary-900">{event.price ? formatPrice(Number(event.price), selectedCurrency, rates) : 'Free'}</div>
                                     </div>
                                 </div>
                             </div>

@@ -13,7 +13,11 @@ export const bookingService = {
             type: params.type,
             categoryId: params.categoryId,
             includeSoldOut: params.includeSoldOut,
-            rooms: params.rooms
+            rooms: params.rooms,
+            latitude: params.latitude,
+            longitude: params.longitude,
+            radius: params.radius,
+            currency: params.currency,
         });
         return data;
     },
@@ -56,6 +60,7 @@ export const bookingService = {
         childrenCount: number;
         couponCode?: string;
         referralCode?: string;
+        currency?: string;
     }) => {
         const { data } = await api.post('/bookings/calculate-price', params);
         return data;

@@ -26,6 +26,11 @@ export default function SearchForm({
     const [rooms, setRooms] = useState(1);
     const [isExpanded, setIsExpanded] = useState(false);
 
+    // Geo-location state
+    const [latitude, setLatitude] = useState<number | null>(null);
+    const [longitude, setLongitude] = useState<number | null>(null);
+    const [radius, setRadius] = useState<number>(50); // Default 50km
+
     const { data: categories } = useQuery({
         queryKey: ['property-categories'],
         queryFn: () => propertyApi.getCategories(),
@@ -45,6 +50,12 @@ export default function SearchForm({
             rooms: rooms.toString(),
         });
 
+        if (latitude && longitude) {
+            params.set('latitude', latitude.toString());
+            params.set('longitude', longitude.toString());
+            params.set('radius', radius.toString());
+        }
+
         navigate(`/search?${params.toString()}`);
     };
 
@@ -56,6 +67,9 @@ export default function SearchForm({
         adults, setAdults,
         children, setChildren,
         rooms, setRooms,
+        latitude, setLatitude,
+        longitude, setLongitude,
+        radius, setRadius,
         handleSearch,
         categories: categories || []
     };

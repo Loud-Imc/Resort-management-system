@@ -11,6 +11,7 @@ export interface ChannelPartner {
     availablePoints: number;
     totalEarnings: number;
     paidOut: number;
+    walletBalance: number;
     status: ChannelPartnerStatus;
     userId: string;
     user?: {
@@ -35,6 +36,7 @@ export interface CPStats {
     availablePoints: number;
     totalEarnings: number;
     paidOut: number;
+    walletBalance: number;
     pendingBalance: number;
     totalReferrals: number;
     confirmedReferrals: number;
@@ -43,7 +45,7 @@ export interface CPStats {
 
 export interface CPTransaction {
     id: string;
-    type: 'COMMISSION' | 'POINTS_EARNED' | 'POINTS_REDEEMED' | 'PAYOUT';
+    type: 'COMMISSION' | 'POINTS_EARNED' | 'POINTS_REDEEMED' | 'PAYOUT' | 'WALLET_TOPUP' | 'WALLET_PAYMENT';
     amount: number;
     points: number;
     description?: string;

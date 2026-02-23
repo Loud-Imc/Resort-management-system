@@ -19,6 +19,16 @@ export default function CPList() {
     // Detail drawer
     const [selectedPartner, setSelectedPartner] = useState<CPPartnerDetails | null>(null);
     const [drawerLoading, setDrawerLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState<'bookings' | 'transactions'>('bookings');
+    const [transactions, setTransactions] = useState<any[]>([]);
+    const [txLoading, setTxLoading] = useState(false);
+
+    // Adjustment Modal
+    const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+    const [adjustPartner, setAdjustPartner] = useState<ChannelPartner | null>(null);
+    const [adjustAmount, setAdjustAmount] = useState('');
+    const [adjustDescription, setAdjustDescription] = useState('Admin adjustment');
+    const [isAdjusting, setIsAdjusting] = useState(false);
 
     useEffect(() => {
         loadPartners();
@@ -105,12 +115,59 @@ export default function CPList() {
         try {
             setDrawerLoading(true);
             setSelectedPartner(null);
+            setActiveTab('bookings');
             const details = await channelPartnerService.getPartnerDetails(partnerId);
             setSelectedPartner(details);
         } catch (err: any) {
             toast.error(err.message || 'Failed to load partner details');
         } finally {
             setDrawerLoading(false);
+        }
+    };
+
+    const loadTransactions = async (partnerId: string) => {
+        try {
+            setTxLoading(true);
+            const data = await channelPartnerService.getTransactions(partnerId);
+            setTransactions(data);
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to load transactions');
+        } finally {
+            setTxLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedPartner && activeTab === 'transactions') {
+            loadTransactions(selectedPartner.id);
+        }
+    }, [selectedPartner, activeTab]);
+
+    const handleAdjustWallet = async () => {
+        if (!adjustPartner) return;
+        const amount = parseFloat(adjustAmount);
+        if (isNaN(amount) || amount === 0) {
+            toast.error('Please enter a valid amount');
+            return;
+        }
+
+        try {
+            setIsAdjusting(true);
+            await channelPartnerService.adjustWallet(adjustPartner.id, amount, adjustDescription);
+            toast.success('Wallet adjusted successfully');
+
+            // Refresh list
+            setPartners(partners.map(p =>
+                p.id === adjustPartner.id ? { ...p, walletBalance: Number(p.walletBalance || 0) + amount } : p
+            ));
+
+            setIsAdjustModalOpen(false);
+            setAdjustAmount('');
+            setAdjustDescription('Admin adjustment');
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to adjust wallet');
+        } finally {
+            setIsAdjusting(false);
         }
     };
 
@@ -167,6 +224,7 @@ export default function CPList() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referral Code</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Comm. Rate</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cust. Disc.</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Wallet</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Earnings</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referrals</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -260,6 +318,12 @@ export default function CPList() {
                                         )}
                                     </td>
                                     <td className="px-6 py-4">
+                                        <div className="flex items-center gap-1 text-gray-900 font-bold">
+                                            <DollarSign className="h-4 w-4 text-primary-600" />
+                                            ₹{partner.walletBalance?.toLocaleString() || 0}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
                                         <div className="flex items-center gap-1 text-gray-900">
                                             <DollarSign className="h-4 w-4 text-green-600" />
                                             ₹{partner.totalEarnings.toLocaleString()}
@@ -280,6 +344,16 @@ export default function CPList() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setAdjustPartner(partner);
+                                                    setIsAdjustModalOpen(true);
+                                                }}
+                                                className="text-xs bg-primary-50 text-primary-600 px-2 py-1 rounded hover:bg-primary-100 font-bold"
+                                                title="Adjust Wallet"
+                                            >
+                                                Wallet
+                                            </button>
                                             <button
                                                 onClick={() => openPartnerDetails(partner.id)}
                                                 className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
@@ -405,61 +479,173 @@ export default function CPList() {
                                         </div>
                                     </div>
 
-                                    {/* Referral Bookings */}
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                            <Calendar className="h-4 w-4 text-blue-600" />
-                                            Referral Bookings ({selectedPartner.referralBookings.length})
-                                        </h3>
+                                    {/* Tabs */}
+                                    <div className="flex border-b border-gray-100">
+                                        <button
+                                            onClick={() => setActiveTab('bookings')}
+                                            className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'bookings' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                                        >
+                                            Bookings
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('transactions')}
+                                            className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'transactions' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                                        >
+                                            Transactions
+                                        </button>
+                                    </div>
 
-                                        {selectedPartner.referralBookings.length === 0 ? (
-                                            <div className="text-center py-8 bg-gray-50 rounded-xl">
-                                                <Calendar className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                                                <p className="text-sm text-gray-500">No referral bookings yet</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2 max-h-96 overflow-y-auto">
-                                                {selectedPartner.referralBookings.map((booking: CPReferralBooking) => (
-                                                    <div key={booking.id} className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors">
-                                                        <div className="flex items-start justify-between">
+                                    {/* Tab Content */}
+                                    {activeTab === 'bookings' ? (
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                                <Calendar className="h-4 w-4 text-blue-600" />
+                                                Referral Bookings ({selectedPartner.referralBookings.length})
+                                            </h3>
+
+                                            {selectedPartner.referralBookings.length === 0 ? (
+                                                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                                                    <Calendar className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                                                    <p className="text-sm text-gray-500">No referral bookings yet</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                    {selectedPartner.referralBookings.map((booking: CPReferralBooking) => (
+                                                        <div key={booking.id} className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors">
+                                                            <div className="flex items-start justify-between">
+                                                                <div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono text-sm font-bold text-gray-900">
+                                                                            #{booking.bookingNumber}
+                                                                        </span>
+                                                                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${getStatusBadge(booking.status)}`}>
+                                                                            {booking.status}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="text-sm text-gray-600 mt-1">
+                                                                        {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'N/A'}
+                                                                    </p>
+                                                                    {booking.property && (
+                                                                        <p className="text-xs text-gray-400 mt-0.5">{booking.property.name}</p>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-sm font-semibold text-gray-900">
+                                                                        ₹{Number(booking.totalAmount).toLocaleString()}
+                                                                    </p>
+                                                                    <p className="text-xs text-green-600 font-medium">
+                                                                        Commission: ₹{Number(booking.cpCommission || 0).toLocaleString()}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                                                                <span>Check-in: {new Date(booking.checkInDate).toLocaleDateString()}</span>
+                                                                <ArrowRight className="h-3 w-3" />
+                                                                <span>Check-out: {new Date(booking.checkOutDate).toLocaleDateString()}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                                <TrendingUp className="h-4 w-4 text-primary-600" />
+                                                Wallet Transactions
+                                            </h3>
+
+                                            {txLoading ? (
+                                                <div className="flex items-center justify-center py-12">
+                                                    <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+                                                </div>
+                                            ) : transactions.length === 0 ? (
+                                                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                                                    <TrendingUp className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                                                    <p className="text-sm text-gray-500">No transactions yet</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                    {transactions.map((tx: any) => (
+                                                        <div key={tx.id} className="bg-gray-50 rounded-xl p-4 flex items-center justify-between">
                                                             <div>
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="font-mono text-sm font-bold text-gray-900">
-                                                                        #{booking.bookingNumber}
+                                                                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${tx.type === 'COMMISSION' ? 'bg-green-100 text-green-700' :
+                                                                        tx.type === 'WALLET_TOPUP' ? 'bg-blue-100 text-blue-700' :
+                                                                            tx.type === 'WALLET_PAYMENT' ? 'bg-orange-100 text-orange-700' :
+                                                                                'bg-gray-100 text-gray-700'
+                                                                        }`}>
+                                                                        {tx.type}
                                                                     </span>
-                                                                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${getStatusBadge(booking.status)}`}>
-                                                                        {booking.status}
+                                                                    <span className="text-[10px] text-gray-400">
+                                                                        {new Date(tx.createdAt).toLocaleDateString()}
                                                                     </span>
                                                                 </div>
-                                                                <p className="text-sm text-gray-600 mt-1">
-                                                                    {booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : 'N/A'}
-                                                                </p>
-                                                                {booking.property && (
-                                                                    <p className="text-xs text-gray-400 mt-0.5">{booking.property.name}</p>
-                                                                )}
+                                                                <p className="text-sm text-gray-700 mt-1 font-medium">{tx.description}</p>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="text-sm font-semibold text-gray-900">
-                                                                    ₹{Number(booking.totalAmount).toLocaleString()}
-                                                                </p>
-                                                                <p className="text-xs text-green-600 font-medium">
-                                                                    Commission: ₹{Number(booking.cpCommission || 0).toLocaleString()}
-                                                                </p>
+                                                            <div className={`text-sm font-bold ${Number(tx.amount) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                {Number(tx.amount) > 0 ? '+' : ''}₹{Math.abs(Number(tx.amount)).toLocaleString()}
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-                                                            <span>Check-in: {new Date(booking.checkInDate).toLocaleDateString()}</span>
-                                                            <ArrowRight className="h-3 w-3" />
-                                                            <span>Check-out: {new Date(booking.checkOutDate).toLocaleDateString()}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ===== Adjustment Modal ===== */}
+            {isAdjustModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAdjustModalOpen(false)} />
+                    <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-bold text-gray-900">Adjust Wallet</h3>
+                            <button onClick={() => setIsAdjustModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        <p className="text-sm text-gray-500">
+                            Adjust balance for <span className="font-bold text-gray-900">{adjustPartner?.user?.firstName} {adjustPartner?.user?.lastName}</span>.
+                            Use positive for credit, negative for debit.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Amount (₹)</label>
+                                <input
+                                    type="number"
+                                    value={adjustAmount}
+                                    onChange={(e) => setAdjustAmount(e.target.value)}
+                                    placeholder="e.g. 5000 or -2000"
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Description</label>
+                                <input
+                                    type="text"
+                                    value={adjustDescription}
+                                    onChange={(e) => setAdjustDescription(e.target.value)}
+                                    placeholder="Reason for adjustment"
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleAdjustWallet}
+                            disabled={isAdjusting}
+                            className="w-full py-4 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-all shadow-lg shadow-primary-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isAdjusting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Confirm Adjustment'}
+                        </button>
                     </div>
                 </div>
             )}

@@ -2,11 +2,17 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, ChannelPartnerStatus, RedemptionStatus } from '@prisma/client';
 import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import Razorpay = require('razorpay');
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ChannelPartnersService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly configService: ConfigService,
+    ) { }
 
     // Generate unique referral code
     private generateReferralCode(): string {
@@ -97,7 +103,7 @@ export class ChannelPartnersService {
                     taxId: dto.taxId,
                     businessAddress: dto.businessAddress,
                     authorizedPersonName: dto.authorizedPersonName,
-                    commissionRate: 5.0, // Default base commission
+                    commissionRate: 10.0, // Default base commission
                 },
             });
 
@@ -235,6 +241,7 @@ export class ChannelPartnersService {
             thisMonthReferrals,
             status: cp.status,
             referralDiscountRate: cp.referralDiscountRate,
+            walletBalance: cp.walletBalance,
         };
     }
 
@@ -471,6 +478,13 @@ export class ChannelPartnersService {
         };
     }
 
+    async adminGetTransactions(id: string) {
+        return this.prisma.cPTransaction.findMany({
+            where: { channelPartnerId: id },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
     // Get current level based on points
     private async getCurrentLevel(points: number) {
         return this.prisma.partnerLevel.findFirst({
@@ -643,5 +657,131 @@ export class ChannelPartnersService {
 
         return this.getMyProfile(userId);
     }
-}
 
+    async getMyTransactions(userId: string) {
+        const cp = await this.prisma.channelPartner.findUnique({
+            where: { userId },
+        });
+
+        if (!cp) {
+            throw new NotFoundException('Channel Partner not found');
+        }
+
+        return this.prisma.cPTransaction.findMany({
+            where: { channelPartnerId: cp.id },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    // Wallet Management
+    async addWalletBalance(channelPartnerId: string, amount: number, description: string, referenceId?: string) {
+        return this.prisma.$transaction(async (tx) => {
+            const cp = await tx.channelPartner.update({
+                where: { id: channelPartnerId },
+                data: {
+                    walletBalance: { increment: amount }
+                }
+            });
+
+            await tx.cPTransaction.create({
+                data: {
+                    type: 'WALLET_TOPUP',
+                    status: 'FINALIZED',
+                    amount,
+                    description: description || `Wallet top-up of ₹${amount}`,
+                    channelPartnerId,
+                    bookingId: referenceId, // Using bookingId field as a general reference for now
+                }
+            });
+
+            return cp;
+        });
+    }
+
+    async deductWalletBalance(channelPartnerId: string, amount: number, description: string, referenceId?: string) {
+        return this.prisma.$transaction(async (tx) => {
+            const cp = await tx.channelPartner.findUnique({ where: { id: channelPartnerId } });
+            if (!cp || Number(cp.walletBalance) < amount) {
+                throw new BadRequestException('Insufficient wallet balance');
+            }
+
+            const updated = await tx.channelPartner.update({
+                where: { id: channelPartnerId },
+                data: { walletBalance: { decrement: amount } },
+            });
+
+            await tx.cPTransaction.create({
+                data: {
+                    type: 'WALLET_PAYMENT' as any,
+                    status: 'FINALIZED',
+                    amount: -amount,
+                    description: description || `Wallet payment of ₹${amount}`,
+                    channelPartnerId,
+                    bookingId: referenceId,
+                },
+            });
+
+            return updated;
+        });
+    }
+
+    // ============================================
+    // RAZORPAY WALLET TOP-UP
+    // ============================================
+
+    async initiateWalletTopUp(userId: string, amount: number) {
+        if (!amount || amount < 100) {
+            throw new BadRequestException('Minimum top-up amount is ₹100');
+        }
+
+        const cp = await this.prisma.channelPartner.findUnique({ where: { userId } });
+        if (!cp) throw new NotFoundException('Channel partner not found');
+
+        const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
+        const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
+
+        const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
+        const order = await razorpay.orders.create({
+            amount: Math.round(amount * 100), // paise
+            currency: 'INR',
+            receipt: `wallet_topup_${cp.id}_${Date.now()}`,
+            notes: {
+                channelPartnerId: cp.id,
+                type: 'CP_WALLET_TOPUP',
+            },
+        });
+
+        return {
+            orderId: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            keyId,
+            channelPartnerId: cp.id,
+        };
+    }
+
+    async verifyAndTopUp(
+        userId: string,
+        razorpayOrderId: string,
+        razorpayPaymentId: string,
+        razorpaySignature: string,
+        amount: number,
+    ) {
+        const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET') || '';
+
+        const expectedSignature = crypto
+            .createHmac('sha256', keySecret)
+            .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+            .digest('hex');
+
+        if (expectedSignature !== razorpaySignature) {
+            throw new BadRequestException('Invalid payment signature');
+        }
+
+        const cp = await this.prisma.channelPartner.findUnique({ where: { userId } });
+        if (!cp) throw new NotFoundException('Channel partner not found');
+
+        return this.addWalletBalance(cp.id, amount, `Wallet top-up via Razorpay (${razorpayPaymentId})`, razorpayPaymentId);
+    }
+}

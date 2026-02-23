@@ -51,4 +51,27 @@ export class SearchRoomsDto {
     @IsOptional()
     @Type(() => Boolean)
     includeSoldOut?: boolean;
+
+    @ApiProperty({ example: 11.6892, required: false })
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    latitude?: number;
+
+    @ApiProperty({ example: 76.0432, required: false })
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    longitude?: number;
+
+    @ApiProperty({ example: 50, required: false })
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    radius?: number;
+
+    @ApiProperty({ example: 'INR', required: false })
+    @IsOptional()
+    @IsString()
+    currency?: string;
 }

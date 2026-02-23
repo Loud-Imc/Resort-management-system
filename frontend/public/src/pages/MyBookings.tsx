@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { Loader2, Calendar, MapPin, ChevronRight, Package, User } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { bookingService } from '../services/booking';
+import { formatPrice } from '../utils/currency';
 
 export default function MyBookings() {
     const token = localStorage.getItem('token');
@@ -131,7 +132,7 @@ export default function MyBookings() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Total Amount</p>
-                                                    <p className="text-sm font-bold text-primary-600">₹{booking.totalAmount.toLocaleString()}</p>
+                                                    <p className="text-sm font-bold text-primary-600">{formatPrice(booking.totalAmount, booking.bookingCurrency || 'INR')}</p>
                                                 </div>
                                             </div>
 

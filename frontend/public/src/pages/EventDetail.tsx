@@ -5,6 +5,8 @@ import {
     ArrowRight, Loader2, Share2, Info
 } from 'lucide-react';
 import eventsService, { Event } from '../services/events';
+import { useCurrency } from '../context/CurrencyContext';
+import { formatPrice } from '../utils/currency';
 
 export default function EventDetail() {
     const { id } = useParams();
@@ -12,6 +14,7 @@ export default function EventDetail() {
     const [event, setEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const { selectedCurrency, rates } = useCurrency();
 
     useEffect(() => {
         if (id) {
@@ -93,7 +96,7 @@ export default function EventDetail() {
                                 {event.organizerType === 'PROPERTY' ? 'Property Event' : 'Community Event'}
                             </span>
                             <span className="bg-white/10 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-medium border border-white/20">
-                                {event.price || 'Free Admission'}
+                                {event.price ? formatPrice(Number(event.price), selectedCurrency, rates) : 'Free Admission'}
                             </span>
                         </div>
                         <h1 className="text-4xl md:text-6xl font-serif font-bold text-white mb-6 leading-tight">
@@ -154,7 +157,7 @@ export default function EventDetail() {
                             <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100">
                                 <div className="mb-8">
                                     <div className="text-sm font-bold text-primary-600 uppercase tracking-widest mb-2">Admission</div>
-                                    <div className="text-4xl font-bold text-gray-900">{event.price || 'Free'}</div>
+                                    <div className="text-4xl font-bold text-gray-900">{event.price ? formatPrice(Number(event.price), selectedCurrency, rates) : 'Free'}</div>
                                 </div>
 
                                 <div className="space-y-5 mb-8">

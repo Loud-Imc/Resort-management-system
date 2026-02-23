@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PropertyStatus } from '@prisma/client';
+import { PricingService } from './pricing.service';
 
 @Injectable()
 export class AvailabilityService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private pricingService: PricingService,
+    ) { }
 
     /**
      * Check room availability for a given date range
@@ -169,11 +173,32 @@ export class AvailabilityService {
         includeSoldOut: boolean = false,
         rooms: number = 1,
         categoryId?: string,
+        latitude?: number,
+        longitude?: number,
+        radius?: number,
+        currency: string = 'INR',
     ) {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
         checkOut.setHours(0, 0, 0, 0);
+
+        let geoPropertyIds: string[] | null = null;
+
+        // Handle geo-spatial search if lat/lng/radius are provided
+        if (latitude !== undefined && longitude !== undefined && radius !== undefined) {
+            const results = await this.prisma.$queryRaw<any[]>`
+                SELECT id FROM properties
+                WHERE (
+                    6371 * acos(
+                        cos(radians(${Number(latitude)})) * cos(radians(CAST(latitude AS DOUBLE PRECISION))) *
+                        cos(radians(CAST(longitude AS DOUBLE PRECISION)) - radians(${Number(longitude)})) +
+                        sin(radians(${Number(latitude)})) * sin(radians(CAST(latitude AS DOUBLE PRECISION)))
+                    )
+                ) <= ${Number(radius)}
+            `;
+            geoPropertyIds = results.map(r => r.id);
+        }
 
         // Required capacity per room
         const minAdultsPerRoom = Math.ceil(adults / rooms);
@@ -189,6 +214,7 @@ export class AvailabilityService {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
                     categoryId: categoryId || undefined,
+                    ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
                     ...(location && {
                         OR: [
                             { city: { contains: location, mode: 'insensitive' } },
@@ -239,11 +265,22 @@ export class AvailabilityService {
                 const { rooms: _rooms, offers, ...typeData }: any = type;
                 const activeOffer = offers[0] || null;
 
+                const pricing = await this.pricingService.calculatePrice(
+                    type.id,
+                    checkInDate,
+                    checkOutDate,
+                    adults,
+                    children,
+                    undefined,
+                    undefined,
+                    currency
+                );
+
                 results.push({
                     ...typeData,
                     availableCount,
                     activeOffer,
-                    totalPrice: Number(type.basePrice), // Placeholder
+                    totalPrice: pricing.convertedTotal,
                     isSoldOut: availableCount < rooms,
                 });
             }

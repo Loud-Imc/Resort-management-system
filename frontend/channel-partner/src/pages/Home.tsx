@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import StatsCard from '../components/StatsCard';
 import ProgressBar from '../components/ProgressBar';
-import { DollarSign, Star, TrendingUp, Handshake, Copy, Check } from 'lucide-react';
+import { DollarSign, Star, TrendingUp, Handshake, Copy, Check, Wallet, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 
 interface DashboardStats {
@@ -18,6 +19,7 @@ interface DashboardStats {
     confirmedReferrals: number;
     thisMonthReferrals: number;
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
+    walletBalance?: number;
 }
 
 const Home: React.FC = () => {
@@ -93,49 +95,95 @@ const Home: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                     <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Performance Dashboard</h1>
                     <p style={{ color: 'var(--text-dim)' }}>Monitor your earnings, points, and referral progress.</p>
                 </div>
-                <button
-                    onClick={copyCode}
-                    className="glass-pane-hover"
-                    style={{
-                        padding: '0.8rem 1.5rem',
-                        background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        borderRadius: 'var(--radius-md)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        transition: 'all 0.3s ease',
-                        boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)',
-                        border: 'none',
-                        cursor: 'pointer'
-                    }}
-
-                >
-
-                    {copied ? <Check size={18} /> : <Copy size={18} />}
-                    {copied ? 'Copied!' : `Code: ${stats?.referralCode}`}
-                </button>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {/* Make a Booking CTA */}
+                    <Link
+                        to="/book"
+                        style={{
+                            padding: '0.8rem 1.5rem',
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            borderRadius: 'var(--radius-md)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            transition: 'all 0.3s ease',
+                            boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        <ExternalLink size={18} />
+                        Make a Booking
+                    </Link>
+                    {/* Copy Referral Code */}
+                    <button
+                        onClick={copyCode}
+                        className="glass-pane-hover"
+                        style={{
+                            padding: '0.8rem 1.5rem',
+                            background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            borderRadius: 'var(--radius-md)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            transition: 'all 0.3s ease',
+                            boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)',
+                            border: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {copied ? <Check size={18} /> : <Copy size={18} />}
+                        {copied ? 'Copied!' : `Code: ${stats?.referralCode}`}
+                    </button>
+                </div>
             </div>
 
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                {/* Wallet Balance - Featured Card */}
+                <div className="glass-pane" style={{
+                    padding: '1.5rem',
+                    flex: 1,
+                    minWidth: '240px',
+                    background: 'linear-gradient(135deg, rgba(8, 71, 78, 0.15) 0%, rgba(12, 106, 117, 0.08) 100%)',
+                    border: '1px solid var(--border-teal)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}>
+                    <div style={{ position: 'absolute', top: 0, right: 0, width: '80px', height: '80px', background: 'radial-gradient(circle, rgba(8,71,78,0.15) 0%, transparent 70%)', borderRadius: '50%', transform: 'translate(20px, -20px)' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', fontWeight: 500 }}>Wallet Balance</p>
+                        <div style={{ padding: '0.6rem', borderRadius: 'var(--radius-md)', background: 'rgba(8, 71, 78, 0.1)', color: 'var(--primary-teal)', border: '1px solid var(--border-teal)' }}>
+                            <Wallet size={20} />
+                        </div>
+                    </div>
+                    <h3 className="text-premium-gradient" style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                        ₹{Number(stats?.walletBalance || 0).toLocaleString()}
+                    </h3>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>Available for bookings</p>
+                </div>
+
                 <StatsCard
                     title="Total Earnings"
                     value={`₹${stats?.totalEarnings?.toLocaleString() || '0'}`}
                     icon={DollarSign}
-                    trend={`₹${stats?.pendingEarnings?.toLocaleString() || '0'} pending Check-in`}
+                    trend={`₹${stats?.pendingEarnings?.toLocaleString() || '0'} pending`}
                     isPositive={true}
                 />
                 <StatsCard
                     title="Available Points"
                     value={stats?.availablePoints?.toLocaleString() || '0'}
                     icon={Star}
-                    trend={`${stats?.pendingPoints?.toLocaleString() || '0'} pending Check-in`}
+                    trend={`${stats?.pendingPoints?.toLocaleString() || '0'} pending`}
                     isPositive={true}
                 />
                 <StatsCard

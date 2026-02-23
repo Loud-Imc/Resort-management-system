@@ -19,6 +19,7 @@ export interface BookingGuest {
     age?: number;
     idType?: string;
     idNumber?: string;
+    idImage?: string;
 }
 
 export interface Booking {
@@ -35,6 +36,8 @@ export interface Booking {
     couponDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
+    paidAmount: number;
+    paymentStatus: 'UNPAID' | 'PARTIAL' | 'FULL';
     status: BookingStatus;
     specialRequests?: string;
     isManualBooking: boolean;

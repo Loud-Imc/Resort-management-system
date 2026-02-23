@@ -263,6 +263,21 @@ export class PropertyQueryDto {
     @IsOptional()
     @IsNumber()
     @Type(() => Number)
+    latitude?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    longitude?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    radius?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
     page?: number;
 
     @IsOptional()

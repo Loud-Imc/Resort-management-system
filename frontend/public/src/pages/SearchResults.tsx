@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
+import { useCurrency } from '../context/CurrencyContext';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
 import PropertyFilters from '../components/PropertyFilters';
@@ -10,6 +11,7 @@ import { format, addDays } from 'date-fns';
 
 export default function SearchResults() {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { selectedCurrency } = useCurrency();
 
     // Use state to hold stable default dates that don't change on re-renders
     const [defaults] = useState(() => {
@@ -28,14 +30,18 @@ export default function SearchResults() {
     const locationParam = searchParams.get('location') || '';
     const categoryIdParam = searchParams.get('categoryId') || '';
     const rooms = Number(searchParams.get('rooms')) || 1;
+    const latitudeParam = searchParams.get('latitude') ? Number(searchParams.get('latitude')) : undefined;
+    const longitudeParam = searchParams.get('longitude') ? Number(searchParams.get('longitude')) : undefined;
+    const radiusParam = searchParams.get('radius') ? Number(searchParams.get('radius')) : 50;
 
     // Local filter state
     const [search, setSearch] = useState(locationParam);
     const [categoryId, setCategoryId] = useState<string>(categoryIdParam);
     const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+    const [radius, setRadius] = useState<number>(radiusParam);
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['availability', checkIn, checkOut, adults, children, rooms, locationParam, categoryIdParam],
+        queryKey: ['availability', checkIn, checkOut, adults, children, rooms, locationParam, categoryIdParam, latitudeParam, longitudeParam, radiusParam],
         queryFn: () => bookingService.searchRooms({
             checkInDate: checkIn,
             checkOutDate: checkOut,
@@ -44,7 +50,11 @@ export default function SearchResults() {
             location: locationParam,
             categoryId: categoryIdParam || undefined,
             includeSoldOut: false,
-            rooms
+            rooms,
+            latitude: latitudeParam,
+            longitude: longitudeParam,
+            radius: radiusParam,
+            currency: selectedCurrency
         }),
         enabled: !!checkIn && !!checkOut,
     });
@@ -57,16 +67,54 @@ export default function SearchResults() {
         if (categoryId) params.set('categoryId', categoryId);
         else params.delete('categoryId');
 
+        if (latitudeParam) params.set('latitude', latitudeParam.toString());
+        if (longitudeParam) params.set('longitude', longitudeParam.toString());
+        if (radius) params.set('radius', radius.toString());
+
         setSearchParams(params);
+    };
+
+    const handleNearMe = () => {
+        if (latitudeParam && longitudeParam) {
+            // Toggle off
+            const params = new URLSearchParams(searchParams);
+            params.delete('latitude');
+            params.delete('longitude');
+            params.delete('radius');
+            setSearchParams(params);
+            return;
+        }
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const params = new URLSearchParams(searchParams);
+                    params.set('latitude', position.coords.latitude.toString());
+                    params.set('longitude', position.coords.longitude.toString());
+                    params.set('radius', radius.toString());
+                    setSearchParams(params);
+                },
+                (error) => {
+                    console.error('Error getting location:', error);
+                    alert('Failed to get your location. Please check browser permissions.');
+                }
+            );
+        } else {
+            alert('Geolocation is not supported by this browser.');
+        }
     };
 
     const clearFilters = () => {
         setSearch('');
         setCategoryId('');
         setSelectedAmenities([]);
+        setRadius(50);
         const params = new URLSearchParams(searchParams);
         params.delete('location');
         params.delete('categoryId');
+        params.delete('latitude');
+        params.delete('longitude');
+        params.delete('radius');
         setSearchParams(params);
     };
 
@@ -155,6 +203,10 @@ export default function SearchResults() {
                             onClear={clearFilters}
                             resultsCount={groupedProperties.length}
                             isLoading={isLoading}
+                            radius={radius}
+                            onRadiusChange={setRadius}
+                            onNearMe={handleNearMe}
+                            isNearMeActive={!!(latitudeParam && longitudeParam)}
                         />
                     </div>
 

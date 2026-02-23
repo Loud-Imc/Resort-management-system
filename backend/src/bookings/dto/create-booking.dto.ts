@@ -41,6 +41,11 @@ export class GuestInfoDto {
     @IsString()
     @IsOptional()
     idNumber?: string;
+
+    @ApiProperty({ example: 'https://example.com/id.jpg', required: false })
+    @IsString()
+    @IsOptional()
+    idImage?: string;
 }
 
 export class CreateBookingDto {
@@ -142,4 +147,19 @@ export class CreateBookingDto {
     @IsString()
     @IsOptional()
     referralCode?: string;
+
+    @ApiProperty({ example: 'ONLINE', required: false, enum: ['ONLINE', 'WALLET'] })
+    @IsString()
+    @IsOptional()
+    paymentMethod?: 'ONLINE' | 'WALLET';
+
+    @ApiProperty({ example: 'FULL', required: false, enum: ['FULL', 'PARTIAL'] })
+    @IsString()
+    @IsOptional()
+    paymentOption?: 'FULL' | 'PARTIAL';
+
+    @ApiProperty({ example: 'AED', required: false })
+    @IsString()
+    @IsOptional()
+    currency?: string;
 }

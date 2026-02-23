@@ -16,7 +16,9 @@ import {
     ShieldCheck,
     X,
     User as UserIcon,
-    ArrowRight
+    ArrowRight,
+    Eye,
+    Image as ImageIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -153,6 +155,7 @@ export default function BookingsList() {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Guest</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Room</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -182,6 +185,21 @@ export default function BookingsList() {
                                             </div>
                                             <div className="text-xs text-muted-foreground">
                                                 {booking.numberOfNights} nights
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="space-y-1">
+                                                <span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-bold rounded-full border ${booking.paymentStatus === 'FULL'
+                                                    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200'
+                                                    : booking.paymentStatus === 'PARTIAL'
+                                                        ? 'bg-amber-500/10 text-amber-600 border-amber-200'
+                                                        : 'bg-red-500/10 text-red-600 border-red-200'
+                                                    }`}>
+                                                    {booking.paymentStatus}
+                                                </span>
+                                                <div className="text-[10px] text-muted-foreground font-medium">
+                                                    ₹{Number(booking.paidAmount).toLocaleString()}/₹{Number(booking.totalAmount).toLocaleString()}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -331,6 +349,35 @@ export default function BookingsList() {
                                                         className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                                                     />
                                                 </div>
+                                            </div>
+
+                                            {/* Guest ID Image Display */}
+                                            <div className="space-y-1.5 mt-2">
+                                                <label className="text-xs font-bold text-muted-foreground block">Uploaded ID Document</label>
+                                                {guest.idImage ? (
+                                                    <div className="relative group rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer hover:border-primary transition-all">
+                                                        <img
+                                                            src={guest.idImage}
+                                                            alt={`${guest.firstName}'s ID`}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <a
+                                                                href={guest.idImage}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-colors"
+                                                            >
+                                                                <Eye className="h-5 w-5" />
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="rounded-lg border-2 border-dashed border-border p-4 text-center">
+                                                        <ImageIcon className="h-8 w-8 text-muted-foreground/30 mx-auto mb-1" />
+                                                        <p className="text-[10px] text-muted-foreground">No ID document uploaded</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     ))}

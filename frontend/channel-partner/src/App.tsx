@@ -8,6 +8,8 @@ import Referrals from './pages/Referrals';
 import Rewards from './pages/Rewards';
 import Bookings from './pages/Bookings';
 import Settings from './pages/Settings';
+import WalletPage from './pages/WalletPage';
+import InlineBookingPage from './pages/InlineBookingPage';
 import './App.css';
 
 function App() {
@@ -92,6 +94,32 @@ function App() {
           user ? (
             <DashboardLayout>
               <Settings />
+            </DashboardLayout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+
+      <Route
+        path="/wallet"
+        element={
+          user ? (
+            <DashboardLayout>
+              <WalletPage />
+            </DashboardLayout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+
+      <Route
+        path="/book"
+        element={
+          user ? (
+            <DashboardLayout>
+              <InlineBookingPage />
             </DashboardLayout>
           ) : (
             <Navigate to="/login" />

@@ -131,6 +131,7 @@ export class BookingsService {
             childrenCount,
             couponCode,
             referralCode,
+            createBookingDto.currency || 'INR',
         );
 
         // 3. Handle price override for manual bookings
@@ -143,6 +144,8 @@ export class BookingsService {
             }
             finalTotal = overrideTotal;
             isPriceOverridden = true;
+            // Update converted total based on override
+            pricing.convertedTotal = finalTotal * pricing.exchangeRate;
         }
 
         // 4. Get an available room
@@ -214,6 +217,25 @@ export class BookingsService {
             }
         }
 
+        // 6.2 Handle Wallet Payment (Inline Booking)
+        if (createBookingDto.paymentMethod === 'WALLET') {
+            if (!channelPartnerId) {
+                throw new BadRequestException('Wallet payment requires a valid channel partner referral code');
+            }
+
+            // For wallet bookings, the amount to deduct is (FinalTotal - Commission)
+            // But wait, the pricing.totalAmount already has the CP discount (5%) applied if referralCode was present.
+            const totalToCollect = finalTotal - cpCommission;
+
+            // Deduct from wallet
+            await this.channelPartnersService.deductWalletBalance(
+                channelPartnerId,
+                totalToCollect,
+                `Inline booking ${bookingNumber}`,
+                undefined // Reference will be updated after booking creation
+            );
+        }
+
         // 6.5 Calculate Booking Source Commission
         let commissionAmount = 0;
         if (bookingSourceId) {
@@ -241,12 +263,16 @@ export class BookingsService {
                 offerDiscountAmount: pricing.offerDiscountAmount,
                 couponDiscountAmount: pricing.couponDiscountAmount,
                 totalAmount: finalTotal,
+                bookingCurrency: pricing.targetCurrency as any,
+                amountInBookingCurrency: pricing.convertedTotal as any,
+                exchangeRate: pricing.exchangeRate as any,
                 isPriceOverridden,
                 overrideReason,
                 specialRequests,
                 whatsappNumber,
                 isManualBooking,
-                status: isManualBooking ? 'CONFIRMED' : 'PENDING_PAYMENT',
+                paymentOption: createBookingDto.paymentOption || 'FULL',
+                status: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
                 roomId: selectedRoom.id,
                 roomTypeId,
                 propertyId: selectedRoom.propertyId,
@@ -258,9 +284,21 @@ export class BookingsService {
                 cpCommission,
                 cpDiscount: pricing.referralDiscountAmount,
                 couponId,
-                confirmedAt: isManualBooking ? new Date() : null,
+                paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? finalTotal : 0,
+                paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'FULL' : 'UNPAID',
+                confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
                 guests: {
-                    create: guests,
+                    create: guests.map(g => ({
+                        firstName: g.firstName,
+                        lastName: g.lastName,
+                        email: g.email,
+                        phone: g.phone,
+                        whatsappNumber: g.whatsappNumber,
+                        age: g.age,
+                        idType: g.idType,
+                        idNumber: g.idNumber,
+                        idImage: g.idImage,
+                    })),
                 },
             },
             include: {
@@ -298,27 +336,66 @@ export class BookingsService {
             bookingId: booking.id,
         });
 
-        // 10. Process Channel Partner Reward for Manual Bookings (Pending)
-        if (isManualBooking && channelPartnerId) {
-            await this.channelPartnersService.processReferralCommission(
-                booking.id,
-                channelPartnerId,
-                finalTotal,
-                true // isPending = true
-            );
+        // 10. Process Channel Partner Reward
+        if (channelPartnerId) {
+            const isWalletPayment = createBookingDto.paymentMethod === 'WALLET';
+            if (isManualBooking || isWalletPayment) {
+                await this.channelPartnersService.processReferralCommission(
+                    booking.id,
+                    channelPartnerId,
+                    finalTotal,
+                    !isWalletPayment // isPending = false for wallet payments (immediately finalized)
+                );
+            }
         }
 
-        // 10. Create income record for confirmed bookings
-        if (isManualBooking) {
+        // 10.5 Link Wallet Transaction if applicable
+        if (createBookingDto.paymentMethod === 'WALLET' && channelPartnerId) {
+            await this.prisma.cPTransaction.updateMany({
+                where: {
+                    channelPartnerId,
+                    type: 'WALLET_PAYMENT' as any,
+                    description: `Inline booking ${bookingNumber}`,
+                    bookingId: null
+                },
+                data: {
+                    bookingId: booking.id
+                }
+            });
+        }
+        // 11. Create income record for confirmed bookings
+        if (isManualBooking || createBookingDto.paymentMethod === 'WALLET') {
             await this.prisma.income.create({
                 data: {
                     amount: finalTotal,
-                    source: 'ROOM_BOOKING',
-                    description: `Booking ${bookingNumber}`,
+                    source: createBookingDto.paymentMethod === 'WALLET' ? 'ONLINE_BOOKING' : 'ROOM_BOOKING',
+                    description: `Booking ${bookingNumber}${createBookingDto.paymentMethod === 'WALLET' ? ' (Wallet Payment)' : ''}`,
                     bookingId: booking.id,
                     propertyId: booking.propertyId,
                 },
             });
+
+            // If wallet payment, also create a payment record
+            if (createBookingDto.paymentMethod === 'WALLET') {
+                await this.prisma.payment.create({
+                    data: {
+                        amount: finalTotal - cpCommission,
+                        status: 'PAID',
+                        paymentMethod: 'WALLET',
+                        paymentDate: new Date(),
+                        bookingId: booking.id,
+                        currency: 'INR',
+                    },
+                });
+
+                // Finalize CP commission immediately for wallet bookings
+                await this.channelPartnersService.processReferralCommission(
+                    booking.id,
+                    channelPartnerId!,
+                    finalTotal,
+                    false, // isPending = false
+                );
+            }
         }
 
         return booking;

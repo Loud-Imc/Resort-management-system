@@ -14,13 +14,23 @@ export interface PricingBreakdown {
     numberOfNights: number;
     pricePerNight: number;
     taxRate: number;
+    // Multi-currency Support
+    baseCurrency: string;
+    targetCurrency: string;
+    exchangeRate: number;
+    convertedTotal: number;
 }
+
+import { CurrenciesService } from '../currencies/currencies.service';
 
 @Injectable()
 export class PricingService {
     private readonly TAX_RATE = 0.18; // 18% GST
 
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private currenciesService: CurrenciesService
+    ) { }
 
     /**
      * Calculate booking price based on room type, dates, and guest count
@@ -34,15 +44,19 @@ export class PricingService {
         childrenCount: number,
         couponCode?: string,
         referralCode?: string,
+        targetCurrency: string = 'INR',
     ): Promise<PricingBreakdown> {
         // 1. Get room type pricing configuration
         const roomType = await this.prisma.roomType.findUnique({
             where: { id: roomTypeId },
+            include: { property: true },
         });
 
         if (!roomType) {
             throw new NotFoundException('Room type not found');
         }
+
+        const baseCurrency = (roomType.property as any).baseCurrency || 'INR';
 
         // 2. Calculate number of nights
         const checkIn = new Date(checkInDate);
@@ -144,6 +158,12 @@ export class PricingService {
         // 11. Calculate final total
         const totalAmount = subtotal + taxAmount - couponDiscountAmount;
 
+        // 12. Handle Currency Conversion
+        let exchangeRate = 1.0;
+        if (targetCurrency !== baseCurrency) {
+            exchangeRate = await this.currenciesService.convert(1, baseCurrency, targetCurrency);
+        }
+
         return {
             baseAmount,
             extraAdultAmount,
@@ -157,6 +177,11 @@ export class PricingService {
             numberOfNights,
             pricePerNight: basePricePerNight,
             taxRate: this.TAX_RATE,
+            baseCurrency,
+            targetCurrency,
+            exchangeRate,
+            // Add converted total for convenience
+            convertedTotal: totalAmount * exchangeRate,
         };
     }
 

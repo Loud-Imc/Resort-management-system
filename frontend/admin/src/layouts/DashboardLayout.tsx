@@ -72,13 +72,15 @@ export default function DashboardLayout() {
             { icon: Users, label: 'Guests', path: '/guests' },
         ] : []),
 
+        ...(hasPermission('roomTypes.read') ? [
+            { icon: BedDouble, label: 'Room Types', path: '/room-types' },
+        ] : []),
+
         ...(hasPermission('rooms.read') ? [
             { icon: BedDouble, label: 'Rooms', path: '/rooms' },
         ] : []),
 
-        ...(hasPermission('roomTypes.read') ? [
-            { icon: BedDouble, label: 'Room Types', path: '/room-types' },
-        ] : []),
+
 
         // Events
         ...(hasPermission('events.read') ? [

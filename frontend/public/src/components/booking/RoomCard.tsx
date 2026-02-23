@@ -1,5 +1,7 @@
 import { RoomType } from '../../types';
 import { User, Maximize } from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext';
+import { formatPrice } from '../../utils/currency';
 
 interface RoomCardProps {
     room: RoomType;
@@ -7,6 +9,8 @@ interface RoomCardProps {
 }
 
 export default function RoomCard({ room, onBook }: RoomCardProps) {
+    const { selectedCurrency, rates } = useCurrency();
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all flex flex-col md:flex-row">
             <div className="md:w-1/3 h-64 md:h-auto overflow-hidden relative">
@@ -25,7 +29,7 @@ export default function RoomCard({ room, onBook }: RoomCardProps) {
                     <div className="flex justify-between items-start mb-2">
                         <h3 className="text-xl font-bold text-gray-900">{room.name}</h3>
                         <div className="text-right">
-                            <span className="text-2xl font-bold text-primary-700">₹{room.basePrice}</span>
+                            <span className="text-2xl font-bold text-primary-700">{formatPrice(room.basePrice, selectedCurrency, rates)}</span>
                             <span className="text-sm text-gray-500 block">/night</span>
                         </div>
                     </div>

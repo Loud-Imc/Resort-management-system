@@ -39,4 +39,9 @@ export class CalculatePriceDto {
     @IsString()
     @IsOptional()
     referralCode?: string;
+
+    @ApiProperty({ example: 'AED', required: false })
+    @IsString()
+    @IsOptional()
+    currency?: string;
 }

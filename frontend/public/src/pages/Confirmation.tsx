@@ -3,6 +3,7 @@ import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User } from 
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
+import { formatPrice } from '../utils/currency';
 
 export default function Confirmation() {
     const location = useLocation();
@@ -140,21 +141,21 @@ export default function Confirmation() {
                                 <div className="space-y-4">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500">Nightly Rate x {booking.numberOfNights}</span>
-                                        <span className="font-medium text-gray-900">₹{(booking.baseAmount || 0).toLocaleString()}</span>
+                                        <span className="font-medium text-gray-900">{formatPrice(booking.baseAmount || 0, booking.bookingCurrency || 'INR')}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500">Taxes & Fees</span>
-                                        <span className="font-medium text-gray-900">₹{(booking.taxAmount || 0).toLocaleString()}</span>
+                                        <span className="font-medium text-gray-900">{formatPrice(booking.taxAmount || 0, booking.bookingCurrency || 'INR')}</span>
                                     </div>
                                     {(booking.couponDiscountAmount > 0) && (
                                         <div className="flex justify-between text-sm text-green-600 font-medium">
                                             <span>Coupon Discount</span>
-                                            <span>-₹{booking.couponDiscountAmount.toLocaleString()}</span>
+                                            <span>-{formatPrice(booking.couponDiscountAmount, booking.bookingCurrency || 'INR')}</span>
                                         </div>
                                     )}
                                     <div className="pt-4 border-t border-gray-200 flex justify-between items-center">
                                         <span className="text-base font-bold text-gray-900">Total Paid</span>
-                                        <span className="text-2xl font-black text-primary-600">₹{booking.totalAmount.toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-primary-600">{formatPrice(booking.totalAmount, booking.bookingCurrency || 'INR')}</span>
                                     </div>
 
                                     <div className="mt-8 pt-8 border-t border-gray-200">

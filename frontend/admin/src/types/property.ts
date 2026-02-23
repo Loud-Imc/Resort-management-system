@@ -98,6 +98,9 @@ export interface PropertyQueryParams {
     search?: string;
     page?: number;
     limit?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
 }
 
 export interface PropertyListResponse {

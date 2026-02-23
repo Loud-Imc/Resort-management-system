@@ -153,12 +153,30 @@ export class PropertiesService {
     }
 
     async findAll(query: PropertyQueryDto) {
-        const { city, state, type, search, page = 1, limit = 10 } = query;
+        const { city, state, type, search, page = 1, limit = 10, latitude, longitude, radius } = query;
         const skip = (page - 1) * limit;
+
+        let geoPropertyIds: string[] | null = null;
+
+        // Handle geo-spatial search if lat/lng/radius are provided
+        if (latitude !== undefined && longitude !== undefined && radius !== undefined) {
+            const results = await this.prisma.$queryRaw<any[]>`
+                SELECT id FROM properties
+                WHERE (
+                    6371 * acos(
+                        cos(radians(${Number(latitude)})) * cos(radians(CAST(latitude AS DOUBLE PRECISION))) *
+                        cos(radians(CAST(longitude AS DOUBLE PRECISION)) - radians(${Number(longitude)})) +
+                        sin(radians(${Number(latitude)})) * sin(radians(CAST(latitude AS DOUBLE PRECISION)))
+                    )
+                ) <= ${Number(radius)}
+            `;
+            geoPropertyIds = results.map(r => r.id);
+        }
 
         const where: Prisma.PropertyWhereInput = {
             isActive: true,
             status: PropertyStatus.APPROVED,
+            ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
             ...(type && { type }),

@@ -20,6 +20,7 @@ export interface RoomType {
     isSoldOut?: boolean;
     rooms?: { id: string; status: string }[];
     property?: Property;
+    bookingCurrency?: string;
 }
 
 export interface BookingSearchParams {
@@ -32,10 +33,26 @@ export interface BookingSearchParams {
     categoryId?: string;
     includeSoldOut?: boolean;
     rooms?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    currency?: string;
 }
 
 export interface AvailabilityResponse {
     availableRoomTypes: RoomType[];
+}
+
+export interface GuestInfo {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    whatsappNumber?: string;
+    age?: number;
+    idType?: string;
+    idNumber?: string;
+    idImage?: string; // URL to uploaded image
 }
 
 export interface CreateBookingDto {
@@ -47,10 +64,12 @@ export interface CreateBookingDto {
     guestName: string;
     guestEmail: string;
     guestPhone: string;
-    guests?: any[];
+    guests?: GuestInfo[];
     specialRequests?: string;
     couponCode?: string;
     referralCode?: string; // CP referral code
+    paymentMethod?: 'ONLINE' | 'WALLET';
+    currency?: string;
 }
 
 // Marketplace Types
@@ -95,6 +114,7 @@ export interface Property {
     roomTypes?: RoomType[];
     isSoldOut?: boolean;
     minPrice?: number;
+    baseCurrency?: string;
     availableRoomCount?: number;
 }
 
@@ -108,6 +128,9 @@ export interface PropertySearchParams {
     amenities?: string[];
     page?: number;
     limit?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
 }
 
 export interface PropertyListResponse {

@@ -62,6 +62,8 @@ export default function PropertyForm() {
         platformCommission: 10,
         whatsappNumber: '',
         categoryId: '',
+        latitude: undefined,
+        longitude: undefined,
     });
 
     useEffect(() => {
@@ -582,6 +584,65 @@ export default function PropertyForm() {
                                 className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="673123"
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                Latitude
+                            </label>
+                            <input
+                                type="number"
+                                name="latitude"
+                                value={formData.latitude || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, latitude: e.target.value ? Number(e.target.value) : undefined }))}
+                                step="any"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                placeholder="11.6892"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                Longitude
+                            </label>
+                            <input
+                                type="number"
+                                name="longitude"
+                                value={formData.longitude || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, longitude: e.target.value ? Number(e.target.value) : undefined }))}
+                                step="any"
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                placeholder="76.0432"
+                            />
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (navigator.geolocation) {
+                                        navigator.geolocation.getCurrentPosition(
+                                            (position) => {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    latitude: position.coords.latitude,
+                                                    longitude: position.coords.longitude
+                                                }));
+                                            },
+                                            (error) => {
+                                                console.error('Error getting location:', error);
+                                                alert('Failed to get current location. Please check browser permissions.');
+                                            }
+                                        );
+                                    } else {
+                                        alert('Geolocation is not supported by this browser.');
+                                    }
+                                }}
+                                className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
+                            >
+                                <MapPin className="h-4 w-4" />
+                                Use current location
+                            </button>
                         </div>
                     </div>
                 </div>

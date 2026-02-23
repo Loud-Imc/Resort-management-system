@@ -28,6 +28,7 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { DiscountsModule } from './discounts/discounts.module';
 import { MailModule } from './mail/mail.module';
 import { PropertyCategoriesModule } from './property-categories/property-categories.module';
+import { CurrenciesModule } from './currencies/currencies.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { PropertyCategoriesModule } from './property-categories/property-categor
     DiscountsModule,
     MailModule,
     PropertyCategoriesModule,
+    CurrenciesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
