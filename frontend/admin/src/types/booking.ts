@@ -19,6 +19,7 @@ export interface BookingGuest {
     age?: number;
     idType?: string;
     idNumber?: string;
+    idImage?: string;
 }
 
 export interface Booking {
@@ -35,6 +36,9 @@ export interface Booking {
     couponDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
+    paidAmount: number;
+    paymentStatus?: 'FULL' | 'PARTIAL' | 'PENDING';
+    paymentOption?: 'FULL' | 'PARTIAL';
     status: BookingStatus;
     specialRequests?: string;
     isManualBooking: boolean;
@@ -74,6 +78,7 @@ export interface CreateBookingDto {
         age?: number;
     }[];
     couponCode?: string;
+    referralCode?: string;
     roomId?: string;
     isManualBooking?: boolean;
 }
@@ -91,6 +96,7 @@ export interface PriceCalculationDto {
     adultsCount: number;
     childrenCount: number;
     couponCode?: string;
+    referralCode?: string;
 }
 
 export interface PriceCalculationResult {
@@ -100,6 +106,7 @@ export interface PriceCalculationResult {
     taxAmount: number;
     offerDiscountAmount: number;
     couponDiscountAmount: number;
+    referralDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
     numberOfNights: number;

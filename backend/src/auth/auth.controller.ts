@@ -25,4 +25,13 @@ export class AuthController {
     async login(@Body() loginDto: LoginDto) {
         return this.authService.login(loginDto);
     }
+
+    @Post('phone-login')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Login user with phone number and Firebase token' })
+    @ApiResponse({ status: 200, description: 'Login successful' })
+    @ApiResponse({ status: 401, description: 'Invalid phone token' })
+    async phoneLogin(@Body('token') token: string) {
+        return this.authService.loginWithPhone(token);
+    }
 }

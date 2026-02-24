@@ -296,6 +296,69 @@ export class UsersService {
         });
     }
 
+    async findByPhone(phone: string) {
+        return this.prisma.user.findUnique({
+            where: { phone },
+            include: {
+                roles: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    async createWithPhone(phone: string) {
+        const customerRole = await this.prisma.role.findFirst({
+            where: { name: 'Customer' },
+        });
+
+        // For phone-only registration, we generate a placeholder email
+        // and a random password or just rely on OTP for future logins.
+        const placeholderEmail = `user_${Date.now()}@placeholder.com`;
+        const randomPassword = Math.random().toString(36).slice(-10);
+        const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+        return this.prisma.user.create({
+            data: {
+                phone,
+                email: placeholderEmail,
+                password: hashedPassword,
+                firstName: 'Phone',
+                lastName: 'User',
+                roles: customerRole ? {
+                    create: {
+                        role: { connect: { id: customerRole.id } }
+                    }
+                } : undefined,
+            },
+            include: {
+                roles: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
     async assignRole(userId: string, roleId: string) {
         return this.prisma.userRole.create({
             data: {

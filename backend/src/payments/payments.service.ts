@@ -6,6 +6,7 @@ import { MailService } from '../mail/mail.service';
 import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
+import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 
 @Injectable()
 export class PaymentsService {
@@ -683,5 +684,63 @@ export class PaymentsService {
             where: { bookingId },
             orderBy: { createdAt: 'desc' },
         });
+    }
+
+    /**
+     * Record a manual payment (Cash, UPI, etc.)
+     */
+    async recordManualPayment(dto: RecordManualPaymentDto, userId: string) {
+        const booking = await this.prisma.booking.findUnique({
+            where: { id: dto.bookingId },
+            include: { user: true }
+        });
+
+        if (!booking) {
+            throw new NotFoundException('Booking not found');
+        }
+
+        // Create payment record
+        const payment = await this.prisma.payment.create({
+            data: {
+                amount: dto.amount,
+                currency: 'INR',
+                status: 'PAID',
+                paymentMethod: dto.method,
+                paymentDate: new Date(),
+                bookingId: dto.bookingId,
+                notes: dto.notes,
+                platformFee: 0,
+                netAmount: dto.amount,
+            },
+        });
+
+        // Update booking paid amount
+        const newPaidAmount = Number(booking.paidAmount) + Number(dto.amount);
+        const isFullyPaid = newPaidAmount >= Number(booking.totalAmount);
+
+        await this.prisma.booking.update({
+            where: { id: dto.bookingId },
+            data: {
+                paidAmount: newPaidAmount,
+                paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
+                ...(booking.status === 'PENDING_PAYMENT' && { status: 'CONFIRMED', confirmedAt: new Date() })
+            },
+        });
+
+        // Create income record
+        await this.prisma.income.create({
+            data: {
+                amount: dto.amount,
+                source: 'MANUAL_PAYMENT',
+                description: `Manual payment (${dto.method}) for ${booking.bookingNumber}. ${dto.notes || ''}`,
+                bookingId: dto.bookingId,
+            },
+        });
+
+        return {
+            success: true,
+            payment,
+            message: 'Manual payment recorded successfully',
+        };
     }
 }

@@ -464,7 +464,7 @@ export default function PropertyDetail() {
                                                                     to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}` : '#'}
                                                                     className="block w-full py-4 px-6 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-xl shadow-lg shadow-primary-500/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-sm uppercase tracking-wider"
                                                                 >
-                                                                    {(!checkIn || !checkOut) ? 'Select Dates to Book' : 'Book Now'}
+                                                                    {(!checkIn || !checkOut) ? 'Select Dates' : 'Book Now'}
                                                                 </Link>
                                                             )}
                                                             <p className="text-[10px] text-center text-gray-400">

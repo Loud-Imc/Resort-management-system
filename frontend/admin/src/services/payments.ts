@@ -1,5 +1,5 @@
 import api from './api';
-import type { Payment, InitiatePaymentDto, VerifyPaymentDto, ProcessRefundDto } from '../types/payment';
+import type { Payment, InitiatePaymentDto, VerifyPaymentDto, ProcessRefundDto, RecordManualPaymentDto } from '../types/payment';
 
 export const paymentsService = {
     getAll: async (propertyId?: string) => {
@@ -44,5 +44,10 @@ export const paymentsService = {
     confirmPayout: async (paymentId: string) => {
         const { data } = await api.post(`/payments/${paymentId}/payout/confirm`);
         return data;
+    },
+
+    recordManual: async (data: RecordManualPaymentDto) => {
+        const { data: response } = await api.post('/payments/manual', data);
+        return response;
     }
 };

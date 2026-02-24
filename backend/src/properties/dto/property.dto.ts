@@ -118,6 +118,11 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsString()
     categoryId?: string;
+
+    @ApiProperty({ example: 12.0, description: 'Tax rate for this property (5, 12, or 18)' })
+    @IsOptional()
+    @IsNumber()
+    taxRate?: number;
 }
 
 export class UpdatePropertyDto {
@@ -223,6 +228,10 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
     categoryId?: string;
+
+    @IsOptional()
+    @IsNumber()
+    taxRate?: number;
 }
 
 export class PropertyQueryDto {

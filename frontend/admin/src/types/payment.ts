@@ -46,3 +46,10 @@ export interface ProcessRefundDto {
     amount?: number;
     reason?: string;
 }
+
+export interface RecordManualPaymentDto {
+    bookingId: string;
+    amount: number;
+    method: 'CASH' | 'UPI' | 'CARD' | 'OTHER';
+    notes?: string;
+}

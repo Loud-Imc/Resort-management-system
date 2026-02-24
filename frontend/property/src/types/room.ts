@@ -31,6 +31,10 @@ export interface RoomType {
         name: string;
         city: string;
     };
+    rooms?: Room[];
+    _count?: {
+        rooms: number;
+    };
 }
 
 export interface CreateRoomTypeDto {

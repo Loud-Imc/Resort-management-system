@@ -67,7 +67,7 @@ export const bookingService = {
     },
 
     getBookingById: async (id: string) => {
-        const { data } = await api.get(`/bookings/${id}`);
+        const { data } = await api.get(`/bookings/public/${id}`);
         return data;
     }
 };

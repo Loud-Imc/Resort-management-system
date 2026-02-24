@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
 import { categoryService } from '../../services/category';
 import { PropertyCategory } from '../../types/category';
+import SearchableSelect from '../../components/SearchableSelect';
 
 const propertyTypes: { value: PropertyType; label: string }[] = [
     { value: 'RESORT', label: 'Resort' },
@@ -64,6 +65,7 @@ export default function PropertyForm() {
         categoryId: '',
         latitude: undefined,
         longitude: undefined,
+        taxRate: 12,
     });
 
     useEffect(() => {
@@ -150,6 +152,7 @@ export default function PropertyForm() {
                 platformCommission: property.platformCommission || 10,
                 whatsappNumber: property.whatsappNumber || '',
                 categoryId: property.categoryId || '',
+                taxRate: property.taxRate || 12,
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -169,6 +172,7 @@ export default function PropertyForm() {
                 ...formData,
                 marketingCommission: Number(formData.marketingCommission),
                 platformCommission: Number(formData.platformCommission),
+                taxRate: Number(formData.taxRate),
             };
 
             if (isEdit && id) {
@@ -246,35 +250,30 @@ export default function PropertyForm() {
                                 <label className="block text-sm font-bold text-muted-foreground mb-1">
                                     Added By (Marketing Staff)
                                 </label>
-                                <select
-                                    name="addedById"
-                                    value={formData.addedById}
-                                    onChange={(e) => {
-                                        handleChange(e);
-                                        const selectedUser = marketingUsers.find(u => u.id === e.target.value);
-                                        // Always update commission, defaulting to 0 if null/undefined
+                                <SearchableSelect
+                                    options={marketingUsers.map(u => ({
+                                        id: u.id,
+                                        label: `${u.firstName} ${u.lastName}`,
+                                        subLabel: u.email
+                                    }))}
+                                    value={formData.addedById || ''}
+                                    onChange={(val) => {
+                                        setFormData(prev => ({ ...prev, addedById: val }));
+                                        const selectedUser = marketingUsers.find(u => u.id === val);
                                         if (selectedUser) {
                                             setFormData(prev => ({
                                                 ...prev,
                                                 marketingCommission: Number(selectedUser.commissionPercentage || 0)
                                             }));
                                         } else {
-                                            // Reset if no user selected
                                             setFormData(prev => ({
                                                 ...prev,
                                                 marketingCommission: 0
                                             }));
                                         }
                                     }}
-                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
-                                >
-                                    <option value="">-- Select Staff --</option>
-                                    {marketingUsers.map(u => (
-                                        <option key={u.id} value={u.id}>
-                                            {u.firstName} {u.lastName} ({u.email})
-                                        </option>
-                                    ))}
-                                </select>
+                                    placeholder="-- Select Staff --"
+                                />
                             </div>
                         )}
                         <div>
@@ -315,6 +314,25 @@ export default function PropertyForm() {
                                 </p>
                             </div>
                         )}
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                Tax Rate (%) *
+                            </label>
+                            <select
+                                name="taxRate"
+                                value={formData.taxRate}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                            >
+                                <option value={5}>5% (GST)</option>
+                                <option value={12}>12% (GST)</option>
+                                <option value={18}>18% (GST)</option>
+                            </select>
+                            <p className="text-xs text-muted-foreground mt-1 font-medium italic">
+                                * Applied to all bookings for this property.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -330,20 +348,17 @@ export default function PropertyForm() {
                                 <label className="block text-sm font-bold text-muted-foreground mb-1">
                                     Assign Owner *
                                 </label>
-                                <select
-                                    name="ownerId"
-                                    value={formData.ownerId}
-                                    onChange={handleChange}
+                                <SearchableSelect
+                                    options={propertyOwners.map(u => ({
+                                        id: u.id,
+                                        label: `${u.firstName} ${u.lastName}`,
+                                        subLabel: u.email
+                                    }))}
+                                    value={formData.ownerId || ''}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, ownerId: val }))}
+                                    placeholder="-- Select Owner --"
                                     required
-                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-                                >
-                                    <option value="">-- Select Owner --</option>
-                                    {propertyOwners.map(u => (
-                                        <option key={u.id} value={u.id}>
-                                            {u.firstName} {u.lastName} ({u.email})
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                                 <p className="text-xs text-muted-foreground mt-2 font-medium">
                                     The user selected here will have full control over this property's operations.
                                 </p>

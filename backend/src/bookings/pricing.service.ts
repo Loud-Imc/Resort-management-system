@@ -25,7 +25,7 @@ import { CurrenciesService } from '../currencies/currencies.service';
 
 @Injectable()
 export class PricingService {
-    private readonly TAX_RATE = 0.18; // 18% GST
+    private readonly DEFAULT_TAX_RATE = 0.12; // 12% default
 
     constructor(
         private prisma: PrismaService,
@@ -128,8 +128,12 @@ export class PricingService {
             subtotal -= offerDiscountAmount;
         }
 
-        // 8. Calculate tax (18% GST) on the discounted subtotal
-        const taxAmount = subtotal * this.TAX_RATE;
+        // 8. Calculate tax based on property settings
+        const propertyTaxRate = (roomType.property as any).taxRate !== undefined
+            ? Number((roomType.property as any).taxRate) / 100
+            : this.DEFAULT_TAX_RATE;
+
+        const taxAmount = subtotal * propertyTaxRate;
 
         // 9. Apply referral discount if applicable
         let referralDiscountAmount = 0;
@@ -137,11 +141,14 @@ export class PricingService {
             const cp = await this.prisma.channelPartner.findFirst({
                 where: { referralCode, status: 'APPROVED' as any }
             });
-            if (cp) {
-                const discountRate = Number(cp.referralDiscountRate || 0);
-                referralDiscountAmount = (subtotal * discountRate) / 100;
-                subtotal -= referralDiscountAmount;
+
+            if (!cp) {
+                throw new BadRequestException('Invalid referral code or partner not approved');
             }
+
+            const discountRate = Number(cp.referralDiscountRate || 0);
+            referralDiscountAmount = (subtotal * discountRate) / 100;
+            subtotal -= referralDiscountAmount;
         }
 
         // 10. Apply coupon discount (Apply at the end after Tax?) 
@@ -176,7 +183,9 @@ export class PricingService {
             totalAmount,
             numberOfNights,
             pricePerNight: basePricePerNight,
-            taxRate: this.TAX_RATE,
+            taxRate: (roomType.property as any).taxRate !== undefined
+                ? Number((roomType.property as any).taxRate)
+                : this.DEFAULT_TAX_RATE * 100,
             baseCurrency,
             targetCurrency,
             exchangeRate,
@@ -222,8 +231,9 @@ export class PricingService {
         subtotal: number,
         bookingDate: Date,
     ): Promise<number> {
+        const trimmedCode = couponCode.trim().toUpperCase();
         const coupon = await this.prisma.coupon.findUnique({
-            where: { code: couponCode },
+            where: { code: trimmedCode },
         });
 
         if (!coupon) {

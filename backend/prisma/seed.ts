@@ -32,17 +32,21 @@ async function main() {
         }
 
         const existingRole = await prisma.role.findFirst({
-            where: { name: roleName, propertyId: null }
+            where: {
+                name: { equals: roleName, mode: 'insensitive' },
+                propertyId: null,
+            },
         });
 
         if (existingRole) {
             await prisma.role.update({
                 where: { id: existingRole.id },
                 data: {
+                    name: roleName, // Ensure exact casing from the constant
                     isSystem: true,
                     category: category as any,
-                    description: `${roleName} access role`
-                }
+                    description: `${roleName} access role`,
+                },
             });
         } else {
             await prisma.role.create({
@@ -50,8 +54,9 @@ async function main() {
                     name: roleName,
                     description: `${roleName} access role`,
                     isSystem: true,
-                    category: category as any
-                }
+                    category: category as any,
+                    propertyId: null,
+                },
             });
         }
     }

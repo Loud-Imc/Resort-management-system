@@ -228,7 +228,7 @@ export default function Checkout() {
 
             if (paymentMethod === 'WALLET') {
                 // For wallet payment, the booking is confirmed immediately
-                navigate('/confirmation', {
+                navigate(`/confirmation?bookingId=${booking.id}`, {
                     state: {
                         booking: { ...booking, status: 'CONFIRMED' },
                         email: userData.email
@@ -259,7 +259,7 @@ export default function Checkout() {
                         });
 
                         // 5. Navigate to confirmation
-                        navigate('/confirmation', {
+                        navigate(`/confirmation?bookingId=${booking.id}`, {
                             state: {
                                 booking: { ...booking, status: 'CONFIRMED' },
                                 email: userData.email
@@ -547,10 +547,17 @@ export default function Checkout() {
                                     </div>
 
                                     {(appliedCoupon || appliedReferralCode) && !pricingLoading && !isPricingError && (
-                                        <p className="text-xs text-green-600 font-medium flex items-center gap-1.5 mt-1">
-                                            <ShieldCheck className="h-3.5 w-3.5" />
-                                            {appliedReferralCode ? `Referral code "${appliedReferralCode}" applied!` : `Coupon "${appliedCoupon}" applied!`}
-                                        </p>
+                                        <div className="mt-1 space-y-1">
+                                            <p className="text-xs text-green-600 font-medium flex items-center gap-1.5">
+                                                <ShieldCheck className="h-3.5 w-3.5" />
+                                                {appliedReferralCode ? `Referral code "${appliedReferralCode}" applied!` : `Coupon "${appliedCoupon}" applied!`}
+                                            </p>
+                                            {appliedReferralCode && (effectivePricing?.referralDiscountAmount || 0) === 0 && (
+                                                <p className="text-[10px] text-amber-600 font-medium italic pl-5">
+                                                    Note: This code doesn't offer an additional discount for this booking.
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
 
                                     {isPricingError && (appliedCoupon || appliedReferralCode) && (
@@ -615,7 +622,13 @@ export default function Checkout() {
                                     <Loader2 className="animate-spin h-5 w-5" /> Processing...
                                 </>
                             ) : (
-                                `Reserve & Pay ${formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates) || '...'}`
+                                `Reserve & Pay ${formatPrice(
+                                    paymentMethod === 'WALLET'
+                                        ? (effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0))
+                                        : (paymentOption === 'PARTIAL' ? Math.round(effectivePricing?.totalAmount / 3) : effectivePricing?.totalAmount),
+                                    selectedCurrency,
+                                    rates
+                                ) || '...'}`
                             )}
                         </button>
                     </form>

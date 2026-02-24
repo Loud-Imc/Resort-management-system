@@ -6,7 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
-
+import { FirebaseService } from './firebase.service';
 @Module({
     imports: [
         PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -23,7 +23,7 @@ import { UsersModule } from '../users/users.module';
         UsersModule,
     ],
     controllers: [AuthController],
-    providers: [AuthService, JwtStrategy],
-    exports: [AuthService, JwtStrategy, PassportModule],
+    providers: [AuthService, JwtStrategy, FirebaseService],
+    exports: [AuthService, JwtStrategy, PassportModule, FirebaseService],
 })
 export class AuthModule { }

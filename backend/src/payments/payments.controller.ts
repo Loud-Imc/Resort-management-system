@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PaymentsService } from './payments.service';
 import { InitiatePaymentDto, VerifyPaymentDto, ProcessRefundDto } from './dto/payment.dto';
+import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
@@ -18,6 +19,15 @@ export class PaymentsController {
     @ApiOperation({ summary: 'Initiate payment - Create Razorpay order' })
     initiatePayment(@Body() dto: InitiatePaymentDto) {
         return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId);
+    }
+
+    @Post('manual')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PAYMENTS.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Record manual payment (Cash, UPI, etc.)' })
+    recordManualPayment(@Body() dto: RecordManualPaymentDto, @Req() req: any) {
+        return this.paymentsService.recordManualPayment(dto, req.user.id);
     }
 
     @Post('public/initiate')

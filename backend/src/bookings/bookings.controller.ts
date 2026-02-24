@@ -136,6 +136,12 @@ export class BookingsController {
         return this.bookingsService.getTodayCheckOuts(req.user);
     }
 
+    @Get('public/:id')
+    @ApiOperation({ summary: 'Get booking by ID (Public)' })
+    findOnePublic(@Param('id') id: string) {
+        return this.bookingsService.findOnePublic(id);
+    }
+
     @Get(':id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @ApiBearerAuth()

@@ -57,6 +57,7 @@ export interface Property {
         firstName: string;
         email: string;
     };
+    taxRate?: number;
 }
 
 export interface CreatePropertyDto {
@@ -83,6 +84,7 @@ export interface CreatePropertyDto {
     platformCommission?: number;
     ownerId?: string;
     isFeatured?: boolean;
+    taxRate?: number;
 }
 
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {

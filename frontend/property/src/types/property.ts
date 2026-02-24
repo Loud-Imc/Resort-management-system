@@ -43,6 +43,7 @@ export interface Property {
     marketingCommission?: number;
     platformCommission?: number;
     commissionStatus?: 'PENDING' | 'PAID' | 'CANCELLED';
+    taxRate?: number;
 }
 
 export interface PropertyListResponse {

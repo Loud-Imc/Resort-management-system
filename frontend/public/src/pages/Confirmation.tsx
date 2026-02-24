@@ -16,10 +16,10 @@ export default function Confirmation() {
     const { data: fetchedBooking, isLoading, error } = useQuery({
         queryKey: ['booking', bookingIdFromUrl],
         queryFn: () => bookingService.getBookingById(bookingIdFromUrl!),
-        enabled: !!bookingIdFromUrl && !location.state?.booking,
+        enabled: !!bookingIdFromUrl,
     });
 
-    const booking = location.state?.booking || fetchedBooking;
+    const booking = fetchedBooking || location.state?.booking;
 
     if (isLoading) {
         return (
@@ -153,9 +153,28 @@ export default function Confirmation() {
                                             <span>-{formatPrice(booking.couponDiscountAmount, booking.bookingCurrency || 'INR')}</span>
                                         </div>
                                     )}
-                                    <div className="pt-4 border-t border-gray-200 flex justify-between items-center">
-                                        <span className="text-base font-bold text-gray-900">Total Paid</span>
-                                        <span className="text-2xl font-black text-primary-600">{formatPrice(booking.totalAmount, booking.bookingCurrency || 'INR')}</span>
+                                    <div className="pt-4 border-t border-gray-200 space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Booking Total</span>
+                                            <span className="text-lg font-bold text-gray-900">{formatPrice(booking.totalAmount, booking.bookingCurrency || 'INR')}</span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-emerald-600">
+                                            <span className="text-sm font-bold uppercase tracking-wider">Amount Paid</span>
+                                            <span className="text-lg font-black">{formatPrice(booking.paidAmount, booking.bookingCurrency || 'INR')}</span>
+                                        </div>
+
+                                        {Number(booking.paidAmount) < Number(booking.totalAmount) && (
+                                            <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Balance Due at Resort</span>
+                                                    <span className="text-xs text-amber-700 italic">To be paid during check-in</span>
+                                                </div>
+                                                <span className="text-xl font-black text-amber-600">
+                                                    {formatPrice(Number(booking.totalAmount) - Number(booking.paidAmount), booking.bookingCurrency || 'INR')}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="mt-8 pt-8 border-t border-gray-200">

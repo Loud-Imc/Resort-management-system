@@ -31,3 +31,10 @@ export interface Payment {
     };
     createdAt: string;
 }
+
+export interface RecordManualPaymentDto {
+    bookingId: string;
+    amount: number;
+    method: 'CASH' | 'UPI' | 'CARD' | 'OTHER';
+    notes?: string;
+}

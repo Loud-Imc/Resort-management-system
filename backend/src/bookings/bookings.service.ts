@@ -483,6 +483,38 @@ export class BookingsService {
     }
 
     /**
+     * Find one booking by ID (Public - No Auth required)
+     * Relies on UUID non-guessability for security
+     */
+    async findOnePublic(id: string) {
+        const booking = await this.prisma.booking.findUnique({
+            where: { id },
+            include: {
+                room: true,
+                roomType: true,
+                guests: true,
+                property: true,
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        firstName: true,
+                        lastName: true,
+                    },
+                },
+                bookingSource: true,
+                payments: true,
+            },
+        });
+
+        if (!booking) {
+            throw new NotFoundException('Booking not found');
+        }
+
+        return booking;
+    }
+
+    /**
      * Find one booking by ID
      */
     async findOne(id: string, user: any) {
@@ -546,18 +578,20 @@ export class BookingsService {
                     data: {
                         idType: guestUpdate.idType,
                         idNumber: guestUpdate.idNumber,
+                        idImage: guestUpdate.idImage,
                     },
                 });
             }
 
             // Sync to User profile (Primary Guest/Account Holder)
             const primaryGuest = dto.guests[0];
-            if (primaryGuest?.idType && primaryGuest?.idNumber) {
+            if (primaryGuest?.idType || primaryGuest?.idNumber || primaryGuest?.idImage) {
                 await this.prisma.user.update({
                     where: { id: booking.userId },
                     data: {
-                        idType: primaryGuest.idType,
-                        idNumber: primaryGuest.idNumber,
+                        ...(primaryGuest.idType && { idType: primaryGuest.idType }),
+                        ...(primaryGuest.idNumber && { idNumber: primaryGuest.idNumber }),
+                        ...(primaryGuest.idImage && { idImage: primaryGuest.idImage }),
                     },
                 });
             }

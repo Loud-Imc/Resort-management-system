@@ -11,6 +11,7 @@ import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase } from 'lucide-react';
 import clsx from 'clsx';
+import SearchableSelect from '../../components/SearchableSelect';
 import type { PriceCalculationResult } from '../../types/booking';
 import type { RoomType } from '../../types/room';
 import { useProperty } from '../../context/PropertyContext';
@@ -23,9 +24,14 @@ const bookingSchema = z.object({
     adultsCount: z.number().min(1, 'At least 1 adult is required'),
     childrenCount: z.number().min(0),
     couponCode: z.string().optional(),
+    referralCode: z.string().optional(),
     bookingSourceId: z.string().optional(),
     roomId: z.string().optional(),
     isManualBooking: z.boolean().optional(),
+    overrideTotal: z.number().optional(),
+    overrideReason: z.string().optional(),
+    paymentMethod: z.enum(['CASH', 'UPI', 'ONLINE']),
+    paymentOption: z.enum(['FULL', 'PARTIAL']),
     guests: z.array(z.object({
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
@@ -63,6 +69,12 @@ export default function CreateBooking() {
             roomTypeId: preSelectedRoomTypeId || '',
             roomId: preSelectedRoomId || undefined,
             isManualBooking: true,
+            overrideTotal: undefined,
+            overrideReason: '',
+            paymentMethod: 'CASH',
+            paymentOption: 'FULL',
+            couponCode: '',
+            referralCode: '',
             guests: [{ firstName: '', lastName: '' }],
         },
     });
@@ -110,6 +122,7 @@ export default function CreateBooking() {
                     adultsCount: Number(values.adultsCount),
                     childrenCount: Number(values.childrenCount),
                     couponCode: values.couponCode,
+                    referralCode: values.referralCode,
                 });
                 setPriceDetails(price);
             }
@@ -133,10 +146,17 @@ export default function CreateBooking() {
 
     const onSubmit = (data: BookingFormData) => {
         if (!availability?.available) { toast.error('Please check availability first'); return; }
+
+        // Remove propertyId and other non-DTO fields
+        const { propertyId, paymentOption, ...rest } = data;
+
         const sanitizedData = {
-            ...data,
+            ...rest,
+            paymentOption,
             bookingSourceId: data.bookingSourceId || undefined,
             roomId: data.roomId || undefined,
+            overrideTotal: data.overrideTotal ? Number(data.overrideTotal) : undefined,
+            paymentMethod: data.isManualBooking ? data.paymentMethod : 'ONLINE',
         };
         createBookingMutation.mutate(sanitizedData);
     };
@@ -162,20 +182,21 @@ export default function CreateBooking() {
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Room Type</label>
-                                    <select {...register('roomTypeId')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                        <option value="">Select Room Type</option>
-                                        {roomTypes?.map((type) => (
-                                            <option key={type.id} value={type.id}>{type.name} - ₹{type.basePrice}/night</option>
-                                        ))}
-                                    </select>
+                                    <SearchableSelect
+                                        label="Room Type"
+                                        options={roomTypes?.map((type) => ({
+                                            id: type.id,
+                                            label: `${type.name} - ₹${type.basePrice}/night`,
+                                            subLabel: `${type.rooms?.length || type._count?.rooms || 0} Total Rooms | ${type.maxAdults} Adult, ${type.maxChildren} Child`
+                                        })) || []}
+                                        value={getValues('roomTypeId')}
+                                        onChange={(val: string) => {
+                                            setValue('roomTypeId', val);
+                                            handleCheckAvailability();
+                                        }}
+                                        required
+                                    />
                                     {errors.roomTypeId && <p className="text-red-500 text-xs mt-1">{errors.roomTypeId.message}</p>}
-                                </div>
-                                <div className="md:col-span-2 mt-2">
-                                    <button type="button" onClick={handleCheckAvailability} disabled={checkingAvailability}
-                                        className="w-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                                        {checkingAvailability ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Check Availability & Price'}
-                                    </button>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Check-in Date</label>
@@ -197,7 +218,83 @@ export default function CreateBooking() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Code (Optional)</label>
-                                    <input type="text" {...register('couponCode')} placeholder="e.g., SUMMER20" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm" />
+                                    <div className="flex gap-2">
+                                        <input type="text" {...register('couponCode')} placeholder="e.g. SAVE10" className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" />
+                                        <button
+                                            type="button"
+                                            onClick={handleCheckAvailability}
+                                            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-500"
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CP Referral Code (Optional)</label>
+                                    <div className="flex gap-2">
+                                        <input type="text" {...register('referralCode')} placeholder="e.g. PARTNER20" className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase" />
+                                        <button
+                                            type="button"
+                                            onClick={handleCheckAvailability}
+                                            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-500"
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <hr className="my-2 border-gray-100 dark:border-gray-700" />
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Final Step: Check Availability & Total Price</label>
+                                    <button type="button" onClick={handleCheckAvailability} disabled={checkingAvailability}
+                                        className="w-full bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 px-4 py-3 rounded-md text-lg font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md">
+                                        {checkingAvailability ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Calculate Total Amount'}
+                                    </button>
+
+                                    {availability && (
+                                        <div className={clsx('mt-4 p-4 rounded-md border flex items-center gap-3 shadow-sm',
+                                            availability.available ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                                                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300')}>
+                                            {availability.available ? <CheckCircle className="h-6 w-6" /> : <AlertCircle className="h-6 w-6" />}
+                                            <div className="flex-1">
+                                                <p className="font-bold text-base leading-tight">{availability.available ? 'Room Available' : 'Room Unavailable'}</p>
+                                                <p className="text-sm">{availability.available
+                                                    ? `${availability.availableRooms} rooms left for these dates.`
+                                                    : 'Please choose different dates or room type.'}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Price Override & Payments */}
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-green-600">
+                                <CheckCircle className="h-5 w-5" /> Price Override & Payment
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Override Total Price (₹)</label>
+                                    <input type="number" {...register('overrideTotal', { valueAsNumber: true })} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" placeholder="Optional" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for Override</label>
+                                    <input type="text" {...register('overrideReason')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" placeholder="e.g. Birthday Discount" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
+                                    <select {...register('paymentMethod')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10">
+                                        <option value="CASH">Cash</option>
+                                        <option value="UPI">UPI / QR</option>
+                                        <option value="ONLINE">Online Link</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Option</label>
+                                    <select {...register('paymentOption')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10">
+                                        <option value="FULL">Fully Paid</option>
+                                        <option value="PARTIAL">Partially Paid</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -217,21 +314,6 @@ export default function CreateBooking() {
                                 </select>
                             </div>
                         </div>
-
-                        {/* Availability Result */}
-                        {availability && (
-                            <div className={clsx('p-4 rounded-md border flex items-center gap-3',
-                                availability.available ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-                                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300')}>
-                                {availability.available ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
-                                <div>
-                                    <p className="font-medium">{availability.available ? 'Room is Available!' : 'Room Unavailable'}</p>
-                                    <p className="text-sm">{availability.available
-                                        ? `${availability.availableRooms} rooms left for these dates.`
-                                        : 'Please choose different dates or room type.'}</p>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Guest Details */}
                         {availability?.available && (
@@ -319,6 +401,11 @@ export default function CreateBooking() {
                                         <span>Coupon Discount</span><span>-₹{priceDetails.couponDiscountAmount.toFixed(2)}</span>
                                     </div>
                                 )}
+                                {priceDetails.referralDiscountAmount ? priceDetails.referralDiscountAmount > 0 && (
+                                    <div className="flex justify-between text-sm text-green-600 font-medium">
+                                        <span>Referral Discount</span><span>-₹{priceDetails.referralDiscountAmount.toFixed(2)}</span>
+                                    </div>
+                                ) : null}
                                 <div className="flex justify-between text-sm border-b border-gray-100 dark:border-gray-700 pb-3">
                                     <span className="text-gray-600 dark:text-gray-400">Taxes</span>
                                     <span className="font-medium">₹{priceDetails.taxAmount.toFixed(2)}</span>
