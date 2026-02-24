@@ -29,8 +29,15 @@ export class FirebaseService implements OnModuleInit {
 
     async verifyToken(token: string): Promise<admin.auth.DecodedIdToken> {
         if (!this.firebaseApp) {
+            console.error('Firebase verifyToken called but app not initialized');
             throw new Error('Firebase not initialized');
         }
-        return admin.auth().verifyIdToken(token);
+        try {
+            return await this.firebaseApp.auth().verifyIdToken(token);
+        } catch (err) {
+            console.error('Firebase Admin SDK verifyIdToken failed:', err.message);
+            if (err.code) console.error('Error Code:', err.code);
+            throw err;
+        }
     }
 }
