@@ -1,2 +1,0 @@
-ALTER TABLE users ADD COLUMN IF NOT EXISTS "idImage" TEXT;
-ALTER TABLE users ADD CONSTRAINT users_phone_key UNIQUE (phone);
