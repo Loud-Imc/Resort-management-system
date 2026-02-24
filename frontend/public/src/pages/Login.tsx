@@ -127,20 +127,30 @@ export default function Login() {
         setIsLoading(true);
         setError(null);
         try {
+            console.log('Verifying OTP with Firebase...');
             const result = await confirmationResult.confirm(otp);
             const idToken = await result.user.getIdToken();
+            console.log('Firebase verification successful. Sending token to backend...');
 
             // Send token to backend
-            const response = await api.post('/auth/phone-login', { token: idToken });
+            try {
+                const response = await api.post('/auth/phone-login', { token: idToken });
+                console.log('Backend authentication successful');
 
-            localStorage.setItem('token', response.data.accessToken);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-            window.dispatchEvent(new Event('storage'));
+                localStorage.setItem('token', response.data.accessToken);
+                localStorage.setItem('user', JSON.stringify(response.data.user));
+                window.dispatchEvent(new Event('storage'));
 
-            const redirect = searchParams.get('redirect');
-            navigate(redirect || '/');
-        } catch (err: any) {
-            setError('Invalid OTP. Please check and try again.');
+                const redirect = searchParams.get('redirect');
+                navigate(redirect || '/');
+            } catch (backendErr: any) {
+                console.error('Backend auth error:', backendErr);
+                const backendMsg = backendErr.response?.data?.message || 'Authentication with server failed.';
+                setError(`Server Error: ${backendMsg}`);
+            }
+        } catch (firebaseErr: any) {
+            console.error('Firebase OTP verification error:', firebaseErr);
+            setError('Invalid OTP. Please check the code sent to your phone.');
         } finally {
             setIsLoading(false);
         }
