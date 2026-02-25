@@ -1,14 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { auth } from '../config/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import type { ConfirmationResult } from 'firebase/auth';
 
 export default function Register() {
     const { registerProperty } = useAuth();
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
+
+    // OTP related states
+    const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+    const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+    const [showOtpInput, setShowOtpInput] = useState(false);
+    const [otp, setOtp] = useState('');
+    const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+    const [resendTimer, setResendTimer] = useState(0);
 
     const [formData, setFormData] = useState({
         // Owner fields
@@ -30,9 +41,84 @@ export default function Register() {
         propertyEmail: ''
     });
 
+    useEffect(() => {
+        let interval: any;
+        if (resendTimer > 0) {
+            interval = setInterval(() => {
+                setResendTimer((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [resendTimer]);
+
+    const handleSendOtp = async () => {
+        if (!formData.ownerPhone) {
+            toast.error('Please enter a phone number first');
+            return;
+        }
+
+        setIsVerifyingPhone(true);
+        try {
+            // Clean up existing container if any
+            const container = document.getElementById('recaptcha-container');
+            if (container) {
+                container.innerHTML = '';
+            }
+
+            const appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                'size': 'invisible',
+                'callback': () => {
+                    console.log('reCAPTCHA verified');
+                }
+            });
+
+            const formattedPhone = formData.ownerPhone.startsWith('+') ? formData.ownerPhone : `+91${formData.ownerPhone}`;
+
+            const result = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+            setConfirmationResult(result);
+            setShowOtpInput(true);
+            setResendTimer(60);
+            toast.success('Verification code sent');
+        } catch (error: any) {
+            console.error('Error sending OTP:', error);
+            let userMessage = 'Failed to send verification code';
+            if (error.code === 'auth/invalid-phone-number') userMessage = 'Invalid phone number format.';
+            if (error.code === 'auth/too-many-requests') userMessage = 'Too many requests. Please try again later.';
+            if (error.code === 'auth/captcha-check-failed') userMessage = 'reCAPTCHA verification failed.';
+            if (error.code === 'auth/invalid-app-credential') userMessage = 'Invalid app configuration. Please check Firebase settings.';
+
+            toast.error(error.message || userMessage);
+        } finally {
+            setIsVerifyingPhone(false);
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        if (!otp || !confirmationResult) return;
+
+        setIsVerifyingPhone(true);
+        try {
+            await confirmationResult.confirm(otp);
+            setIsPhoneVerified(true);
+            setShowOtpInput(false);
+            toast.success('Phone number verified successfully');
+        } catch (error: any) {
+            toast.error('Invalid verification code');
+        } finally {
+            setIsVerifyingPhone(false);
+        }
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+
+        // If phone changes, reset verification
+        if (name === 'ownerPhone') {
+            setIsPhoneVerified(false);
+            setShowOtpInput(false);
+            setOtp('');
+        }
 
         // Auto-fill property contact if empty
         if (name === 'ownerPhone' && !formData.propertyPhone) {
@@ -47,6 +133,10 @@ export default function Register() {
         if (step === 1) {
             if (!formData.ownerFirstName || !formData.ownerLastName || !formData.ownerEmail || !formData.ownerPhone || !formData.ownerPassword) {
                 toast.error('Please fill all owner details');
+                return;
+            }
+            if (!isPhoneVerified) {
+                toast.error('Please verify your phone number first');
                 return;
             }
             if (formData.ownerPassword.length < 8) {
@@ -97,6 +187,7 @@ export default function Register() {
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 md:p-10">
+                    <div id="recaptcha-container"></div>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {step === 1 ? (
                             <div className="space-y-4">
@@ -113,7 +204,7 @@ export default function Register() {
                                                 required
                                                 value={formData.ownerFirstName}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                                 placeholder="John"
                                             />
                                         </div>
@@ -126,7 +217,7 @@ export default function Register() {
                                             required
                                             value={formData.ownerLastName}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="Doe"
                                         />
                                     </div>
@@ -144,7 +235,7 @@ export default function Register() {
                                             required
                                             value={formData.ownerEmail}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="you@example.com"
                                         />
                                     </div>
@@ -152,21 +243,97 @@ export default function Register() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Phone className="h-4 w-4 text-gray-400" />
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <Phone className="h-4 w-4 text-gray-400" />
+                                            </div>
+                                            <input
+                                                name="ownerPhone"
+                                                type="tel"
+                                                required
+                                                disabled={isPhoneVerified || showOtpInput}
+                                                value={formData.ownerPhone}
+                                                onChange={handleChange}
+                                                className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 ${isPhoneVerified ? 'bg-green-50 border-green-200' : ''}`}
+                                                placeholder="9876543210"
+                                            />
+                                            {isPhoneVerified && (
+                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                </div>
+                                            )}
                                         </div>
-                                        <input
-                                            name="ownerPhone"
-                                            type="tel"
-                                            required
-                                            value={formData.ownerPhone}
-                                            onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
-                                            placeholder="+91 98765 43210"
-                                        />
+                                        {!isPhoneVerified && !showOtpInput && (
+                                            <button
+                                                type="button"
+                                                onClick={handleSendOtp}
+                                                disabled={isVerifyingPhone || !formData.ownerPhone}
+                                                className="px-4 py-2 bg-primary-100 text-primary-700 rounded-xl font-bold text-xs hover:bg-primary-200 transition-all disabled:opacity-50"
+                                            >
+                                                {isVerifyingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify'}
+                                            </button>
+                                        )}
+                                        {isPhoneVerified && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsPhoneVerified(false)}
+                                                className="px-4 py-2 text-gray-500 hover:text-primary-600 transition-all text-xs font-bold"
+                                            >
+                                                Edit
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
+
+                                {showOtpInput && (
+                                    <div className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-100 animate-in fade-in slide-in-from-top-2">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Enter 6-digit OTP</label>
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <KeyRound className="h-4 w-4 text-gray-400" />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    maxLength={6}
+                                                    value={otp}
+                                                    onChange={(e) => setOtp(e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm tracking-widest font-bold text-gray-900"
+                                                    placeholder="000000"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleVerifyOtp}
+                                                disabled={isVerifyingPhone || otp.length !== 6}
+                                                className="px-6 py-2 bg-primary-600 text-white rounded-xl font-bold text-sm hover:bg-primary-700 transition-all disabled:opacity-50"
+                                            >
+                                                {isVerifyingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm'}
+                                            </button>
+                                        </div>
+                                        <div className="flex justify-between items-center px-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setShowOtpInput(false); setOtp(''); }}
+                                                className="text-xs text-gray-500 hover:text-gray-700"
+                                            >
+                                                Cancel
+                                            </button>
+                                            {resendTimer > 0 ? (
+                                                <span className="text-xs text-gray-400">Resend in {resendTimer}s</span>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSendOtp}
+                                                    className="text-xs text-primary-600 font-bold hover:underline"
+                                                >
+                                                    Resend Code
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
@@ -180,7 +347,7 @@ export default function Register() {
                                             required
                                             value={formData.ownerPassword}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="Minimum 8 characters"
                                         />
                                     </div>
@@ -211,7 +378,7 @@ export default function Register() {
                                                 required
                                                 value={formData.propertyName}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                                 placeholder="e.g. Blue Lagoon Resort"
                                             />
                                         </div>
@@ -223,7 +390,7 @@ export default function Register() {
                                             required
                                             value={formData.propertyType}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm appearance-none"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm appearance-none text-gray-900"
                                         >
                                             <option value="RESORT">Resort</option>
                                             <option value="HOTEL">Hotel</option>
@@ -245,7 +412,7 @@ export default function Register() {
                                             required
                                             value={formData.propertyDescription}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm min-h-[100px]"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm min-h-[100px] text-gray-900"
                                             placeholder="Tell us about your property..."
                                         />
                                     </div>
@@ -263,7 +430,7 @@ export default function Register() {
                                             required
                                             value={formData.address}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="123, Main Road, Area"
                                         />
                                     </div>
@@ -278,7 +445,7 @@ export default function Register() {
                                             required
                                             value={formData.city}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="Wayanad"
                                         />
                                     </div>
@@ -290,7 +457,7 @@ export default function Register() {
                                             required
                                             value={formData.state}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="Kerala"
                                         />
                                     </div>
@@ -305,7 +472,7 @@ export default function Register() {
                                             required
                                             value={formData.pincode}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="673122"
                                         />
                                     </div>
@@ -317,7 +484,7 @@ export default function Register() {
                                             required
                                             value={formData.propertyEmail}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
                                             placeholder="resort@example.com"
                                         />
                                     </div>
