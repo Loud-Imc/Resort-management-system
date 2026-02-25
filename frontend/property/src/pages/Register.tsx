@@ -111,21 +111,26 @@ export default function Register() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+
+        setFormData(prev => {
+            const next = { ...prev, [name]: value };
+
+            // Sync property contact with owner contact if property fields are still sync'd or empty
+            if (name === 'ownerPhone' && (prev.propertyPhone === prev.ownerPhone || !prev.propertyPhone)) {
+                next.propertyPhone = value;
+            }
+            if (name === 'ownerEmail' && (prev.propertyEmail === prev.ownerEmail || !prev.propertyEmail)) {
+                next.propertyEmail = value;
+            }
+
+            return next;
+        });
 
         // If phone changes, reset verification
         if (name === 'ownerPhone') {
             setIsPhoneVerified(false);
             setShowOtpInput(false);
             setOtp('');
-        }
-
-        // Auto-fill property contact if empty
-        if (name === 'ownerPhone' && !formData.propertyPhone) {
-            setFormData(prev => ({ ...prev, propertyPhone: value }));
-        }
-        if (name === 'ownerEmail' && !formData.propertyEmail) {
-            setFormData(prev => ({ ...prev, propertyEmail: value }));
         }
     };
 
@@ -156,8 +161,8 @@ export default function Register() {
             // Format phone numbers to include country code for backend validation
             const formattedData = {
                 ...formData,
-                ownerPhone: formData.ownerPhone.startsWith('+') ? formData.ownerPhone : `+91${formData.ownerPhone}`,
-                propertyPhone: formData.propertyPhone.startsWith('+') ? formData.propertyPhone : `+91${formData.propertyPhone}`
+                ownerPhone: formData.ownerPhone ? (formData.ownerPhone.startsWith('+') ? formData.ownerPhone : `+91${formData.ownerPhone}`) : '',
+                propertyPhone: formData.propertyPhone ? (formData.propertyPhone.startsWith('+') ? formData.propertyPhone : `+91${formData.propertyPhone}`) : ''
             };
 
             await registerProperty(formattedData);
@@ -491,14 +496,37 @@ export default function Register() {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Email</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <Mail className="h-4 w-4 text-gray-400" />
+                                            </div>
+                                            <input
+                                                name="propertyEmail"
+                                                type="email"
+                                                required
+                                                value={formData.propertyEmail}
+                                                onChange={handleChange}
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                                placeholder="resort@example.com"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Phone</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <Phone className="h-4 w-4 text-gray-400" />
+                                        </div>
                                         <input
-                                            name="propertyEmail"
-                                            type="email"
+                                            name="propertyPhone"
+                                            type="tel"
                                             required
-                                            value={formData.propertyEmail}
+                                            value={formData.propertyPhone}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
-                                            placeholder="resort@example.com"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            placeholder="9876543210"
                                         />
                                     </div>
                                 </div>
