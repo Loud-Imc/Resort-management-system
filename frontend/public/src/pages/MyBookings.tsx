@@ -1,14 +1,19 @@
-import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { Loader2, Calendar, MapPin, ChevronRight, Package, User } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { format, isAfter, startOfToday } from 'date-fns';
+import { Loader2, Calendar, MapPin, ChevronRight, Package, User, XCircle, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { bookingService } from '../services/booking';
 import { formatPrice } from '../utils/currency';
 
 export default function MyBookings() {
+    const queryClient = useQueryClient();
     const token = localStorage.getItem('token');
     const userJson = localStorage.getItem('user');
     const user = userJson ? JSON.parse(userJson) : null;
+
+    const [cancellingBooking, setCancellingBooking] = useState<any | null>(null);
+    const [cancelReason, setCancelReason] = useState('');
 
     if (!token || !user) {
         return <Navigate to="/login?redirect=/my-bookings" replace />;
@@ -20,15 +25,39 @@ export default function MyBookings() {
         enabled: !!token,
     });
 
+    const cancelMutation = useMutation({
+        mutationFn: ({ id, reason }: { id: string; reason?: string }) => bookingService.cancelBooking(id, reason),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
+            setCancellingBooking(null);
+            setCancelReason('');
+            alert('Booking cancelled successfully. Your refund will be processed according to the policy.');
+        },
+        onError: (err: any) => {
+            alert(err.response?.data?.message || 'Failed to cancel booking');
+        }
+    });
+
+    const handleCancelSubmit = () => {
+        if (!cancellingBooking) return;
+        cancelMutation.mutate({ id: cancellingBooking.id, reason: cancelReason });
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'CONFIRMED': return 'bg-green-100 text-green-700 border-green-200';
             case 'PENDING_PAYMENT': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
             case 'CANCELLED': return 'bg-red-100 text-red-700 border-red-200';
+            case 'REFUNDED': return 'bg-purple-100 text-purple-700 border-purple-200';
             case 'CHECKED_IN': return 'bg-blue-100 text-blue-700 border-blue-200';
             case 'CHECKED_OUT': return 'bg-gray-100 text-gray-700 border-gray-200';
             default: return 'bg-gray-100 text-gray-600 border-gray-200';
         }
+    };
+
+    const canCancel = (booking: any) => {
+        const checkIn = new Date(booking.checkInDate);
+        return ['CONFIRMED', 'PENDING_PAYMENT'].includes(booking.status) && isAfter(checkIn, startOfToday());
     };
 
     return (
@@ -143,7 +172,15 @@ export default function MyBookings() {
                                                         Booked on {format(new Date(booking.createdAt), 'MMM dd, yyyy')}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-4">
+                                                    {canCancel(booking) && (
+                                                        <button
+                                                            onClick={() => setCancellingBooking(booking)}
+                                                            className="text-red-600 text-sm font-bold hover:underline inline-flex items-center gap-1"
+                                                        >
+                                                            <XCircle className="h-4 w-4" /> Cancel Booking
+                                                        </button>
+                                                    )}
                                                     <Link
                                                         to={`/confirmation?bookingId=${booking.id}`}
                                                         className="text-primary-600 text-sm font-bold hover:underline inline-flex items-center gap-1"
@@ -160,6 +197,61 @@ export default function MyBookings() {
                     </div>
                 )}
             </div>
+
+            {/* Cancel Mutation Modal */}
+            {cancellingBooking && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-8">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                                    <AlertTriangle className="h-6 w-6 text-red-600" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 font-serif">Cancel Booking</h3>
+                            </div>
+
+                            <p className="text-gray-600 mb-6 leading-relaxed">
+                                Are you sure you want to cancel your booking <span className="font-bold text-gray-900">#{cancellingBooking.bookingNumber}</span>?
+                                <br /><br />
+                                Refunds will be processed according to the resort's cancellation policy. This action cannot be undone.
+                            </p>
+
+                            <div className="space-y-2 mb-8">
+                                <label className="text-sm font-bold text-gray-700">Reason for cancellation (Optional)</label>
+                                <textarea
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm h-24 resize-none"
+                                    placeholder="Ex: Change of plans, found better price, etc."
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setCancellingBooking(null)}
+                                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                                    disabled={cancelMutation.isPending}
+                                >
+                                    No, Keep it
+                                </button>
+                                <button
+                                    onClick={handleCancelSubmit}
+                                    className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    disabled={cancelMutation.isPending}
+                                >
+                                    {cancelMutation.isPending ? (
+                                        <>
+                                            <Loader2 className="h-5 w-5 animate-spin" /> Processing...
+                                        </>
+                                    ) : (
+                                        'Yes, Cancel'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -4,6 +4,7 @@ import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
 import { AuditService } from '../audit/audit.service';
 import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
+import { PaymentsService } from '../payments/payments.service';
 import { differenceInDays, format, addDays } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import * as bcrypt from 'bcrypt';
@@ -16,6 +17,7 @@ export class BookingsService {
         private pricingService: PricingService,
         private auditService: AuditService,
         private channelPartnersService: ChannelPartnersService,
+        private paymentsService: PaymentsService,
     ) { }
 
     /**
@@ -413,7 +415,7 @@ export class BookingsService {
     }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
-        const isCustomer = roles.includes('Customer');
+        const isCP = roles.includes('ChannelPartner');
 
         const where: any = {
             status: filters?.status as any,
@@ -427,32 +429,35 @@ export class BookingsService {
             if (filters?.propertyId) {
                 where.propertyId = filters.propertyId;
             }
-        } else if (isCustomer) {
-            // Customers only see their own bookings
-            where.userId = user.id;
         } else {
-            // Property owners and staff
-            if (filters?.propertyId) {
-                // If filtering by property, ensure the user has access to it
-                where.AND = [
-                    { propertyId: filters.propertyId },
-                    {
-                        property: {
-                            OR: [
-                                { ownerId: user.id },
-                                { staff: { some: { userId: user.id } } }
-                            ]
-                        }
-                    }
-                ];
-            } else {
-                // Otherwise, show bookings for all their associated properties
-                where.property = {
+            // For all other users (Owners, Staff, Partners, Customers),
+            // ensure they see their OWN personal bookings PLUS anything they are authorized for.
+            const visibilityOR: any[] = [
+                { userId: user.id } // Always see personal bookings
+            ];
+
+            // Add Property Owners/Staff visibility
+            visibilityOR.push({
+                property: {
                     OR: [
                         { ownerId: user.id },
                         { staff: { some: { userId: user.id } } }
                     ]
-                };
+                }
+            });
+
+            // Add Channel Partner visibility
+            if (isCP) {
+                visibilityOR.push({
+                    channelPartner: { userId: user.id }
+                });
+            }
+
+            where.OR = visibilityOR;
+
+            // Apply property filter on top if provided
+            if (filters?.propertyId) {
+                where.propertyId = filters.propertyId;
             }
         }
 
@@ -709,6 +714,55 @@ export class BookingsService {
 
         // Revert Channel Partner Commission
         await this.channelPartnersService.revertReferralCommission(id);
+
+        // Process Refunds
+        const payments = await this.prisma.payment.findMany({
+            where: { bookingId: id, status: 'PAID' }
+        });
+
+        for (const payment of payments) {
+            try {
+                if (payment.paymentMethod === 'WALLET') {
+                    // Refund to CP Wallet
+                    await this.channelPartnersService.refundWalletPayment(
+                        booking.channelPartnerId!,
+                        Number(payment.amount),
+                        `Refund for cancelled booking ${booking.bookingNumber}`,
+                        booking.id
+                    );
+
+                    await this.prisma.payment.update({
+                        where: { id: payment.id },
+                        data: {
+                            status: 'REFUNDED',
+                            refundAmount: payment.amount,
+                            refundDate: new Date(),
+                            refundReason: reason || 'Booking cancellation'
+                        }
+                    });
+
+                    // Update Booking's financial totals
+                    await this.prisma.booking.update({
+                        where: { id: booking.id },
+                        data: {
+                            paidAmount: { decrement: payment.amount },
+                            paymentStatus: 'UNPAID' // Booking is now unpaid
+                        }
+                    });
+                } else if (payment.razorpayPaymentId) {
+                    // Refund via Razorpay
+                    await this.paymentsService.processRefund(payment.id, Number(payment.amount), reason || 'Booking cancellation');
+
+                    // The PaymentsService.processRefund might already update the booking, 
+                    // but let's ensure consistency here if it doesn't.
+                    // Actually, PaymentsService usually handles the booking update for Razorpay.
+                }
+            } catch (refundError) {
+                console.error(`[BookingsService] Failed to refund payment ${payment.id}:`, refundError);
+                // We don't throw here to avoid blocking the cancellation if one refund fails, 
+                // but in a production system we might want more robust error handling/retry.
+            }
+        }
 
         return updated;
     }

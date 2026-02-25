@@ -134,7 +134,7 @@ export default function Navbar() {
 
                                     className={clsx("font-semibold hover:text-primary-600 transition-colors", textColor)}
                                 >
-                                    Register your property
+                                    List Your Property
                                 </a>
                                 <a
                                     href={`${import.meta.env.VITE_CHANNEL_PARTNER_URL}/register`}

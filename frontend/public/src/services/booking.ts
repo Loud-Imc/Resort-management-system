@@ -69,5 +69,10 @@ export const bookingService = {
     getBookingById: async (id: string) => {
         const { data } = await api.get(`/bookings/public/${id}`);
         return data;
+    },
+
+    cancelBooking: async (id: string, reason?: string) => {
+        const { data } = await api.post(`/bookings/${id}/cancel`, { reason });
+        return data;
     }
 };

@@ -1,7 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { BookingsService } from '../bookings/bookings.service';
 import { MailService } from '../mail/mail.service';
 import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
 import Razorpay = require('razorpay');
@@ -496,7 +495,11 @@ export class PaymentsService {
             if (payment.bookingId) {
                 await this.prisma.booking.update({
                     where: { id: payment.bookingId },
-                    data: { status: 'REFUNDED' },
+                    data: {
+                        status: 'REFUNDED',
+                        paidAmount: { decrement: refundAmount },
+                        paymentStatus: 'UNPAID'
+                    },
                 });
             } else if (payment.eventBookingId) {
                 await this.prisma.eventBooking.update({

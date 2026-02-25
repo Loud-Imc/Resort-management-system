@@ -62,6 +62,15 @@ export class ChannelPartnersService {
             throw new ConflictException('Email already exists');
         }
 
+        // Check for existing user by phone
+        const existingPhone = await this.prisma.user.findUnique({
+            where: { phone: dto.phone },
+        });
+
+        if (existingPhone) {
+            throw new ConflictException('Phone number already registered');
+        }
+
         const referralCode = await this.getUniqueReferralCode();
         const hashedPassword = await bcrypt.hash(dto.password, 10);
 
@@ -783,5 +792,29 @@ export class ChannelPartnersService {
         if (!cp) throw new NotFoundException('Channel partner not found');
 
         return this.addWalletBalance(cp.id, amount, `Wallet top-up via Razorpay (${razorpayPaymentId})`, razorpayPaymentId);
+    }
+
+    async refundWalletPayment(channelPartnerId: string, amount: number, description: string, bookingId: string) {
+        return this.prisma.$transaction(async (tx) => {
+            const cp = await tx.channelPartner.update({
+                where: { id: channelPartnerId },
+                data: {
+                    walletBalance: { increment: amount }
+                }
+            });
+
+            await tx.cPTransaction.create({
+                data: {
+                    type: 'REFUND' as any,
+                    status: 'FINALIZED',
+                    amount,
+                    description: description || `Refund for cancelled booking ${bookingId}`,
+                    channelPartnerId,
+                    bookingId,
+                }
+            });
+
+            return cp;
+        });
     }
 }
