@@ -70,12 +70,23 @@ export class PropertiesService {
     }
 
     async publicRegister(dto: RegisterPropertyDto) {
-        const existingUser = await this.prisma.user.findUnique({
-            where: { email: dto.ownerEmail },
+        // Check if user with email or phone already exists
+        const existingUser = await this.prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email: dto.ownerEmail },
+                    { phone: dto.ownerPhone },
+                ],
+            },
         });
 
         if (existingUser) {
-            throw new ConflictException('Email already exists');
+            if (existingUser.email === dto.ownerEmail) {
+                throw new ConflictException('Email already exists');
+            }
+            if (existingUser.phone === dto.ownerPhone) {
+                throw new ConflictException('Phone number already exists');
+            }
         }
 
         const slug = await this.generateUniqueSlug(dto.propertyName);
