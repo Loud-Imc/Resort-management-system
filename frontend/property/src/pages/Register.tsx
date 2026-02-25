@@ -51,6 +51,37 @@ export default function Register() {
         return () => clearInterval(interval);
     }, [resendTimer]);
 
+    const normalizePhoneNumber = (phone: string) => {
+        if (!phone) return '';
+        // 1. Remove all non-numeric characters
+        let cleaned = phone.replace(/\D/g, '');
+
+        // 2. Handle 00 prefix (often used as + replacement)
+        if (phone.startsWith('00')) {
+            cleaned = cleaned.substring(2);
+        }
+        // 3. Handle single leading zero
+        else if (cleaned.startsWith('0') && cleaned.length > 10) {
+            cleaned = cleaned.substring(1);
+        }
+        else if (cleaned.startsWith('0') && cleaned.length === 11) {
+            cleaned = cleaned.substring(1);
+        }
+
+        // 4. If it's 10 digits, assume India (+91)
+        if (cleaned.length === 10) {
+            return `+91${cleaned}`;
+        }
+
+        // 5. If it starts with 91 and is 12 digits, assume it's already got the country code
+        if (cleaned.length === 12 && cleaned.startsWith('91')) {
+            return `+${cleaned}`;
+        }
+
+        // 6. Otherwise, if it was long enough and already starts with +, just return it cleaned
+        return phone.startsWith('+') ? `+${cleaned}` : `+${cleaned}`;
+    };
+
     const handleSendOtp = async () => {
         if (!formData.ownerPhone) {
             toast.error('Please enter a phone number first');
@@ -72,7 +103,8 @@ export default function Register() {
                 }
             });
 
-            const formattedPhone = formData.ownerPhone.startsWith('+') ? formData.ownerPhone : `+91${formData.ownerPhone}`;
+            const formattedPhone = normalizePhoneNumber(formData.ownerPhone);
+            console.log('Sending OTP to:', formattedPhone);
 
             const result = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
             setConfirmationResult(result);
@@ -161,8 +193,8 @@ export default function Register() {
             // Format phone numbers to include country code for backend validation
             const formattedData = {
                 ...formData,
-                ownerPhone: formData.ownerPhone ? (formData.ownerPhone.startsWith('+') ? formData.ownerPhone : `+91${formData.ownerPhone}`) : '',
-                propertyPhone: formData.propertyPhone ? (formData.propertyPhone.startsWith('+') ? formData.propertyPhone : `+91${formData.propertyPhone}`) : ''
+                ownerPhone: normalizePhoneNumber(formData.ownerPhone),
+                propertyPhone: normalizePhoneNumber(formData.propertyPhone)
             };
 
             await registerProperty(formattedData);

@@ -131,16 +131,14 @@ export default function Navbar() {
                                 </Link>
                                 <a
                                     href={`${import.meta.env.VITE_PROPERTY_URL}/register`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+
                                     className={clsx("font-semibold hover:text-primary-600 transition-colors", textColor)}
                                 >
-                                    Partner with Us
+                                    Register your property
                                 </a>
                                 <a
                                     href={`${import.meta.env.VITE_CHANNEL_PARTNER_URL}/register`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+
                                     className={clsx("font-semibold hover:text-primary-600 transition-colors", textColor)}
                                 >
                                     Register as CP

@@ -28,6 +28,18 @@ export default function Login() {
         return () => clearInterval(interval);
     }, [resendTimer]);
 
+    const normalizePhoneNumber = (phone: string) => {
+        if (!phone) return '';
+        let cleaned = phone.replace(/\D/g, '');
+        if (phone.startsWith('00')) cleaned = cleaned.substring(2);
+        else if (cleaned.startsWith('0') && cleaned.length > 10) cleaned = cleaned.substring(1);
+        else if (cleaned.startsWith('0') && cleaned.length === 11) cleaned = cleaned.substring(1);
+
+        if (cleaned.length === 10) return `+91${cleaned}`;
+        if (cleaned.length === 12 && cleaned.startsWith('91')) return `+${cleaned}`;
+        return phone.startsWith('+') ? `+${cleaned}` : `+${cleaned}`;
+    };
+
     const handleSendOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!phoneNumber) {
@@ -51,7 +63,8 @@ export default function Login() {
                 }
             });
 
-            const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+            const formattedPhone = normalizePhoneNumber(phoneNumber);
+            console.log('Sending OTP to:', formattedPhone);
 
             const result = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
             setConfirmationResult(result);
