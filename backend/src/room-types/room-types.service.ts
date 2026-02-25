@@ -48,7 +48,6 @@ export class RoomTypesService {
             where.propertyId = propertyId;
         }
 
-        console.error('PropertyId**:', where)
         return this.prisma.roomType.findMany({
             where,
             include: {
