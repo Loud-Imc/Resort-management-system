@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import CurrencySwitcher from './CurrencySwitcher';
 import logo from '../../assets/routeguide.svg';
-// import mobileLogo from '../../assets/routeguide-mobile.svg';
 
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -61,7 +60,6 @@ export default function Navbar() {
                 <div className="flex justify-between items-center h-16 md:h-20">
                     <div className="flex items-center">
                         <Link to="/" className="flex items-center">
-                            {/* Desktop Logo */}
                             <img
                                 src={logo}
                                 alt="Route Guide"
@@ -70,24 +68,6 @@ export default function Navbar() {
                                     isHome && !isScrolled ? "brightness-0 invert" : ""
                                 )}
                             />
-                            {/* Mobile Logo */}
-
-                            {/* <img
-                                src={logo}
-                                alt="Route Guide"
-                                className={clsx(
-                                    "h-45 md:h-50 w-auto transition-all ",
-                                    isHome && !isScrolled ? "brightness-0 invert" : ""
-                                )}
-                            /> */}
-                            {/* <img
-                                src={mobileLogo}
-                                alt="Route Guide"
-                                className={clsx(
-                                    "h-13 w-auto transition-all md:hidden",
-                                    // isHome && !isScrolled ? "brightness-0 invert" : ""
-                                )}
-                            /> */}
                         </Link>
                     </div>
 
@@ -130,7 +110,7 @@ export default function Navbar() {
                                 </Link>
                             </div>
                         ) : (
-                            <>
+                            <div className="flex items-center gap-6">
                                 <Link
                                     to="/login"
                                     className={clsx("flex items-center gap-2 font-semibold hover:text-primary-600 transition-colors", textColor)}
@@ -150,14 +130,22 @@ export default function Navbar() {
                                     Book Now
                                 </Link>
                                 <a
-                                    href="http://localhost:5175/register"
+                                    href={`${import.meta.env.VITE_PROPERTY_URL}/register`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={clsx("font-semibold hover:text-primary-600 transition-colors", textColor)}
                                 >
                                     Partner with Us
                                 </a>
-                            </>
+                                <a
+                                    href={`${import.meta.env.VITE_CHANNEL_PARTNER_URL}/register`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={clsx("font-semibold hover:text-primary-600 transition-colors", textColor)}
+                                >
+                                    Register as CP
+                                </a>
+                            </div>
                         )}
                     </div>
 
@@ -225,6 +213,24 @@ export default function Navbar() {
                                 >
                                     Book Now
                                 </Link>
+                                <a
+                                    href={`${import.meta.env.VITE_PROPERTY_URL}/register`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
+                                    onClick={() => setIsOpen(false)}
+                                >
+                                    Partner with Us
+                                </a>
+                                <a
+                                    href={`${import.meta.env.VITE_CHANNEL_PARTNER_URL}/register`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
+                                    onClick={() => setIsOpen(false)}
+                                >
+                                    Register as CP
+                                </a>
                             </>
                         )}
                     </div>

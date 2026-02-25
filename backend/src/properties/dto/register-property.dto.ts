@@ -31,8 +31,8 @@ export class RegisterPropertyDto {
     propertyName: string;
 
     @IsString()
-    @IsNotEmpty()
-    propertyDescription: string;
+    @IsOptional()
+    propertyDescription?: string;
 
     @IsEnum(PropertyType)
     @IsNotEmpty()

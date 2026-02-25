@@ -153,7 +153,14 @@ export default function Register() {
         e.preventDefault();
         setIsLoading(true);
         try {
-            await registerProperty(formData);
+            // Format phone numbers to include country code for backend validation
+            const formattedData = {
+                ...formData,
+                ownerPhone: formData.ownerPhone.startsWith('+') ? formData.ownerPhone : `+91${formData.ownerPhone}`,
+                propertyPhone: formData.propertyPhone.startsWith('+') ? formData.propertyPhone : `+91${formData.propertyPhone}`
+            };
+
+            await registerProperty(formattedData);
             toast.success('Registration successful! Property is pending approval.');
             navigate('/login', {
                 state: {
@@ -161,7 +168,14 @@ export default function Register() {
                 }
             });
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Registration failed');
+            console.error('Registration error:', error);
+            const message = error?.response?.data?.message;
+            if (Array.isArray(message)) {
+                // If it's an array of validation errors, show them one by one or join them
+                message.forEach((msg: string) => toast.error(msg));
+            } else {
+                toast.error(message || 'Registration failed');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -409,7 +423,6 @@ export default function Register() {
                                         </div>
                                         <textarea
                                             name="propertyDescription"
-                                            required
                                             value={formData.propertyDescription}
                                             onChange={handleChange}
                                             className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm min-h-[100px] text-gray-900"
