@@ -17,17 +17,17 @@ const userSchema = z.object({
     lastName: z.string().min(1, 'Last name is required'),
     email: z.string().email('Invalid email address'),
     password: z.string().optional().or(z.literal('')), // Validated manually in mutation for create mode
-    phone: z.string().optional().transform(v => v === '' ? undefined : v),
+    phone: z.union([z.string(), z.null(), z.undefined()]).transform(v => (v === '' || v === null) ? undefined : v),
     roleIds: z.array(z.string()).min(1, 'Select at least one role'),
     isActive: z.boolean(),
-    commissionPercentage: z.union([z.number(), z.string(), z.null()]).optional().transform((val) => {
-        if (val === '' || val === null || val === undefined) return undefined;
+    commissionPercentage: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform((val) => {
+        if (val === '' || val === null || val === undefined) return null;
         const parsed = Number(val);
-        return isNaN(parsed) ? undefined : parsed;
+        return isNaN(parsed) ? null : parsed;
     }),
 });
 
-type UserFormData = z.infer<typeof userSchema>;
+type UserFormInput = z.input<typeof userSchema>;
 
 export default function CreateUser() {
     const navigate = useNavigate();
@@ -57,7 +57,7 @@ export default function CreateUser() {
         setValue,
         watch,
         formState: { errors },
-    } = useForm<UserFormData>({
+    } = useForm<UserFormInput>({
         resolver: zodResolver(userSchema),
         defaultValues: {
             firstName: '',
@@ -67,7 +67,7 @@ export default function CreateUser() {
             phone: '',
             roleIds: [],
             isActive: true,
-            commissionPercentage: null,
+            commissionPercentage: undefined,
         },
     });
 
@@ -75,20 +75,22 @@ export default function CreateUser() {
 
     useEffect(() => {
         if (existingUser) {
-            setValue('firstName', existingUser.firstName);
-            setValue('lastName', existingUser.lastName);
-            setValue('email', existingUser.email);
+            setValue('firstName', existingUser.firstName || '');
+            setValue('lastName', existingUser.lastName || '');
+            setValue('email', existingUser.email || '');
             setValue('phone', existingUser.phone || '');
             setValue('isActive', existingUser.isActive);
-            setValue('roleIds', existingUser.roles.map((ur: any) => ur.role.id));
-            if (existingUser.commissionPercentage) {
-                setValue('commissionPercentage', Number(existingUser.commissionPercentage));
+            setValue('roleIds', existingUser.roles?.map((ur: any) => ur.role.id) || []);
+            if (existingUser.commissionPercentage !== null && existingUser.commissionPercentage !== undefined) {
+                setValue('commissionPercentage', Number(existingUser.commissionPercentage) as any);
+            } else {
+                setValue('commissionPercentage', undefined as any);
             }
         }
     }, [existingUser, setValue]);
 
     const mutation = useMutation({
-        mutationFn: (data: UserFormData) => {
+        mutationFn: (data: any) => {
             if (isEditMode) {
                 // For update, we might filter out password if empty
                 const { password, ...updateData } = data;
@@ -98,7 +100,7 @@ export default function CreateUser() {
             if (!data.password) {
                 throw new Error("Password is required for new users");
             }
-            return usersService.create(data as any);
+            return usersService.create(data);
         },
         onSuccess: async (newUser: User) => {
             toast.success(`User ${isEditMode ? 'updated' : 'created'} successfully`);
@@ -125,7 +127,7 @@ export default function CreateUser() {
         },
     });
 
-    const onSubmit = (data: UserFormData) => {
+    const onSubmit = (data: any) => {
         console.log('Form submitted with data:', data);
         mutation.mutate(data);
     };
