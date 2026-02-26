@@ -218,6 +218,14 @@ export class ReportsService {
             },
         });
 
+        // 2.5 Total Bookings
+        const bookingsCount = await this.prisma.booking.count({
+            where: {
+                createdAt: { gte: startDate, lte: endDate },
+                room: { property: propertyFilter }
+            }
+        });
+
         const totalIncome = Number(income._sum?.amount || 0);
         const totalExpense = Number(expense._sum?.amount || 0);
         const netProfit = totalIncome - totalExpense;
@@ -286,13 +294,25 @@ export class ReportsService {
             });
 
             const operationalCost = Number(platformExpensesTotal._sum.amount || 0);
-            const finalTotalIncome = grossPlatformFees;
+            
+            // CP Registration Fees
+            const cpRegistrationFeesTotal = await this.prisma.income.aggregate({
+                where: {
+                    source: 'CP_REGISTRATION_FEE' as any,
+                    date: { gte: startDate, lte: endDate }
+                },
+                _sum: { amount: true }
+            });
+            const cpFees = Number(cpRegistrationFeesTotal._sum.amount || 0);
+
+            const finalTotalIncome = grossPlatformFees + cpFees;
             const finalTotalExpense = operationalCost + totalCPCommission + estimatedGatewayFees;
             const finalNetProfit = finalTotalIncome - finalTotalExpense;
 
             // Build platform-specific income sources
             const platformIncomeSources = [
-                { source: 'BOOKING_COMMISSION', _sum: { amount: grossPlatformFees } }
+                { source: 'BOOKING_COMMISSION', _sum: { amount: grossPlatformFees } },
+                { source: 'CP_REGISTRATION_FEE', _sum: { amount: cpFees } }
             ];
 
             // Build platform-specific expense categories
@@ -309,16 +329,18 @@ export class ReportsService {
                     totalExpenses: finalTotalExpense,
                     netProfit: finalNetProfit,
                     profitMargin: finalTotalIncome > 0 ? Math.round((finalNetProfit / finalTotalIncome) * 100) : 0,
-                    totalVolume // Reference for volume
+                    totalVolume, // Reference for volume
+                    bookingsCount
                 },
                 incomeBySource: platformIncomeSources,
                 expensesByCategory: platformExpenseCategories,
                 isGlobal: true,
-                platformSummary: { // Keep for detailed breakdown if needed
+                platformSummary: {
                     grossPlatformFees,
                     totalCPCommission,
                     estimatedGatewayFees,
                     operationalCost,
+                    cpRegistrationFees: cpFees,
                     netPlatformProfit: finalNetProfit
                 }
             };
@@ -334,6 +356,7 @@ export class ReportsService {
                 totalExpenses: totalExpense,
                 netProfit,
                 profitMargin: totalIncome > 0 ? Math.round((netProfit / totalIncome) * 100) : 0,
+                bookingsCount
             },
             incomeBySource: incomeBySource.map(item => ({
                 source: item.source,

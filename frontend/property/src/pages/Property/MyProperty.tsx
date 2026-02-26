@@ -7,8 +7,9 @@ import toast from 'react-hot-toast';
 import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
     Camera, X, CheckCircle, XCircle, Star, Image as ImageIcon,
-    Plus
+    Plus, Clock, Percent, ShieldAlert, Trash2, FileText
 } from 'lucide-react';
+import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
 
 export default function MyProperty() {
@@ -35,9 +36,33 @@ export default function MyProperty() {
     const [coverImage, setCoverImage] = useState('');
     const [uploading, setUploading] = useState(false);
 
+    // Cancellation Policies
+    const [policies, setPolicies] = useState<CancellationPolicy[]>([]);
+    const [showPolicyForm, setShowPolicyForm] = useState(false);
+    const [newPolicyName, setNewPolicyName] = useState('');
+    const [newPolicyDesc, setNewPolicyDesc] = useState('');
+    const [newPolicyRules, setNewPolicyRules] = useState<CancellationRule[]>([
+        { hoursBeforeCheckIn: 48, refundPercentage: 100 },
+        { hoursBeforeCheckIn: 24, refundPercentage: 50 },
+        { hoursBeforeCheckIn: 0, refundPercentage: 0 }
+    ]);
+
     useEffect(() => {
-        if (selectedProperty?.id) loadProperty();
+        if (selectedProperty?.id) {
+            loadProperty();
+            loadPolicies();
+        }
     }, [selectedProperty?.id]);
+
+    const loadPolicies = async () => {
+        if (!selectedProperty?.id) return;
+        try {
+            const data = await cancellationPoliciesService.getAll(selectedProperty.id);
+            setPolicies(data);
+        } catch (err: any) {
+            console.error('Failed to load policies', err);
+        }
+    };
 
     const loadProperty = async () => {
         try {
@@ -130,6 +155,62 @@ export default function MyProperty() {
 
     const removeAmenity = (idx: number) => {
         setAmenities(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleAddPolicy = async () => {
+        if (!selectedProperty?.id || !newPolicyName) return;
+        try {
+            await cancellationPoliciesService.create({
+                name: newPolicyName,
+                description: newPolicyDesc,
+                propertyId: selectedProperty.id,
+                rules: newPolicyRules,
+                isDefault: policies.length === 0 // First one is default
+            });
+            toast.success('Policy created!');
+            setShowPolicyForm(false);
+            setNewPolicyName('');
+            setNewPolicyDesc('');
+            loadPolicies();
+        } catch (err: any) {
+            toast.error('Failed to create policy');
+        }
+    };
+
+    const handleSetDefaultPolicy = async (policyId: string) => {
+        try {
+            await cancellationPoliciesService.update(policyId, { isDefault: true });
+            toast.success('Default policy updated');
+            loadPolicies();
+            loadProperty(); // Update property's default cancellation policy ID
+        } catch (err: any) {
+            toast.error('Failed to update default policy');
+        }
+    };
+
+    const handleDeletePolicy = async (policyId: string) => {
+        if (!window.confirm('Delete this policy?')) return;
+        try {
+            await cancellationPoliciesService.delete(policyId);
+            toast.success('Policy deleted');
+            loadPolicies();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to delete policy');
+        }
+    };
+
+    const updateRule = (index: number, field: keyof CancellationRule, value: number) => {
+        const updated = [...newPolicyRules];
+        updated[index] = { ...updated[index], [field]: value };
+        setNewPolicyRules(updated);
+    };
+
+    const addRule = () => {
+        setNewPolicyRules([...newPolicyRules, { hoursBeforeCheckIn: 0, refundPercentage: 0 }]);
+    };
+
+    const removeRule = (index: number) => {
+        setNewPolicyRules(newPolicyRules.filter((_, i) => i !== index));
     };
 
     if (loading) {
@@ -328,6 +409,153 @@ export default function MyProperty() {
                     )}
                 </div>
                 {images.length === 0 && !editMode && <p className="text-sm text-gray-400 dark:text-gray-500">No images uploaded</p>}
+            </div>
+
+            {/* Cancellation Policies Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <ShieldAlert className="h-5 w-5 text-blue-600" /> Cancellation Policies
+                    </h2>
+                    {!showPolicyForm && (
+                        <button
+                            onClick={() => setShowPolicyForm(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        >
+                            <Plus className="h-4 w-4" /> Add Policy
+                        </button>
+                    )}
+                </div>
+
+                {showPolicyForm && (
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Policy Name</label>
+                                <input
+                                    value={newPolicyName}
+                                    onChange={e => setNewPolicyName(e.target.value)}
+                                    placeholder="e.g. Standard, Strict, Non-refundable"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Description (Optional)</label>
+                                <input
+                                    value={newPolicyDesc}
+                                    onChange={e => setNewPolicyDesc(e.target.value)}
+                                    placeholder="Brief explanation"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-xs font-medium text-gray-500">Refund Rules</label>
+                            {newPolicyRules.map((rule, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <Clock className="h-4 w-4 text-gray-400" />
+                                        <input
+                                            type="number"
+                                            value={rule.hoursBeforeCheckIn}
+                                            onChange={e => updateRule(idx, 'hoursBeforeCheckIn', parseInt(e.target.value))}
+                                            className="w-16 bg-transparent text-sm focus:outline-none"
+                                        />
+                                        <span className="text-xs text-gray-400">hrs before</span>
+                                    </div>
+                                    <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <Percent className="h-4 w-4 text-gray-400" />
+                                        <input
+                                            type="number"
+                                            value={rule.refundPercentage}
+                                            onChange={e => updateRule(idx, 'refundPercentage', parseInt(e.target.value))}
+                                            className="w-16 bg-transparent text-sm focus:outline-none"
+                                        />
+                                        <span className="text-xs text-gray-400">refund</span>
+                                    </div>
+                                    <button onClick={() => removeRule(idx)} className="p-2 text-gray-400 hover:text-red-500">
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            ))}
+                            <button
+                                onClick={addRule}
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                                <Plus className="h-3 w-3" /> Add Rule
+                            </button>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button
+                                onClick={() => setShowPolicyForm(false)}
+                                className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAddPolicy}
+                                className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                            >
+                                Create Policy
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="space-y-3">
+                    {policies.map(p => (
+                        <div key={p.id} className={clsx(
+                            "p-4 rounded-xl border border-gray-200 dark:border-gray-700 transition-all",
+                            p.isDefault ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800" : "bg-white dark:bg-gray-800"
+                        )}>
+                            <div className="flex items-start justify-between">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-blue-600" />
+                                        <h3 className="font-medium text-gray-900 dark:text-white">{p.name}</h3>
+                                        {p.isDefault && (
+                                            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                                Default
+                                            </span>
+                                        )}
+                                    </div>
+                                    {p.description && <p className="text-xs text-gray-500">{p.description}</p>}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {!p.isDefault && (
+                                        <button
+                                            onClick={() => handleSetDefaultPolicy(p.id)}
+                                            className="text-xs text-blue-600 hover:underline"
+                                        >
+                                            Set as Default
+                                        </button>
+                                    )}
+                                    {!p.isDefault && (
+                                        <button
+                                            onClick={() => handleDeletePolicy(p.id)}
+                                            className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {((p.rules as any[]) || []).sort((a, b) => b.hoursBeforeCheckIn - a.hoursBeforeCheckIn).map((rule, idx) => (
+                                    <div key={idx} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg text-[10px] font-medium text-gray-600 dark:text-gray-400">
+                                        {rule.hoursBeforeCheckIn}h: <span className="text-blue-600 dark:text-blue-400">{rule.refundPercentage}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                    {policies.length === 0 && !showPolicyForm && (
+                        <p className="text-sm text-gray-400 text-center py-4">No cancellation policies defined yet.</p>
+                    )}
+                </div>
             </div>
 
             {/* Stats */}

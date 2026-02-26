@@ -41,4 +41,9 @@ export class CreateUserWithRoleDto {
     @IsOptional()
     @IsNumber()
     commissionPercentage?: number;
+
+    @ApiProperty({ required: false })
+    @IsString()
+    @IsOptional()
+    avatar?: string;
 }

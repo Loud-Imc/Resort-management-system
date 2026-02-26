@@ -8,8 +8,12 @@ export class RoomTypesService {
     constructor(private prisma: PrismaService) { }
 
     async create(createRoomTypeDto: CreateRoomTypeDto) {
+        const { cancellationPolicy, ...rest } = createRoomTypeDto;
         return this.prisma.roomType.create({
-            data: createRoomTypeDto,
+            data: {
+                ...rest,
+                cancellationPolicyText: cancellationPolicy,
+            },
         });
     }
 
@@ -21,10 +25,11 @@ export class RoomTypesService {
             },
             include: {
                 // Include property name for context
-                property: { select: { name: true, city: true } },
+                property: { select: { name: true, city: true, defaultCancellationPolicyId: true } },
                 rooms: {
                     where: { isEnabled: true },
                 },
+                cancellationPolicy: true,
             },
         });
     }
@@ -51,7 +56,8 @@ export class RoomTypesService {
         return this.prisma.roomType.findMany({
             where,
             include: {
-                property: { select: { name: true, city: true } },
+                property: { select: { name: true, city: true, defaultCancellationPolicyId: true } },
+                cancellationPolicy: true,
                 _count: {
                     select: { rooms: true }
                 }
@@ -65,6 +71,8 @@ export class RoomTypesService {
             where: { id },
             include: {
                 rooms: true,
+                cancellationPolicy: true,
+                property: { select: { defaultCancellationPolicyId: true } },
             },
         });
 
@@ -77,10 +85,14 @@ export class RoomTypesService {
 
     async update(id: string, updateRoomTypeDto: UpdateRoomTypeDto) {
         await this.findOne(id);
+        const { cancellationPolicy, ...rest } = updateRoomTypeDto;
 
         return this.prisma.roomType.update({
             where: { id },
-            data: updateRoomTypeDto,
+            data: {
+                ...rest,
+                cancellationPolicyText: cancellationPolicy,
+            },
         });
     }
 

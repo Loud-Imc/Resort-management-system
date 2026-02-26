@@ -251,6 +251,7 @@ export class ChannelPartnersService {
             status: cp.status,
             referralDiscountRate: cp.referralDiscountRate,
             walletBalance: cp.walletBalance,
+            registrationFeePaid: cp.registrationFeePaid,
         };
     }
 
@@ -731,6 +732,80 @@ export class ChannelPartnersService {
             });
 
             return updated;
+        });
+    }
+
+    // ============================================
+    // RAZORPAY REGISTRATION FEE (₹1000)
+    // ============================================
+
+    async initiateRegistrationPayment(channelPartnerId: string) {
+        const cp = await this.prisma.channelPartner.findUnique({ where: { id: channelPartnerId } });
+        if (!cp) throw new NotFoundException('Channel partner not found');
+
+        const amount = 1000; // Fixed registration fee
+        const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
+        const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
+
+        const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
+        const order = await razorpay.orders.create({
+            amount: Math.round(amount * 100), // paise
+            currency: 'INR',
+            receipt: `cp_reg_${cp.id.substring(0, 8)}_${Date.now()}`,
+            notes: {
+                channelPartnerId: cp.id,
+                type: 'CP_REGISTRATION_FEE',
+            },
+        });
+
+        return {
+            orderId: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            keyId,
+            channelPartnerId: cp.id,
+        };
+    }
+
+    async verifyRegistrationPayment(
+        channelPartnerId: string,
+        razorpayOrderId: string,
+        razorpayPaymentId: string,
+        razorpaySignature: string,
+    ) {
+        const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET') || '';
+
+        const body = `${razorpayOrderId}|${razorpayPaymentId}`;
+        const expectedSignature = crypto
+            .createHmac('sha256', keySecret)
+            .update(body)
+            .digest('hex');
+
+        if (expectedSignature !== razorpaySignature) {
+            throw new BadRequestException('Invalid payment signature');
+        }
+
+        // Auto-approve and mark as paid
+        return this.prisma.$transaction(async (tx) => {
+            const updatedCp = await tx.channelPartner.update({
+                where: { id: channelPartnerId },
+                data: {
+                    status: ChannelPartnerStatus.APPROVED,
+                    registrationFeePaid: true,
+                },
+            });
+
+            // Record as platform income
+            await tx.income.create({
+                data: {
+                    amount: 1000,
+                    source: 'CP_REGISTRATION_FEE' as any,
+                    description: `Channel Partner registration fee for CP ID: ${channelPartnerId}`,
+                },
+            });
+
+            return updatedCp;
         });
     }
 

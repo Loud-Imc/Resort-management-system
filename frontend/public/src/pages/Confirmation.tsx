@@ -41,8 +41,8 @@ export default function Confirmation() {
                     </div>
                     <h3 className="text-xl font-bold text-gray-900">Booking not found</h3>
                     <p className="text-gray-500 mt-2 mb-8">We couldn't find the reservation you're looking for. It may have been removed or the ID is incorrect.</p>
-                    <Link to="/my-bookings" className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors inline-block w-full">
-                        Back to My Bookings
+                    <Link to="/profile" className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors inline-block w-full">
+                        View My Bookings
                     </Link>
                 </div>
             </div>
@@ -56,18 +56,50 @@ export default function Confirmation() {
     const property = booking.property || booking.room?.property;
     const roomType = booking.roomType;
 
+    // Calculate totals from payments for accuracy (especially after refunds)
+    const payments = booking.payments || [];
+    const originalPaidAmount = payments.reduce((sum: number, p: any) => {
+        if (p.status === 'PAID' || p.status === 'REFUNDED' || p.status === 'PARTIALLY_REFUNDED') {
+            return sum + Number(p.amount);
+        }
+        return sum;
+    }, 0);
+
+    const totalRefundedAmount = payments.reduce((sum: number, p: any) => {
+        return sum + (Number(p.refundAmount) || 0);
+    }, 0);
+
+    const refundDate = payments.find((p: any) => p.refundDate)?.refundDate;
+
+    const isCancelled = booking.status === 'CANCELLED' || booking.status === 'REFUNDED';
+
+    const getStatusStyles = (status: string) => {
+        switch (status) {
+            case 'CONFIRMED': return 'bg-green-100 text-green-800 border-green-200';
+            case 'PENDING_PAYMENT': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+            case 'CANCELLED': return 'bg-red-100 text-red-800 border-red-200';
+            case 'REFUNDED': return 'bg-purple-100 text-purple-800 border-purple-200';
+            default: return 'bg-gray-100 text-gray-800 border-gray-200';
+        }
+    };
+
     return (
         <div className="min-h-[70vh] bg-gray-50 px-4 py-12">
             <div className="max-w-3xl mx-auto">
                 <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
-                    {/* Success Header Area */}
-                    <div className="bg-primary-600 p-8 md:p-12 text-center text-white">
+                    {/* Header Area */}
+                    <div className={`${isCancelled ? 'bg-gray-800' : 'bg-primary-600'} p-8 md:p-12 text-center text-white transition-colors`}>
                         <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6">
                             <CheckCircle className="h-10 w-10 text-white" />
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-serif font-bold mb-2">Booking Confirmed!</h1>
+                        <h1 className="text-3xl md:text-4xl font-serif font-bold mb-2">
+                            {isCancelled ? 'Booking Cancelled' : 'Booking Confirmed!'}
+                        </h1>
                         <p className="text-primary-50 opacity-90 max-w-md mx-auto">
-                            Thank you for choosing us {booking.user?.firstName ? `, ${booking.user.firstName}` : ''}. We've sent your confirmation details to your registered email.
+                            {isCancelled
+                                ? 'Your reservation has been cancelled. Refund details are provided below.'
+                                : `Thank you for choosing us ${booking.user?.firstName ? `, ${booking.user.firstName}` : ''}. We've sent your confirmation details to your registered email.`
+                            }
                         </p>
                     </div>
 
@@ -125,7 +157,7 @@ export default function Confirmation() {
                                         <div className="space-y-1">
                                             <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Status</span>
                                             <div className="flex items-center gap-2">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusStyles(booking.status)}`}>
                                                     {booking.status.replace('_', ' ')}
                                                 </span>
                                             </div>
@@ -161,10 +193,10 @@ export default function Confirmation() {
 
                                         <div className="flex justify-between items-center text-emerald-600">
                                             <span className="text-sm font-bold uppercase tracking-wider">Amount Paid</span>
-                                            <span className="text-lg font-black">{formatPrice(booking.paidAmount, booking.bookingCurrency || 'INR')}</span>
+                                            <span className="text-lg font-black">{formatPrice(originalPaidAmount, booking.bookingCurrency || 'INR')}</span>
                                         </div>
 
-                                        {Number(booking.paidAmount) < Number(booking.totalAmount) && (
+                                        {!isCancelled && Number(booking.paidAmount) < Number(booking.totalAmount) && (
                                             <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl border border-amber-100">
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Balance Due at Resort</span>
@@ -175,16 +207,35 @@ export default function Confirmation() {
                                                 </span>
                                             </div>
                                         )}
+
+                                        {totalRefundedAmount > 0 && (
+                                            <div className="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-purple-700 uppercase tracking-wider text-[10px]">Total Refunded</span>
+                                                    <span className="text-lg font-black text-purple-700">{formatPrice(totalRefundedAmount, booking.bookingCurrency || 'INR')}</span>
+                                                </div>
+                                                {refundDate && (
+                                                    <p className="text-[10px] text-purple-600 font-medium">
+                                                        Processed on {format(new Date(refundDate), 'MMM d, yyyy')}
+                                                    </p>
+                                                )}
+                                                <p className="text-[10px] text-purple-500 leading-tight mt-2 italic">
+                                                    Refunds typically take 5-7 business days to reflect in your original payment method.
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="mt-8 pt-8 border-t border-gray-200">
-                                        <button
-                                            onClick={() => window.print()}
-                                            className="w-full bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-50 px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <Download className="h-4 w-4" />
-                                            Download Invoice
-                                        </button>
+                                        {!isCancelled && (
+                                            <button
+                                                onClick={() => window.print()}
+                                                className="w-full bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-50 px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                                Download Invoice
+                                            </button>
+                                        )}
                                         <Link
                                             to="/"
                                             className="w-full mt-3 text-center text-sm font-bold text-gray-500 hover:text-primary-600 transition-colors inline-block"
@@ -197,18 +248,33 @@ export default function Confirmation() {
                         </div>
 
                         {/* Note Area */}
-                        <div className="mt-12 p-6 bg-blue-50 rounded-2xl border border-blue-100 flex gap-4">
-                            <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                                <User className="h-5 w-5 text-blue-600" />
+                        {!isCancelled && (
+                            <div className="mt-12 p-6 bg-blue-50 rounded-2xl border border-blue-100 flex gap-4">
+                                <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                                    <User className="h-5 w-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-blue-900 text-sm">Important Information</h4>
+                                    <p className="text-sm text-blue-800/70 mt-1 leading-relaxed">
+                                        Please present this confirmation and a valid photo ID at the resort reception during check-in.
+                                        Standard check-in time is 2:00 PM and check-out is 11:00 AM.
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h4 className="font-bold text-blue-900 text-sm">Important Information</h4>
-                                <p className="text-sm text-blue-800/70 mt-1 leading-relaxed">
-                                    Please present this confirmation and a valid photo ID at the resort reception during check-in.
-                                    Standard check-in time is 2:00 PM and check-out is 11:00 AM.
-                                </p>
+                        )}
+                        {isCancelled && (
+                            <div className="mt-12 p-6 bg-red-50 rounded-2xl border border-red-100 flex gap-4">
+                                <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                                    <User className="h-5 w-5 text-red-600" />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-red-900 text-sm">Cancellation Policy</h4>
+                                    <p className="text-sm text-red-800/70 mt-1 leading-relaxed">
+                                        Your booking has been cancelled and is no longer valid. If you have any questions about your refund, please contact our support team with your booking ID.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>

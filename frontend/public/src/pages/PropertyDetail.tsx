@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { propertyApi } from '../services/properties';
 import { bookingService } from '../services/booking';
+import { reviewService, Review, ReviewStats } from '../services/reviews';
 import { Property, RoomType } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { formatPrice } from '../utils/currency';
@@ -41,6 +42,11 @@ const getFeatureIcon = (text: string) => {
     return <CheckCircle className="h-4 w-4" />;
 };
 
+const toTitleCase = (str: string) => {
+    if (!str) return '';
+    return str.toLowerCase().replace(/\b\w/g, s => s.toUpperCase());
+};
+
 export default function PropertyDetail() {
     const { slug } = useParams();
     const [searchParams] = useSearchParams();
@@ -65,12 +71,33 @@ export default function PropertyDetail() {
     const [loadingAvailability, setLoadingAvailability] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [reviews, setReviews] = useState<Review[]>([]);
+    const [stats, setStats] = useState<ReviewStats | null>(null);
 
     useEffect(() => {
         if (slug) {
             loadProperty(slug);
         }
     }, [slug]);
+
+    useEffect(() => {
+        if (property?.id) {
+            fetchReviews(property.id);
+        }
+    }, [property?.id]);
+
+    const fetchReviews = async (id: string) => {
+        try {
+            const [reviewsData, statsData] = await Promise.all([
+                reviewService.getForProperty(id),
+                reviewService.getStats(id)
+            ]);
+            setReviews(reviewsData);
+            setStats(statsData);
+        } catch (err) {
+            console.error('Error fetching reviews:', err);
+        }
+    };
 
     // Fetch availability if dates are selected
     useEffect(() => {
@@ -184,17 +211,17 @@ export default function PropertyDetail() {
                             )}
                         </div>
                         <h1 className="text-3xl md:text-5xl font-bold text-white mb-2">
-                            {property.name}
+                            {toTitleCase(property.name)}
                         </h1>
                         <div className="flex flex-wrap items-center gap-4 text-white/90">
                             <span className="flex items-center gap-1">
                                 <MapPin className="h-4 w-4" />
                                 {property.city}, {property.state}
                             </span>
-                            {property.rating && (
+                            {stats && stats.count > 0 && (
                                 <span className="flex items-center gap-1">
                                     <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                                    {property.rating} ({property.reviewCount} reviews)
+                                    {stats.average} ({stats.count} reviews)
                                 </span>
                             )}
                         </div>
@@ -503,6 +530,106 @@ export default function PropertyDetail() {
                             <p className="text-gray-600 leading-relaxed">
                                 {property.description || 'No description available.'}
                             </p>
+                        </div>
+
+                        {/* Reviews */}
+                        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-gray-100 p-10 md:p-14">
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-12 gap-6">
+                                <div>
+                                    <h2 className="text-3xl font-bold text-gray-900 font-serif mb-2">Guest Experiences</h2>
+                                    <p className="text-gray-400 text-sm font-medium">Genuine feedback from verified travelers who stayed with us.</p>
+                                </div>
+                                {stats && stats.count > 0 && (
+                                    <div className="flex items-center gap-4 bg-gray-50 px-6 py-4 rounded-3xl border border-gray-100 shadow-sm">
+                                        <div className="flex items-center gap-1.5">
+                                            {[...Array(5)].map((_, i) => (
+                                                <Star 
+                                                    key={i} 
+                                                    className={clsx(
+                                                        "h-4 w-4",
+                                                        i < Math.floor(stats.average) ? "text-amber-400 fill-current" : "text-gray-200"
+                                                    )} 
+                                                />
+                                            ))}
+                                        </div>
+                                        <div className="h-8 w-px bg-gray-200 mx-1" />
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-2xl font-black text-gray-900">{stats.average}</span>
+                                            <span className="text-xs font-bold text-gray-400">/ 5</span>
+                                        </div>
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 border-l border-gray-200 pl-4 ml-1">
+                                            {stats.count} Reviews
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {reviews.length === 0 ? (
+                                <div className="text-center py-24 bg-[#fafafa] rounded-[2rem] border-2 border-dashed border-gray-100">
+                                    <div className="w-20 h-20 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-6 text-gray-200">
+                                        <Star className="h-10 w-10" />
+                                    </div>
+                                    <h4 className="text-xl font-bold text-gray-900 font-serif mb-2">No stories shared yet</h4>
+                                    <p className="text-gray-400 text-sm font-medium max-w-xs mx-auto">Be the first to share your journey and inspire others.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-12">
+                                    {reviews.map((review) => (
+                                        <div key={review.id} className="group relative">
+                                            <div className="flex flex-col md:flex-row gap-8">
+                                                <div className="flex-shrink-0">
+                                                    <div className="relative">
+                                                        <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center overflow-hidden border-2 border-white shadow-xl ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-500">
+                                                            {review.user?.avatar ? (
+                                                                <img src={review.user.avatar} alt={review.user.firstName} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-2xl font-bold text-primary-600 font-serif">{review.user?.firstName?.[0]}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="absolute -bottom-2 -right-2 bg-green-500 text-white p-1 rounded-full shadow-lg border-2 border-white">
+                                                            <CheckCircle className="h-3 w-3" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="flex-grow">
+                                                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                                                        <div>
+                                                            <h4 className="font-bold text-gray-900 text-lg font-serif">{review.user?.firstName} {review.user?.lastName}</h4>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{format(new Date(review.createdAt), 'MMM dd, yyyy')}</span>
+                                                                {review.roomType && (
+                                                                    <>
+                                                                        <span className="w-1 h-1 rounded-full bg-gray-200" />
+                                                                        <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest">Stayed in {review.roomType.name}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 rounded-full border border-amber-100 shadow-sm">
+                                                            {[...Array(5)].map((_, i) => (
+                                                                <Star 
+                                                                    key={i} 
+                                                                    className={clsx(
+                                                                        "h-3 w-3",
+                                                                        i < review.rating ? "text-amber-400 fill-current" : "text-gray-200"
+                                                                    )} 
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative">
+                                                        <p className="text-gray-600 leading-relaxed font-medium italic text-lg pr-8">
+                                                            "{review.comment}"
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-12 h-px bg-gradient-to-r from-gray-100 to-transparent last:hidden" />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* Location / Map */}

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { Loader2, ArrowRight, Phone, KeyRound } from 'lucide-react';
+import { Loader2, ArrowRight, KeyRound } from 'lucide-react';
 import api from '../services/api';
 import { auth } from '../config/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -28,16 +30,12 @@ export default function Login() {
         return () => clearInterval(interval);
     }, [resendTimer]);
 
+
     const normalizePhoneNumber = (phone: string) => {
         if (!phone) return '';
-        let cleaned = phone.replace(/\D/g, '');
-        if (phone.startsWith('00')) cleaned = cleaned.substring(2);
-        else if (cleaned.startsWith('0') && cleaned.length > 10) cleaned = cleaned.substring(1);
-        else if (cleaned.startsWith('0') && cleaned.length === 11) cleaned = cleaned.substring(1);
-
-        if (cleaned.length === 10) return `+91${cleaned}`;
-        if (cleaned.length === 12 && cleaned.startsWith('91')) return `+${cleaned}`;
-        return phone.startsWith('+') ? `+${cleaned}` : `+${cleaned}`;
+        // PhoneInput already provides digits including country code
+        const cleaned = phone.replace(/\D/g, '');
+        return `+${cleaned}`;
     };
 
     const handleSendOtp = async (e: React.FormEvent) => {
@@ -145,17 +143,16 @@ export default function Login() {
                             <form onSubmit={handleSendOtp} className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Phone Number</label>
-                                    <div className="mt-1 relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Phone className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="tel"
+                                    <div className="mt-1 phone-input-container">
+                                        <PhoneInput
+                                            country={'in'}
                                             value={phoneNumber}
-                                            onChange={(e) => setPhoneNumber(e.target.value)}
-                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                                            placeholder="9876543210"
-                                            required
+                                            onChange={setPhoneNumber}
+                                            inputClass="!w-full !h-[42px] !pl-12 !pr-3 !py-2 !border !border-gray-300 !rounded-lg focus:!ring-primary-500 focus:!border-primary-500 !text-sm"
+                                            buttonClass="!bg-transparent !border-r-0 !rounded-l-lg hover:!bg-gray-50"
+                                            containerClass="!w-full"
+                                            placeholder="Enter phone number"
+                                            enableSearch={true}
                                         />
                                     </div>
                                     <p className="mt-1 text-xs text-gray-500 italic">We'll send you a verification code.</p>

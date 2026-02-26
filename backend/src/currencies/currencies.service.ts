@@ -1,31 +1,87 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class CurrenciesService implements OnModuleInit {
+    private readonly logger = new Logger(CurrenciesService.name);
+    private readonly BASE_CURRENCY = 'INR';
+    private readonly API_URL = 'https://api.exchangerate-api.com/v4/latest/INR';
+
     constructor(private prisma: PrismaService) { }
 
     async onModuleInit() {
         try {
             await this.seedCurrencies();
+            // Automatically update rates on startup
+            await this.updateAllRates();
         } catch (error) {
-            console.warn('⚠️ Could not seed currencies during initialization. This is normal during first migration.', error.message);
+            this.logger.warn(`⚠️ Could not initialize currencies: ${error.message}`);
         }
     }
 
     private async seedCurrencies() {
-        const currencies = [
-            { code: 'INR', symbol: '₹', rateToINR: 1.0, isActive: true },
-            { code: 'AED', symbol: 'AED', rateToINR: 22.70, isActive: true }, // 1 AED ≈ 22.7 INR
-            { code: 'USD', symbol: '$', rateToINR: 83.00, isActive: true },
+        const initialCurrencies = [
+            { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
+            { code: 'AED', symbol: 'AED', name: 'UAE Dirham' },
+            { code: 'USD', symbol: '$', name: 'US Dollar' },
+            { code: 'EUR', symbol: '€', name: 'Euro' },
+            { code: 'GBP', symbol: '£', name: 'British Pound' },
+            { code: 'SAR', symbol: 'SAR', name: 'Saudi Riyal' },
+            { code: 'QAR', symbol: 'QAR', name: 'Qatari Riyal' },
+            { code: 'OMR', symbol: 'OMR', name: 'Omani Rial' },
+            { code: 'KWD', symbol: 'KWD', name: 'Kuwaiti Dinar' },
+            { code: 'BHD', symbol: 'BHD', name: 'Bahraini Dinar' },
         ];
 
-        for (const currency of currencies) {
+        for (const cur of initialCurrencies) {
             await this.prisma.currency.upsert({
-                where: { code: currency.code },
+                where: { code: cur.code },
                 update: {},
-                create: currency,
+                create: {
+                    code: cur.code,
+                    symbol: cur.symbol,
+                    rateToINR: 1.0, // Default, will be updated by updateAllRates
+                    isActive: true,
+                },
             });
+        }
+    }
+
+    async updateAllRates() {
+        this.logger.log('Updating exchange rates from API...');
+        try {
+            const response = await fetch(this.API_URL);
+            if (!response.ok) throw new Error(`API returned ${response.status}`);
+            
+            const data = await response.json();
+            const rates = data.rates;
+
+            if (!rates) throw new Error('Invalid API response: rates not found');
+
+            // The API returns rates relative to INR (e.g., USD: 0.012)
+            // But our DB stores rateToINR (e.g., 1 USD = 83 INR)
+            // So we need: 1 / rateFromAPI
+            
+            const activeCurrencies = await this.prisma.currency.findMany();
+            
+            for (const currency of activeCurrencies) {
+                if (currency.code === this.BASE_CURRENCY) continue;
+
+                const rateFromAPI = rates[currency.code];
+                if (rateFromAPI) {
+                    const rateToINR = 1 / rateFromAPI;
+                    await this.prisma.currency.update({
+                        where: { code: currency.code },
+                        data: { 
+                            rateToINR: Number(rateToINR.toFixed(4)),
+                            updatedAt: new Date()
+                        },
+                    });
+                }
+            }
+            this.logger.log('Exchange rates updated successfully.');
+        } catch (error) {
+            this.logger.error(`Failed to update exchange rates: ${error.message}`);
         }
     }
 

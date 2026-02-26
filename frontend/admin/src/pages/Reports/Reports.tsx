@@ -158,7 +158,7 @@ export default function Reports() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard
                     title="Total Revenue"
-                    value={`₹${financialReport?.totalRevenue.toLocaleString() || '0'}`}
+                    value={`₹${(financialReport?.summary?.totalIncome || 0).toLocaleString()}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />}
                     trend="+12.5% vs last period"
                     color="text-emerald-500"
@@ -172,14 +172,14 @@ export default function Reports() {
                 />
                 <KPICard
                     title="Total Bookings"
-                    value={financialReport?.bookingsCount || 0}
+                    value={financialReport?.summary?.bookingsCount || 0}
                     icon={<Users className="h-4 w-4 text-primary" />}
                     trend="From 4 booking sources"
                     color="text-primary"
                 />
                 <KPICard
                     title="Platform Net"
-                    value={`₹${financialReport?.netAmount.toLocaleString() || '0'}`}
+                    value={`₹${(financialReport?.summary?.netProfit || 0).toLocaleString()}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />}
                     trend="After operational costs"
                     color="text-amber-500"
@@ -346,6 +346,46 @@ export default function Reports() {
                     </div>
                 </div>
             )}
+
+            {/* Platform Net Breakdown (Super Admin Only) */}
+            {isGlobalAdmin && !selectedProperty && financialReport?.platformSummary && (
+                <PlatformSummaryCard summary={financialReport.platformSummary} />
+            )}
+        </div>
+    );
+}
+
+function PlatformSummaryCard({ summary }: { summary: any }) {
+    return (
+        <div className="bg-card p-8 rounded-2xl border border-border shadow-sm overflow-hidden relative">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                <div>
+                    <h3 className="text-xl font-black uppercase tracking-tight">Platform Profit Analysis</h3>
+                    <p className="text-sm text-muted-foreground font-medium">Detailed breakdown of gross revenue vs operational costs</p>
+                </div>
+                <div className="bg-primary/10 px-4 py-2 rounded-xl">
+                    <span className="text-primary font-black">Net Profit: ₹{summary.netPlatformProfit.toLocaleString()}</span>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="p-4 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Gross Booking Fees</p>
+                    <p className="text-lg font-black text-foreground">₹{summary.grossPlatformFees.toLocaleString()}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">CP Registration Fees</p>
+                    <p className="text-lg font-black text-emerald-500">₹{(summary.cpRegistrationFees || 0).toLocaleString()}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">CP Commissions (Paid)</p>
+                    <p className="text-lg font-black text-rose-500">-₹{summary.totalCPCommission.toLocaleString()}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Est. Gateway & Ops</p>
+                    <p className="text-lg font-black text-rose-500">-₹{(summary.estimatedGatewayFees + summary.operationalCost).toLocaleString()}</p>
+                </div>
+            </div>
         </div>
     );
 }

@@ -10,6 +10,8 @@ import ImageUpload from '../../components/ImageUpload';
 import { categoryService } from '../../services/category';
 import { PropertyCategory } from '../../types/category';
 import SearchableSelect from '../../components/SearchableSelect';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 
 const propertyTypes: { value: PropertyType; label: string }[] = [
     { value: 'RESORT', label: 'Resort' },
@@ -453,29 +455,34 @@ export default function PropertyForm() {
                             <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Phone *
                             </label>
-                            <input
-                                type="tel"
-                                name="phone"
-                                value={formData.phone}
-                                onChange={handleChange}
-                                required
-                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-                                placeholder="+91 98765 43210"
-                            />
+                            <div className="phone-input-container">
+                                <PhoneInput
+                                    country={'in'}
+                                    value={formData.phone}
+                                    onChange={(phone) => setFormData(prev => ({ ...prev, phone: `+${phone}` }))}
+                                    inputClass="!w-full !h-[42px] !pl-12 !pr-3 !py-2 !bg-background !text-foreground !border !border-border !rounded-lg focus:!ring-2 focus:!ring-primary focus:!outline-none transition-all"
+                                    buttonClass="!bg-transparent !border-r-0 !rounded-l-lg hover:!bg-muted"
+                                    containerClass="!w-full"
+                                    enableSearch={true}
+                                />
+                            </div>
                         </div>
 
                         <div>
                             <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 WhatsApp Number
                             </label>
-                            <input
-                                type="tel"
-                                name="whatsappNumber"
-                                value={formData.whatsappNumber}
-                                onChange={handleChange}
-                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-                                placeholder="+91 98765 43210 (WhatsApp)"
-                            />
+                            <div className="phone-input-container">
+                                <PhoneInput
+                                    country={'in'}
+                                    value={formData.whatsappNumber || ''}
+                                    onChange={(phone) => setFormData(prev => ({ ...prev, whatsappNumber: `+${phone}` }))}
+                                    inputClass="!w-full !h-[42px] !pl-12 !pr-3 !py-2 !bg-background !text-foreground !border !border-border !rounded-lg focus:!ring-2 focus:!ring-primary focus:!outline-none transition-all"
+                                    buttonClass="!bg-transparent !border-r-0 !rounded-l-lg hover:!bg-muted"
+                                    containerClass="!w-full"
+                                    enableSearch={true}
+                                />
+                            </div>
                         </div>
 
                         <div className="md:col-span-2">

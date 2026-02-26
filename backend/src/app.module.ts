@@ -29,6 +29,8 @@ import { DiscountsModule } from './discounts/discounts.module';
 import { MailModule } from './mail/mail.module';
 import { PropertyCategoriesModule } from './property-categories/property-categories.module';
 import { CurrenciesModule } from './currencies/currencies.module';
+import { CancellationPoliciesModule } from './cancellation-policies/cancellation-policies.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -62,6 +64,8 @@ import { CurrenciesModule } from './currencies/currencies.module';
     MailModule,
     PropertyCategoriesModule,
     CurrenciesModule,
+    CancellationPoliciesModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

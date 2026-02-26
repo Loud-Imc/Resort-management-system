@@ -20,6 +20,7 @@ interface DashboardStats {
     thisMonthReferrals: number;
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     walletBalance?: number;
+    registrationFeePaid?: boolean;
 }
 
 const Home: React.FC = () => {
@@ -97,7 +98,27 @@ const Home: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Performance Dashboard</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Performance Dashboard</h1>
+                        {stats?.registrationFeePaid && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.4rem 0.8rem',
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                color: '#ffffff',
+                                borderRadius: '20px',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
+                                animation: 'pulse 2s infinite'
+                            }}>
+                                <Check size={14} strokeWidth={3} />
+                                VERIFIED PARTNER
+                            </div>
+                        )}
+                    </div>
                     <p style={{ color: 'var(--text-dim)' }}>Monitor your earnings, points, and referral progress.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>

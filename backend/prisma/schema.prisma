@@ -22,10 +22,11 @@ model User {
   idNumber             String?
   idType               String?
   whatsappNumber       String?
-  idImage              String?
+  avatar               String?
   auditLogs            AuditLog[]
   agentBookings        Booking[]       @relation("AgentBookings")
   bookings             Booking[]
+  reviews              Review[]
   channelPartner       ChannelPartner?
   eventBookings        EventBooking[]
   createdEvents        Event[]         @relation("EventsCreated")
@@ -105,17 +106,20 @@ model RoomType {
   images             String[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
-  propertyId         String
-  cancellationPolicy String?
-  highlights         String[]      @default([])
+  propertyId             String
+  cancellationPolicyText String?
+  highlights             String[]      @default([])
   inclusions         String[]      @default([])
   marketingBadgeText String?
   marketingBadgeType String?
   bookings           Booking[]
+  reviews            Review[]
   offers             Offer[]
   pricingRules       PricingRule[]
   property           Property      @relation(fields: [propertyId], references: [id])
   rooms              Room[]
+  cancellationPolicyId String?
+  cancellationPolicy   CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -427,6 +431,7 @@ model Property {
   baseCurrency        String            @default("INR")
   taxRate             Float             @default(12)
   bookings            Booking[]
+  reviews             Review[]
   events              Event[]
   expenses            Expense[]
   incomes             Income[]
@@ -437,8 +442,28 @@ model Property {
   roles               Role[]            @relation("PropertyRoles")
   roomTypes           RoomType[]
   rooms               Room[]
+  cancellationPolicies CancellationPolicy[] @relation("PropertyPolicies")
+  defaultCancellationPolicyId String?
+  defaultCancellationPolicy   CancellationPolicy? @relation("PropertyDefaultPolicy", fields: [defaultCancellationPolicyId], references: [id])
 
   @@map("properties")
+}
+
+model CancellationPolicy {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  propertyId  String
+  rules       Json     // [{ hoursBeforeCheckIn: number, refundPercentage: number }]
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  property    Property @relation("PropertyPolicies", fields: [propertyId], references: [id])
+  roomTypes   RoomType[]
+  properties  Property[] @relation("PropertyDefaultPolicy")
+
+  @@map("cancellation_policies")
 }
 
 model PropertyCategory {
@@ -497,6 +522,7 @@ model ChannelPartner {
   referralDiscountRate Decimal              @default(5.00) @db.Decimal(5, 2)
   upiId                String?
   walletBalance        Decimal              @default(0) @db.Decimal(12, 2)
+  registrationFeePaid  Boolean              @default(false)
   referrals            Booking[]            @relation("CPReferrals")
   user                 User                 @relation(fields: [userId], references: [id])
   redemptions          CPRewardRedemption[]
@@ -593,6 +619,23 @@ model Event {
   @@map("events")
 }
 
+model Review {
+  id          String   @id @default(uuid())
+  rating      Int
+  comment     String?
+  userId      String
+  roomTypeId  String?
+  propertyId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id])
+  roomType    RoomType? @relation(fields: [roomTypeId], references: [id])
+  property    Property @relation(fields: [propertyId], references: [id])
+
+  @@map("reviews")
+}
+
 model EventBooking {
   id          String             @id @default(uuid())
   eventId     String
@@ -680,6 +723,7 @@ enum IncomeSource {
   OTHER
   EVENT_BOOKING
   MANUAL_PAYMENT
+  CP_REGISTRATION_FEE
 }
 
 enum PropertyStatus {

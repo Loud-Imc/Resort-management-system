@@ -10,6 +10,7 @@ import { Loader2, ArrowLeft, Save, Plus, X, Check } from 'lucide-react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../types/room';
+import { cancellationPoliciesService, type CancellationPolicy } from '../../services/cancellationPolicies';
 
 const COMMON_HIGHLIGHTS = [
     'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
@@ -49,6 +50,7 @@ const roomTypeSchema = z.object({
     highlights: z.array(z.object({ value: z.string() })),
     inclusions: z.array(z.object({ value: z.string() })),
     cancellationPolicy: z.string().optional(),
+    cancellationPolicyId: z.string().optional(),
     marketingBadgeText: z.string().optional(),
     marketingBadgeType: z.string().optional(),
     images: z.array(z.string()),
@@ -79,7 +81,9 @@ export default function CreateRoomType() {
             basePrice: 0, maxAdults: 2, maxChildren: 0,
             extraAdultPrice: 0, extraChildPrice: 0, freeChildrenCount: 0,
             amenities: [], highlights: [], inclusions: [],
-            cancellationPolicy: '', marketingBadgeText: '',
+            cancellationPolicy: '',
+            cancellationPolicyId: '',
+            marketingBadgeText: '',
             marketingBadgeType: 'POSITIVE', images: [],
             propertyId: selectedProperty?.id || '',
         },
@@ -105,7 +109,8 @@ export default function CreateRoomType() {
                 amenities: (existingRoomType.amenities || []).map((a: string) => ({ value: a })),
                 highlights: (existingRoomType.highlights || []).map((h: string) => ({ value: h })),
                 inclusions: (existingRoomType.inclusions || []).map((i: string) => ({ value: i })),
-                cancellationPolicy: existingRoomType.cancellationPolicy || '',
+                cancellationPolicy: existingRoomType.cancellationPolicyText || '',
+                cancellationPolicyId: existingRoomType.cancellationPolicyId || '',
                 marketingBadgeText: existingRoomType.marketingBadgeText || '',
                 marketingBadgeType: existingRoomType.marketingBadgeType || 'POSITIVE',
                 images: existingRoomType.images || [],
@@ -149,6 +154,12 @@ export default function CreateRoomType() {
     });
 
     const onSubmit = (data: RoomTypeFormData) => saveMutation.mutate(data);
+
+    const { data: policies = [] } = useQuery<CancellationPolicy[]>({
+        queryKey: ['cancellationPolicies', selectedProperty?.id],
+        queryFn: () => cancellationPoliciesService.getAll(selectedProperty!.id),
+        enabled: !!selectedProperty?.id,
+    });
 
     if (loadingExisting && isEdit) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>;
 
@@ -241,13 +252,26 @@ export default function CreateRoomType() {
                             </label>
                         </div>
 
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Cancellation Policy</label>
+                        <div className="md:col-span-1">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Cancellation Policy (Text Override)</label>
                             <input
                                 {...register('cancellationPolicy')}
                                 placeholder="e.g. Free cancellation until 24 hours before check-in"
                                 className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all placeholder:text-gray-400 font-medium"
                             />
+                        </div>
+
+                        <div className="md:col-span-1">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Select Cancellation Policy</label>
+                            <select
+                                {...register('cancellationPolicyId')}
+                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold"
+                            >
+                                <option value="">Use Property Default</option>
+                                {policies.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name} {p.isDefault ? '(Default)' : ''}</option>
+                                ))}
+                            </select>
                         </div>
 
                         {/* Marketing Badge Section */}

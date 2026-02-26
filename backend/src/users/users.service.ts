@@ -80,6 +80,15 @@ export class UsersService {
             throw new ConflictException('Email already exists');
         }
 
+        if (createUserDto.phone) {
+            const existingPhone = await this.prisma.user.findUnique({
+                where: { phone: createUserDto.phone },
+            });
+            if (existingPhone) {
+                throw new ConflictException('Phone number already exists');
+            }
+        }
+
         try {
             const hashedPassword = await bcrypt.hash(password, 10);
             const user = await this.prisma.user.create({
@@ -92,7 +101,6 @@ export class UsersService {
                             role: { connect: { id: roleId } }
                         }))
                     } : undefined,
-                    commissionPercentage: userData.commissionPercentage,
                 },
                 include: {
                     roles: {

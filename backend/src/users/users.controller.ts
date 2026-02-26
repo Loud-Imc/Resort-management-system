@@ -14,6 +14,21 @@ import { PERMISSIONS } from '../auth/constants/permissions.constant';
 @ApiBearerAuth()
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
+    
+    @Get('me')
+    @ApiOperation({ summary: 'Get current user profile' })
+    async getMe(@Request() req) {
+        return this.usersService.findOne(req.user.id);
+    }
+
+    @Patch('me')
+    @ApiOperation({ summary: 'Update current user profile' })
+    async updateMe(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+        // Sanitize: Users can only update their own profile
+        // and cannot change their own roles via this endpoint
+        const { roleIds, ...profileData } = updateUserDto;
+        return this.usersService.update(req.user.id, profileData);
+    }
 
     @Get()
     @Permissions(PERMISSIONS.USERS.READ)

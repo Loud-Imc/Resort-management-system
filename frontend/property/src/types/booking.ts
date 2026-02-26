@@ -60,6 +60,9 @@ export interface Booking {
     agentId?: string;
     commissionAmount: number;
     guests: BookingGuest[];
+    amountInBookingCurrency: number;
+    bookingCurrency: string;
+    exchangeRate: number;
     createdAt: string;
 }
 
@@ -108,6 +111,9 @@ export interface PriceCalculationResult {
     referralDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
+    targetCurrency?: string;
+    convertedTotal?: number;
+    exchangeRate?: number;
     numberOfNights: number;
     pricePerNight: number;
     taxRate: number;

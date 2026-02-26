@@ -29,7 +29,8 @@ const Settings: React.FC = () => {
             emailRewards: true,
             pushBookings: true
         },
-        referralCode: ''
+        referralCode: '',
+        registrationFeePaid: false
     });
 
     useEffect(() => {
@@ -54,7 +55,8 @@ const Settings: React.FC = () => {
                         emailRewards: true,
                         pushBookings: true
                     },
-                    referralCode: data.referralCode || ''
+                    referralCode: data.referralCode || '',
+                    registrationFeePaid: data.registrationFeePaid || false
                 });
             } catch (error) {
                 console.error('Error fetching CP profile:', error);
@@ -125,7 +127,27 @@ const Settings: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Account Settings</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Account Settings</h1>
+                        {formData.registrationFeePaid && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.4rem 0.8rem',
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                color: '#ffffff',
+                                borderRadius: '20px',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
+                                animation: 'pulse 2s infinite'
+                            }}>
+                                <CheckCircle2 size={14} strokeWidth={3} />
+                                VERIFIED
+                            </div>
+                        )}
+                    </div>
                     <p style={{ color: 'var(--text-dim)' }}>Manage your professional profile and configuration.</p>
                 </div>
                 <button

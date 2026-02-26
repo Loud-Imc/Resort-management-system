@@ -38,7 +38,7 @@ export const bookingService = {
     },
 
     getMyBookings: async () => {
-        const { data } = await api.get<any[]>('/bookings');
+        const { data } = await api.get<any[]>('/bookings/me');
         return data;
     },
 

@@ -98,15 +98,22 @@ export default function Navbar() {
                                     </button>
                                 </div>
                                 <Link
-                                    to="/my-bookings"
+                                    to="/profile"
                                     className={clsx(
-                                        "px-8 py-2.5 rounded-full transition-all flex items-center gap-2 font-bold shadow-sm hover:shadow-md",
+                                        "flex items-center gap-2 p-1 rounded-full transition-all border-2",
                                         isHome && !isScrolled
-                                            ? "bg-white text-primary-900 hover:bg-gray-100"
-                                            : "bg-primary-600 text-white hover:bg-primary-700"
+                                            ? "border-white/50 bg-white/10 hover:bg-white/20"
+                                            : "border-primary-100 bg-primary-50 hover:bg-primary-100"
                                     )}
                                 >
-                                    My Bookings
+                                    {user.avatar ? (
+                                        <img src={user.avatar} alt={user.firstName} className="h-8 w-8 rounded-full object-cover" />
+                                    ) : (
+                                        <div className="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-xs font-bold">
+                                            {user.firstName[0]}{user.lastName[0]}
+                                        </div>
+                                    )}
+                                    <span className={clsx("pr-3 pl-1 font-bold text-sm", textColor)}>Profile</span>
                                 </Link>
                             </div>
                         ) : (
@@ -179,11 +186,11 @@ export default function Navbar() {
                                     Hi, {user.firstName}
                                 </div>
                                 <Link
-                                    to="/my-bookings"
+                                    to="/profile"
                                     className="block px-3 py-2 text-base font-medium text-primary-600 font-bold hover:bg-primary-50 rounded-md"
                                     onClick={() => setIsOpen(false)}
                                 >
-                                    My Bookings
+                                    My Profile
                                 </Link>
                                 <button
                                     onClick={() => {

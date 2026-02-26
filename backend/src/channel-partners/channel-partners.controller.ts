@@ -39,6 +39,28 @@ export class ChannelPartnersController {
         return this.cpService.findByReferralCode(code);
     }
 
+    @Post('registration-payment/initiate')
+    @ApiOperation({ summary: 'Initiate registration fee payment' })
+    initiateRegistrationPayment(@Body('channelPartnerId') channelPartnerId: string) {
+        return this.cpService.initiateRegistrationPayment(channelPartnerId);
+    }
+
+    @Post('registration-payment/verify')
+    @ApiOperation({ summary: 'Verify registration fee payment' })
+    verifyRegistrationPayment(
+        @Body('channelPartnerId') channelPartnerId: string,
+        @Body('razorpayOrderId') razorpayOrderId: string,
+        @Body('razorpayPaymentId') razorpayPaymentId: string,
+        @Body('razorpaySignature') razorpaySignature: string,
+    ) {
+        return this.cpService.verifyRegistrationPayment(
+            channelPartnerId,
+            razorpayOrderId,
+            razorpayPaymentId,
+            razorpaySignature,
+        );
+    }
+
     // ============================================
     // AUTHENTICATED ENDPOINTS
     // ============================================

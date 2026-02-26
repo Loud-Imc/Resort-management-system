@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { UserPlus } from 'lucide-react';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 import logo from '../assets/routeguide.svg';
 
 const Register: React.FC = () => {
@@ -27,13 +29,60 @@ const Register: React.FC = () => {
         setIsLoading(true);
 
         try {
-            // Endpoint created earlier in backend enhancements
-            await api.post('/channel-partners/public-register', formData);
-            alert('Application submitted successfully! We will review your profile and get back to you.');
-            navigate('/login');
+            // 1. Submit Registration Data
+            const response = await api.post('/channel-partners/public-register', formData);
+            const cpId = response.data.id;
+
+            // 2. Initiate Payment Order
+            const payRes = await api.post('/channel-partners/registration-payment/initiate', { channelPartnerId: cpId });
+            const { orderId, amount, currency, keyId } = payRes.data;
+
+            // 3. Open Razorpay Checkout
+            const options = {
+                key: keyId,
+                amount: amount,
+                currency: currency,
+                name: 'Route Guide',
+                description: 'Channel Partner Registration Fee',
+                order_id: orderId,
+                handler: async (paymentRes: any) => {
+                    try {
+                        setIsLoading(true);
+                        // 4. Verify Payment on Backend
+                        await api.post('/channel-partners/registration-payment/verify', {
+                            channelPartnerId: cpId,
+                            razorpayOrderId: paymentRes.razorpay_order_id,
+                            razorpayPaymentId: paymentRes.razorpay_payment_id,
+                            razorpaySignature: paymentRes.razorpay_signature,
+                        });
+                        alert('Registration and Payment successful! Your account is now active.');
+                        navigate('/login');
+                    } catch (err: any) {
+                        console.error('Payment verification error:', err);
+                        setError(err.response?.data?.message || err.message || 'Payment verification failed. Please contact support.');
+                        setIsLoading(false);
+                    }
+                },
+                modal: {
+                    ondismiss: () => {
+                        setIsLoading(false);
+                        alert('Payment was cancelled. You will need to complete the payment to activate your dashboard.');
+                    },
+                },
+                prefill: {
+                    name: `${formData.firstName} ${formData.lastName}`,
+                    email: formData.email,
+                    contact: formData.phone,
+                },
+                theme: {
+                    color: '#08474e',
+                },
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            rzp.open();
         } catch (err: any) {
-            setError(err.message || 'Registration failed. Please try again.');
-        } finally {
+            setError(err.response?.data?.message || err.message || 'Registration failed. Please try again.');
             setIsLoading(false);
         }
     };
@@ -127,7 +176,27 @@ const Register: React.FC = () => {
 
                     <div>
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Phone Number</label>
-                        <input name="phone" placeholder="+91 99999 99999" onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
+                        <PhoneInput
+                            country={'in'}
+                            value={formData.phone}
+                            onChange={(phone) => setFormData({ ...formData, phone: `+${phone}` })}
+                            inputStyle={{
+                                width: '100%',
+                                height: '42px',
+                                background: '#ffffff',
+                                border: '1px solid var(--border-glass)',
+                                borderRadius: 'var(--radius-md)',
+                                color: 'var(--text-main)',
+                            }}
+                            buttonStyle={{
+                                background: 'transparent',
+                                border: '1px solid var(--border-glass)',
+                                borderRight: 'none',
+                                borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                            }}
+                            containerStyle={{ width: '100%' }}
+                            enableSearch={true}
+                        />
                     </div>
 
                     <div>

@@ -54,24 +54,27 @@ export class PaymentsService {
             }
 
             // Calculate amount to charge
-            let chargeAmount = Number(booking.totalAmount);
+            let chargeAmount = Number(booking.amountInBookingCurrency);
+            const currency = booking.bookingCurrency || 'INR';
+
             if (booking.paymentOption === 'PARTIAL') {
                 // If it's a partial payment, charge 1/3rd for the first payment
-                // We use Math.round to avoid paise rounding issues with Razorpay
                 chargeAmount = Math.round(chargeAmount / 3);
             }
 
             // Create Razorpay order
             const order = await this.razorpay.orders.create({
-                amount: Math.round(chargeAmount * 100), // Convert to paise
-                currency: 'INR',
+                amount: this.convertToSmallestUnit(chargeAmount, currency),
+                currency: currency,
                 receipt: booking.bookingNumber,
                 notes: {
                     bookingId: booking.id,
                     bookingNumber: booking.bookingNumber,
                     customerEmail: booking.user.email,
                     type: 'RESORT_BOOKING',
-                    paymentOption: booking.paymentOption
+                    paymentOption: booking.paymentOption,
+                    originalAmount: booking.totalAmount.toString(),
+                    bookingCurrency: currency
                 },
             });
 
@@ -79,7 +82,7 @@ export class PaymentsService {
             const payment = await this.prisma.payment.create({
                 data: {
                     amount: chargeAmount,
-                    currency: 'INR',
+                    currency: currency,
                     status: 'PENDING',
                     razorpayOrderId: order.id,
                     bookingId: booking.id,
@@ -220,8 +223,10 @@ export class PaymentsService {
         });
 
         if (payment.bookingId && payment.booking) {
-            // Calculate new paid amount
-            const newPaidAmount = Number(payment.booking.paidAmount) + Number(payment.amount);
+            // Calculate new paid amount in base currency (INR)
+            const exchangeRate = Number(payment.booking.exchangeRate || 1);
+            const amountInINR = Number(payment.amount) * exchangeRate;
+            const newPaidAmount = Number(payment.booking.paidAmount) + amountInINR;
             const isFullyPaid = newPaidAmount >= Number(payment.booking.totalAmount);
 
             // Update booking status and payment tracking
@@ -235,12 +240,12 @@ export class PaymentsService {
                 },
             });
 
-            // Create income record
+            // Create income record in base currency (INR)
             await this.prisma.income.create({
                 data: {
-                    amount: payment.amount,
+                    amount: Number(payment.amount) * Number(payment.booking.exchangeRate || 1),
                     source: 'ONLINE_BOOKING',
-                    description: `Online booking ${payment.booking.bookingNumber}`,
+                    description: `Online booking ${payment.booking.bookingNumber} (${payment.amount} ${payment.currency} @ ${payment.booking.exchangeRate})`,
                     bookingId: payment.bookingId,
                 },
             });
@@ -740,10 +745,28 @@ export class PaymentsService {
             },
         });
 
-        return {
+    return {
             success: true,
             payment,
             message: 'Manual payment recorded successfully',
         };
+    }
+
+    /**
+     * Converts an amount to the smallest unit (e.g., paise for INR)
+     */
+    private convertToSmallestUnit(amount: number, currency: string): number {
+        const c = currency.toUpperCase();
+        
+        // Zero-decimal currencies
+        const zeroDecimal = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VUV', 'VND', 'XAF', 'XBA', 'XBB', 'XBC', 'XBD', 'XOF', 'XPF'];
+        if (zeroDecimal.includes(c)) return Math.round(amount);
+
+        // Three-decimal currencies
+        const threeDecimal = ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'];
+        if (threeDecimal.includes(c)) return Math.round(amount * 1000);
+
+        // Default (Two decimals)
+        return Math.round(amount * 100);
     }
 }

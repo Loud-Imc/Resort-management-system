@@ -283,7 +283,12 @@ export default function BookingsList() {
                                                     {booking.paymentStatus}
                                                 </span>
                                                 <div className="text-[10px] text-muted-foreground font-bold tracking-tight">
-                                                    ₹{Number(booking.paidAmount).toLocaleString()}/₹{Number(booking.totalAmount).toLocaleString()}
+                                                    <div>₹{Number(booking.paidAmount).toLocaleString()} / ₹{Number(booking.totalAmount).toLocaleString()}</div>
+                                                    {booking.bookingCurrency && booking.bookingCurrency !== 'INR' && (
+                                                        <div className="text-[9px] text-primary/70">
+                                                            ({booking.bookingCurrency} {Number(booking.amountInBookingCurrency).toLocaleString()})
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
@@ -423,6 +428,11 @@ export default function BookingsList() {
                                             <div className="text-right text-xs">
                                                 <div className="text-muted-foreground">Total: ₹{Number(checkInBooking.totalAmount).toLocaleString()}</div>
                                                 <div className="text-emerald-600 font-bold">Paid: ₹{Number(checkInBooking.paidAmount).toLocaleString()}</div>
+                                                {checkInBooking.bookingCurrency && checkInBooking.bookingCurrency !== 'INR' && (
+                                                    <div className="text-primary/70 text-[9px] mt-1 italic">
+                                                        Booking: {checkInBooking.bookingCurrency} {Number(checkInBooking.amountInBookingCurrency).toLocaleString()}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

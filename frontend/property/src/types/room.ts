@@ -18,6 +18,8 @@ export interface RoomType {
     highlights: string[];
     inclusions: string[];
     cancellationPolicy?: string;
+    cancellationPolicyText?: string;
+    cancellationPolicyId?: string;
     marketingBadgeText?: string;
     marketingBadgeType?: string;
     images: string[];
@@ -47,6 +49,7 @@ export interface CreateRoomTypeDto {
     highlights: string[];
     inclusions: string[];
     cancellationPolicy?: string;
+    cancellationPolicyId?: string;
     marketingBadgeText?: string;
     marketingBadgeType?: string;
     images: string[];

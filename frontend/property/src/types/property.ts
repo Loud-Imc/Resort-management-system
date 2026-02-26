@@ -1,5 +1,21 @@
 export type PropertyType = 'RESORT' | 'HOMESTAY' | 'HOTEL' | 'VILLA' | 'OTHER';
 
+export interface CancellationRule {
+    hoursBeforeCheckIn: number;
+    refundPercentage: number;
+}
+
+export interface CancellationPolicy {
+    id: string;
+    name: string;
+    description?: string;
+    propertyId: string;
+    rules: CancellationRule[];
+    isDefault: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface Property {
     id: string;
     name: string;
@@ -44,6 +60,9 @@ export interface Property {
     platformCommission?: number;
     commissionStatus?: 'PENDING' | 'PAID' | 'CANCELLED';
     taxRate?: number;
+    cancellationPolicies?: CancellationPolicy[];
+    defaultCancellationPolicyId?: string;
+    defaultCancellationPolicy?: CancellationPolicy;
 }
 
 export interface PropertyListResponse {

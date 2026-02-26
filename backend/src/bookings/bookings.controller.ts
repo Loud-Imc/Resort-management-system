@@ -118,6 +118,14 @@ export class BookingsController {
         });
     }
 
+    @Get('me')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get my own bookings' })
+    findMyBookings(@Request() req) {
+        return this.bookingsService.findMyBookings(req.user.id);
+    }
+
     @Get('today/check-ins')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.BOOKINGS.READ)

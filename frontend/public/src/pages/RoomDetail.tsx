@@ -10,8 +10,11 @@ import {
 } from 'lucide-react';
 import { roomTypeApi } from '../services/roomTypes';
 import { propertyApi } from '../services/properties';
+import { reviewService } from '../services/reviews';
 import { useCurrency } from '../context/CurrencyContext';
 import { formatPrice } from '../utils/currency';
+import { format } from 'date-fns';
+import { clsx } from 'clsx';
 
 export default function RoomDetail() {
     const { slug, roomTypeId } = useParams();
@@ -29,6 +32,12 @@ export default function RoomDetail() {
         queryKey: ['property', slug],
         queryFn: () => propertyApi.getBySlug(slug!),
         enabled: !!slug
+    });
+
+    const { data: reviews, isLoading: loadingReviews } = useQuery({
+        queryKey: ['roomReviews', roomTypeId],
+        queryFn: () => reviewService.getForRoomType(roomTypeId!),
+        enabled: !!roomTypeId
     });
 
     useEffect(() => {
@@ -330,6 +339,63 @@ export default function RoomDetail() {
                                 </div>
                             </div>
 
+                        </div>
+
+                        {/* Room Specific Reviews */}
+                        <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
+                            <h3 className="text-xl font-black text-gray-900 mb-8 flex items-center gap-3">
+                                <Sparkles className="h-6 w-6 text-primary-500" />
+                                Guest Feedback for this Room
+                            </h3>
+
+                            {loadingReviews ? (
+                                <div className="flex justify-center py-10">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+                                </div>
+                            ) : !reviews || reviews.length === 0 ? (
+                                <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                                    <Star className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+                                    <p className="text-gray-500 font-medium italic">No specific reviews for this room yet.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    {reviews.map((review) => (
+                                        <div key={review.id} className="border-b last:border-0 border-gray-100 pb-8 last:pb-0">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600 font-bold overflow-hidden">
+                                                        {review.user?.avatar ? (
+                                                            <img src={review.user.avatar} alt={review.user.firstName} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            review.user?.firstName?.[0]
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900">{review.user?.firstName} {review.user?.lastName}</h4>
+                                                        <p className="text-xs text-gray-400">
+                                                            Verified Guest • {format(new Date(review.createdAt), 'MMMM yyyy')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-0.5">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <Star
+                                                            key={i}
+                                                            className={clsx(
+                                                                "h-3.5 w-3.5",
+                                                                i < review.rating ? "text-yellow-400 fill-current" : "text-gray-200"
+                                                            )}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <p className="text-gray-600 leading-relaxed italic pl-4 border-l-4 border-gray-50">
+                                                "{review.comment}"
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 

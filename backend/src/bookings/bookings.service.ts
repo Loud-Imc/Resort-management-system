@@ -5,7 +5,7 @@ import { PricingService } from './pricing.service';
 import { AuditService } from '../audit/audit.service';
 import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
 import { PaymentsService } from '../payments/payments.service';
-import { differenceInDays, format, addDays } from 'date-fns';
+import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -305,7 +305,7 @@ export class BookingsService {
             },
             include: {
                 room: true,
-                roomType: true,
+                roomType: { include: { cancellationPolicy: true } },
                 guests: true,
                 user: {
                     select: {
@@ -469,7 +469,7 @@ export class BookingsService {
                         roomType: true
                     }
                 },
-                roomType: true,
+                roomType: { include: { cancellationPolicy: true } },
                 user: {
                     select: {
                         id: true,
@@ -487,6 +487,25 @@ export class BookingsService {
         });
     }
 
+    async findMyBookings(userId: string) {
+        return this.prisma.booking.findMany({
+            where: { userId },
+            include: {
+                room: {
+                    include: {
+                        roomType: true
+                    }
+                },
+                roomType: { include: { cancellationPolicy: true } },
+                guests: true,
+                property: true
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+    }
+
     /**
      * Find one booking by ID (Public - No Auth required)
      * Relies on UUID non-guessability for security
@@ -496,9 +515,9 @@ export class BookingsService {
             where: { id },
             include: {
                 room: true,
-                roomType: true,
+                roomType: { include: { cancellationPolicy: true } },
                 guests: true,
-                property: true,
+                property: { include: { defaultCancellationPolicy: true } },
                 user: {
                     select: {
                         id: true,
@@ -530,9 +549,9 @@ export class BookingsService {
             where: { id },
             include: {
                 room: true,
-                roomType: true,
+                roomType: { include: { cancellationPolicy: true } },
                 guests: true,
-                property: true,
+                property: { include: { defaultCancellationPolicy: true } },
                 user: {
                     select: {
                         id: true,
@@ -720,24 +739,62 @@ export class BookingsService {
             where: { bookingId: id, status: 'PAID' }
         });
 
+        // Resolve Cancellation Policy and Refund Percentage
+        const anyBooking = booking as any;
+        const applicablePolicy = anyBooking.roomType?.cancellationPolicy || anyBooking.property?.defaultCancellationPolicy;
+
+        let refundPercentage = 100;
+
+        if (applicablePolicy) {
+            const checkInDate = new Date(booking.checkInDate);
+            const now = new Date();
+            const hoursUntilCheckIn = Math.max(0, differenceInHours(checkInDate, now));
+
+            const rules = (applicablePolicy.rules as any[]) || [];
+            // Sort rules by hoursBeforeCheckIn descending (e.g. 48, 24, 0)
+            const sortedRules = [...rules].sort((a, b) => b.hoursBeforeCheckIn - a.hoursBeforeCheckIn);
+
+            for (const rule of sortedRules) {
+                if (hoursUntilCheckIn >= rule.hoursBeforeCheckIn) {
+                    refundPercentage = rule.refundPercentage;
+                    break;
+                }
+            }
+        }
+
         for (const payment of payments) {
             try {
+                const actualRefundAmount = Number(payment.amount) * (refundPercentage / 100);
+
+                if (actualRefundAmount <= 0) {
+                    // No refund granted based on policy
+                    await this.prisma.payment.update({
+                        where: { id: payment.id },
+                        data: {
+                            refundReason: `No refund per policy (${refundPercentage}%). ${reason || ''}`,
+                            refundDate: new Date(),
+                            refundAmount: 0
+                        }
+                    });
+                    continue;
+                }
+
                 if (payment.paymentMethod === 'WALLET') {
                     // Refund to CP Wallet
                     await this.channelPartnersService.refundWalletPayment(
-                        booking.channelPartnerId!,
-                        Number(payment.amount),
-                        `Refund for cancelled booking ${booking.bookingNumber}`,
+                        booking.agentId || (booking as any).channelPartnerId!,
+                        actualRefundAmount,
+                        `Refund (${refundPercentage}%) for cancelled booking ${booking.bookingNumber}`,
                         booking.id
                     );
 
                     await this.prisma.payment.update({
                         where: { id: payment.id },
                         data: {
-                            status: 'REFUNDED',
-                            refundAmount: payment.amount,
+                            status: refundPercentage === 100 ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+                            refundAmount: actualRefundAmount,
                             refundDate: new Date(),
-                            refundReason: reason || 'Booking cancellation'
+                            refundReason: reason || `Booking cancellation (${refundPercentage}% refund)`
                         }
                     });
 
@@ -745,22 +802,16 @@ export class BookingsService {
                     await this.prisma.booking.update({
                         where: { id: booking.id },
                         data: {
-                            paidAmount: { decrement: payment.amount },
-                            paymentStatus: 'UNPAID' // Booking is now unpaid
+                            paidAmount: { decrement: actualRefundAmount },
+                            paymentStatus: refundPercentage === 100 ? 'UNPAID' : 'PARTIAL'
                         }
                     });
                 } else if (payment.razorpayPaymentId) {
                     // Refund via Razorpay
-                    await this.paymentsService.processRefund(payment.id, Number(payment.amount), reason || 'Booking cancellation');
-
-                    // The PaymentsService.processRefund might already update the booking, 
-                    // but let's ensure consistency here if it doesn't.
-                    // Actually, PaymentsService usually handles the booking update for Razorpay.
+                    await this.paymentsService.processRefund(payment.id, actualRefundAmount, reason || `Booking cancellation (${refundPercentage}% refund)`);
                 }
             } catch (refundError) {
                 console.error(`[BookingsService] Failed to refund payment ${payment.id}:`, refundError);
-                // We don't throw here to avoid blocking the cancellation if one refund fails, 
-                // but in a production system we might want more robust error handling/retry.
             }
         }
 

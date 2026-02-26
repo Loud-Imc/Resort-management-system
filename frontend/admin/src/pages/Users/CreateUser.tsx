@@ -17,12 +17,13 @@ const userSchema = z.object({
     lastName: z.string().min(1, 'Last name is required'),
     email: z.string().email('Invalid email address'),
     password: z.string().optional().or(z.literal('')), // Validated manually in mutation for create mode
-    phone: z.string().optional(),
+    phone: z.string().optional().transform(v => v === '' ? undefined : v),
     roleIds: z.array(z.string()).min(1, 'Select at least one role'),
     isActive: z.boolean(),
-    commissionPercentage: z.any().transform((val) => {
+    commissionPercentage: z.union([z.number(), z.string(), z.null()]).optional().transform((val) => {
+        if (val === '' || val === null || val === undefined) return undefined;
         const parsed = Number(val);
-        return val === '' || val === null || isNaN(parsed) ? null : parsed;
+        return isNaN(parsed) ? undefined : parsed;
     }),
 });
 

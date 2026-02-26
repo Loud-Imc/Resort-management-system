@@ -80,6 +80,11 @@ export class CreateRoomTypeDto {
     @IsOptional()
     cancellationPolicy?: string;
 
+    @ApiProperty({ example: 'uuid-of-policy', required: false })
+    @IsString()
+    @IsOptional()
+    cancellationPolicyId?: string;
+
     @ApiProperty({ example: 'Selling Fast', required: false })
     @IsString()
     @IsOptional()

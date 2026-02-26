@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'react-hot-toast';
 import Layout from './components/layout/Layout';
 import Home from './pages/Home';
 import SearchResults from './pages/SearchResults';
@@ -20,7 +21,8 @@ import EventDetail from './pages/EventDetail';
 import EventBookingFlow from './pages/EventBooking';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import MyBookings from './pages/MyBookings';
+// import MyBookings from './pages/MyBookings';
+import Profile from './pages/Profile';
 import PartnerDashboard from './pages/PartnerDashboard';
 
 import { CurrencyProvider } from './context/CurrencyContext';
@@ -39,6 +41,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <CurrencyProvider>
         <BrowserRouter>
+          <Toaster position="top-center" reverseOrder={false} />
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />
@@ -52,7 +55,8 @@ function App() {
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/my-bookings" element={<MyBookings />} />
+              <Route path="/my-bookings" element={<Navigate to="/profile?tab=bookings" replace />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/partner/dashboard" element={<PartnerDashboard />} />
               <Route path="/rooms" element={<Navigate to="/search" replace />} />
 
