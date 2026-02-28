@@ -9,6 +9,12 @@ export class FirebaseService implements OnModuleInit {
     constructor(private configService: ConfigService) { }
 
     onModuleInit() {
+        if (admin.apps.length > 0) {
+            this.firebaseApp = admin.apps[0]!;
+            console.log('Firebase Admin already initialized. Using existing instance in FirebaseService.');
+            return;
+        }
+
         const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
         const clientEmail = this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
         const privateKey = this.configService.get<string>('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import { PropertyProvider } from './context/PropertyContext';
+import { SocketProvider } from './context/SocketContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Toaster } from 'react-hot-toast';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -66,6 +67,9 @@ import EventBookings from './pages/Events/EventBookings';
 // Categories
 import CategoryList from './pages/PropertyCategories/CategoryList';
 
+// Notifications
+import Notifications from './pages/Notifications';
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -73,76 +77,81 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <PropertyProvider>
-            <ThemeProvider>
-              <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
-              <Routes>
-                <Route path="/login" element={<Login />} />
+          <SocketProvider>
+            <PropertyProvider>
+              <ThemeProvider>
+                <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+                <Routes>
+                  <Route path="/login" element={<Login />} />
 
-                <Route path="/" element={<DashboardLayout />}>
-                  <Route index element={<DashboardHome />} />
+                  <Route path="/" element={<DashboardLayout />}>
+                    <Route index element={<DashboardHome />} />
 
-                  {/* Main Booking Management */}
-                  <Route path="bookings" element={<BookingsList />} />
-                  <Route path="bookings/create" element={<CreateBooking />} />
-                  <Route path="booking-sources" element={<BookingSourcesList />} />
+                    {/* Main Booking Management */}
+                    <Route path="bookings" element={<BookingsList />} />
+                    <Route path="bookings/create" element={<CreateBooking />} />
+                    <Route path="booking-sources" element={<BookingSourcesList />} />
 
-                  {/* Room Management */}
-                  <Route path="rooms" element={<RoomsList />} />
-                  <Route path="rooms/create" element={<CreateRoom />} />
-                  <Route path="rooms/edit/:id" element={<EditRoom />} />
+                    {/* Room Management */}
+                    <Route path="rooms" element={<RoomsList />} />
+                    <Route path="rooms/create" element={<CreateRoom />} />
+                    <Route path="rooms/edit/:id" element={<EditRoom />} />
 
-                  {/* Room Type Management */}
-                  <Route path="room-types" element={<RoomTypesList />} />
-                  <Route path="room-types/create" element={<CreateRoomType />} />
-                  <Route path="room-types/edit/:id" element={<CreateRoomType />} />
+                    {/* Room Type Management */}
+                    <Route path="room-types" element={<RoomTypesList />} />
+                    <Route path="room-types/create" element={<CreateRoomType />} />
+                    <Route path="room-types/edit/:id" element={<CreateRoomType />} />
 
-                  {/* User/Staff Management */}
-                  <Route path="users" element={<UsersList />} />
-                  <Route path="users/create" element={<CreateUser />} />
-                  <Route path="users/edit/:id" element={<CreateUser />} />
+                    {/* User/Staff Management */}
+                    <Route path="users" element={<UsersList />} />
+                    <Route path="users/create" element={<CreateUser />} />
+                    <Route path="users/edit/:id" element={<CreateUser />} />
 
-                  {/* Roles Management */}
-                  <Route path="roles" element={<RolesList />} />
-                  <Route path="roles/create" element={<ProcessRole />} />
-                  <Route path="roles/edit/:id" element={<ProcessRole />} />
+                    {/* Roles Management */}
+                    <Route path="roles" element={<RolesList />} />
+                    <Route path="roles/create" element={<ProcessRole />} />
+                    <Route path="roles/edit/:id" element={<ProcessRole />} />
 
-                  {/* Guest Management */}
-                  <Route path="guests" element={<GuestsList />} />
-                  <Route path="guests/:id" element={<GuestDetails />} />
+                    {/* Guest Management */}
+                    <Route path="guests" element={<GuestsList />} />
+                    <Route path="guests/:id" element={<GuestDetails />} />
 
-                  {/* Financials & Reports */}
-                  <Route path="financials" element={<Financials />} />
-                  <Route path="payments" element={<PaymentsList />} />
-                  <Route path="reports" element={<Reports />} />
+                    {/* Financials & Reports */}
+                    <Route path="financials" element={<Financials />} />
+                    <Route path="payments" element={<PaymentsList />} />
+                    <Route path="reports" element={<Reports />} />
 
-                  {/* Property Management */}
-                  <Route path="properties" element={<PropertiesList />} />
-                  <Route path="properties/new" element={<PropertyForm />} />
-                  <Route path="properties/:id" element={<PropertyForm />} />
-                  <Route path="properties/:id/edit" element={<PropertyForm />} />
-                  <Route path="properties/:id/staff" element={<StaffList />} />
-                  <Route path="property-categories" element={<CategoryList />} />
+                    {/* Property Management */}
+                    <Route path="properties" element={<PropertiesList />} />
+                    <Route path="properties/new" element={<PropertyForm />} />
+                    <Route path="properties/:id" element={<PropertyForm />} />
+                    <Route path="properties/:id/edit" element={<PropertyForm />} />
+                    <Route path="properties/:id/staff" element={<StaffList />} />
+                    <Route path="property-categories" element={<CategoryList />} />
 
-                  {/* Channel Partners */}
-                  <Route path="channel-partners" element={<CPList />} />
+                    {/* Channel Partners */}
+                    <Route path="channel-partners" element={<CPList />} />
 
-                  {/* Marketing Management */}
-                  <Route path="marketing" element={<MarketingDashboard />} />
-                  <Route path="marketing/coupons" element={<CouponsPage />} />
+                    {/* Marketing Management */}
+                    <Route path="marketing" element={<MarketingDashboard />} />
+                    <Route path="marketing/coupons" element={<CouponsPage />} />
 
-                  {/* Event Management */}
-                  <Route path="events" element={<EventsList />} />
-                  <Route path="events/create" element={<EventForm />} />
-                  <Route path="events/edit/:id" element={<EventForm />} />
-                  <Route path="events/check-in" element={<CheckIn />} />
-                  <Route path="events/bookings" element={<EventBookings />} />
-                </Route>
+                    {/* Event Management */}
+                    <Route path="events" element={<EventsList />} />
+                    <Route path="events/create" element={<EventForm />} />
+                    <Route path="events/edit/:id" element={<EventForm />} />
+                    <Route path="events/check-in" element={<CheckIn />} />
+                    <Route path="events/bookings" element={<EventBookings />} />
 
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </ThemeProvider>
-          </PropertyProvider>
+                    {/* Notifications */}
+                    <Route path="notifications" element={<Notifications />} />
+                  </Route>
+
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </ThemeProvider>
+            </PropertyProvider>
+          </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

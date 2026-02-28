@@ -17,7 +17,10 @@ console.log('Public Firebase Config Debug:', {
     projectId: firebaseConfig.projectId
 });
 
+import { getMessaging } from 'firebase/messaging';
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const messaging = getMessaging(app);
 export default app;

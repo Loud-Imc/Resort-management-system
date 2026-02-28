@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import logo from '../assets/routeguide.svg';
 
 const loginSchema = z.object({
@@ -16,6 +16,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function Login() {
     const [error, setError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
     const { login, isAuthenticated, isLoading } = useAuth();
     const navigate = useNavigate();
 
@@ -90,12 +91,21 @@ export default function Login() {
                         <label className="block text-sm font-semibold text-muted-foreground mb-2">
                             Security password
                         </label>
-                        <input
-                            {...register('password')}
-                            type="password"
-                            className="w-full px-4 py-3 border border-border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                            placeholder="••••••••"
-                        />
+                        <div className="relative">
+                            <input
+                                {...register('password')}
+                                type={showPassword ? "text" : "password"}
+                                className="w-full px-4 py-3 border border-border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all pr-12"
+                                placeholder="••••••••"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-primary transition-colors"
+                            >
+                                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
+                        </div>
                         {errors.password && (
                             <p className="text-destructive text-xs mt-2 font-medium">{errors.password.message}</p>
                         )}

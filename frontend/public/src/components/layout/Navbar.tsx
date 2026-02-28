@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import CurrencySwitcher from './CurrencySwitcher';
 import logo from '../../assets/routeguide.svg';
+import NotificationBell from '../NotificationBell';
 
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -86,6 +87,7 @@ export default function Navbar() {
                         {user ? (
                             <div className="flex items-center gap-6">
                                 <div className="flex items-center gap-4 border-r border-gray-200 pr-6">
+                                    <NotificationBell />
                                     <span className={clsx("font-medium", textColor)}>
                                         Hi, {user.firstName}
                                     </span>
@@ -182,8 +184,9 @@ export default function Navbar() {
 
                         {user ? (
                             <>
-                                <div className="px-3 py-2 text-primary-600 font-bold border-t border-gray-50 mt-2">
-                                    Hi, {user.firstName}
+                                <div className="px-3 py-2 text-primary-600 font-bold border-t border-gray-50 mt-2 flex justify-between items-center">
+                                    <span>Hi, {user.firstName}</span>
+                                    <NotificationBell />
                                 </div>
                                 <Link
                                     to="/profile"

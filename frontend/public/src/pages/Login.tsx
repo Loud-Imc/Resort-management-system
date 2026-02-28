@@ -33,9 +33,10 @@ export default function Login() {
 
     const normalizePhoneNumber = (phone: string) => {
         if (!phone) return '';
-        // PhoneInput already provides digits including country code
-        const cleaned = phone.replace(/\D/g, '');
-        return `+${cleaned}`;
+        // If it already starts with +, just return it cleaned
+        if (phone.startsWith('+')) return `+${phone.replace(/\D/g, '')}`;
+        // Otherwise prepends + (PhoneInput provides digits including country code)
+        return `+${phone.replace(/\D/g, '')}`;
     };
 
     const handleSendOtp = async (e: React.FormEvent) => {

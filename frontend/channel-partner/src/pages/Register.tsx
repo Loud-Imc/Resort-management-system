@@ -179,7 +179,8 @@ const Register: React.FC = () => {
                         <PhoneInput
                             country={'in'}
                             value={formData.phone}
-                            onChange={(phone) => setFormData({ ...formData, phone: `+${phone}` })}
+                            onChange={(phone) => setFormData({ ...formData, phone: phone.startsWith('+') ? phone : `+${phone}` })}
+                            autoFormat={true}
                             inputStyle={{
                                 width: '100%',
                                 height: '42px',

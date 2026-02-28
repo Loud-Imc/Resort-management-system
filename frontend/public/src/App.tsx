@@ -21,9 +21,10 @@ import EventDetail from './pages/EventDetail';
 import EventBookingFlow from './pages/EventBooking';
 import Login from './pages/Login';
 import Register from './pages/Register';
-// import MyBookings from './pages/MyBookings';
 import Profile from './pages/Profile';
 import PartnerDashboard from './pages/PartnerDashboard';
+import Notifications from './pages/Notifications';
+import NotificationManager from './components/NotificationManager';
 
 import { CurrencyProvider } from './context/CurrencyContext';
 
@@ -42,6 +43,7 @@ function App() {
       <CurrencyProvider>
         <BrowserRouter>
           <Toaster position="top-center" reverseOrder={false} />
+          <NotificationManager />
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />
@@ -57,6 +59,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/my-bookings" element={<Navigate to="/profile?tab=bookings" replace />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/notifications" element={<Notifications />} />
               <Route path="/partner/dashboard" element={<PartnerDashboard />} />
               <Route path="/rooms" element={<Navigate to="/search" replace />} />
 

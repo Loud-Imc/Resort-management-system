@@ -4,10 +4,14 @@ import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/pr
 import { RegisterPropertyDto } from './dto/register-property.dto';
 import { Prisma, PropertyStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PropertiesService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly notificationsService: NotificationsService,
+    ) { }
 
     // Generate URL-friendly slug from name
     private generateSlug(name: string): string {
@@ -101,7 +105,7 @@ export class PropertiesService {
             throw new NotFoundException('Property Owner role not found in system');
         }
 
-        return this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             // 1. Create User
             const user = await tx.user.create({
                 data: {
@@ -151,6 +155,11 @@ export class PropertiesService {
                 },
             };
         });
+
+        // Notify admins of new registration
+        await this.notificationsService.notifyPropertyRegistration(result);
+
+        return result;
     }
 
     private async generateUniqueSlug(name: string): Promise<string> {
@@ -187,6 +196,11 @@ export class PropertiesService {
         const where: Prisma.PropertyWhereInput = {
             isActive: true,
             status: PropertyStatus.APPROVED,
+            roomTypes: {
+                some: {
+                    isPubliclyVisible: true
+                }
+            },
             ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
@@ -459,13 +473,18 @@ export class PropertiesService {
 
     // Admin: Update status (Approve/Reject)
     async updateStatus(id: string, status: PropertyStatus) {
-        return this.prisma.property.update({
+        const property = await this.prisma.property.update({
             where: { id },
             data: {
                 status,
                 isVerified: status === PropertyStatus.APPROVED ? true : undefined,
             },
         });
+
+        // Notify owner of status update
+        await this.notificationsService.notifyPropertyStatusUpdate(property, status);
+
+        return property;
     }
 
     // Admin: Toggle active status

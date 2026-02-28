@@ -6,6 +6,7 @@ export interface User {
     role: string;
     roles: string[];
     permissions: string[];
+    propertyId?: string;
     commissionPercentage?: number;
 }
 

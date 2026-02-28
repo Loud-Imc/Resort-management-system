@@ -8,10 +8,11 @@ export class CreateRoomDto {
     @IsNotEmpty()
     roomNumber: string;
 
-    @ApiProperty({ example: 1 })
+    @ApiProperty({ example: 1, required: false })
     @IsInt()
     @Min(0)
     @Type(() => Number)
+    @IsOptional()
     floor: number;
 
     @ApiProperty({ example: 'room-type-uuid' })

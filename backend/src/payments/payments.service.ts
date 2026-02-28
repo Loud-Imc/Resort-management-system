@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
 import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
 import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
@@ -16,6 +17,7 @@ export class PaymentsService {
         private configService: ConfigService,
         private mailService: MailService,
         private channelPartnersService: ChannelPartnersService,
+        private notificationsService: NotificationsService,
     ) {
         const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -252,6 +254,9 @@ export class PaymentsService {
 
             // Send confirmation email
             await this.mailService.sendBookingConfirmation(payment.booking);
+
+            // Broadcast booking confirmation across all channels
+            await this.notificationsService.broadcastNewBooking(payment.booking);
 
             // Process Channel Partner Reward (Pending)
             if (payment.booking.channelPartnerId) {
@@ -550,13 +555,22 @@ export class PaymentsService {
 
         const financials = this.calculateFinancials(payment);
 
-        return this.prisma.payment.update({
+        const updatedPayment = await this.prisma.payment.update({
             where: { id },
             data: {
                 payoutStatus: 'PAID',
                 ...financials
             },
+            include: {
+                booking: { include: { property: true } },
+                eventBooking: { include: { event: { include: { property: true } } } }
+            }
         });
+
+        // Notify property owner of payout
+        await this.notificationsService.notifyPayoutConfirmed(updatedPayment);
+
+        return updatedPayment;
     }
 
     private calculateFinancials(payment: any) {
@@ -745,7 +759,7 @@ export class PaymentsService {
             },
         });
 
-    return {
+        return {
             success: true,
             payment,
             message: 'Manual payment recorded successfully',
@@ -757,7 +771,7 @@ export class PaymentsService {
      */
     private convertToSmallestUnit(amount: number, currency: string): number {
         const c = currency.toUpperCase();
-        
+
         // Zero-decimal currencies
         const zeroDecimal = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VUV', 'VND', 'XAF', 'XBA', 'XBB', 'XBC', 'XBD', 'XOF', 'XPF'];
         if (zeroDecimal.includes(c)) return Math.round(amount);

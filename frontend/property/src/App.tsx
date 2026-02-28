@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import { PropertyProvider } from './context/PropertyContext';
+import { SocketProvider } from './context/SocketContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Toaster } from 'react-hot-toast';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -28,6 +29,7 @@ import RolesList from './pages/Roles/RolesList';
 import ProcessRole from './pages/Roles/ProcessRole';
 import Reports from './pages/Reports/Reports';
 import MyProperty from './pages/Property/MyProperty';
+import Notifications from './pages/Notifications';
 
 const queryClient = new QueryClient();
 
@@ -36,56 +38,61 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <PropertyProvider>
-            <ThemeProvider>
-              <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+          <SocketProvider>
+            <PropertyProvider>
+              <ThemeProvider>
+                <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
 
-                <Route path="/" element={<DashboardLayout />}>
-                  <Route index element={<DashboardHome />} />
+                  <Route path="/" element={<DashboardLayout />}>
+                    <Route index element={<DashboardHome />} />
 
-                  {/* Bookings */}
-                  <Route path="bookings" element={<BookingsList />} />
-                  <Route path="bookings/create" element={<CreateBooking />} />
+                    {/* Bookings */}
+                    <Route path="bookings" element={<BookingsList />} />
+                    <Route path="bookings/create" element={<CreateBooking />} />
 
-                  {/* Guests */}
-                  <Route path="guests" element={<GuestsList />} />
-                  <Route path="guests/:id" element={<GuestDetails />} />
+                    {/* Guests */}
+                    <Route path="guests" element={<GuestsList />} />
+                    <Route path="guests/:id" element={<GuestDetails />} />
 
-                  {/* Rooms */}
-                  <Route path="rooms" element={<RoomsList />} />
-                  <Route path="rooms/create" element={<CreateRoom />} />
-                  <Route path="rooms/edit/:id" element={<EditRoom />} />
+                    {/* Rooms */}
+                    <Route path="rooms" element={<RoomsList />} />
+                    <Route path="rooms/create" element={<CreateRoom />} />
+                    <Route path="rooms/edit/:id" element={<EditRoom />} />
 
-                  {/* Room Types */}
-                  <Route path="room-types" element={<RoomTypesList />} />
-                  <Route path="room-types/create" element={<CreateRoomType />} />
-                  <Route path="room-types/edit/:id" element={<CreateRoomType />} />
+                    {/* Room Types */}
+                    <Route path="room-types" element={<RoomTypesList />} />
+                    <Route path="room-types/create" element={<CreateRoomType />} />
+                    <Route path="room-types/edit/:id" element={<CreateRoomType />} />
 
-                  {/* Financials */}
-                  <Route path="payments" element={<PaymentsList />} />
-                  <Route path="financials" element={<Financials />} />
-                  <Route path="booking-sources" element={<BookingSourcesList />} />
+                    {/* Financials */}
+                    <Route path="payments" element={<PaymentsList />} />
+                    <Route path="financials" element={<Financials />} />
+                    <Route path="booking-sources" element={<BookingSourcesList />} />
 
-                  {/* Team & Roles */}
-                  <Route path="team" element={<StaffList />} />
-                  <Route path="roles" element={<RolesList />} />
-                  <Route path="roles/create" element={<ProcessRole />} />
-                  <Route path="roles/edit/:id" element={<ProcessRole />} />
+                    {/* Team & Roles */}
+                    <Route path="team" element={<StaffList />} />
+                    <Route path="roles" element={<RolesList />} />
+                    <Route path="roles/create" element={<ProcessRole />} />
+                    <Route path="roles/edit/:id" element={<ProcessRole />} />
 
-                  {/* Reports */}
-                  <Route path="reports" element={<Reports />} />
+                    {/* Reports */}
+                    <Route path="reports" element={<Reports />} />
 
-                  {/* My Property */}
-                  <Route path="my-property" element={<MyProperty />} />
-                </Route>
+                    {/* My Property */}
+                    <Route path="my-property" element={<MyProperty />} />
 
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </ThemeProvider>
-          </PropertyProvider>
+                    {/* Notifications */}
+                    <Route path="notifications" element={<Notifications />} />
+                  </Route>
+
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </ThemeProvider>
+            </PropertyProvider>
+          </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

@@ -37,6 +37,8 @@ model User {
   roles                UserRole[]
   createdBy            User?           @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers         User[]          @relation("UserCreator")
+  notifications        Notification[]
+  fcmToken             String?
 
   @@map("users")
 }
@@ -798,4 +800,20 @@ enum EventBookingStatus {
   PAID
   CANCELLED
   REFUNDED
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   // e.g., 'BOOKING_CREATED', 'PAYMENT_SUCCESS', 'SYSTEM'
+  isRead    Boolean  @default(false)
+  data      Json?    // For storing related IDs like bookingId
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }

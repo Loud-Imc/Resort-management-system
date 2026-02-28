@@ -20,10 +20,12 @@ import {
     Building2,
     Ticket,
     Sun,
-    Moon
+    Moon,
+    Bell
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/routeguide.svg';
+import NotificationBell from '../components/NotificationBell';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
@@ -197,6 +199,14 @@ export default function DashboardLayout() {
                         {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
                     </button>
 
+                    <Link
+                        to="/notifications"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-colors"
+                    >
+                        <Bell className="h-5 w-5 text-primary" />
+                        Notifications
+                    </Link>
+
                     <div className="flex items-center gap-3 px-4 py-3 mb-2">
                         <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
                             {user?.firstName?.charAt(0) || 'A'}
@@ -231,6 +241,7 @@ export default function DashboardLayout() {
                     >
                         {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
                     </button>
+                    <NotificationBell />
                     <button
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                         className="p-2 rounded-md hover:bg-muted text-foreground"

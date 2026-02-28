@@ -7,7 +7,7 @@ import {
     Award,
     Settings,
     LogOut,
-    Bell,
+    // Bell,
     Wallet,
     BedDouble,
 } from 'lucide-react';
@@ -15,6 +15,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 
 import logo from '../assets/routeguide.svg';
+import NotificationBell from '../components/NotificationBell';
 
 const navItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/' },
@@ -139,9 +140,7 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                     marginBottom: '3rem',
                     gap: '2rem'
                 }}>
-                    <button className="glass-pane" style={{ padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Bell size={20} color="var(--text-dim)" />
-                    </button>
+                    <NotificationBell />
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <div style={{ textAlign: 'right' }}>
                             <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{user?.firstName} {user?.lastName}</p>

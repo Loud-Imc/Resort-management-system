@@ -1,20 +1,35 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 
 @Injectable()
 export class RoomTypesService {
+    private readonly logger = new Logger(RoomTypesService.name);
+
     constructor(private prisma: PrismaService) { }
 
     async create(createRoomTypeDto: CreateRoomTypeDto) {
-        const { cancellationPolicy, ...rest } = createRoomTypeDto;
-        return this.prisma.roomType.create({
-            data: {
+        try {
+            const { cancellationPolicy, cancellationPolicyId, ...rest } = createRoomTypeDto;
+
+            const data: any = {
                 ...rest,
                 cancellationPolicyText: cancellationPolicy,
-            },
-        });
+                // Clean up empty strings for foreign keys
+                cancellationPolicyId: (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null,
+            };
+
+            return await this.prisma.roomType.create({ data });
+        } catch (error) {
+            this.logger.error(`Error creating room type: ${error.message}`, error.stack);
+
+            if (error.code === 'P2002') {
+                throw new ConflictException('A room type with this name already exists for this property.');
+            }
+
+            throw new InternalServerErrorException('Failed to create room type. Please check the logs.');
+        }
     }
 
     async findAll(publicOnly = false, propertyId?: string) {
@@ -84,16 +99,35 @@ export class RoomTypesService {
     }
 
     async update(id: string, updateRoomTypeDto: UpdateRoomTypeDto) {
-        await this.findOne(id);
-        const { cancellationPolicy, ...rest } = updateRoomTypeDto;
+        try {
+            await this.findOne(id);
+            const { cancellationPolicy, cancellationPolicyId, ...rest } = updateRoomTypeDto;
 
-        return this.prisma.roomType.update({
-            where: { id },
-            data: {
+            const data: any = {
                 ...rest,
                 cancellationPolicyText: cancellationPolicy,
-            },
-        });
+            };
+
+            // Clean up empty strings for foreign keys
+            if (cancellationPolicyId !== undefined) {
+                data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null;
+            }
+
+            return await this.prisma.roomType.update({
+                where: { id },
+                data,
+            });
+        } catch (error) {
+            this.logger.error(`Error updating room type ${id}: ${error.message}`, error.stack);
+
+            if (error.code === 'P2002') {
+                throw new ConflictException('A room type with this name already exists for this property.');
+            }
+
+            if (error instanceof NotFoundException) throw error;
+
+            throw new InternalServerErrorException('Failed to update room type. Please check the logs.');
+        }
     }
 
     async remove(id: string) {

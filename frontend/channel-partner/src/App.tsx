@@ -10,6 +10,7 @@ import Bookings from './pages/Bookings';
 import Settings from './pages/Settings';
 import WalletPage from './pages/WalletPage';
 import InlineBookingPage from './pages/InlineBookingPage';
+import Notifications from './pages/Notifications';
 import './App.css';
 
 function App() {
@@ -120,6 +121,18 @@ function App() {
           user ? (
             <DashboardLayout>
               <InlineBookingPage />
+            </DashboardLayout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          user ? (
+            <DashboardLayout>
+              <Notifications />
             </DashboardLayout>
           ) : (
             <Navigate to="/login" />

@@ -23,6 +23,7 @@ import {
     Building2
 } from 'lucide-react';
 import clsx from 'clsx';
+import NotificationBell from '../components/NotificationBell';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
@@ -216,8 +217,8 @@ export default function DashboardLayout() {
                     </div>
                     <span className="text-lg font-bold text-primary">Property</span>
                 </Link>
-                Broadway
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                    <NotificationBell />
                     <button
                         onClick={toggleTheme}
                         className="p-2 rounded-md hover:bg-muted text-foreground"
@@ -301,9 +302,30 @@ export default function DashboardLayout() {
             )}
 
             {/* Main Content */}
-            <main className="flex-1 md:ml-64 pt-16 md:pt-0 p-6">
-                <Outlet />
+            <main className="flex-1 md:ml-64 pt-16 md:pt-0 min-h-screen">
+                {/* Desktop Top Header */}
+                <header className="hidden md:flex items-center justify-between px-8 py-4 bg-card/50 backdrop-blur-md border-b border-border sticky top-0 z-10">
+                    <div className="flex items-center gap-2">
+                         <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                            {navItems.find(item => item.path === window.location.pathname)?.label || 'Overview'}
+                         </h2>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <NotificationBell />
+                        <div className="h-6 w-[1px] bg-border mx-2" />
+                        <div className="flex items-center gap-2">
+                             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+                                {user?.firstName?.charAt(0)}
+                            </div>
+                            <span className="text-sm font-medium">{user?.firstName}</span>
+                        </div>
+                    </div>
+                </header>
+
+                <div className="p-6">
+                    <Outlet />
+                </div>
             </main>
-        </div>
+</div>
     );
 }

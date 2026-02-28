@@ -1,14 +1,22 @@
+import { useState, useRef } from 'react';
 import { useLocation, Link, Navigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
 import { formatPrice } from '../utils/currency';
+import { QRCodeSVG } from 'qrcode.react';
+import jsPDF from 'jspdf';
+import { toCanvas } from 'html-to-image';
+import logo from '../assets/routeguide.svg';
+
 
 export default function Confirmation() {
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const bookingIdFromUrl = searchParams.get('bookingId');
+    const invoiceRef = useRef<HTMLDivElement>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // 1. First check if we have booking in state (from fresh checkout)
     // 2. Otherwise check if we have bookingId in URL (from My Bookings)
@@ -83,24 +91,85 @@ export default function Confirmation() {
         }
     };
 
+    const handleDownloadPDF = async () => {
+        if (!invoiceRef.current) return;
+        setIsDownloading(true);
+        
+        // Add a temporary class to the container to trigger "Invoice Mode"
+        const element = invoiceRef.current;
+        element.classList.add('pdf-capture-mode');
+
+        try {
+            const canvas = await toCanvas(element, {
+                quality: 1,
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+                cacheBust: true,
+                style: {
+                    borderRadius: '0', // Invoices should be flat
+                    boxShadow: 'none',
+                    border: 'none',
+                }
+            });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgWidth = 210;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            pdf.save(`RouteGuide_Invoice_${booking.bookingNumber}.pdf`);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+        } finally {
+            element.classList.remove('pdf-capture-mode');
+            setIsDownloading(false);
+        }
+    };
+
     return (
         <div className="min-h-[70vh] bg-gray-50 px-4 py-12">
             <div className="max-w-3xl mx-auto">
-                <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+                <div ref={invoiceRef} className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none">
                     {/* Header Area */}
-                    <div className={`${isCancelled ? 'bg-gray-800' : 'bg-primary-600'} p-8 md:p-12 text-center text-white transition-colors`}>
-                        <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6">
-                            <CheckCircle className="h-10 w-10 text-white" />
+                    <div className={`${isCancelled ? 'bg-gray-800' : 'bg-primary-600'} p-8 md:p-12 text-center text-white transition-colors print:bg-white print:text-gray-900 print:text-left print:p-0 print:border-b print:border-gray-100 print:flex print:justify-between print:items-center [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:text-gray-900 [.pdf-capture-mode_&]:text-left [.pdf-capture-mode_&]:p-8 [.pdf-capture-mode_&]:border-b [.pdf-capture-mode_&]:border-gray-100 [.pdf-capture-mode_&]:flex [.pdf-capture-mode_&]:justify-between [.pdf-capture-mode_&]:items-center`}>
+                        <div className="print:hidden [.pdf-capture-mode_&]:hidden">
+                            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6">
+                                <CheckCircle className="h-10 w-10 text-white" />
+                            </div>
+                            <h1 className="text-3xl md:text-4xl font-serif font-bold mb-2">
+                                {isCancelled ? 'Booking Cancelled' : 'Booking Confirmed!'}
+                            </h1>
+                            <p className="text-primary-50 opacity-90 max-w-md mx-auto">
+                                {isCancelled
+                                    ? 'Your reservation has been cancelled. Refund details are provided below.'
+                                    : `Thank you for choosing us ${booking.user?.firstName ? `, ${booking.user.firstName}` : ''}. We've sent your confirmation details to your registered email.`
+                                }
+                            </p>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-serif font-bold mb-2">
-                            {isCancelled ? 'Booking Cancelled' : 'Booking Confirmed!'}
-                        </h1>
-                        <p className="text-primary-50 opacity-90 max-w-md mx-auto">
-                            {isCancelled
-                                ? 'Your reservation has been cancelled. Refund details are provided below.'
-                                : `Thank you for choosing us ${booking.user?.firstName ? `, ${booking.user.firstName}` : ''}. We've sent your confirmation details to your registered email.`
-                            }
-                        </p>
+                        
+                        {/* Print Only Header Content (Visible in PDF too) */}
+                        <div className="hidden print:block [.pdf-capture-mode_&]:block mb-8 [.pdf-capture-mode_&]:mb-0">
+                            <div className="flex items-center gap-3 mb-6">
+                                <img src={logo} alt="Route Guide" className="h-12 w-auto brightness-0" />
+                                <div className="h-10 w-[1px] bg-gray-200 mx-2 hidden sm:block"></div>
+                                <div>
+                                    <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-widest leading-none">Route Guide</h1>
+                                    <p className="text-[10px] text-gray-600 font-medium uppercase tracking-tighter mt-1">Official Booking Confirmation & Invoice</p>
+                                </div>
+                            </div>
+                            <div className="space-y-0.5 border-l-2 border-primary-500 pl-4 mt-2">
+                                <p className="text-sm font-bold text-gray-900">{property?.name}</p>
+                                <p className="text-[10px] text-gray-600 font-medium">{property?.address}</p>
+                                <p className="text-[10px] text-gray-600 font-medium">{property?.city}, {property?.state}, {property?.pincode}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="hidden print:block [.pdf-capture-mode_&]:block text-right">
+                            <div className="bg-white px-5 py-3 rounded-xl border-2 border-primary-100 inline-block shadow-sm">
+                                <span className="block text-[9px] text-primary-600 font-black uppercase tracking-widest mb-1">Booking ID</span>
+                                <span className="text-xl font-black text-primary-950">#{booking.bookingNumber}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-500 font-bold mt-2 lowercase italic">Generated on {format(new Date(), 'MMM d, yyyy HH:mm')}</p>
+                        </div>
                     </div>
 
                     <div className="p-8 md:p-12">
@@ -167,10 +236,10 @@ export default function Confirmation() {
                             </div>
 
                             {/* Right Column: Payment Details */}
-                            <div className="bg-gray-50/50 rounded-2xl p-6 border border-gray-100">
-                                <h3 className="text-lg font-bold text-gray-900 mb-6">Payment Details</h3>
+                            <div className="bg-gray-50/50 rounded-2xl p-6 border border-gray-100 print:bg-white print:border-none print:p-0 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-none [.pdf-capture-mode_&]:p-0">
+                                <h3 className="text-lg font-bold text-gray-900 mb-6 print:text-base print:mb-4 [.pdf-capture-mode_&]:text-base [.pdf-capture-mode_&]:mb-4">Payment Details</h3>
 
-                                <div className="space-y-4">
+                                <div className="space-y-4 print:space-y-2 [.pdf-capture-mode_&]:space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500">Nightly Rate x {booking.numberOfNights}</span>
                                         <span className="font-medium text-gray-900">{formatPrice(booking.baseAmount || 0, booking.bookingCurrency || 'INR')}</span>
@@ -180,61 +249,68 @@ export default function Confirmation() {
                                         <span className="font-medium text-gray-900">{formatPrice(booking.taxAmount || 0, booking.bookingCurrency || 'INR')}</span>
                                     </div>
                                     {(booking.couponDiscountAmount > 0) && (
-                                        <div className="flex justify-between text-sm text-green-600 font-medium">
+                                        <div className="flex justify-between text-sm text-green-600 font-medium print:text-gray-900 [.pdf-capture-mode_&]:text-gray-900">
                                             <span>Coupon Discount</span>
                                             <span>-{formatPrice(booking.couponDiscountAmount, booking.bookingCurrency || 'INR')}</span>
                                         </div>
                                     )}
-                                    <div className="pt-4 border-t border-gray-200 space-y-3">
+                                    <div className="pt-4 border-t border-gray-200 space-y-3 print:pt-2 [.pdf-capture-mode_&]:pt-2">
                                         <div className="flex justify-between items-center">
-                                            <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Booking Total</span>
-                                            <span className="text-lg font-bold text-gray-900">{formatPrice(booking.totalAmount, booking.bookingCurrency || 'INR')}</span>
+                                            <span className="text-sm font-bold text-gray-500 uppercase tracking-wider print:text-xs [.pdf-capture-mode_&]:text-xs">Booking Total</span>
+                                            <span className="text-lg font-bold text-gray-900 print:text-base [.pdf-capture-mode_&]:text-base">{formatPrice(booking.totalAmount, booking.bookingCurrency || 'INR')}</span>
                                         </div>
 
-                                        <div className="flex justify-between items-center text-emerald-600">
-                                            <span className="text-sm font-bold uppercase tracking-wider">Amount Paid</span>
-                                            <span className="text-lg font-black">{formatPrice(originalPaidAmount, booking.bookingCurrency || 'INR')}</span>
+                                        <div className="flex justify-between items-center text-emerald-700 print:text-gray-900 [.pdf-capture-mode_&]:text-gray-900">
+                                            <span className="text-sm font-bold uppercase tracking-wider print:text-xs [.pdf-capture-mode_&]:text-xs">Amount Paid</span>
+                                            <span className="text-lg font-black print:text-base [.pdf-capture-mode_&]:text-base underline decoration-emerald-100 decoration-2 underline-offset-4 [.pdf-capture-mode_&]:no-underline">{formatPrice(originalPaidAmount, booking.bookingCurrency || 'INR')}</span>
                                         </div>
 
                                         {!isCancelled && Number(booking.paidAmount) < Number(booking.totalAmount) && (
-                                            <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                            <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl border border-amber-100 print:bg-white print:border-gray-200 print:p-2 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200 [.pdf-capture-mode_&]:p-2">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Balance Due at Resort</span>
-                                                    <span className="text-xs text-amber-700 italic">To be paid during check-in</span>
+                                                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">Balance Due at Resort</span>
+                                                    <span className="text-xs text-amber-700 italic print:hidden [.pdf-capture-mode_&]:hidden">To be paid during check-in</span>
                                                 </div>
-                                                <span className="text-xl font-black text-amber-600">
+                                                <span className="text-xl font-black text-amber-600 print:text-base [.pdf-capture-mode_&]:text-base">
                                                     {formatPrice(Number(booking.totalAmount) - Number(booking.paidAmount), booking.bookingCurrency || 'INR')}
                                                 </span>
                                             </div>
                                         )}
 
                                         {totalRefundedAmount > 0 && (
-                                            <div className="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                                            <div className="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-100 print:bg-white print:border-gray-200 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200">
                                                 <div className="flex justify-between items-center mb-1">
-                                                    <span className="text-xs font-bold text-purple-700 uppercase tracking-wider text-[10px]">Total Refunded</span>
-                                                    <span className="text-lg font-black text-purple-700">{formatPrice(totalRefundedAmount, booking.bookingCurrency || 'INR')}</span>
+                                                    <span className="text-xs font-bold text-purple-700 uppercase tracking-wider text-[10px] print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">Total Refunded</span>
+                                                    <span className="text-lg font-black text-purple-700 print:text-base [.pdf-capture-mode_&]:text-base">{formatPrice(totalRefundedAmount, booking.bookingCurrency || 'INR')}</span>
                                                 </div>
                                                 {refundDate && (
-                                                    <p className="text-[10px] text-purple-600 font-medium">
+                                                    <p className="text-[10px] text-purple-600 font-medium print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">
                                                         Processed on {format(new Date(refundDate), 'MMM d, yyyy')}
                                                     </p>
                                                 )}
-                                                <p className="text-[10px] text-purple-500 leading-tight mt-2 italic">
-                                                    Refunds typically take 5-7 business days to reflect in your original payment method.
-                                                </p>
                                             </div>
                                         )}
                                     </div>
 
-                                    <div className="mt-8 pt-8 border-t border-gray-200">
+                                    <div className="mt-8 pt-8 border-t border-gray-200 print:hidden [.pdf-capture-mode_&]:hidden space-y-3">
                                         {!isCancelled && (
-                                            <button
-                                                onClick={() => window.print()}
-                                                className="w-full bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-50 px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                                            >
-                                                <Download className="h-4 w-4" />
-                                                Download Invoice
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={handleDownloadPDF}
+                                                    disabled={isDownloading}
+                                                    className="w-full bg-primary-600 text-white hover:bg-primary-700 px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200 disabled:opacity-50"
+                                                >
+                                                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                                    Download Invoice (PDF)
+                                                </button>
+                                                <button
+                                                    onClick={() => window.print()}
+                                                    className="w-full bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-50 px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Download className="h-4 w-4" />
+                                                    Print Confirmation
+                                                </button>
+                                            </>
                                         )}
                                         <Link
                                             to="/"
@@ -243,8 +319,24 @@ export default function Confirmation() {
                                             Return to Homepage
                                         </Link>
                                     </div>
+                                    
+                                    {/* Print-only QR Code Section (Visible in PDF too) */}
+                                    <div className="hidden print:flex [.pdf-capture-mode_&]:flex flex-col items-center justify-center pt-8 border-t border-gray-100 mt-8">
+                                        <div className="p-2 border border-gray-200 rounded-lg mb-2">
+                                            <QRCodeSVG 
+                                                value={`${window.location.origin}/confirmation?bookingId=${booking.id}`}
+                                                size={80}
+                                                level="H"
+                                            />
+                                        </div>
+                                        <p className="text-[8px] text-gray-400 font-medium uppercase tracking-widest text-center">
+                                            Scan to Verify Booking<br/>
+                                            {booking.id}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
+
                         </div>
 
                         {/* Note Area */}

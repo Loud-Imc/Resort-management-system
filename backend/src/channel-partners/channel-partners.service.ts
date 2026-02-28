@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, ChannelPartnerStatus, RedemptionStatus } from '@prisma/client';
 import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
 import * as bcrypt from 'bcrypt';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
@@ -12,6 +13,7 @@ export class ChannelPartnersService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
+        private readonly notificationsService: NotificationsService,
     ) { }
 
     // Generate unique referral code
@@ -83,7 +85,8 @@ export class ChannelPartnersService {
             throw new NotFoundException('Channel Partner role not found in system');
         }
 
-        return this.prisma.$transaction(async (tx) => {
+        let result: any;
+        result = await this.prisma.$transaction(async (tx) => {
             // 1. Create User
             const user = await tx.user.create({
                 data: {
@@ -128,6 +131,11 @@ export class ChannelPartnersService {
                 },
             };
         });
+
+        // Notify admins of new registration
+        await this.notificationsService.notifyCPRegistration(result);
+
+        return result;
     }
 
     private async getUniqueReferralCode(): Promise<string> {
@@ -509,10 +517,25 @@ export class ChannelPartnersService {
 
     // Admin: Approve/Reject/Deactivate CP
     async updateStatus(id: string, status: ChannelPartnerStatus) {
-        return this.prisma.channelPartner.update({
+        const cp = await this.prisma.channelPartner.update({
             where: { id },
             data: { status },
+            include: { user: true }
         });
+
+        // Notify CP of status update
+        const isApproved = status === ChannelPartnerStatus.APPROVED;
+        await this.notificationsService.createNotification({
+            userId: cp.userId,
+            title: isApproved ? 'Partner Account Approved! 🎉' : 'Account Update',
+            message: isApproved
+                ? 'Your Channel Partner account has been approved. You can now start referring bookings!'
+                : `Your account status has been updated to ${status}.`,
+            type: 'CP_STATUS_UPDATE',
+            data: { status }
+        });
+
+        return cp;
     }
 
     // Admin: Override commission rate

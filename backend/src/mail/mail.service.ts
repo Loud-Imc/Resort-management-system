@@ -19,6 +19,7 @@ export class MailService {
     }
 
     async sendBookingConfirmation(booking: any) {
+        console.log(`[MailService] Sending PREMIUM booking confirmation to ${booking.user.email}`);
         const from = this.configService.get('EMAIL_FROM');
         const to = booking.user.email;
         const subject = `Booking Confirmation - ${booking.bookingNumber}`;
@@ -27,26 +28,71 @@ export class MailService {
         const checkOut = new Date(booking.checkOutDate).toLocaleDateString();
 
         const html = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-        <h2 style="color: #0f172a; text-align: center;">Booking Confirmed!</h2>
-        <p>Dear ${booking.user.firstName},</p>
-        <p>Thank you for choosing our resort. Your booking is confirmed and we look forward to welcoming you.</p>
-        
-        <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">Reservation Details</h3>
-          <p><strong>Booking Number:</strong> ${booking.bookingNumber}</p>
-          <p><strong>Room Type:</strong> ${booking.roomType.name}</p>
-          <p><strong>Check-in:</strong> ${checkIn}</p>
-          <p><strong>Check-out:</strong> ${checkOut}</p>
-          <p><strong>Total Amount:</strong> ₹${booking.totalAmount}</p>
-        </div>
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <style>
+              .container { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+               .header { background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); padding: 50px 20px; text-align: center; color: white; border-bottom: 4px solid #fbbf24; }
+              .content { padding: 40px; color: #334155; line-height: 1.6; }
+              .card { background-color: #f8fafc; padding: 25px; border-radius: 12px; margin: 25px 0; border: 1px solid #e2e8f0; }
+              .button { display: inline-block; padding: 14px 30px; background-color: #0f172a; color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 20px; }
+              .footer { background-color: #f1f5f9; padding: 25px; text-align: center; font-size: 13px; color: #64748b; }
+              .booking-id { font-family: monospace; font-size: 18px; font-weight: bold; color: #0f172a; }
+              .detail-row { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 5px; }
+              .detail-label { font-weight: 600; color: #64748b; font-size: 12px; uppercase; }
+              .detail-value { font-weight: 700; color: #0f172a; }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <div class="header">
+                  <h1 style="margin: 0; font-size: 28px; letter-spacing: 2px;">ROUTE GUIDE</h1>
+                   <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px; text-transform: uppercase; letter-spacing: 2px; font-weight: bold;">✨ NEW PREMIUM TEMPLATE v3.0 ✨</p>
+              </div>
+              <div class="content">
+                  <h2 style="color: #0f172a; margin-top: 0;">Warm greetings, ${booking.user.firstName}!</h2>
+                  <p>Your sanctuary is ready. We've successfully confirmed your reservation and our team is already preparing for your arrival.</p>
+                  
+                  <div class="card">
+                      <div style="text-align: center; margin-bottom: 20px;">
+                          <span class="detail-label">Reservation Number</span><br/>
+                          <span class="booking-id">#${booking.bookingNumber}</span>
+                      </div>
+                      
+                      <div class="detail-row">
+                          <span class="detail-label">Property</span>
+                          <span class="detail-value">${booking.property?.name || 'Our Resort'}</span>
+                      </div>
+                      <div class="detail-row">
+                          <span class="detail-label">Accommodation</span>
+                          <span class="detail-value">${booking.roomType.name}</span>
+                      </div>
+                      <div class="detail-row">
+                          <span class="detail-label">Check-in</span>
+                          <span class="detail-value">${checkIn}</span>
+                      </div>
+                      <div class="detail-row">
+                          <span class="detail-label">Check-out</span>
+                          <span class="detail-value">${checkOut}</span>
+                      </div>
+                      <div class="detail-row" style="border: none; margin-top: 15px;">
+                          <span class="detail-label" style="color: #0f172a; font-size: 14px;">Total Paid</span>
+                          <span class="detail-value" style="color: #059669; font-size: 20px;">₹${booking.totalAmount}</span>
+                      </div>
+                  </div>
 
-        <p>If you have any questions, please feel free to contact us.</p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #64748b; text-align: center;">
-          This is an automated message, please do not reply directly to this email.
-        </p>
-      </div>
+                  <div style="text-align: center;">
+                      <a href="#" class="button">Manage My Booking</a>
+                  </div>
+              </div>
+              <div class="footer">
+                  <p style="margin: 0;">Questions? Contact our concierge at support@routeguide.com</p>
+                  <p style="margin: 10px 0 0 0;">&copy; ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p>
+              </div>
+          </div>
+      </body>
+      </html>
     `;
 
         try {

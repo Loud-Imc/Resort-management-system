@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 const roomSchema = z.object({
     propertyId: z.string().min(1, 'Property is required'),
     roomNumber: z.string().min(1, 'Room number is required'),
-    floor: z.number().optional(),
+    floor: z.union([z.number(), z.nan()]).transform(val => isNaN(val as number) ? undefined : val).optional(),
     roomTypeId: z.string().min(1, 'Room type is required'),
     notes: z.string().optional(),
     isEnabled: z.boolean(),
@@ -35,6 +35,9 @@ export default function CreateRoom() {
         defaultValues: {
             isEnabled: true,
             propertyId,
+            roomNumber: '',
+            roomTypeId: '',
+            notes: '',
         },
     });
 

@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { AppController } from './app.controller';
@@ -23,7 +24,6 @@ import { ChannelPartnersModule } from './channel-partners/channel-partners.modul
 import { MarketingModule } from './marketing/marketing.module';
 import { EventsModule } from './events/events.module';
 import { EventBookingsModule } from './event-bookings/event-bookings.module';
-import { MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { DiscountsModule } from './discounts/discounts.module';
 import { MailModule } from './mail/mail.module';
@@ -31,12 +31,15 @@ import { PropertyCategoriesModule } from './property-categories/property-categor
 import { CurrenciesModule } from './currencies/currencies.module';
 import { CancellationPoliciesModule } from './cancellation-policies/cancellation-policies.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { RemindersModule } from './reminders/reminders.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
@@ -66,6 +69,8 @@ import { ReviewsModule } from './reviews/reviews.module';
     CurrenciesModule,
     CancellationPoliciesModule,
     ReviewsModule,
+    NotificationsModule,
+    RemindersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

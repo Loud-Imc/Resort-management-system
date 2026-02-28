@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
@@ -12,6 +12,7 @@ export default function Register() {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
+    const [showPassword, setShowPassword] = useState(false);
 
     // OTP related states
     const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
@@ -255,7 +256,7 @@ export default function Register() {
                                                 required
                                                 value={formData.ownerFirstName}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                                 placeholder="John"
                                             />
                                         </div>
@@ -268,7 +269,7 @@ export default function Register() {
                                             required
                                             value={formData.ownerLastName}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="Doe"
                                         />
                                     </div>
@@ -286,7 +287,7 @@ export default function Register() {
                                             required
                                             value={formData.ownerEmail}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="you@example.com"
                                         />
                                     </div>
@@ -394,13 +395,20 @@ export default function Register() {
                                         </div>
                                         <input
                                             name="ownerPassword"
-                                            type="password"
+                                            type={showPassword ? "text" : "password"}
                                             required
                                             value={formData.ownerPassword}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="Minimum 8 characters"
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-primary-600 transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                        </button>
                                     </div>
                                 </div>
 
@@ -429,7 +437,7 @@ export default function Register() {
                                                 required
                                                 value={formData.propertyName}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                                 placeholder="e.g. Blue Lagoon Resort"
                                             />
                                         </div>
@@ -441,7 +449,7 @@ export default function Register() {
                                             required
                                             value={formData.propertyType}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm appearance-none text-gray-900"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm appearance-none text-gray-900 bg-white"
                                         >
                                             <option value="RESORT">Resort</option>
                                             <option value="HOTEL">Hotel</option>
@@ -462,7 +470,7 @@ export default function Register() {
                                             name="propertyDescription"
                                             value={formData.propertyDescription}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm min-h-[100px] text-gray-900"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm min-h-[100px] text-gray-900 bg-white"
                                             placeholder="Tell us about your property..."
                                         />
                                     </div>
@@ -480,7 +488,7 @@ export default function Register() {
                                             required
                                             value={formData.address}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="123, Main Road, Area"
                                         />
                                     </div>
@@ -495,7 +503,7 @@ export default function Register() {
                                             required
                                             value={formData.city}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="Wayanad"
                                         />
                                     </div>
@@ -507,7 +515,7 @@ export default function Register() {
                                             required
                                             value={formData.state}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="Kerala"
                                         />
                                     </div>
@@ -522,7 +530,7 @@ export default function Register() {
                                             required
                                             value={formData.pincode}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="673122"
                                         />
                                     </div>
@@ -538,7 +546,7 @@ export default function Register() {
                                                 required
                                                 value={formData.propertyEmail}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                                 placeholder="resort@example.com"
                                             />
                                         </div>
@@ -557,7 +565,7 @@ export default function Register() {
                                             required
                                             value={formData.propertyPhone}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900"
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="9876543210"
                                         />
                                     </div>

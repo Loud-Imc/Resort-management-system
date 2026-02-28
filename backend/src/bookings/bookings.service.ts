@@ -8,6 +8,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import * as bcrypt from 'bcrypt';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class BookingsService {
@@ -18,6 +19,7 @@ export class BookingsService {
         private auditService: AuditService,
         private channelPartnersService: ChannelPartnersService,
         private paymentsService: PaymentsService,
+        private notificationsService: NotificationsService,
     ) { }
 
     /**
@@ -399,6 +401,8 @@ export class BookingsService {
                 );
             }
         }
+        // 12. Broadcast notifications
+        await this.notificationsService.broadcastNewBooking(booking);
 
         return booking;
     }
@@ -653,6 +657,9 @@ export class BookingsService {
         // Finalize Channel Partner Commission
         await this.channelPartnersService.finalizeReferralCommission(id);
 
+        // Notify guest of check-in
+        await this.notificationsService.notifyCheckIn(updated);
+
         return updated;
     }
 
@@ -695,6 +702,9 @@ export class BookingsService {
             bookingId: id,
         });
 
+        // Notify guest of check-out
+        await this.notificationsService.notifyCheckOut(updated);
+
         return updated;
     }
 
@@ -730,6 +740,9 @@ export class BookingsService {
             newValue: { status: 'CANCELLED', reason },
             bookingId: id,
         });
+
+        // Notify guest of cancellation
+        await this.notificationsService.notifyCancellation(updated);
 
         // Revert Channel Partner Commission
         await this.channelPartnersService.revertReferralCommission(id);
