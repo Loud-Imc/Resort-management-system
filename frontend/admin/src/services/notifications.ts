@@ -34,5 +34,17 @@ export const notificationsService = {
     async delete(id: string) {
         const response = await api.delete(`/notifications/${id}`);
         return response.data;
+    },
+    
+    async broadcast(payload: {
+        title: string;
+        message: string;
+        type: string;
+        targetRoles?: string[];
+        targetUsers?: string[];
+        propertyId?: string;
+    }) {
+        const response = await api.post('/notifications/broadcast', payload);
+        return response.data;
     }
 };

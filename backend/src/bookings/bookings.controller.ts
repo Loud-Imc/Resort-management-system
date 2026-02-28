@@ -144,6 +144,16 @@ export class BookingsController {
         return this.bookingsService.getTodayCheckOuts(req.user);
     }
 
+    @Get('unread-count')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.READ)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get unread (unseen) bookings count' })
+    @ApiQuery({ name: 'propertyId', required: false })
+    getUnreadCount(@Request() req, @Query('propertyId') propertyId?: string) {
+        return this.bookingsService.getUnseenCount(req.user, propertyId);
+    }
+
     @Get('public/:id')
     @ApiOperation({ summary: 'Get booking by ID (Public)' })
     findOnePublic(@Param('id') id: string) {

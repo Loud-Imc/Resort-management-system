@@ -115,6 +115,8 @@ export class ChannelPartnersService {
                     taxId: dto.taxId,
                     businessAddress: dto.businessAddress,
                     authorizedPersonName: dto.authorizedPersonName,
+                    aadhaarImage: dto.aadhaarImage,
+                    licenceImage: dto.licenceImage,
                     commissionRate: 10.0, // Default base commission
                 },
             });

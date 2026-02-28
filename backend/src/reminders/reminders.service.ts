@@ -62,4 +62,64 @@ export class RemindersService {
             this.logger.error('Failed to process check-in reminders:', error);
         }
     }
+
+    /**
+     * Run every 30 minutes to remind users with pending payments (abandoned carts)
+     */
+    @Cron(CronExpression.EVERY_30_MINUTES)
+    async processAbandonedCarts() {
+        this.logger.log('Checking for abandoned carts...');
+        
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+        try {
+            const pendingBookings = await this.prisma.booking.findMany({
+                where: {
+                    status: 'PENDING_PAYMENT',
+                    createdAt: { lte: oneHourAgo },
+                    abandonedCartSentAt: null, // Only send once
+                },
+                include: { property: true }
+            });
+
+            this.logger.log(`Found ${pendingBookings.length} abandoned carts to remind.`);
+
+            for (const booking of pendingBookings) {
+                await this.notificationsService.sendAbandonedCartReminder(booking);
+                this.logger.log(`Sent abandoned cart reminder for booking ${booking.bookingNumber}`);
+            }
+        } catch (error) {
+            this.logger.error('Failed to process abandoned carts:', error);
+        }
+    }
+
+    /**
+     * Run every hour to send review requests for bookings checked out > 2 hours ago
+     */
+    @Cron(CronExpression.EVERY_HOUR)
+    async processReviewRequests() {
+        this.logger.log('Checking for recent check-outs to request reviews...');
+
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+        try {
+            const recentCheckOuts = await this.prisma.booking.findMany({
+                where: {
+                    status: 'CHECKED_OUT',
+                    checkedOutAt: { lte: twoHoursAgo },
+                    reviewRequestSentAt: null, // Only send once
+                },
+                include: { property: true }
+            });
+
+            this.logger.log(`Found ${recentCheckOuts.length} recent check-outs for review requests.`);
+
+            for (const booking of recentCheckOuts) {
+                await this.notificationsService.sendReviewRequest(booking);
+                this.logger.log(`Sent review request for booking ${booking.bookingNumber}`);
+            }
+        } catch (error) {
+            this.logger.error('Failed to process review requests:', error);
+        }
+    }
 }

@@ -44,4 +44,9 @@ export const bookingsService = {
         const { data } = await api.post<Booking>(`/bookings/${id}/cancel`, { reason });
         return data;
     },
+    
+    getUnreadCount: async (propertyId?: string) => {
+        const { data } = await api.get<number>('/bookings/unread-count', { params: { propertyId } });
+        return data;
+    },
 };

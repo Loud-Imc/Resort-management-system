@@ -44,4 +44,12 @@ export class RegisterChannelPartnerDto {
     @IsString()
     @IsOptional()
     authorizedPersonName?: string;
+
+    @IsString()
+    @IsOptional()
+    aadhaarImage?: string;
+
+    @IsString()
+    @IsOptional()
+    licenceImage?: string;
 }

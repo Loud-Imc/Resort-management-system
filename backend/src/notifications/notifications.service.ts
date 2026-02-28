@@ -4,6 +4,7 @@ import { NotificationsGateway } from './notifications.gateway';
 import { Twilio } from 'twilio';
 import { PrismaService } from '../prisma/prisma.service';
 import * as admin from 'firebase-admin';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class NotificationsService {
@@ -15,6 +16,7 @@ export class NotificationsService {
     private configService: ConfigService,
     private gateway: NotificationsGateway,
     private prisma: PrismaService,
+    private mailService: MailService,
   ) {
     const accountSid = this.configService.get('TWILIO_ACCOUNT_SID');
     const authToken = this.configService.get('TWILIO_AUTH_TOKEN');
@@ -142,14 +144,15 @@ export class NotificationsService {
    * Convenience method for New Booking Alert
    */
   async broadcastNewBooking(booking: any) {
+    const isCPBooked = !!booking.channelPartnerId;
     const summary = `New Booking: ${booking.bookingNumber} at ${booking.property?.name}`;
-    const messageDetails = `Guest: ${booking.user?.firstName} ${booking.user?.lastName}, Total: ₹${booking.totalAmount}`;
-
-    // 1. WebSocket alert for dashboard toasts
+    
+    // 1. WebSocket alert for dashboard toasts (Notify Property Dashboard)
     await this.notifyDashboard('NEW_BOOKING', booking, booking.propertyId);
 
-    // 2. Save persistent notification for Property Owner
+    // 2. Email & Persistent Notifications for Property Owner (ALWAYS)
     if (booking.property?.ownerId) {
+      // Socket & DB Notification
       await this.createNotification({
         userId: booking.property.ownerId,
         title: 'New Booking Received 🚀',
@@ -157,21 +160,18 @@ export class NotificationsService {
         type: 'BOOKING_CREATED',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
+      
+      // Premium Email to Property
+      if (booking.property?.propertyEmail || booking.property?.owner?.email) {
+        const targetEmail = booking.property.propertyEmail || booking.property.owner.email;
+        await this.mailService.sendPropertyNewBookingAlert(targetEmail, booking);
+      }
     }
 
-    // 3. Save persistent notification for Channel Partner (if applicable)
-    if (booking.channelPartner?.userId) {
-      await this.createNotification({
-        userId: booking.channelPartner.userId,
-        title: 'New Referral Booking! 💰',
-        message: `A booking was made using your referral code at ${booking.property?.name}`,
-        type: 'CP_REFERRAL_BOOKING',
-        data: { bookingId: booking.id, commission: booking.cpCommission }
-      });
-    }
-
-    // 4. Save persistent notification for Guest
-    if (booking.userId) {
+    // 3. Notification for Guest (Only if NOT booked by CP, or if guest details provided)
+    // The user mentioned: "if the booking is booked by the CP, then only need to notify the property and CP"
+    if (!isCPBooked && booking.userId) {
+      // Socket & DB Notification
       await this.createNotification({
         userId: booking.userId,
         title: 'Booking Confirmed! 🏨',
@@ -179,18 +179,41 @@ export class NotificationsService {
         type: 'BOOKING_CONFIRMED',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
+
+      // Premium Email to Guest
+      await this.mailService.sendBookingConfirmation(booking);
+
+      // WhatsApp alert for Guest
+      if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
+        const whatsappMsg = `🚀 *New Booking Alert*!\n\n` +
+          `Booking #: ${booking.bookingNumber}\n` +
+          `Resort: ${booking.property?.name}\n` +
+          `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
+          `Total: ₹${booking.totalAmount}\n` +
+          `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
+        const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+        await this.sendWhatsApp(targetNumber, whatsappMsg);
+      }
     }
 
-    // 5. WhatsApp alert for Guest
-    if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
-      const whatsappMsg = `🚀 *New Booking Alert*!\n\n` +
-        `Booking #: ${booking.bookingNumber}\n` +
-        `Resort: ${booking.property?.name}\n` +
-        `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
-        `Total: ₹${booking.totalAmount}\n` +
-        `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
-      const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
-      await this.sendWhatsApp(targetNumber, whatsappMsg);
+    // 4. Notification for Channel Partner (if applicable)
+    if (isCPBooked && booking.channelPartner?.userId) {
+      await this.createNotification({
+        userId: booking.channelPartner.userId,
+        title: 'New Referral Booking! 💰',
+        message: `A booking was made using your referral code at ${booking.property?.name}`,
+        type: 'CP_REFERRAL_BOOKING',
+        data: { bookingId: booking.id, commission: booking.cpCommission }
+      });
+
+      // Optional: WhatsApp for CP (if number exists)
+      if (booking.channelPartner?.user?.phone) {
+        const cpMsg = `💰 *New Referral Booking!*\n\n` +
+          `Booking #: ${booking.bookingNumber}\n` +
+          `Property: ${booking.property?.name}\n` +
+          `Commission earned: ₹${booking.cpCommission}`;
+        await this.sendWhatsApp(booking.channelPartner.user.phone, cpMsg);
+      }
     }
   }
 
@@ -262,6 +285,71 @@ export class NotificationsService {
   }
 
   /**
+   * Complex Broadcast: Target by IDs, Roles, or Property
+   */
+  async broadcastNotification(payload: {
+    title: string;
+    message: string;
+    type: string;
+    targetUsers?: string[];
+    targetRoles?: string[];
+    propertyId?: string;
+    data?: any;
+  }) {
+    let userIds: string[] = [];
+
+    if (payload.targetUsers?.length) {
+      userIds = payload.targetUsers;
+    } else if (payload.targetRoles?.length) {
+      const users = await this.prisma.user.findMany({
+        where: {
+          roles: {
+            some: {
+              role: {
+                name: { in: payload.targetRoles }
+              }
+            }
+          }
+        },
+        select: { id: true }
+      });
+      userIds = users.map(u => u.id);
+    } else if (payload.propertyId) {
+      // Find all guests who have booked THIS property
+      const bookings = await this.prisma.booking.findMany({
+        where: { propertyId: payload.propertyId },
+        select: { userId: true },
+        distinct: ['userId']
+      });
+      userIds = bookings.map(b => b.userId);
+    } else {
+      // Broadcast to ALL users
+      const users = await this.prisma.user.findMany({ select: { id: true } });
+      userIds = users.map(u => u.id);
+    }
+
+    this.logger.log(`Broadcasting "${payload.title}" to ${userIds.length} users`);
+
+    // Create notifications in chunks to avoid overloading
+    const chunks: string[][] = [];
+    for (let i = 0; i < userIds.length; i += 100) {
+      chunks.push(userIds.slice(i, i + 100));
+    }
+
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map(uid => this.createNotification({
+        userId: uid,
+        title: payload.title,
+        message: payload.message,
+        type: payload.type,
+        data: payload.data
+      })));
+    }
+
+    return { success: true, count: userIds.length };
+  }
+
+  /**
    * Notify guest of Check-in
    */
   async notifyCheckIn(booking: any) {
@@ -318,6 +406,48 @@ export class NotificationsService {
         message: `Payout for booking ${payment.booking?.bookingNumber || payment.eventBooking?.ticketId} has been processed.`,
         type: 'PAYOUT_CONFIRMED',
         data: { paymentId: payment.id, amount: payment.netAmount }
+      });
+    }
+  }
+
+  /**
+   * Send Abandoned Cart Reminder
+   */
+  async sendAbandonedCartReminder(booking: any) {
+    if (booking.userId) {
+      await this.createNotification({
+        userId: booking.userId,
+        title: 'Complete Your Booking! ✨',
+        message: `Your stay at ${booking.property?.name} is waiting. Complete your payment to secure your room.`,
+        type: 'ABANDONED_CART',
+        data: { bookingId: booking.id, propertyId: booking.propertyId }
+      });
+
+      // Update booking to track reminder sent
+      await this.prisma.booking.update({
+        where: { id: booking.id },
+        data: { abandonedCartSentAt: new Date() }
+      });
+    }
+  }
+
+  /**
+   * Send Review Request
+   */
+  async sendReviewRequest(booking: any) {
+    if (booking.userId) {
+      await this.createNotification({
+        userId: booking.userId,
+        title: 'How was your stay? ⭐',
+        message: `We hope you enjoyed your stay at ${booking.property?.name}. Please leave us a review!`,
+        type: 'REVIEW_REQUEST',
+        data: { bookingId: booking.id, propertyId: booking.propertyId }
+      });
+
+      // Update booking to track reminder sent
+      await this.prisma.booking.update({
+        where: { id: booking.id },
+        data: { reviewRequestSentAt: new Date() }
       });
     }
   }

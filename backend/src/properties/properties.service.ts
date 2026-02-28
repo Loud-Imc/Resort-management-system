@@ -141,6 +141,10 @@ export class PropertiesService {
                     ownerId: user.id,
                     images: dto.images || [],
                     amenities: dto.amenities || [],
+                    licenceImage: dto.licenceImage,
+                    gstNumber: dto.gstNumber,
+                    ownerAadhaarNumber: dto.ownerAadhaarNumber,
+                    ownerAadhaarImage: dto.ownerAadhaarImage,
                     status: PropertyStatus.PENDING,
                 },
             });

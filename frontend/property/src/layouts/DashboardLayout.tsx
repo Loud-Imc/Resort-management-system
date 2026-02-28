@@ -23,7 +23,11 @@ import {
     Building2
 } from 'lucide-react';
 import clsx from 'clsx';
+import logo from '../assets/logo.svg';
 import NotificationBell from '../components/NotificationBell';
+
+import { useQuery } from '@tanstack/react-query';
+import { bookingsService } from '../services/bookings';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
@@ -31,6 +35,13 @@ export default function DashboardLayout() {
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    const { data: unreadCount = 0 } = useQuery({
+        queryKey: ['bookings', 'unread-count', selectedProperty?.id],
+        queryFn: () => bookingsService.getUnreadCount(selectedProperty?.id),
+        enabled: !!selectedProperty?.id && isAuthenticated,
+        refetchInterval: 30000, // Poll every 30 seconds
+    });
 
     if (isLoading) {
         return (
@@ -60,7 +71,12 @@ export default function DashboardLayout() {
         ...(selectedProperty?.status === 'APPROVED' ? [
             // Bookings & Guests
             ...(hasPermission('bookings.read') ? [
-                { icon: Calendar, label: 'Bookings', path: '/bookings' },
+                {
+                    icon: Calendar,
+                    label: 'Bookings',
+                    path: '/bookings',
+                    badge: unreadCount > 0 ? unreadCount : undefined
+                },
                 { icon: Users, label: 'Guests', path: '/guests' },
             ] : []),
 
@@ -111,11 +127,12 @@ export default function DashboardLayout() {
             {/* Sidebar - Desktop */}
             <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border fixed h-full z-10 transition-colors duration-300">
                 <div className="p-6 border-b border-border">
-                    <Link to="/" className="flex items-center gap-2 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-600 to-teal-800 flex items-center justify-center">
-                            <Building2 className="h-4 w-4 text-white" />
-                        </div>
-                        <span className="text-xl font-bold text-primary tracking-tight">Property</span>
+                    <Link to="/" className="flex items-center justify-center mb-6 overflow-hidden">
+                        <img
+                            src={logo}
+                            alt="Route Guide"
+                            className="h-40 w-auto object-contain -my-16"
+                        />
                     </Link>
 
 
@@ -170,7 +187,12 @@ export default function DashboardLayout() {
                             }
                         >
                             <item.icon className="h-5 w-5" />
-                            {item.label}
+                            <span className="flex-1">{item.label}</span>
+                            {item.badge !== undefined && (
+                                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                    {item.badge}
+                                </span>
+                            )}
                         </NavLink>
                     ))}
                 </nav>
@@ -211,11 +233,8 @@ export default function DashboardLayout() {
 
             {/* Mobile Header */}
             <div className="md:hidden fixed w-full bg-card border-b border-border z-20 flex items-center justify-between p-4">
-                <Link to="/" className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-600 to-teal-800 flex items-center justify-center">
-                        <Building2 className="h-4 w-4 text-white" />
-                    </div>
-                    <span className="text-lg font-bold text-primary">Property</span>
+                <Link to="/" className="flex items-center">
+                    <img src={logo} alt="Route Guide" className="h-16 w-auto object-contain -my-4" />
                 </Link>
                 <div className="flex items-center gap-1">
                     <NotificationBell />
@@ -284,7 +303,12 @@ export default function DashboardLayout() {
                                     }
                                 >
                                     <item.icon className="h-5 w-5" />
-                                    {item.label}
+                                    <span className="flex-1">{item.label}</span>
+                                    {item.badge !== undefined && (
+                                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                            {item.badge}
+                                        </span>
+                                    )}
                                 </NavLink>
                             ))}
                         </nav>
@@ -306,15 +330,15 @@ export default function DashboardLayout() {
                 {/* Desktop Top Header */}
                 <header className="hidden md:flex items-center justify-between px-8 py-4 bg-card/50 backdrop-blur-md border-b border-border sticky top-0 z-10">
                     <div className="flex items-center gap-2">
-                         <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                        <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
                             {navItems.find(item => item.path === window.location.pathname)?.label || 'Overview'}
-                         </h2>
+                        </h2>
                     </div>
                     <div className="flex items-center gap-4">
                         <NotificationBell />
                         <div className="h-6 w-[1px] bg-border mx-2" />
                         <div className="flex items-center gap-2">
-                             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+                            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
                                 {user?.firstName?.charAt(0)}
                             </div>
                             <span className="text-sm font-medium">{user?.firstName}</span>
@@ -326,6 +350,6 @@ export default function DashboardLayout() {
                     <Outlet />
                 </div>
             </main>
-</div>
+        </div>
     );
 }

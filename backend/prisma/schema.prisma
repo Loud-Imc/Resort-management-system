@@ -210,6 +210,8 @@ model Booking {
   checkedInAt             DateTime?
   checkedOutAt            DateTime?
   cancelledAt             DateTime?
+  abandonedCartSentAt     DateTime?
+  reviewRequestSentAt     DateTime?
   channelPartnerId        String?
   cpCommission            Decimal?             @db.Decimal(10, 2)
   cpDiscount              Decimal?             @db.Decimal(10, 2)
@@ -223,6 +225,7 @@ model Booking {
   paidAmount              Decimal              @default(0) @db.Decimal(10, 2)
   paymentOption           BookingPaymentOption @default(FULL)
   paymentStatus           BookingPaymentStatus @default(UNPAID)
+  isSeenByProperty        Boolean              @default(false)
   auditLogs               AuditLog[]
   guests                  BookingGuest[]
   agent                   User?                @relation("AgentBookings", fields: [agentId], references: [id])
@@ -432,6 +435,10 @@ model Property {
   categoryId          String?
   baseCurrency        String            @default("INR")
   taxRate             Float             @default(12)
+  licenceImage        String?
+  gstNumber           String?
+  ownerAadhaarNumber  String?
+  ownerAadhaarImage   String?
   bookings            Booking[]
   reviews             Review[]
   events              Event[]
@@ -525,6 +532,8 @@ model ChannelPartner {
   upiId                String?
   walletBalance        Decimal              @default(0) @db.Decimal(12, 2)
   registrationFeePaid  Boolean              @default(false)
+  aadhaarImage         String?
+  licenceImage         String?
   referrals            Booking[]            @relation("CPReferrals")
   user                 User                 @relation(fields: [userId], references: [id])
   redemptions          CPRewardRedemption[]

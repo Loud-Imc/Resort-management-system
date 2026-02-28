@@ -80,4 +80,20 @@ export class RegisterPropertyDto {
     @IsArray()
     @IsString({ each: true })
     amenities?: string[];
+
+    @IsOptional()
+    @IsString()
+    licenceImage?: string;
+
+    @IsOptional()
+    @IsString()
+    gstNumber?: string;
+
+    @IsOptional()
+    @IsString()
+    ownerAadhaarNumber?: string;
+
+    @IsOptional()
+    @IsString()
+    ownerAadhaarImage?: string;
 }

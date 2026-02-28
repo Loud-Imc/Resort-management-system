@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
@@ -29,6 +29,11 @@ export default function Register() {
         ownerEmail: '',
         ownerPhone: '',
         ownerPassword: '',
+        // Document fields
+        ownerAadhaarNumber: '',
+        ownerAadhaarImage: '',
+        licenceImage: '',
+        gstNumber: '',
         // Property fields
         propertyName: '',
         propertyDescription: '',
@@ -571,6 +576,59 @@ export default function Register() {
                                     </div>
                                 </div>
 
+                                {/* Mandatory Documents */}
+                                <div className="border-t border-gray-100 pt-6 mt-6">
+                                    <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <Shield className="h-4 w-4 text-primary-600" />
+                                        Mandatory Registration Documents
+                                    </h3>
+
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Owner Aadhaar Number</label>
+                                                <input
+                                                    name="ownerAadhaarNumber"
+                                                    type="text"
+                                                    required
+                                                    value={formData.ownerAadhaarNumber}
+                                                    onChange={handleChange}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                    placeholder="12-digit Aadhaar Number"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">GST Number (Optional)</label>
+                                                <input
+                                                    name="gstNumber"
+                                                    type="text"
+                                                    value={formData.gstNumber}
+                                                    onChange={handleChange}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                    placeholder="15-digit GSTIN"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <DocumentUpload
+                                                label="Aadhaar Card Copy"
+                                                id="ownerAadhaarImage"
+                                                value={formData.ownerAadhaarImage}
+                                                onUpload={(url) => setFormData(prev => ({ ...prev, ownerAadhaarImage: url }))}
+                                                required
+                                            />
+                                            <DocumentUpload
+                                                label="Property Licence"
+                                                id="licenceImage"
+                                                value={formData.licenceImage}
+                                                onUpload={(url) => setFormData(prev => ({ ...prev, licenceImage: url }))}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="flex gap-4 pt-4">
                                     <button
                                         type="button"
@@ -581,7 +639,7 @@ export default function Register() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={isLoading}
+                                        disabled={isLoading || !formData.ownerAadhaarImage || !formData.licenceImage}
                                         className="flex-[2] py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-xl font-bold text-sm hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary-500/20"
                                     >
                                         {isLoading ? (
@@ -613,6 +671,71 @@ export default function Register() {
                 <p className="text-center text-sm text-gray-400 mt-8">
                     &copy; {new Date().getFullYear()} Route Guide Property Management. All rights reserved.
                 </p>
+            </div>
+        </div>
+    );
+}
+
+function DocumentUpload({ label, id, value, onUpload, required }: { label: string; id: string; value: string; onUpload: (url: string) => void; required?: boolean }) {
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Check file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('File size must be less than 5MB');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setIsUploading(true);
+        try {
+            const { data } = await import('../services/api').then(m => m.default.post('/uploads', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            }));
+            onUpload(data.url);
+            toast.success(`${label} uploaded`);
+        } catch (error: any) {
+            console.error('Upload error:', error);
+            toast.error(`Failed to upload ${label}`);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{label} {required && <span className="text-red-500">*</span>}</label>
+            <div className={`relative border-2 border-dashed ${value ? 'border-primary-500 bg-primary-50' : 'border-gray-200'} rounded-xl p-4 transition-all`}>
+                <input
+                    type="file"
+                    id={id}
+                    className="hidden"
+                    accept="image/*,application/pdf"
+                    onChange={handleFileChange}
+                />
+                <label
+                    htmlFor={id}
+                    className="flex flex-col items-center justify-center cursor-pointer py-2"
+                >
+                    {isUploading ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+                    ) : value ? (
+                        <>
+                            <CheckCircle2 className="h-6 w-6 text-primary-600 mb-2" />
+                            <span className="text-xs font-bold text-primary-700">Uploaded Successfully</span>
+                        </>
+                    ) : (
+                        <>
+                            <ClipboardList className="h-6 w-6 text-gray-400 mb-2" />
+                            <span className="text-xs text-gray-500 font-medium">Click to upload doc</span>
+                        </>
+                    )}
+                </label>
             </div>
         </div>
     );

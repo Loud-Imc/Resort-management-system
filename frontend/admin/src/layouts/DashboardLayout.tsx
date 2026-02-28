@@ -21,7 +21,8 @@ import {
     Ticket,
     Sun,
     Moon,
-    Bell
+    Bell,
+    Megaphone
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/routeguide.svg';
@@ -95,6 +96,7 @@ export default function DashboardLayout() {
         ...(hasPermission('marketing.read') ? [
             { icon: DollarSign, label: 'Marketing', path: '/marketing' },
             { icon: Ticket, label: 'Coupons', path: '/marketing/coupons' },
+            { icon: Megaphone, label: 'Broadcast Alerts', path: '/marketing/notifications' },
             { icon: Users, label: 'Channel Partners', path: '/channel-partners' }
         ] : []),
 
@@ -131,9 +133,12 @@ export default function DashboardLayout() {
             {/* Sidebar - Desktop */}
             <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border fixed h-full z-10 transition-colors duration-300">
                 <div className="p-6 border-b border-gray-100">
-                    <Link to="/" className="flex items-center gap-2 mb-4">
-                        <img src={logo} alt="Route Guide" className="h-8 w-auto" />
-                        <span className="text-xl font-bold text-primary italic tracking-tight">Route Guide</span>
+                    <Link to="/" className="flex items-center justify-center mb-6 overflow-hidden">
+                        <img 
+                            src={logo} 
+                            alt="Route Guide" 
+                            className="h-28 w-auto object-contain -my-8" 
+                        />
                     </Link>
 
                     {properties.length > 0 && (
@@ -230,9 +235,8 @@ export default function DashboardLayout() {
 
             {/* Mobile Header & Sidebar Overlay */}
             <div className="md:hidden fixed w-full bg-card border-b border-border z-20 flex items-center justify-between p-4">
-                <Link to="/" className="flex items-center gap-2">
-                    <img src={logo} alt="Route Guide" className="h-8 w-auto" />
-                    <span className="text-lg font-bold text-primary">Route Guide</span>
+                <Link to="/" className="flex items-center">
+                    <img src={logo} alt="Route Guide" className="h-16 w-auto object-contain -my-4" />
                 </Link>
                 <div className="flex items-center gap-2">
                     <button

@@ -17,6 +17,8 @@ const Register: React.FC = () => {
         organizationName: '',
         authorizedPersonName: '',
         businessAddress: '',
+        aadhaarImage: '',
+        licenceImage: '',
     });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -218,9 +220,30 @@ const Register: React.FC = () => {
                         </>
                     )}
 
+                    {/* Mandatory Documents for CP */}
+                    <div style={{ gridColumn: 'span 2', marginTop: '1rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1.5rem' }}>
+                        <h4 style={{ fontSize: '1rem', color: 'var(--text-main)', marginBottom: '1rem', fontWeight: 600 }}>Verification Documents</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
+                            <DocumentUpload
+                                label="Aadhaar Card Copy"
+                                value={formData.aadhaarImage}
+                                onUpload={(url) => setFormData(prev => ({ ...prev, aadhaarImage: url }))}
+                                required
+                            />
+                            {formData.partnerType === 'ORGANIZATION' && (
+                                <DocumentUpload
+                                    label="Travel Agency Licence"
+                                    value={formData.licenceImage}
+                                    onUpload={(url) => setFormData(prev => ({ ...prev, licenceImage: url }))}
+                                    required
+                                />
+                            )}
+                        </div>
+                    </div>
+
                     <button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={isLoading || !formData.aadhaarImage || (formData.partnerType === 'ORGANIZATION' && !formData.licenceImage)}
                         style={{
                             gridColumn: 'span 2',
                             padding: '1rem',
@@ -275,6 +298,63 @@ const inputStyle: React.CSSProperties = {
     color: 'var(--text-main)',
     outline: 'none'
 
+};
+
+const DocumentUpload: React.FC<{
+    label: string;
+    value: string;
+    onUpload: (url: string) => void;
+    required?: boolean;
+}> = ({ label, value, onUpload, required }) => {
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setIsUploading(true);
+        try {
+            const { data } = await api.post('/uploads', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            onUpload(data.url);
+        } catch (error: any) {
+            console.error('Upload error:', error);
+            alert(`Failed to upload ${label}`);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>
+                {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
+            </label>
+            <div style={{
+                border: '2px dashed var(--border-glass)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1rem',
+                textAlign: 'center',
+                background: value ? 'rgba(8, 71, 78, 0.05)' : 'white',
+                position: 'relative',
+                cursor: 'pointer'
+            }}>
+                <input
+                    type="file"
+                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                    onChange={handleFileChange}
+                    accept="image/*,application/pdf"
+                />
+                <div style={{ fontSize: '0.75rem', color: value ? 'var(--primary-teal)' : 'var(--text-dim)', fontWeight: value ? 600 : 400 }}>
+                    {isUploading ? 'Uploading...' : value ? '✓ Uploaded' : 'Click to upload'}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default Register;

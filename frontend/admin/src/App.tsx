@@ -55,7 +55,7 @@ import StaffList from './pages/Properties/StaffList';
 import { CPList } from './pages/ChannelPartners';
 
 // Marketing
-import { MarketingDashboard, CouponsPage } from './pages/Marketing';
+import { MarketingDashboard, CouponsPage, NotificationCenter } from './pages/Marketing';
 
 // Events
 import EventsList from './pages/Events/EventsList';
@@ -135,6 +135,7 @@ function App() {
                     {/* Marketing Management */}
                     <Route path="marketing" element={<MarketingDashboard />} />
                     <Route path="marketing/coupons" element={<CouponsPage />} />
+                    <Route path="marketing/notifications" element={<NotificationCenter />} />
 
                     {/* Event Management */}
                     <Route path="events" element={<EventsList />} />

@@ -78,6 +78,7 @@ export interface Room {
     };
     createdAt: string;
     updatedAt: string;
+    blocks?: RoomBlock[];
     bookings?: any[];
 }
 
@@ -110,7 +111,7 @@ export interface BlockRoomDto {
 export interface RoomBlock {
     id: string;
     roomId: string;
-    minDate: string;
+    startDate: string;
     endDate: string;
     reason: string;
     notes?: string;

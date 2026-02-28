@@ -574,18 +574,59 @@ export class BookingsService {
         }
 
         // Check ownership/staff access
+        let isAuthorizedMember = false;
         if (!isGlobalAdmin) {
             const isOwner = booking.property?.ownerId === user.id;
             const isStaff = await this.prisma.propertyStaff.findUnique({
                 where: { propertyId_userId: { propertyId: booking.propertyId || '', userId: user.id } }
             });
+            isAuthorizedMember = !!(isOwner || isStaff);
 
             if (!isOwner && !isStaff && booking.userId !== user.id) {
                 throw new NotFoundException('Booking not found');
             }
+        } else {
+            isAuthorizedMember = true;
+        }
+
+        // Mark as seen if authorized member is viewing
+        if (isAuthorizedMember && booking.isSeenByProperty === false) {
+            await this.prisma.booking.update({
+                where: { id },
+                data: { isSeenByProperty: true }
+            });
         }
 
         return booking;
+    }
+
+    async getUnseenCount(user: any, propertyId?: string) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const where: any = {
+            isSeenByProperty: false,
+            status: { not: 'PENDING_PAYMENT' as any } // Only count confirmed/meaningful bookings
+        };
+
+        if (isGlobalAdmin) {
+            if (propertyId) {
+                where.propertyId = propertyId;
+            }
+        } else {
+            // Limited to properties the user owns or works at
+            where.property = {
+                OR: [
+                    { ownerId: user.id },
+                    { staff: { some: { userId: user.id } } }
+                ]
+            };
+            if (propertyId) {
+                where.propertyId = propertyId;
+            }
+        }
+
+        return this.prisma.booking.count({ where });
     }
 
     /**

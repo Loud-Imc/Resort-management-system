@@ -1,5 +1,5 @@
 import api from './api';
-import type { Room, CreateRoomDto, UpdateRoomDto, BlockRoomDto } from '../types/room';
+import type { Room, CreateRoomDto, UpdateRoomDto, BlockRoomDto, RoomBlock } from '../types/room';
 
 export const roomsService = {
     getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string }) => {
@@ -31,8 +31,13 @@ export const roomsService = {
         return response.data;
     },
 
-    unblock: async (id: string) => {
-        const response = await api.post(`/rooms/${id}/unblock`);
+    unblock: async (blockId: string) => {
+        const response = await api.delete(`/rooms/blocks/${blockId}`);
         return response.data;
+    },
+
+    getBlocks: async (roomId: string) => {
+        const { data } = await api.get<RoomBlock[]>(`/rooms/${roomId}/blocks`);
+        return data;
     },
 };

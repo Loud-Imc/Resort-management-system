@@ -1,14 +1,18 @@
-import { Controller, Get, Patch, Param, UseGuards, Req, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, Delete } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all notifications for current user' })
@@ -53,5 +57,11 @@ export class NotificationsController {
     return this.prisma.notification.delete({
       where: { id, userId: req.user.id },
     });
+  }
+
+  @Post('broadcast')
+  @ApiOperation({ summary: 'Broadcast a notification (Admin only)' })
+  async broadcast(@Body() payload: any) {
+    return this.notificationsService.broadcastNotification(payload);
   }
 }
