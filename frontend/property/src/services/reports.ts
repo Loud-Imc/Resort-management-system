@@ -55,4 +55,34 @@ export const reportsService = {
         });
         return data;
     },
+
+    exportExcel: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get('/reports/export/excel', {
+            params: { startDate, endDate, propertyId },
+            responseType: 'blob',
+        });
+        
+        const url = window.URL.createObjectURL(new Blob([data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Report_${startDate}_${endDate}.xlsx`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    },
+
+    exportPdf: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get('/reports/export/pdf', {
+            params: { startDate, endDate, propertyId },
+            responseType: 'blob',
+        });
+        
+        const url = window.URL.createObjectURL(new Blob([data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Report_${startDate}_${endDate}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    },
 };

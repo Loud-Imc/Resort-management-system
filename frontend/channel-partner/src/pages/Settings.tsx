@@ -100,6 +100,7 @@ const Settings: React.FC = () => {
             const updateData: any = { ...formData };
             delete updateData.referralCode;
             delete updateData.confirmPassword;
+            delete updateData.registrationFeePaid;
             if (!updateData.password) delete updateData.password;
 
             await api.patch('/channel-partners/me', updateData);
@@ -107,8 +108,12 @@ const Settings: React.FC = () => {
 
             // Clear passwords after save
             setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Failed to update settings' });
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.message || 'Failed to update settings';
+            setMessage({
+                type: 'error',
+                text: Array.isArray(errorMsg) ? errorMsg[0] : errorMsg
+            });
         } finally {
             setIsSaving(false);
         }

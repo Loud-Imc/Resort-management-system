@@ -140,6 +140,26 @@ export class UsersService {
         const { roleIds, password, ...userData } = updateUserDto;
         const updateData: any = { ...userData };
 
+        // Check if email is being changed and if it already exists
+        if (userData.email && userData.email !== user.email) {
+            const existingEmail = await this.prisma.user.findUnique({
+                where: { email: userData.email },
+            });
+            if (existingEmail) {
+                throw new ConflictException('Email already exists');
+            }
+        }
+
+        // Check if phone is being changed and if it already exists
+        if (userData.phone && userData.phone !== user.phone) {
+            const existingPhone = await this.prisma.user.findUnique({
+                where: { phone: userData.phone },
+            });
+            if (existingPhone) {
+                throw new ConflictException('Phone number already exists');
+            }
+        }
+
         if (password) {
             updateData.password = await bcrypt.hash(password, 10);
         }

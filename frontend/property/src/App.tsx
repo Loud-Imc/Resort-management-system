@@ -29,6 +29,7 @@ import RolesList from './pages/Roles/RolesList';
 import ProcessRole from './pages/Roles/ProcessRole';
 import Reports from './pages/Reports/Reports';
 import MyProperty from './pages/Property/MyProperty';
+import CalendarSync from './pages/Property/CalendarSync';
 import Notifications from './pages/Notifications';
 
 const queryClient = new QueryClient();
@@ -83,6 +84,7 @@ function App() {
 
                     {/* My Property */}
                     <Route path="my-property" element={<MyProperty />} />
+                    <Route path="calendar-sync" element={<CalendarSync />} />
 
                     {/* Notifications */}
                     <Route path="notifications" element={<Notifications />} />

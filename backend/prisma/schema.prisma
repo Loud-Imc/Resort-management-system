@@ -269,6 +269,7 @@ model BookingSource {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   bookings    Booking[]
+  icalSyncs   PropertyIcal[]
 
   @@map("booking_sources")
 }
@@ -454,8 +455,25 @@ model Property {
   cancellationPolicies CancellationPolicy[] @relation("PropertyPolicies")
   defaultCancellationPolicyId String?
   defaultCancellationPolicy   CancellationPolicy? @relation("PropertyDefaultPolicy", fields: [defaultCancellationPolicyId], references: [id])
+  icalSyncs            PropertyIcal[]
 
   @@map("properties")
+}
+
+model PropertyIcal {
+  id           String    @id @default(uuid())
+  propertyId   String
+  icalUrl      String
+  platformName String    // e.g., "Airbnb", "Booking.com"
+  lastSyncedAt DateTime?
+  status       String    @default("ACTIVE") // ACTIVE, FAILED
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  bookingSourceId String?
+  bookingSource   BookingSource? @relation(fields: [bookingSourceId], references: [id], onDelete: SetNull)
+
+  @@map("property_icals")
 }
 
 model CancellationPolicy {

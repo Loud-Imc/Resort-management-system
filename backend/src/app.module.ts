@@ -33,9 +33,12 @@ import { CancellationPoliciesModule } from './cancellation-policies/cancellation
 import { ReviewsModule } from './reviews/reviews.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { IcalModule } from './ical/ical.module';
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
+    PdfModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -71,6 +74,7 @@ import { RemindersModule } from './reminders/reminders.module';
     ReviewsModule,
     NotificationsModule,
     RemindersModule,
+    IcalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

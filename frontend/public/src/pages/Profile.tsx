@@ -16,7 +16,7 @@ export default function Profile() {
     const [activeTab, setActiveTab] = useState<'details' | 'bookings'>((searchParams.get('tab') as any) || 'details');
     const [isUpdating, setIsUpdating] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    
+
     // Auth check
     const token = localStorage.getItem('token');
     const userJson = localStorage.getItem('user');
@@ -69,8 +69,9 @@ export default function Profile() {
             toast.success('Profile updated successfully');
             setIsUpdating(false);
         },
-        onError: () => {
-            toast.error('Failed to update profile');
+        onError: (error: any) => {
+            const errorMsg = error.response?.data?.message || 'Failed to update profile';
+            toast.error(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
         }
     });
 
@@ -202,7 +203,7 @@ export default function Profile() {
                                     <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
                                 </label>
                             </div>
-                            
+
                             <h2 className="text-2xl font-bold text-gray-900 font-serif leading-tight px-2">
                                 {toTitleCase(`${user?.firstName || ''} ${user?.lastName || ''}`)}
                             </h2>
@@ -242,7 +243,7 @@ export default function Profile() {
                                             <p className="text-gray-400 text-sm font-medium">Manage your personal information and preferences.</p>
                                         </div>
                                         {!isUpdating && (
-                                            <button 
+                                            <button
                                                 onClick={() => setIsUpdating(true)}
                                                 className="px-6 py-2.5 bg-primary-50 text-primary-600 rounded-xl font-bold text-sm hover:bg-primary-100 transition-colors border border-primary-100"
                                             >
@@ -258,7 +259,7 @@ export default function Profile() {
                                                 <input
                                                     type="text"
                                                     value={formData.firstName}
-                                                    onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                                                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                                                     disabled={!isUpdating}
                                                     className="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
@@ -268,7 +269,7 @@ export default function Profile() {
                                                 <input
                                                     type="text"
                                                     value={formData.lastName}
-                                                    onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                                                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                                     disabled={!isUpdating}
                                                     className="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
@@ -284,7 +285,7 @@ export default function Profile() {
                                                 <input
                                                     type="email"
                                                     value={formData.email}
-                                                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                                     disabled={!isUpdating}
                                                     className="w-full pl-16 pr-6 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
@@ -350,7 +351,7 @@ export default function Profile() {
                                             <span className="text-sm font-bold text-gray-700">{bookings?.length || 0} Total Stays</span>
                                         </div>
                                     </div>
-                                    
+
                                     {bookingsLoading ? (
                                         <div className="flex flex-col items-center justify-center py-32 space-y-4">
                                             <Loader2 className="h-10 w-10 animate-spin text-primary-600" />
@@ -413,8 +414,8 @@ export default function Profile() {
                                                                             <button onClick={() => setCancellingBooking(booking)} className="text-red-400 hover:text-red-600 font-black text-[10px] uppercase tracking-widest transition-colors">Cancel</button>
                                                                         )}
                                                                         {canReview(booking) && (
-                                                                            <button 
-                                                                                onClick={() => setReviewingBooking(booking)} 
+                                                                            <button
+                                                                                onClick={() => setReviewingBooking(booking)}
                                                                                 className="px-4 py-2 bg-amber-400 text-amber-950 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-500 transition-all shadow-lg shadow-amber-100 hover:scale-105 active:scale-95"
                                                                             >
                                                                                 Leave Review
@@ -431,7 +432,7 @@ export default function Profile() {
                                                                         </Link>
                                                                     </div>
                                                                 </div>
-                                                                
+
                                                                 <div className="mt-4 flex items-center justify-between">
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="w-1.5 h-1.5 rounded-full bg-primary-200" />
@@ -465,7 +466,7 @@ export default function Profile() {
                         <p className="text-gray-600 mb-8">Are you sure you want to cancel booking #{cancellingBooking.bookingNumber}?</p>
                         <div className="flex gap-4">
                             <button onClick={() => setCancellingBooking(null)} className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200">Back</button>
-                            <button onClick={() => cancelMutation.mutate({id: cancellingBooking.id, reason: cancelReason})} className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700">Cancel Stay</button>
+                            <button onClick={() => cancelMutation.mutate({ id: cancellingBooking.id, reason: cancelReason })} className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700">Cancel Stay</button>
                         </div>
                     </div>
                 </div>
@@ -491,13 +492,13 @@ export default function Profile() {
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="flex items-center gap-2">
                                         {[1, 2, 3, 4, 5].map((star) => (
-                                            <button 
+                                            <button
                                                 key={star}
                                                 onMouseEnter={() => setReviewRating(star)}
                                                 onClick={() => setReviewRating(star)}
                                                 className="group outline-none"
                                             >
-                                                <Star 
+                                                <Star
                                                     className={clsx(
                                                         "h-10 w-10 transition-all duration-300 transform group-hover:scale-110 active:scale-95",
                                                         star <= reviewRating ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]" : "text-gray-200"
@@ -514,7 +515,7 @@ export default function Profile() {
                                 {/* Comment */}
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 block px-1">Your Experience</label>
-                                    <textarea 
+                                    <textarea
                                         value={reviewComment}
                                         onChange={(e) => setReviewComment(e.target.value)}
                                         placeholder="Tell us about the service, food, and room..."
@@ -522,7 +523,7 @@ export default function Profile() {
                                     />
                                 </div>
 
-                                <button 
+                                <button
                                     onClick={() => submitReviewMutation.mutate()}
                                     disabled={submitReviewMutation.isPending}
                                     className="w-full py-5 bg-primary-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl shadow-primary-100 uppercase tracking-widest text-xs flex items-center justify-center gap-3 disabled:opacity-50"

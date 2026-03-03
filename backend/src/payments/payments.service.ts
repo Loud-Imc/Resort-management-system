@@ -252,11 +252,21 @@ export class PaymentsService {
                 },
             });
 
-            // Send confirmation email
-            await this.mailService.sendBookingConfirmation(payment.booking);
+            // Fetch refreshed booking to ensure paymentStatus and paidAmount are accurate
+            const refreshedBooking = await this.prisma.booking.findUnique({
+                where: { id: payment.bookingId },
+                include: {
+                    user: true,
+                    roomType: true,
+                    property: { include: { owner: true } },
+                    channelPartner: { include: { user: true } }
+                }
+            });
 
             // Broadcast booking confirmation across all channels
-            await this.notificationsService.broadcastNewBooking(payment.booking);
+            if (refreshedBooking) {
+                await this.notificationsService.broadcastNewBooking(refreshedBooking);
+            }
 
             // Process Channel Partner Reward (Pending)
             if (payment.booking.channelPartnerId) {
@@ -398,8 +408,20 @@ export class PaymentsService {
                 },
             });
 
-            // Send confirmation email
-            await this.mailService.sendBookingConfirmation(payment.booking);
+            // Fetch refreshed booking
+            const refreshedBooking = await this.prisma.booking.findUnique({
+                where: { id: payment.bookingId },
+                include: {
+                    user: true,
+                    roomType: true,
+                    property: { include: { owner: true } },
+                    channelPartner: { include: { user: true } }
+                }
+            });
+
+            if (refreshedBooking) {
+                await this.notificationsService.broadcastNewBooking(refreshedBooking);
+            }
 
             // Process Channel Partner Reward (Pending)
             if (payment.booking?.channelPartnerId) {

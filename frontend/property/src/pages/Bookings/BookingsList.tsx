@@ -30,10 +30,12 @@ import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
 import { Banknote } from 'lucide-react';
 
-const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string }> = {
-    AADHAR: { pattern: /^\d{12}$/, message: 'Aadhar must be exactly 12 digits' },
-    PASSPORT: { pattern: /^[A-Z][0-9]{7}$/, message: 'Invalid Passport format' },
-    VOTER_ID: { pattern: /^[A-Z]{3}[0-9]{7}$/, message: 'Invalid Voter ID format' },
+const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
+    AADHAR: { pattern: /^\d{12}$/, message: 'Aadhar must be exactly 12 digits', sample: 'e.g. 1234 5678 9012' },
+    PASSPORT: { pattern: /^[A-Z][0-9]{7}$/, message: '1 Letter + 7 Digits (e.g. A1234567)', sample: 'e.g. A1234567' },
+    VOTER_ID: { pattern: /^[A-Z]{3}[0-9]{7}$/, message: '3 Letters + 7 Digits', sample: 'e.g. ABC1234567' },
+    DRIVING_LICENSE: { pattern: /^[A-Z]{2}[0-9]{13}$/, message: '2 Letters + 13 Digits', sample: 'e.g. MH1220100012345' },
+    PAN: { pattern: /^[A-Z]{5}[0-9]{4}[A-Z]$/, message: 'Invalid PAN format', sample: 'e.g. ABCDE1234F' },
 };
 
 export default function BookingsList() {
@@ -123,11 +125,27 @@ export default function BookingsList() {
 
     const recordPaymentMutation = useMutation({
         mutationFn: paymentsService.recordManual,
-        onSuccess: () => {
+        onSuccess: (data) => {
             toast.success('Payment recorded successfully');
             setPaymentAmount('');
             setPaymentNotes('');
             setIsRecordingPayment(false);
+
+            // Update local checkInBooking state with new paid amount
+            // data.payment.amount is the correct path from backend response
+            if (checkInBooking && data.payment) {
+                const addedAmount = Number(data.payment.amount);
+                const currentPaid = Number(checkInBooking.paidAmount);
+                const total = Number(checkInBooking.totalAmount);
+                const newPaidAmount = currentPaid + addedAmount;
+
+                setCheckInBooking({
+                    ...checkInBooking,
+                    paidAmount: newPaidAmount,
+                    paymentStatus: newPaidAmount >= total ? 'FULL' : 'PARTIAL'
+                });
+            }
+
             queryClient.invalidateQueries({ queryKey: ['bookings'] });
         },
         onError: (error: any) => {
@@ -390,6 +408,20 @@ export default function BookingsList() {
                                 toast.error('Please fix validation errors');
                                 return;
                             }
+
+                            const unpaidBalance = Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount);
+                            if (unpaidBalance > 0) {
+                                toast.error(`Please record remaining payment of ₹${unpaidBalance.toLocaleString()} first`);
+                                return;
+                            }
+
+                            // ID Verification Check
+                            const incompleteGuests = verificationData.filter(g => !g.idType || !g.idNumber || !g.idImage);
+                            if (incompleteGuests.length > 0) {
+                                toast.error('Please complete ID details for all guests');
+                                return;
+                            }
+
                             checkInMutation.mutate({
                                 id: checkInBooking.id,
                                 data: { guests: verificationData }
@@ -593,6 +625,11 @@ export default function BookingsList() {
                                                         {idErrors[`${idx}-idNumber`] && (
                                                             <p className="text-[10px] text-destructive font-bold pl-1 mt-1">{idErrors[`${idx}-idNumber`]}</p>
                                                         )}
+                                                        {guest.idType && ID_VALIDATION_PATTERNS[guest.idType] && !idErrors[`${idx}-idNumber`] && (
+                                                            <p className="text-[10px] text-muted-foreground font-medium pl-1 mt-1 opacity-70">
+                                                                {ID_VALIDATION_PATTERNS[guest.idType].sample}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -668,13 +705,21 @@ export default function BookingsList() {
                                 <button
                                     type="submit"
                                     disabled={checkInMutation.isPending || uploadingGuestId !== null}
-                                    className="flex-1 px-8 py-4 bg-primary text-primary-foreground rounded-2xl font-black text-sm uppercase tracking-widest hover:shadow-[0_20px_40px_-12px_rgba(var(--primary),0.3)] shadow-lg shadow-primary/20 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-3 group"
+                                    className={`flex-1 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-3 group shadow-lg ${(Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0) || verificationData.some(g => !g.idType || !g.idNumber || !g.idImage)
+                                            ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70'
+                                            : 'bg-primary text-primary-foreground hover:shadow-[0_20px_40px_-12px_rgba(var(--primary),0.3)] shadow-primary/20'
+                                        }`}
                                 >
                                     {checkInMutation.isPending ? (
                                         <Loader2 className="h-5 w-5 animate-spin" />
                                     ) : (
                                         <>
-                                            Complete Check-In Process
+                                            {Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0
+                                                ? 'Payment Required'
+                                                : verificationData.some(g => !g.idType || !g.idNumber || !g.idImage)
+                                                    ? 'ID Verification Required'
+                                                    : 'Complete Check-In Process'
+                                            }
                                             <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                                         </>
                                     )}

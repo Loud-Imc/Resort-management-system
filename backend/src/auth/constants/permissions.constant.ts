@@ -152,6 +152,7 @@ export const PERMISSION_GROUPS = {
         ...Object.values(PERMISSIONS.EVENTS),
         ...Object.values(PERMISSIONS.EVENT_BOOKINGS),
         ...Object.values(PERMISSIONS.MARKETING),
+        ...Object.values(PERMISSIONS.BOOKING_SOURCES),
     ],
 
     MANAGER: [
@@ -223,8 +224,8 @@ export const PERMISSION_GROUPS = {
         // Marketing: Offers
         PERMISSIONS.MARKETING.MANAGE_OFFERS,
 
-        // Booking Sources: Read
-        PERMISSIONS.BOOKING_SOURCES.READ,
+        // Booking Sources: Full Control
+        ...Object.values(PERMISSIONS.BOOKING_SOURCES),
     ],
 
     MARKETING: [

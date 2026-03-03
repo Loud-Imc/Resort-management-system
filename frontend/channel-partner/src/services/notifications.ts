@@ -12,23 +12,23 @@ export interface Notification {
 
 export const notificationsService = {
   getAll: async () => {
-    const { data } = await api.get<Notification[]>('/notifications');
-    return data;
+    const response = await api.get<Notification[]>('/notifications');
+    return response.data;
   },
 
   getUnreadCount: async () => {
-    const { data } = await api.get<{ count: number }>('/notifications/unread-count');
-    return data;
+    const response = await api.get<{ count: number }>('/notifications/unread-count');
+    return response.data;
   },
 
   markAsRead: async (id: string) => {
-    const { data } = await api.patch<Notification>(`/notifications/${id}/read`);
-    return data;
+    const response = await api.patch<Notification>(`/notifications/${id}/read`);
+    return response.data;
   },
 
   markAllAsRead: async () => {
-    const { data } = await api.patch('/notifications/read-all');
-    return data;
+    const response = await api.patch('/notifications/read-all');
+    return response.data;
   },
 
   delete: async (id: string) => {

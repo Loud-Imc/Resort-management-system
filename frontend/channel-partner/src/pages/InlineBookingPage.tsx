@@ -4,6 +4,7 @@ import {
     Wallet, CheckCircle, Loader2, ArrowLeft, BedDouble, Star
 } from 'lucide-react';
 import api from '../services/api';
+import { formatPrice } from '../utils/currency';
 
 // --- Types ---
 interface Property {
@@ -12,6 +13,7 @@ interface Property {
     city: string;
     state: string;
     basePrice: number;
+    currency: string;
     images?: { url: string }[];
 }
 
@@ -94,7 +96,7 @@ const InlineBookingPage: React.FC = () => {
                 adults,
                 children,
                 location: selectedProperty.name, // scope to this property by name
-                currency: 'INR',
+                currency: selectedProperty.currency || 'INR',
             });
 
             // Filter to only show rooms that belong to the selected property
@@ -154,7 +156,7 @@ const InlineBookingPage: React.FC = () => {
                 guestPhone: guestPhone || undefined,
                 referralCode: cpStats?.referralCode,
                 paymentMethod,
-                currency: 'INR',
+                currency: selectedProperty?.currency || 'INR',
             });
 
             if (paymentMethod === 'ONLINE') {
@@ -417,16 +419,16 @@ const InlineBookingPage: React.FC = () => {
                                     <div style={{ marginTop: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                                         <div style={{ textAlign: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.03)', borderRadius: 'var(--radius-sm)' }}>
                                             <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase' }}>Base ({nights}n)</p>
-                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, textDecoration: 'line-through', color: 'var(--text-dim)' }}>₹{roomBase.toLocaleString()}</p>
+                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, textDecoration: 'line-through', color: 'var(--text-dim)' }}>{formatPrice(roomBase, selectedProperty?.currency || 'INR')}</p>
                                         </div>
                                         <div style={{ textAlign: 'center', padding: '0.75rem', background: 'rgba(16,185,129,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16,185,129,0.2)' }}>
                                             <p style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600, textTransform: 'uppercase' }}>Online Pay</p>
-                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#10b981' }}>₹{roomAfterDiscount.toLocaleString()}</p>
+                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#10b981' }}>{formatPrice(roomAfterDiscount, selectedProperty?.currency || 'INR')}</p>
                                             <p style={{ fontSize: '0.65rem', color: '#10b981' }}>({discountRate}% off)</p>
                                         </div>
                                         <div style={{ textAlign: 'center', padding: '0.75rem', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245,158,11,0.2)' }}>
                                             <p style={{ fontSize: '0.7rem', color: '#d97706', fontWeight: 600, textTransform: 'uppercase' }}>Wallet Pay</p>
-                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#d97706' }}>₹{roomWallet.toLocaleString()}</p>
+                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#d97706' }}>{formatPrice(roomWallet, selectedProperty?.currency || 'INR')}</p>
                                             <p style={{ fontSize: '0.65rem', color: '#d97706' }}>({discountRate + commissionRate}% off)</p>
                                         </div>
                                     </div>
@@ -495,15 +497,15 @@ const InlineBookingPage: React.FC = () => {
                                     </div>
                                     <div>
                                         <p style={{ fontWeight: 700 }}>Pay via Wallet</p>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Commission ({commissionRate}%) deducted immediately. Balance: ₹{(cpStats?.walletBalance ?? 0).toLocaleString()}</p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Commission ({commissionRate}%) deducted immediately. Balance: {formatPrice(cpStats?.walletBalance ?? 0, 'INR')}</p>
                                     </div>
                                 </div>
-                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#d97706' }}>₹{afterWallet.toLocaleString()}</div>
+                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#d97706' }}>{formatPrice(afterWallet, selectedProperty?.currency || 'INR')}</div>
                             </div>
                             {paymentMethod === 'WALLET' && (
                                 <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', color: '#d97706' }}>
                                     <Star size={12} style={{ display: 'inline', marginRight: '0.3rem' }} />
-                                    You save ₹{(discount + commission).toLocaleString()} ({discountRate + commissionRate}% off). Commission reflected instantly.
+                                    You save {formatPrice(discount + commission, selectedProperty?.currency || 'INR')} ({discountRate + commissionRate}% off). Commission reflected instantly.
                                 </div>
                             )}
                         </div>
@@ -527,7 +529,7 @@ const InlineBookingPage: React.FC = () => {
                                         <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Commission ({commissionRate}%) credited after guest check-in.</p>
                                     </div>
                                 </div>
-                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary-teal)' }}>₹{afterDiscount.toLocaleString()}</div>
+                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary-teal)' }}>{formatPrice(afterDiscount, selectedProperty?.currency || 'INR')}</div>
                             </div>
                         </div>
 
@@ -543,7 +545,7 @@ const InlineBookingPage: React.FC = () => {
                             }}
                         >
                             {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                            {isSubmitting ? 'Processing...' : `Confirm Booking — ₹${amountToPay.toLocaleString()}`}
+                            {isSubmitting ? 'Processing...' : `Confirm Booking — ${formatPrice(amountToPay, selectedProperty?.currency || 'INR')}`}
                         </button>
 
                         {paymentMethod === 'WALLET' && (cpStats?.walletBalance ?? 0) < afterWallet && (
@@ -563,25 +565,25 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span style={{ color: 'var(--text-dim)' }}>{selectedRoom?.name} × {nights} night{nights > 1 ? 's' : ''}</span>
-                                    <span style={{ fontWeight: 600 }}>₹{baseTotal.toLocaleString()}</span>
+                                    <span style={{ fontWeight: 600 }}>{formatPrice(baseTotal, selectedProperty?.currency || 'INR')}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
                                     <span>Guest Discount ({discountRate}%)</span>
-                                    <span>-₹{discount.toLocaleString()}</span>
+                                    <span>-{formatPrice(discount, selectedProperty?.currency || 'INR')}</span>
                                 </div>
                                 {paymentMethod === 'WALLET' && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#d97706' }}>
                                         <span>Commission ({commissionRate}%)</span>
-                                        <span>-₹{commission.toLocaleString()}</span>
+                                        <span>-{formatPrice(commission, selectedProperty?.currency || 'INR')}</span>
                                     </div>
                                 )}
                                 <div style={{ borderTop: '1px solid var(--border-glass)', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem' }}>
                                     <span>You Pay</span>
-                                    <span className="text-premium-gradient">₹{amountToPay.toLocaleString()}</span>
+                                    <span className="text-premium-gradient">{formatPrice(amountToPay, selectedProperty?.currency || 'INR')}</span>
                                 </div>
                                 {paymentMethod === 'ONLINE' && (
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', padding: '0.5rem', background: 'rgba(8,71,78,0.04)', borderRadius: 'var(--radius-sm)' }}>
-                                        Commission of ₹{commission.toLocaleString()} will be credited to your wallet after the guest checks in.
+                                        Commission of {formatPrice(commission, selectedProperty?.currency || 'INR')} will be credited to your wallet after the guest checks in.
                                     </div>
                                 )}
                             </div>
@@ -609,7 +611,7 @@ const InlineBookingPage: React.FC = () => {
                     <p style={{ color: 'var(--text-dim)', marginBottom: '1rem' }}>Booking Number: <strong>{booking.bookingNumber}</strong></p>
                     <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: '2rem' }}>
                         A confirmation email has been sent to {guestEmail}.
-                        {paymentMethod === 'ONLINE' ? ` Your ₹${commission.toLocaleString()} commission will be credited after check-in.` : ` Your commission of ₹${commission.toLocaleString()} has been reflected in your wallet.`}
+                        {paymentMethod === 'ONLINE' ? ` Your ${formatPrice(commission, selectedProperty?.currency || 'INR')} commission will be credited after check-in.` : ` Your commission of ${formatPrice(commission, selectedProperty?.currency || 'INR')} has been reflected in your wallet.`}
                     </p>
                     <button
                         onClick={() => {

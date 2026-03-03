@@ -32,12 +32,12 @@ const Register: React.FC = () => {
 
         try {
             // 1. Submit Registration Data
-            const response = await api.post('/channel-partners/public-register', formData);
-            const cpId = response.data.id;
+            const response: any = await api.post('/channel-partners/public-register', formData);
+            const cpId = response.id;
 
             // 2. Initiate Payment Order
-            const payRes = await api.post('/channel-partners/registration-payment/initiate', { channelPartnerId: cpId });
-            const { orderId, amount, currency, keyId } = payRes.data;
+            const payRes: any = await api.post('/channel-partners/registration-payment/initiate', { channelPartnerId: cpId });
+            const { orderId, amount, currency, keyId } = payRes;
 
             // 3. Open Razorpay Checkout
             const options = {
@@ -61,7 +61,8 @@ const Register: React.FC = () => {
                         navigate('/login');
                     } catch (err: any) {
                         console.error('Payment verification error:', err);
-                        setError(err.response?.data?.message || err.message || 'Payment verification failed. Please contact support.');
+                        const msg = typeof err === 'string' ? err : (Array.isArray(err?.message) ? err.message[0] : err?.message);
+                        setError(msg || 'Payment verification failed. Please contact support.');
                         setIsLoading(false);
                     }
                 },
@@ -84,7 +85,8 @@ const Register: React.FC = () => {
             const rzp = new (window as any).Razorpay(options);
             rzp.open();
         } catch (err: any) {
-            setError(err.response?.data?.message || err.message || 'Registration failed. Please try again.');
+            const msg = typeof err === 'string' ? err : (Array.isArray(err?.message) ? err.message[0] : err?.message);
+            setError(msg || 'Registration failed. Please try again.');
             setIsLoading(false);
         }
     };
@@ -317,7 +319,7 @@ const DocumentUpload: React.FC<{
 
         setIsUploading(true);
         try {
-            const { data } = await api.post('/uploads', formData, {
+            const data: any = await api.post('/uploads', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             onUpload(data.url);
@@ -337,21 +339,63 @@ const DocumentUpload: React.FC<{
             <div style={{
                 border: '2px dashed var(--border-glass)',
                 borderRadius: 'var(--radius-md)',
-                padding: '1rem',
+                padding: value ? '0.5rem' : '1.5rem',
                 textAlign: 'center',
                 background: value ? 'rgba(8, 71, 78, 0.05)' : 'white',
                 position: 'relative',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                minHeight: '100px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
             }}>
                 <input
                     type="file"
-                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', zIndex: 10 }}
                     onChange={handleFileChange}
                     accept="image/*,application/pdf"
                 />
-                <div style={{ fontSize: '0.75rem', color: value ? 'var(--primary-teal)' : 'var(--text-dim)', fontWeight: value ? 600 : 400 }}>
-                    {isUploading ? 'Uploading...' : value ? '✓ Uploaded' : 'Click to upload'}
-                </div>
+                
+                {value ? (
+                    <div style={{ width: '100%', position: 'relative' }}>
+                        {value.toLowerCase().match(/\.(pdf)$/) ? (
+                            <div style={{ padding: '1rem', color: 'var(--primary-teal)', fontWeight: 600 }}>
+                                <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>PDF</div>
+                                <div style={{ fontSize: '0.75rem' }}>Document Uploaded</div>
+                            </div>
+                        ) : (
+                            <img 
+                                src={value} 
+                                alt="Preview" 
+                                style={{ 
+                                    maxWidth: '100%', 
+                                    maxHeight: '120px', 
+                                    borderRadius: '4px',
+                                    display: 'block',
+                                    margin: '0 auto' 
+                                }} 
+                            />
+                        )}
+                        <div style={{ 
+                            marginTop: '0.5rem', 
+                            fontSize: '0.7rem', 
+                            color: 'var(--primary-teal)', 
+                            fontWeight: 700,
+                            background: 'rgba(255,255,255,0.8)',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            display: 'inline-block'
+                        }}>
+                            ✓ Click to change
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 400 }}>
+                        {isUploading ? 'Uploading...' : 'Click to upload'}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProperty } from '../context/PropertyContext';
@@ -20,28 +20,44 @@ import {
     Sun,
     Moon,
     ChevronDown,
-    Building2
+    Building2,
+    RefreshCw
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import NotificationBell from '../components/NotificationBell';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { bookingsService } from '../services/bookings';
+import { useSocket } from '../context/SocketContext';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
     const { selectedProperty, properties, setSelectedProperty } = useProperty();
     const { theme, toggleTheme } = useTheme();
-    const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const navigate = useNavigate();
+    const { socket } = useSocket();
+    const queryClient = useQueryClient();
 
     const { data: unreadCount = 0 } = useQuery({
         queryKey: ['bookings', 'unread-count', selectedProperty?.id],
         queryFn: () => bookingsService.getUnreadCount(selectedProperty?.id),
         enabled: !!selectedProperty?.id && isAuthenticated,
-        refetchInterval: 30000, // Poll every 30 seconds
+        refetchInterval: 60000, // Poll less frequently when we have sockets
     });
+
+    // Real-time update for unread count
+    useEffect(() => {
+        if (socket) {
+            socket.on('NEW_BOOKING', () => {
+                queryClient.invalidateQueries({ queryKey: ['bookings', 'unread-count'] });
+            });
+            return () => {
+                socket.off('NEW_BOOKING');
+            };
+        }
+    }, [socket, queryClient]);
 
     if (isLoading) {
         return (
@@ -120,6 +136,7 @@ export default function DashboardLayout() {
 
         // My Property is always accessible
         { icon: Building2, label: 'My Property', path: '/my-property' },
+        { icon: RefreshCw, label: 'Calendar Sync', path: '/calendar-sync' },
     ];
 
     return (
@@ -131,7 +148,7 @@ export default function DashboardLayout() {
                         <img
                             src={logo}
                             alt="Route Guide"
-                            className="h-40 w-auto object-contain -my-16"
+                            className={`h-11 w-auto object-contain ${theme !== "light" ? "brightness-0 invert" : ""}`}
                         />
                     </Link>
 
@@ -234,7 +251,7 @@ export default function DashboardLayout() {
             {/* Mobile Header */}
             <div className="md:hidden fixed w-full bg-card border-b border-border z-20 flex items-center justify-between p-4">
                 <Link to="/" className="flex items-center">
-                    <img src={logo} alt="Route Guide" className="h-16 w-auto object-contain -my-4" />
+                    <img src={logo} alt="Route Guide" className={`h-11 w-auto object-contain -my-16 ${theme !== "light" ? "brightness-0 invert" : ""}`} />
                 </Link>
                 <div className="flex items-center gap-1">
                     <NotificationBell />

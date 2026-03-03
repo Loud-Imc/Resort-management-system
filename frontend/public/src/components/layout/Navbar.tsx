@@ -65,7 +65,7 @@ export default function Navbar() {
                                 src={logo}
                                 alt="Route Guide"
                                 className={clsx(
-                                    "h-40 md:h-50 w-auto transition-all ",
+                                    "h-11 md:h-13 w-auto transition-all ",
                                     isHome && !isScrolled ? "brightness-0 invert" : ""
                                 )}
                             />

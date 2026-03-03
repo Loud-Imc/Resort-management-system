@@ -5,6 +5,7 @@ import { Twilio } from 'twilio';
 import { PrismaService } from '../prisma/prisma.service';
 import * as admin from 'firebase-admin';
 import { MailService } from '../mail/mail.service';
+import { PdfService } from '../pdf/pdf.service';
 
 @Injectable()
 export class NotificationsService {
@@ -17,6 +18,7 @@ export class NotificationsService {
     private gateway: NotificationsGateway,
     private prisma: PrismaService,
     private mailService: MailService,
+    private pdfService: PdfService,
   ) {
     const accountSid = this.configService.get('TWILIO_ACCOUNT_SID');
     const authToken = this.configService.get('TWILIO_AUTH_TOKEN');
@@ -150,6 +152,13 @@ export class NotificationsService {
     // 1. WebSocket alert for dashboard toasts (Notify Property Dashboard)
     await this.notifyDashboard('NEW_BOOKING', booking, booking.propertyId);
 
+    // 0. Pre-generate the PDF once to be shared across emails
+    const pdfBuffer = await this.pdfService.generateBookingConfirmation(booking);
+    const pdfAttachment = {
+      filename: `Reservation_${booking.bookingNumber}.pdf`,
+      content: pdfBuffer,
+    };
+
     // 2. Email & Persistent Notifications for Property Owner (ALWAYS)
     if (booking.property?.ownerId) {
       // Socket & DB Notification
@@ -164,7 +173,7 @@ export class NotificationsService {
       // Premium Email to Property
       if (booking.property?.propertyEmail || booking.property?.owner?.email) {
         const targetEmail = booking.property.propertyEmail || booking.property.owner.email;
-        await this.mailService.sendPropertyNewBookingAlert(targetEmail, booking);
+        await this.mailService.sendPropertyNewBookingAlert(targetEmail, booking, pdfAttachment);
       }
     }
 
@@ -180,8 +189,8 @@ export class NotificationsService {
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
 
-      // Premium Email to Guest
-      await this.mailService.sendBookingConfirmation(booking);
+      // Premium Email to Guest with PDF Attachment
+      await this.mailService.sendBookingConfirmation(booking, pdfAttachment);
 
       // WhatsApp alert for Guest
       if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
@@ -198,6 +207,7 @@ export class NotificationsService {
 
     // 4. Notification for Channel Partner (if applicable)
     if (isCPBooked && booking.channelPartner?.userId) {
+      // Socket & DB Notification
       await this.createNotification({
         userId: booking.channelPartner.userId,
         title: 'New Referral Booking! 💰',
@@ -205,6 +215,11 @@ export class NotificationsService {
         type: 'CP_REFERRAL_BOOKING',
         data: { bookingId: booking.id, commission: booking.cpCommission }
       });
+
+      // Premium Email to CP
+      if (booking.channelPartner?.user?.email) {
+        await this.mailService.sendChannelPartnerBookingAlert(booking.channelPartner.user.email, booking, pdfAttachment);
+      }
 
       // Optional: WhatsApp for CP (if number exists)
       if (booking.channelPartner?.user?.phone) {
@@ -361,6 +376,13 @@ export class NotificationsService {
         type: 'CHECKIN_SUCCESS',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
+
+      // WhatsApp alert for Check-in
+      if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
+        const msg = `Welcome! 🏨\n\nYou have successfully checked in at *${booking.property?.name}*. Enjoy your stay!`;
+        const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+        await this.sendWhatsApp(targetNumber, msg);
+      }
     }
   }
 
@@ -376,6 +398,13 @@ export class NotificationsService {
         type: 'CHECKOUT_SUCCESS',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
+
+      // WhatsApp alert for Check-out
+      if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
+        const msg = `Thank You! 😊\n\nThank you for staying at *${booking.property?.name}*. We hope to see you again soon!`;
+        const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+        await this.sendWhatsApp(targetNumber, msg);
+      }
     }
   }
 
@@ -391,6 +420,13 @@ export class NotificationsService {
         type: 'BOOKING_CANCELLED',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
+
+      // WhatsApp alert for Cancellation
+      if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
+        const msg = `Booking Cancelled 🚫\n\nYour booking *${booking.bookingNumber}* at *${booking.property?.name}* has been cancelled.`;
+        const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+        await this.sendWhatsApp(targetNumber, msg);
+      }
     }
   }
 

@@ -1,4 +1,5 @@
-import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Request, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { ReportsService } from './reports.service';
@@ -95,5 +96,55 @@ export class ReportsController {
             new Date(startDate),
             new Date(endDate),
         );
+    }
+
+    @Get('export/excel')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
+    @ApiOperation({ summary: 'Export reports to Excel' })
+    async exportExcel(
+        @Request() req,
+        @Res({ passthrough: true }) res: Response,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        const buffer = await this.reportsService.generateExcelReport(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId,
+        );
+
+        res.set({
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': `attachment; filename=Report_${startDate}_${endDate}.xlsx`,
+        });
+
+        return new StreamableFile(buffer);
+    }
+
+    @Get('export/pdf')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
+    @ApiOperation({ summary: 'Export reports to PDF' })
+    async exportPdf(
+        @Request() req,
+        @Res({ passthrough: true }) res: Response,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        const buffer = await this.reportsService.generatePdfReport(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId,
+        );
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename=Report_${startDate}_${endDate}.pdf`,
+        });
+
+        return new StreamableFile(buffer);
     }
 }

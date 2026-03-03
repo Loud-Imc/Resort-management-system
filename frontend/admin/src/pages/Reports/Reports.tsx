@@ -123,6 +123,20 @@ export default function Reports() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                    <div className="flex gap-2 mr-4 pr-4 border-r border-border">
+                        <button
+                            onClick={() => reportsService.exportExcel(dateRange.startDate, dateRange.endDate, selectedProperty?.id)}
+                            className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                        >
+                            Excel
+                        </button>
+                        <button
+                            onClick={() => reportsService.exportPdf(dateRange.startDate, dateRange.endDate, selectedProperty?.id)}
+                            className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                        >
+                            PDF
+                        </button>
+                    </div>
                     {['week', 'month', 'last-month'].map((t) => (
                         <button
                             key={t}

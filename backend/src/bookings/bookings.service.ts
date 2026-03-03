@@ -401,8 +401,10 @@ export class BookingsService {
                 );
             }
         }
-        // 12. Broadcast notifications
-        await this.notificationsService.broadcastNewBooking(booking);
+        // 12. Broadcast notifications - ONLY if immediately confirmed
+        if (booking.status === 'CONFIRMED') {
+            await this.notificationsService.broadcastNewBooking(booking);
+        }
 
         return booking;
     }
@@ -660,7 +662,6 @@ export class BookingsService {
                     data: {
                         ...(primaryGuest.idType && { idType: primaryGuest.idType }),
                         ...(primaryGuest.idNumber && { idNumber: primaryGuest.idNumber }),
-                        ...(primaryGuest.idImage && { idImage: primaryGuest.idImage }),
                     },
                 });
             }
@@ -676,6 +677,7 @@ export class BookingsService {
                 room: true,
                 roomType: true,
                 guests: true,
+                property: true,
             },
         });
 

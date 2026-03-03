@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingSourcesService, type UpdateBookingSourceDto } from '../../services/bookingSources';
 import { Loader2, Plus, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
@@ -148,9 +148,25 @@ interface BookingSourceModalProps {
 }
 
 function BookingSourceModal({ onClose, initialData, onSubmit }: BookingSourceModalProps) {
-    const { register, handleSubmit } = useForm({
-        defaultValues: initialData || { isActive: true },
+    const { register, handleSubmit, reset } = useForm({
+        defaultValues: initialData ? {
+            name: initialData.name,
+            description: initialData.description || '',
+            commission: initialData.commission ? Number(initialData.commission) : 0,
+            isActive: initialData.isActive,
+        } : { isActive: true, commission: 0 },
     });
+
+    useEffect(() => {
+        if (initialData) {
+            reset({
+                name: initialData.name,
+                description: initialData.description || '',
+                commission: initialData.commission ? Number(initialData.commission) : 0,
+                isActive: initialData.isActive,
+            });
+        }
+    }, [initialData, reset]);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">

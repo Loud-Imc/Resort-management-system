@@ -198,7 +198,9 @@ export class ChannelPartnersService {
                         },
                         user: {
                             select: { firstName: true, lastName: true }
-                        }
+                        },
+                        paidAmount: true,
+                        paymentStatus: true
                     },
                 },
                 transactions: {
@@ -468,6 +470,8 @@ export class ChannelPartnersService {
                     property: {
                         select: { id: true, name: true },
                     },
+                    paidAmount: true,
+                    paymentStatus: true
                 },
             }),
             this.prisma.booking.count({ where: { channelPartnerId: id } }),
@@ -661,10 +665,23 @@ export class ChannelPartnersService {
 
         // 1. Update User Record if personal info provided
         const userUpdateData: any = {};
+        const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+
         if (firstName) userUpdateData.firstName = firstName;
         if (lastName) userUpdateData.lastName = lastName;
-        if (email) userUpdateData.email = email;
-        if (phone) userUpdateData.phone = phone;
+
+        if (email && email !== currentUser?.email) {
+            const existingEmail = await this.prisma.user.findUnique({ where: { email } });
+            if (existingEmail) throw new ConflictException('Email already exists');
+            userUpdateData.email = email;
+        }
+
+        if (phone && phone !== currentUser?.phone) {
+            const existingPhone = await this.prisma.user.findUnique({ where: { phone } });
+            if (existingPhone) throw new ConflictException('Phone number already exists');
+            userUpdateData.phone = phone;
+        }
+
         if (password) userUpdateData.password = await bcrypt.hash(password, 10);
 
         if (Object.keys(userUpdateData).length > 0) {

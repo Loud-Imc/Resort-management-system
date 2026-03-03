@@ -18,7 +18,8 @@ import {
     Trash2,
     Calendar,
     X,
-    // History
+    Globe,
+    CalendarDays
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -194,24 +195,63 @@ export default function RoomsList() {
                             <div className="text-sm text-muted-foreground mb-4">
                                 <p className="font-bold text-card-foreground">{room.roomType.name}</p>
                                 <p>Floor: {room.floor ?? '-'}</p>
-                                {room.blocks && room.blocks.length > 0 && (
-                                    <div className="mt-2 text-xs bg-amber-500/10 text-amber-600 p-2 rounded border border-amber-500/20">
-                                        <div className="flex items-center gap-1 font-bold mb-1">
-                                            <Lock className="h-3 w-3" /> Active Block
+                                {room.blocks && room.blocks.length > 0 && (() => {
+                                    const block = room.blocks[0];
+                                    const isExternal = block.reason.startsWith('External Booking');
+                                    
+                                    return (
+                                        <div className={clsx(
+                                            "mt-3 text-[11px] p-3 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-300",
+                                            isExternal 
+                                                ? "bg-indigo-500/5 border-indigo-500/20 text-indigo-700 dark:text-indigo-400" 
+                                                : "bg-amber-500/5 border-amber-500/20 text-amber-700 dark:text-amber-400"
+                                        )}>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
+                                                    {isExternal ? (
+                                                        <Globe className="h-3 w-3" />
+                                                    ) : (
+                                                        <Lock className="h-3 w-3" />
+                                                    )}
+                                                    {isExternal ? 'Cloud Sync' : 'Manual Block'}
+                                                </div>
+                                                <span className={clsx(
+                                                    "px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase",
+                                                    isExternal ? "bg-indigo-500/10" : "bg-amber-500/10"
+                                                )}>
+                                                    Active
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-1.5 mb-1.5 opacity-80 text-foreground">
+                                                <CalendarDays className="h-3 w-3 shrink-0" />
+                                                <span className="font-medium">
+                                                    {format(new Date(block.startDate), 'MMM d')} — {format(new Date(block.endDate), 'MMM d')}
+                                                </span>
+                                            </div>
+
+                                            <p className="line-clamp-2 italic mb-3 leading-relaxed opacity-90 text-muted-foreground">
+                                                "{block.reason}"
+                                            </p>
+
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    unblockMutation.mutate(block.id);
+                                                }}
+                                                className={clsx(
+                                                    "w-full py-1.5 rounded-lg text-[10px] font-bold transition-all border flex items-center justify-center gap-1.5",
+                                                    isExternal 
+                                                        ? "bg-indigo-500/10 border-indigo-500/10 hover:bg-indigo-500 text-indigo-700 dark:text-indigo-400 hover:text-white" 
+                                                        : "bg-amber-500/10 border-amber-500/10 hover:bg-amber-500 text-amber-700 dark:text-amber-400 hover:text-white"
+                                                )}
+                                            >
+                                                <X className="h-3 w-3" />
+                                                Unblock Room
+                                            </button>
                                         </div>
-                                        <p>{format(new Date(room.blocks[0].startDate), 'MMM d')} - {format(new Date(room.blocks[0].endDate), 'MMM d')}</p>
-                                        <p className="truncate italic">"{room.blocks[0].reason}"</p>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                unblockMutation.mutate(room.blocks![0].id);
-                                            }}
-                                            className="mt-1 text-primary hover:underline font-bold"
-                                        >
-                                            Unblock Now
-                                        </button>
-                                    </div>
-                                )}
+                                    );
+                                })()}
                             </div>
 
                             <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">

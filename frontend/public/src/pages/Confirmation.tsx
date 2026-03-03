@@ -128,9 +128,52 @@ export default function Confirmation() {
     return (
         <div className="min-h-[70vh] bg-gray-50 px-4 py-12">
             <div className="max-w-3xl mx-auto">
-                <div ref={invoiceRef} className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none">
+                <div ref={invoiceRef} className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none relative">
+                    {/* Add Inline Styles for PDF capture to ensure they override everything */}
+                    <style>{`
+                        .pdf-capture-mode {
+                            width: 800px !important;
+                            padding: 0 !important;
+                            margin: 0 !important;
+                            border: none !important;
+                            border-radius: 0 !important;
+                        }
+                        .pdf-capture-mode .header-bg {
+                            background-color: #f8fafc !important;
+                            color: #0f172a !important;
+                            border-bottom: 4px solid #0d9488 !important;
+                            padding: 40px !important;
+                            display: flex !important;
+                            justify-content: space-between !important;
+                            align-items: center !important;
+                        }
+                        .pdf-capture-mode .logo-img {
+                            filter: brightness(0) !important;
+                            height: 60px !important;
+                        }
+                        .pdf-capture-mode .invoice-badge {
+                            background-color: #f0fdfa !important;
+                            border: 2px solid #99f6e4 !important;
+                            padding: 15px 25px !important;
+                            border-radius: 12px !important;
+                        }
+                        .pdf-capture-mode .invoice-badge span {
+                            color: #0d9488 !important;
+                        }
+                        .pdf-capture-mode .summary-box {
+                            background-color: #ffffff !important;
+                            border: 1px solid #e2e8f0 !important;
+                            padding: 20px !important;
+                        }
+                        .pdf-capture-mode .payment-box {
+                            background-color: #f8fafc !important;
+                            border: 1px solid #e2e8f0 !important;
+                            padding: 30px !important;
+                        }
+                    `}</style>
+
                     {/* Header Area */}
-                    <div className={`${isCancelled ? 'bg-gray-800' : 'bg-primary-600'} p-8 md:p-12 text-center text-white transition-colors print:bg-white print:text-gray-900 print:text-left print:p-0 print:border-b print:border-gray-100 print:flex print:justify-between print:items-center [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:text-gray-900 [.pdf-capture-mode_&]:text-left [.pdf-capture-mode_&]:p-8 [.pdf-capture-mode_&]:border-b [.pdf-capture-mode_&]:border-gray-100 [.pdf-capture-mode_&]:flex [.pdf-capture-mode_&]:justify-between [.pdf-capture-mode_&]:items-center`}>
+                    <div className={`${isCancelled ? 'bg-gray-800' : 'bg-primary-600'} header-bg p-8 md:p-12 text-center text-white transition-colors print:bg-white print:text-gray-900 print:text-left print:p-0 print:border-b print:border-gray-100 print:flex print:justify-between print:items-center [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:text-gray-900 [.pdf-capture-mode_&]:text-left [.pdf-capture-mode_&]:p-8 [.pdf-capture-mode_&]:border-b [.pdf-capture-mode_&]:border-gray-100 [.pdf-capture-mode_&]:flex [.pdf-capture-mode_&]:justify-between [.pdf-capture-mode_&]:items-center`}>
                         <div className="print:hidden [.pdf-capture-mode_&]:hidden">
                             <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6">
                                 <CheckCircle className="h-10 w-10 text-white" />
@@ -141,7 +184,7 @@ export default function Confirmation() {
                             <p className="text-primary-50 opacity-90 max-w-md mx-auto">
                                 {isCancelled
                                     ? 'Your reservation has been cancelled. Refund details are provided below.'
-                                    : `Thank you for choosing us ${booking.user?.firstName ? `, ${booking.user.firstName}` : ''}. We've sent your confirmation details to your registered email.`
+                                    : `Thank you for choosing us ${booking.user?.firstName} ${booking.user?.lastName ? `, ${booking.user.lastName}` : ''}. We've sent your confirmation details to your registered email.`
                                 }
                             </p>
                         </div>
@@ -149,7 +192,7 @@ export default function Confirmation() {
                         {/* Print Only Header Content (Visible in PDF too) */}
                         <div className="hidden print:block [.pdf-capture-mode_&]:block mb-8 [.pdf-capture-mode_&]:mb-0">
                             <div className="flex items-center gap-3 mb-6">
-                                <img src={logo} alt="Route Guide" className="h-12 w-auto brightness-0" />
+                                <img src={logo} alt="Route Guide" className="logo-img h-12 w-auto brightness-0" />
                                 <div className="h-10 w-[1px] bg-gray-200 mx-2 hidden sm:block"></div>
                                 <div>
                                     <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-widest leading-none">Route Guide</h1>
@@ -164,7 +207,7 @@ export default function Confirmation() {
                         </div>
                         
                         <div className="hidden print:block [.pdf-capture-mode_&]:block text-right">
-                            <div className="bg-white px-5 py-3 rounded-xl border-2 border-primary-100 inline-block shadow-sm">
+                            <div className="invoice-badge bg-white px-5 py-3 rounded-xl border-2 border-primary-100 inline-block shadow-sm">
                                 <span className="block text-[9px] text-primary-600 font-black uppercase tracking-widest mb-1">Booking ID</span>
                                 <span className="text-xl font-black text-primary-950">#{booking.bookingNumber}</span>
                             </div>
