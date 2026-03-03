@@ -94,7 +94,7 @@ export default function Confirmation() {
     const handleDownloadPDF = async () => {
         if (!invoiceRef.current) return;
         setIsDownloading(true);
-        
+
         // Add a temporary class to the container to trigger "Invoice Mode"
         const element = invoiceRef.current;
         element.classList.add('pdf-capture-mode');
@@ -188,7 +188,7 @@ export default function Confirmation() {
                                 }
                             </p>
                         </div>
-                        
+
                         {/* Print Only Header Content (Visible in PDF too) */}
                         <div className="hidden print:block [.pdf-capture-mode_&]:block mb-8 [.pdf-capture-mode_&]:mb-0">
                             <div className="flex items-center gap-3 mb-6">
@@ -205,7 +205,7 @@ export default function Confirmation() {
                                 <p className="text-[10px] text-gray-600 font-medium">{property?.city}, {property?.state}, {property?.pincode}</p>
                             </div>
                         </div>
-                        
+
                         <div className="hidden print:block [.pdf-capture-mode_&]:block text-right">
                             <div className="invoice-badge bg-white px-5 py-3 rounded-xl border-2 border-primary-100 inline-block shadow-sm">
                                 <span className="block text-[9px] text-primary-600 font-black uppercase tracking-widest mb-1">Booking ID</span>
@@ -311,7 +311,7 @@ export default function Confirmation() {
                                         {!isCancelled && Number(booking.paidAmount) < Number(booking.totalAmount) && (
                                             <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl border border-amber-100 print:bg-white print:border-gray-200 print:p-2 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200 [.pdf-capture-mode_&]:p-2">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">Balance Due at Resort</span>
+                                                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">Balance Due</span>
                                                     <span className="text-xs text-amber-700 italic print:hidden [.pdf-capture-mode_&]:hidden">To be paid during check-in</span>
                                                 </div>
                                                 <span className="text-xl font-black text-amber-600 print:text-base [.pdf-capture-mode_&]:text-base">
@@ -362,18 +362,18 @@ export default function Confirmation() {
                                             Return to Homepage
                                         </Link>
                                     </div>
-                                    
+
                                     {/* Print-only QR Code Section (Visible in PDF too) */}
                                     <div className="hidden print:flex [.pdf-capture-mode_&]:flex flex-col items-center justify-center pt-8 border-t border-gray-100 mt-8">
                                         <div className="p-2 border border-gray-200 rounded-lg mb-2">
-                                            <QRCodeSVG 
+                                            <QRCodeSVG
                                                 value={`${window.location.origin}/confirmation?bookingId=${booking.id}`}
                                                 size={80}
                                                 level="H"
                                             />
                                         </div>
                                         <p className="text-[8px] text-gray-400 font-medium uppercase tracking-widest text-center">
-                                            Scan to Verify Booking<br/>
+                                            Scan to Verify Booking<br />
                                             {booking.id}
                                         </p>
                                     </div>

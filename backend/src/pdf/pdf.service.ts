@@ -237,13 +237,18 @@ export class PdfService {
       defaultStyle: { font: 'Roboto' },
     };
 
-    return new Promise((resolve, reject) => {
-      const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
-      const chunks: any[] = [];
-      pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
-      pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-      pdfDoc.on('error', (err: any) => reject(err));
-      pdfDoc.end();
+    return new Promise(async (resolve, reject) => {
+      try {
+        const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
+        const chunks: any[] = [];
+        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', (err: any) => reject(err));
+        pdfDoc.end();
+      } catch (error) {
+        this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
+        reject(error);
+      }
     });
   }
 }

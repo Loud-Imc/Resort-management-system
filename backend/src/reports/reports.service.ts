@@ -852,9 +852,9 @@ export class ReportsService {
                 defaultStyle: { font: 'Roboto' }
             };
 
-            return new Promise((resolve, reject) => {
+            return new Promise(async (resolve, reject) => {
                 try {
-                    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+                    const pdfDoc = await printer.createPdfKitDocument(docDefinition);
                     const chunks: any[] = [];
                     pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
                     pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));

@@ -331,13 +331,6 @@ export default function PropertyDetail() {
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            {/* Availability Warning */}
-                                                            {checkIn && checkOut && !isSoldOut && availableCount !== undefined && availableCount <= 3 && (
-                                                                <div className="flex items-center gap-1.5 text-[10px] font-black text-rose-600 uppercase tracking-tight py-1">
-                                                                    <AlertCircle className="h-3 w-3 animate-pulse" />
-                                                                    Only {availableCount} room{availableCount > 1 ? 's' : ''} left at this price!
-                                                                </div>
-                                                            )}
                                                             <div className="flex flex-col gap-2 pt-2">
                                                                 <div className="flex items-center gap-2 text-xs text-gray-500">
                                                                     <Maximize className="h-3.5 w-3.5 text-primary-500" />
@@ -458,6 +451,13 @@ export default function PropertyDetail() {
                                                             <div className="text-[10px] text-gray-500 font-medium">
                                                                 + {formatPrice(Math.round(roomType.basePrice * 0.12), selectedCurrency, rates)} Taxes & fees / night
                                                             </div>
+                                                            {/* Availability Warning */}
+                                                            {checkIn && checkOut && !isSoldOut && availableCount !== undefined && availableCount <= 3 && (
+                                                                <div className="flex items-center justify-end gap-1.5 text-[10px] font-black text-rose-600 uppercase tracking-tight pt-1">
+                                                                    <AlertCircle className="h-3 w-3 animate-pulse" />
+                                                                    Only {availableCount} room{availableCount > 1 ? 's' : ''} left!
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         <div className="space-y-3 mt-8">

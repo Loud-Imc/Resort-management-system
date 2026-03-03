@@ -29,7 +29,10 @@ export class PropertyCategoriesService {
     async findAll(includeInactive = false) {
         return this.prisma.propertyCategory.findMany({
             where: includeInactive ? {} : { isActive: true },
-            orderBy: { name: 'asc' },
+            orderBy: [
+                { position: 'asc' },
+                { name: 'asc' }
+            ],
         });
     }
 

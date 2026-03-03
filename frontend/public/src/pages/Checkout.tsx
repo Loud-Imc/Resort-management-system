@@ -500,7 +500,7 @@ export default function Checkout() {
                         <div className="border-t border-gray-100 pt-6 space-y-6">
                             <h3 className="text-lg font-semibold flex items-center gap-2">
                                 <CreditCard className="h-5 w-5 text-primary-600" />
-                                Offers & Coupons
+                                Get Discounts
                             </h3>
 
                             {/* Applied Offers / Coupon Section (Div instead of Form to avoid nesting) */}

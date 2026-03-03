@@ -45,7 +45,8 @@ export default function CategoryList() {
         slug: '',
         icon: 'Palmtree',
         description: '',
-        isActive: true
+        isActive: true,
+        position: 0
     });
 
     const queryClient = useQueryClient();
@@ -97,7 +98,8 @@ export default function CategoryList() {
             slug: '',
             icon: 'Palmtree',
             description: '',
-            isActive: true
+            isActive: true,
+            position: 0
         });
         setIsModalOpen(true);
     };
@@ -109,7 +111,8 @@ export default function CategoryList() {
             slug: category.slug,
             icon: category.icon || 'Palmtree',
             description: category.description || '',
-            isActive: category.isActive
+            isActive: category.isActive,
+            position: category.position
         });
         setIsModalOpen(true);
     };
@@ -184,6 +187,7 @@ export default function CategoryList() {
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Slug</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Position</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                             </tr>
@@ -206,6 +210,9 @@ export default function CategoryList() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground font-mono">
                                         /{category.slug}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                                        {category.position}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={clsx(
@@ -236,7 +243,7 @@ export default function CategoryList() {
 
                             {filteredCategories?.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground font-medium">
+                                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground font-medium">
                                         No categories found.
                                     </td>
                                 </tr>
@@ -293,6 +300,21 @@ export default function CategoryList() {
                                     onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '') }))}
                                     className="w-full rounded-lg border-border bg-background text-foreground focus:ring-primary focus:border-primary font-mono"
                                     placeholder="e.g., luxury-resort"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium mb-1 flex items-center gap-1">
+                                    <Layout className="h-4 w-4" /> Position
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    required
+                                    value={formData.position}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, position: parseInt(e.target.value) || 0 }))}
+                                    className="w-full rounded-lg border-border bg-background text-foreground focus:ring-primary focus:border-primary"
+                                    placeholder="Order position (e.g. 0, 1, 2)"
                                 />
                             </div>
 

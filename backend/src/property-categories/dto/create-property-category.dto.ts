@@ -18,4 +18,7 @@ export class CreatePropertyCategoryDto {
     @IsBoolean()
     @IsOptional()
     isActive?: boolean;
+
+    @IsOptional()
+    position?: number;
 }

@@ -5,6 +5,7 @@ export interface PropertyCategory {
     icon?: string;
     description?: string;
     isActive: boolean;
+    position: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -15,6 +16,7 @@ export interface CreatePropertyCategoryDto {
     icon?: string;
     description?: string;
     isActive?: boolean;
+    position?: number;
 }
 
 export interface UpdatePropertyCategoryDto {
@@ -23,4 +25,5 @@ export interface UpdatePropertyCategoryDto {
     icon?: string;
     description?: string;
     isActive?: boolean;
+    position?: number;
 }

@@ -170,16 +170,31 @@ export class NotificationsService {
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
       
-      // Premium Email to Property
-      if (booking.property?.propertyEmail || booking.property?.owner?.email) {
-        const targetEmail = booking.property.propertyEmail || booking.property.owner.email;
-        await this.mailService.sendPropertyNewBookingAlert(targetEmail, booking, pdfAttachment);
+      // Premium Email to Property & Owner
+      const propertyEmail = booking.property?.email;
+      const ownerEmail = booking.property?.owner?.email;
+      
+      if (propertyEmail) {
+        await this.mailService.sendPropertyNewBookingAlert(propertyEmail, booking, pdfAttachment);
+      }
+      if (ownerEmail && ownerEmail !== propertyEmail) {
+        await this.mailService.sendPropertyNewBookingAlert(ownerEmail, booking, pdfAttachment);
+      }
+
+      // WhatsApp alert for Property
+      const propertyPhone = booking.property?.whatsappNumber || booking.property?.phone;
+      if (propertyPhone) {
+        const whatsappMsg = `🏨 *New Booking Received*!\n\n` +
+          `Booking #: ${booking.bookingNumber}\n` +
+          `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
+          `Total: ₹${booking.totalAmount}\n` +
+          `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
+        await this.sendWhatsApp(propertyPhone, whatsappMsg);
       }
     }
 
-    // 3. Notification for Guest (Only if NOT booked by CP, or if guest details provided)
-    // The user mentioned: "if the booking is booked by the CP, then only need to notify the property and CP"
-    if (!isCPBooked && booking.userId) {
+    // 3. Notification for Guest
+    if (booking.userId) {
       // Socket & DB Notification
       await this.createNotification({
         userId: booking.userId,

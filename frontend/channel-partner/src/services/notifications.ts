@@ -13,22 +13,22 @@ export interface Notification {
 export const notificationsService = {
   getAll: async () => {
     const response = await api.get<Notification[]>('/notifications');
-    return response.data;
+    return response as unknown as Notification[];
   },
 
   getUnreadCount: async () => {
     const response = await api.get<{ count: number }>('/notifications/unread-count');
-    return response.data;
+    return response as unknown as { count: number };
   },
 
   markAsRead: async (id: string) => {
     const response = await api.patch<Notification>(`/notifications/${id}/read`);
-    return response.data;
+    return response as unknown as Notification;
   },
 
   markAllAsRead: async () => {
     const response = await api.patch('/notifications/read-all');
-    return response.data;
+    return response as unknown as any;
   },
 
   delete: async (id: string) => {

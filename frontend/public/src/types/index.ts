@@ -81,6 +81,7 @@ export interface PropertyCategory {
     slug: string;
     icon?: string;
     description?: string;
+    position?: number;
 }
 
 export interface Property {
