@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as path from 'path';
-const PdfPrinter = require('pdfmake/js/printer');
+const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
+const PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer'));
 
 @Injectable()
 export class PdfService {

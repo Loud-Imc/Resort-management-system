@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as ExcelJS from 'exceljs';
-const PdfPrinter = require('pdfmake/js/printer');
 import * as path from 'path';
+const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
+const PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer'));
 
 // Casting status values to any to bypass transitory prisma client sync issues in this specific service
 const APPROVED = 'APPROVED' as any;
