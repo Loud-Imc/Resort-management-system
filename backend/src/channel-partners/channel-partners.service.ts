@@ -268,8 +268,9 @@ export class ChannelPartnersService {
     }
 
     // Process referral commission (initially as PENDING on payment)
-    async processReferralCommission(bookingId: string, channelPartnerId: string, bookingAmount: number, isPending = true) {
-        const cp = await this.prisma.channelPartner.findUnique({
+    async processReferralCommission(bookingId: string, channelPartnerId: string, bookingAmount: number, isPending = true, tx?: Prisma.TransactionClient) {
+        const client = tx || this.prisma;
+        const cp = await client.channelPartner.findUnique({
             where: { id: channelPartnerId },
         });
 
@@ -288,7 +289,7 @@ export class ChannelPartnersService {
         const points = Math.floor(bookingAmount / 100); // 1 point per ₹100
 
         // Update CP earnings and points (Pending vs Finalized)
-        await this.prisma.channelPartner.update({
+        await client.channelPartner.update({
             where: { id: channelPartnerId },
             data: {
                 ...(isPending ? {
@@ -303,7 +304,7 @@ export class ChannelPartnersService {
         });
 
         // Record transaction
-        await this.prisma.cPTransaction.create({
+        await client.cPTransaction.create({
             data: {
                 type: 'COMMISSION',
                 status: isPending ? 'PENDING' : 'FINALIZED',
@@ -316,7 +317,7 @@ export class ChannelPartnersService {
         });
 
         // Update booking with commission info
-        await this.prisma.booking.update({
+        await client.booking.update({
             where: { id: bookingId },
             data: { cpCommission: commission },
         });
@@ -750,31 +751,38 @@ export class ChannelPartnersService {
         });
     }
 
-    async deductWalletBalance(channelPartnerId: string, amount: number, description: string, referenceId?: string) {
-        return this.prisma.$transaction(async (tx) => {
-            const cp = await tx.channelPartner.findUnique({ where: { id: channelPartnerId } });
-            if (!cp || Number(cp.walletBalance) < amount) {
-                throw new BadRequestException('Insufficient wallet balance');
-            }
-
-            const updated = await tx.channelPartner.update({
-                where: { id: channelPartnerId },
-                data: { walletBalance: { decrement: amount } },
-            });
-
-            await tx.cPTransaction.create({
-                data: {
-                    type: 'WALLET_PAYMENT' as any,
-                    status: 'FINALIZED',
-                    amount: -amount,
-                    description: description || `Wallet payment of ₹${amount}`,
-                    channelPartnerId,
-                    bookingId: referenceId,
-                },
-            });
-
-            return updated;
+    async deductWalletBalance(channelPartnerId: string, amount: number, description: string, referenceId?: string, tx?: Prisma.TransactionClient) {
+        if (tx) {
+            return this.executeWalletDeduction(tx, channelPartnerId, amount, description, referenceId);
+        }
+        return this.prisma.$transaction(async (newTx) => {
+            return this.executeWalletDeduction(newTx, channelPartnerId, amount, description, referenceId);
         });
+    }
+
+    private async executeWalletDeduction(tx: Prisma.TransactionClient, channelPartnerId: string, amount: number, description: string, referenceId?: string) {
+        const cp = await tx.channelPartner.findUnique({ where: { id: channelPartnerId } });
+        if (!cp || Number(cp.walletBalance) < amount) {
+            throw new BadRequestException('Insufficient wallet balance');
+        }
+
+        const updated = await tx.channelPartner.update({
+            where: { id: channelPartnerId },
+            data: { walletBalance: { decrement: amount } },
+        });
+
+        await tx.cPTransaction.create({
+            data: {
+                type: 'WALLET_PAYMENT' as any,
+                status: 'FINALIZED',
+                amount: -amount,
+                description: description || `Wallet payment of ₹${amount}`,
+                channelPartnerId,
+                bookingId: referenceId,
+            },
+        });
+
+        return updated;
     }
 
     // ============================================

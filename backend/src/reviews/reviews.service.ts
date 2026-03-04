@@ -10,8 +10,9 @@ export class ReviewsService {
         roomTypeId?: string;
         rating: number;
         comment?: string;
+        images?: string[];
     }) {
-        const { propertyId, roomTypeId, rating, comment } = dto;
+        const { propertyId, roomTypeId, rating, comment, images } = dto;
 
         if (rating < 1 || rating > 5) {
             throw new BadRequestException('Rating must be between 1 and 5');
@@ -51,6 +52,7 @@ export class ReviewsService {
                 roomTypeId,
                 rating,
                 comment,
+                images: images || [],
             },
             include: {
                 user: {

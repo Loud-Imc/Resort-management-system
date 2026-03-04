@@ -15,8 +15,9 @@ export class AuditService {
         ipAddress?: string;
         userAgent?: string;
         bookingId?: string;
-    }) {
-        return this.prisma.auditLog.create({
+    }, tx?: any) {
+        const client = tx || this.prisma;
+        return client.auditLog.create({
             data: {
                 action: data.action,
                 entity: data.entity,

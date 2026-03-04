@@ -656,6 +656,7 @@ model Review {
   userId      String
   roomTypeId  String?
   propertyId  String
+  images      String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   

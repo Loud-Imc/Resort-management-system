@@ -13,6 +13,7 @@ export interface Review {
     roomType?: {
         name: string;
     };
+    images?: string[];
 }
 
 export interface ReviewStats {
@@ -26,6 +27,7 @@ export const reviewService = {
         roomTypeId?: string;
         rating: number;
         comment?: string;
+        images?: string[];
     }) => {
         const response = await api.post<Review>('/reviews', data);
         return response.data;

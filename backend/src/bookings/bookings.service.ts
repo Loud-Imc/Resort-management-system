@@ -56,46 +56,9 @@ export class BookingsService {
         const lowercaseEmail = createBookingDto.guestEmail?.toLowerCase();
         console.log(`[BookingsService] INCOMING: userId = ${userId}, guestEmail = ${lowercaseEmail}`);
         let bookingUserId = userId;
-        if (userId === 'GUEST_USER') {
-            if (!lowercaseEmail) {
-                throw new BadRequestException('Guest email is required for public bookings');
-            }
-
-            // Check if user exists
-            let user = await this.prisma.user.findUnique({
-                where: { email: lowercaseEmail },
-            });
-
-            if (!user) {
-                console.log(`[BookingsService] Guest user not found for ${lowercaseEmail}. Creating...`);
-                // Create new guest user
-                const customerRole = await this.prisma.role.findFirst({ where: { name: 'Customer' } });
-                const roleId = customerRole ? customerRole.id : undefined;
-
-                user = await this.prisma.user.create({
-                    data: {
-                        email: lowercaseEmail,
-                        firstName: createBookingDto.guestName?.split(' ')[0] || 'Guest',
-                        lastName: createBookingDto.guestName?.split(' ').slice(1).join(' ') || 'User',
-                        phone: createBookingDto.guestPhone,
-                        whatsappNumber: createBookingDto.whatsappNumber,
-                        password: await bcrypt.hash('GUEST_PASSWORD_PLACEHOLDER', 10),
-                        roles: roleId ? {
-                            create: {
-                                role: { connect: { id: roleId } }
-                            }
-                        } : undefined
-                    } as any
-                });
-            }
-            bookingUserId = user.id;
-        }
-
-        console.log(`[BookingsService] DERIVED bookingUserId = ${bookingUserId}`);
+        // (Initial guest check moved inside transaction for atomicity, but we define variables here)
 
         // 1. Check for existing PENDING_PAYMENT from the SAME USER for this roomType
-        // This prevents "Self-Blocking" on retries.
-        // We match by EMAIL in the relation for maximum reliability.
         console.log(`[BookingsService] Checking for self-block: email = ${lowercaseEmail}, roomTypeId = ${roomTypeId}`);
         const existingPending = await this.prisma.booking.findFirst({
             where: {
@@ -108,25 +71,17 @@ export class BookingsService {
 
         if (existingPending) {
             console.log(`[BookingsService] SELF-BLOCK DETECTED: ${existingPending.bookingNumber} (${existingPending.id}). Deleting...`);
-            // Delete the stale pending booking to free up the room for this retry
             await this.prisma.booking.delete({ where: { id: existingPending.id } });
             console.log(`[BookingsService] Self-block deleted successfully.`);
-        } else {
-            console.log(`[BookingsService] No self-block found.`);
         }
 
         // 2. Check availability
-        const isAvailable = await this.availabilityService.checkAvailability(
-            roomTypeId,
-            checkIn,
-            checkOut,
-        );
-
+        const isAvailable = await this.availabilityService.checkAvailability(roomTypeId, checkIn, checkOut);
         if (!isAvailable) {
             throw new BadRequestException('No rooms available for the selected dates');
         }
 
-        // 2. Calculate pricing
+        // 3. Calculate pricing
         const pricing = await this.pricingService.calculatePrice(
             roomTypeId,
             checkIn,
@@ -138,63 +93,39 @@ export class BookingsService {
             createBookingDto.currency || 'INR',
         );
 
-        // 3. Handle price override for manual bookings
+        // 4. Handle price override
         let finalTotal = pricing.totalAmount;
         let isPriceOverridden = false;
-
         if (isManualBooking && overrideTotal !== undefined) {
             if (!this.pricingService.validatePriceOverride(pricing.totalAmount, overrideTotal)) {
                 throw new BadRequestException('Price override is too low');
             }
             finalTotal = overrideTotal;
             isPriceOverridden = true;
-            // Update converted total based on override
             pricing.convertedTotal = finalTotal * pricing.exchangeRate;
         }
 
-        // 4. Get an available room
+        // 5. Get an available room
         let selectedRoom: any;
-
+        const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId, checkIn, checkOut);
         if (roomId) {
-            // Verify the specific room is available
-            const availableRooms = await this.availabilityService.getAvailableRooms(
-                roomTypeId,
-                checkIn,
-                checkOut,
-            );
             selectedRoom = availableRooms.find(r => r.id === roomId);
-
-            if (!selectedRoom) {
-                throw new BadRequestException('Selected room is not available for these dates');
-            }
+            if (!selectedRoom) throw new BadRequestException('Selected room is not available');
         } else {
-            const availableRooms = await this.availabilityService.getAvailableRooms(
-                roomTypeId,
-                checkIn,
-                checkOut,
-            );
-
-            if (availableRooms.length === 0) {
-                throw new BadRequestException('No rooms available');
-            }
+            if (availableRooms.length === 0) throw new BadRequestException('No rooms available');
             selectedRoom = availableRooms[0];
         }
 
-        // 5. Generate booking number
+        // 6. Resolve IDs and generation logic
         const bookingNumber = await this.generateBookingNumber();
-
-        // 6. Resolve Coupon & referralCode
         let couponId: string | undefined;
         if (couponCode) {
-            const coupon = await this.prisma.coupon.findUnique({
-                where: { code: couponCode },
-            });
+            const coupon = await this.prisma.coupon.findUnique({ where: { code: couponCode } });
             couponId = coupon?.id;
         }
 
         let channelPartnerId: string | undefined;
         let cpCommission = 0;
-
         if (referralCode) {
             const cp = await this.prisma.channelPartner.findFirst({
                 where: { referralCode, status: 'APPROVED' as any },
@@ -202,206 +133,215 @@ export class BookingsService {
 
             if (cp) {
                 channelPartnerId = cp.id;
-                // Calculate Commission
                 let rate = Number(cp.commissionRate);
-
-                // If not overridden, check level-based rate
                 if (!cp.isRateOverridden) {
                     const level = await this.prisma.partnerLevel.findFirst({
                         where: { minPoints: { lte: cp.totalPoints } },
                         orderBy: { minPoints: 'desc' },
                     });
-                    if (level) {
-                        rate = Number(level.commissionRate);
-                    }
+                    if (level) rate = Number(level.commissionRate);
                 }
                 cpCommission = (finalTotal * rate) / 100;
             } else {
-                throw new BadRequestException('Invalid or inactive referral code');
+                throw new BadRequestException('Invalid referral code');
             }
         }
 
-        // 6.2 Handle Wallet Payment (Inline Booking)
-        if (createBookingDto.paymentMethod === 'WALLET') {
-            if (!channelPartnerId) {
-                throw new BadRequestException('Wallet payment requires a valid channel partner referral code');
-            }
-
-            // For wallet bookings, the amount to deduct is (FinalTotal - Commission)
-            // But wait, the pricing.totalAmount already has the CP discount (5%) applied if referralCode was present.
-            const totalToCollect = finalTotal - cpCommission;
-
-            // Deduct from wallet
-            await this.channelPartnersService.deductWalletBalance(
-                channelPartnerId,
-                totalToCollect,
-                `Inline booking ${bookingNumber}`,
-                undefined // Reference will be updated after booking creation
-            );
-        }
-
-        // 6.5 Calculate Booking Source Commission
         let commissionAmount = 0;
         if (bookingSourceId) {
-            const source = await this.prisma.bookingSource.findUnique({
-                where: { id: bookingSourceId }
-            });
+            const source = await this.prisma.bookingSource.findUnique({ where: { id: bookingSourceId } });
             if (source?.commission) {
                 commissionAmount = (finalTotal * Number(source.commission)) / 100;
             }
         }
 
-        // 7. Create booking
-        const booking = await this.prisma.booking.create({
-            data: {
-                bookingNumber,
-                checkInDate: checkIn,
-                checkOutDate: checkOut,
-                numberOfNights: pricing.numberOfNights,
-                adultsCount,
-                childrenCount,
-                baseAmount: pricing.baseAmount,
-                extraAdultAmount: pricing.extraAdultAmount,
-                extraChildAmount: pricing.extraChildAmount,
-                taxAmount: pricing.taxAmount,
-                offerDiscountAmount: pricing.offerDiscountAmount,
-                couponDiscountAmount: pricing.couponDiscountAmount,
-                totalAmount: finalTotal,
-                bookingCurrency: pricing.targetCurrency as any,
-                amountInBookingCurrency: pricing.convertedTotal as any,
-                exchangeRate: pricing.exchangeRate as any,
-                isPriceOverridden,
-                overrideReason,
-                specialRequests,
-                whatsappNumber,
-                isManualBooking,
-                paymentOption: createBookingDto.paymentOption || 'FULL',
-                status: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
-                roomId: selectedRoom.id,
-                roomTypeId,
-                propertyId: selectedRoom.propertyId,
-                userId: bookingUserId,
-                bookingSourceId,
-                agentId,
-                commissionAmount,
-                channelPartnerId,
-                cpCommission,
-                cpDiscount: pricing.referralDiscountAmount,
-                couponId,
-                paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? finalTotal : 0,
-                paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'FULL' : 'UNPAID',
-                confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
-                guests: {
-                    create: guests.map(g => ({
-                        firstName: g.firstName,
-                        lastName: g.lastName,
-                        email: g.email,
-                        phone: g.phone,
-                        whatsappNumber: g.whatsappNumber,
-                        age: g.age,
-                        idType: g.idType,
-                        idNumber: g.idNumber,
-                        idImage: g.idImage,
-                    })),
-                },
-            },
-            include: {
-                room: true,
-                roomType: { include: { cancellationPolicy: true } },
-                guests: true,
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        firstName: true,
-                        lastName: true,
-                    },
-                },
-            },
-        });
-
-        // 8. Update coupon usage if applicable
-        if (couponId) {
-            await this.prisma.coupon.update({
-                where: { id: couponId },
-                data: {
-                    usedCount: { increment: 1 },
-                },
-            });
-        }
-
-        // 9. Create audit log
-        await this.auditService.createLog({
-            action: 'CREATE',
-            entity: 'Booking',
-            entityId: booking.id,
-            userId: userId === 'GUEST_USER' ? bookingUserId : userId,
-            newValue: booking,
-            bookingId: booking.id,
-        });
-
-        // 10. Process Channel Partner Reward
-        if (channelPartnerId) {
-            const isWalletPayment = createBookingDto.paymentMethod === 'WALLET';
-            if (isManualBooking || isWalletPayment) {
-                await this.channelPartnersService.processReferralCommission(
-                    booking.id,
-                    channelPartnerId,
-                    finalTotal,
-                    !isWalletPayment // isPending = false for wallet payments (immediately finalized)
-                );
-            }
-        }
-
-        // 10.5 Link Wallet Transaction if applicable
-        if (createBookingDto.paymentMethod === 'WALLET' && channelPartnerId) {
-            await this.prisma.cPTransaction.updateMany({
-                where: {
-                    channelPartnerId,
-                    type: 'WALLET_PAYMENT' as any,
-                    description: `Inline booking ${bookingNumber}`,
-                    bookingId: null
-                },
-                data: {
-                    bookingId: booking.id
-                }
-            });
-        }
-        // 11. Create income record for confirmed bookings
-        if (isManualBooking || createBookingDto.paymentMethod === 'WALLET') {
-            await this.prisma.income.create({
-                data: {
-                    amount: finalTotal,
-                    source: createBookingDto.paymentMethod === 'WALLET' ? 'ONLINE_BOOKING' : 'ROOM_BOOKING',
-                    description: `Booking ${bookingNumber}${createBookingDto.paymentMethod === 'WALLET' ? ' (Wallet Payment)' : ''}`,
-                    bookingId: booking.id,
-                    propertyId: booking.propertyId,
-                },
-            });
-
-            // If wallet payment, also create a payment record
-            if (createBookingDto.paymentMethod === 'WALLET') {
-                await this.prisma.payment.create({
-                    data: {
-                        amount: finalTotal - cpCommission,
-                        status: 'PAID',
-                        paymentMethod: 'WALLET',
-                        paymentDate: new Date(),
-                        bookingId: booking.id,
-                        currency: 'INR',
-                    },
+        // 7. Create booking & related entities in a transaction
+        const booking = await this.prisma.$transaction(async (tx) => {
+            // 7.1 For guest users, the user creation must be inside the transaction
+            let finalBookingUserId = bookingUserId;
+            if (userId === 'GUEST_USER') {
+                let user = await tx.user.findUnique({
+                    where: { email: lowercaseEmail },
                 });
 
-                // Finalize CP commission immediately for wallet bookings
-                await this.channelPartnersService.processReferralCommission(
-                    booking.id,
-                    channelPartnerId!,
-                    finalTotal,
-                    false, // isPending = false
+                if (!user) {
+                    console.log(`[BookingsService] [TX] Guest user not found for ${lowercaseEmail}. Creating...`);
+                    const customerRole = await tx.role.findFirst({ where: { name: 'Customer' } });
+                    const roleId = customerRole ? customerRole.id : undefined;
+
+                    user = await tx.user.create({
+                        data: {
+                            email: lowercaseEmail,
+                            firstName: createBookingDto.guestName?.split(' ')[0] || 'Guest',
+                            lastName: createBookingDto.guestName?.split(' ').slice(1).join(' ') || 'User',
+                            phone: createBookingDto.guestPhone,
+                            whatsappNumber: createBookingDto.whatsappNumber,
+                            password: await bcrypt.hash('GUEST_PASSWORD_PLACEHOLDER', 10),
+                            roles: roleId ? {
+                                create: {
+                                    role: { connect: { id: roleId } }
+                                }
+                            } : undefined
+                        } as any
+                    });
+                }
+                finalBookingUserId = user.id;
+            }
+
+            // 7.2 Deduct from wallet if applicable
+            if (createBookingDto.paymentMethod === 'WALLET' && channelPartnerId) {
+                const totalToCollect = finalTotal - cpCommission;
+                await this.channelPartnersService.deductWalletBalance(
+                    channelPartnerId,
+                    totalToCollect,
+                    `Inline booking ${bookingNumber}`,
+                    undefined,
+                    tx
                 );
             }
-        }
-        // 12. Broadcast notifications - ONLY if immediately confirmed
+
+            // 7.3 Create the booking
+            const newBooking = await tx.booking.create({
+                data: {
+                    bookingNumber,
+                    checkInDate: checkIn,
+                    checkOutDate: checkOut,
+                    numberOfNights: pricing.numberOfNights,
+                    adultsCount,
+                    childrenCount,
+                    baseAmount: pricing.baseAmount,
+                    extraAdultAmount: pricing.extraAdultAmount,
+                    extraChildAmount: pricing.extraChildAmount,
+                    taxAmount: pricing.taxAmount,
+                    offerDiscountAmount: pricing.offerDiscountAmount,
+                    couponDiscountAmount: pricing.couponDiscountAmount,
+                    totalAmount: finalTotal,
+                    bookingCurrency: pricing.targetCurrency as any,
+                    amountInBookingCurrency: pricing.convertedTotal as any,
+                    exchangeRate: pricing.exchangeRate as any,
+                    isPriceOverridden,
+                    overrideReason,
+                    specialRequests,
+                    whatsappNumber,
+                    isManualBooking,
+                    paymentOption: createBookingDto.paymentOption || 'FULL',
+                    status: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
+                    roomId: selectedRoom.id,
+                    roomTypeId,
+                    propertyId: selectedRoom.propertyId,
+                    userId: finalBookingUserId,
+                    bookingSourceId,
+                    agentId,
+                    commissionAmount,
+                    channelPartnerId,
+                    cpCommission,
+                    cpDiscount: pricing.referralDiscountAmount,
+                    couponId,
+                    paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? finalTotal : 0,
+                    paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'FULL' : 'UNPAID',
+                    confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
+                    guests: {
+                        create: guests.map(g => ({
+                            firstName: g.firstName,
+                            lastName: g.lastName,
+                            email: g.email,
+                            phone: g.phone,
+                            whatsappNumber: g.whatsappNumber,
+                            age: g.age,
+                            idType: g.idType,
+                            idNumber: g.idNumber,
+                            idImage: g.idImage,
+                        })),
+                    },
+                },
+                include: {
+                    room: true,
+                    roomType: { include: { cancellationPolicy: true } },
+                    guests: true,
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            firstName: true,
+                            lastName: true,
+                        },
+                    },
+                },
+            });
+
+            // 7.4 Update coupon usage
+            if (couponId) {
+                await tx.coupon.update({
+                    where: { id: couponId },
+                    data: { usedCount: { increment: 1 } },
+                });
+            }
+
+            // 7.5 Create audit log
+            await this.auditService.createLog({
+                action: 'CREATE',
+                entity: 'Booking',
+                entityId: newBooking.id,
+                userId: userId === 'GUEST_USER' ? finalBookingUserId : userId,
+                newValue: newBooking,
+                bookingId: newBooking.id,
+            }, tx);
+
+            // 7.6 Finalize details (Income, Payments, CP Rewards)
+            if (isManualBooking || createBookingDto.paymentMethod === 'WALLET') {
+                // CP Rewards processing
+                if (channelPartnerId) {
+                    const isWalletPayment = createBookingDto.paymentMethod === 'WALLET';
+                    await this.channelPartnersService.processReferralCommission(
+                        newBooking.id,
+                        channelPartnerId,
+                        finalTotal,
+                        !isWalletPayment,
+                        tx
+                    );
+
+                    if (isWalletPayment) {
+                        // Link Wallet Transaction
+                        await tx.cPTransaction.updateMany({
+                            where: {
+                                channelPartnerId,
+                                type: 'WALLET_PAYMENT' as any,
+                                description: `Inline booking ${bookingNumber}`,
+                                bookingId: null
+                            },
+                            data: { bookingId: newBooking.id }
+                        });
+
+                        // Create payment record
+                        await tx.payment.create({
+                            data: {
+                                amount: finalTotal - cpCommission,
+                                status: 'PAID',
+                                paymentMethod: 'WALLET',
+                                paymentDate: new Date(),
+                                bookingId: newBooking.id,
+                                currency: 'INR',
+                            },
+                        });
+                    }
+                }
+
+                // Income record
+                await tx.income.create({
+                    data: {
+                        amount: finalTotal,
+                        source: createBookingDto.paymentMethod === 'WALLET' ? 'ONLINE_BOOKING' : 'ROOM_BOOKING',
+                        description: `Booking ${bookingNumber}${createBookingDto.paymentMethod === 'WALLET' ? ' (Wallet Payment)' : ''}`,
+                        bookingId: newBooking.id,
+                        propertyId: newBooking.propertyId,
+                    },
+                });
+            }
+
+            return newBooking;
+        });
+
+        // 8. Broadcast notifications (Outside transaction)
         if (booking.status === 'CONFIRMED') {
             await this.notificationsService.broadcastNewBooking(booking);
         }
@@ -1025,6 +965,7 @@ export class BookingsService {
         });
 
         const sequence = String(count + 1).padStart(4, '0');
-        return `BK-${year}${month}${day}-${sequence}`;
+        const entropy = Math.random().toString(36).substring(2, 6).toUpperCase();
+        return `BK-${year}${month}${day}-${sequence}-${entropy}`;
     }
 }

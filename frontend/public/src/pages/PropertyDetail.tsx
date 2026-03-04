@@ -623,6 +623,18 @@ export default function PropertyDetail() {
                                                         <p className="text-gray-600 leading-relaxed font-medium italic text-lg pr-8">
                                                             "{review.comment}"
                                                         </p>
+                                                        {review.images && review.images.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2 mt-4">
+                                                                {review.images.map((img, idx) => (
+                                                                    <img 
+                                                                        key={idx} 
+                                                                        src={img} 
+                                                                        className="w-20 h-20 object-cover rounded-lg border border-gray-100 shadow-sm hover:scale-105 transition-transform"
+                                                                        alt={`Review image ${idx + 1}`}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>

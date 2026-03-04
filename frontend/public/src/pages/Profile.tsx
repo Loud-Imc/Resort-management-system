@@ -113,6 +113,8 @@ export default function Profile() {
     const [reviewingBooking, setReviewingBooking] = useState<any | null>(null);
     const [reviewRating, setReviewRating] = useState(5);
     const [reviewComment, setReviewComment] = useState('');
+    const [reviewImages, setReviewImages] = useState<string[]>([]);
+    const [isUploadingReviewImages, setIsUploadingReviewImages] = useState(false);
 
     const cancelMutation = useMutation({
         mutationFn: ({ id, reason }: { id: string; reason?: string }) => bookingService.cancelBooking(id, reason),
@@ -134,7 +136,8 @@ export default function Profile() {
                 propertyId: reviewingBooking.propertyId,
                 roomTypeId: reviewingBooking.roomTypeId,
                 rating: reviewRating,
-                comment: reviewComment
+                comment: reviewComment,
+                images: reviewImages
             });
         },
         onSuccess: () => {
@@ -142,6 +145,7 @@ export default function Profile() {
             setReviewingBooking(null);
             setReviewRating(5);
             setReviewComment('');
+            setReviewImages([]);
             toast.success('Thank you for your review!', {
                 icon: '✨',
                 style: { borderRadius: '1rem', background: '#333', color: '#fff' }
@@ -151,6 +155,34 @@ export default function Profile() {
             toast.error(error.response?.data?.message || 'Failed to submit review');
         }
     });
+
+    const handleReviewImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setIsUploadingReviewImages(true);
+        const uploadedUrls: string[] = [...reviewImages];
+
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const formData = new FormData();
+                formData.append('file', files[i]);
+                const { data } = await api.post('/uploads', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                uploadedUrls.push(data.url);
+            }
+            setReviewImages(uploadedUrls);
+        } catch (err) {
+            toast.error('Failed to upload some images');
+        } finally {
+            setIsUploadingReviewImages(false);
+        }
+    };
+
+    const removeReviewImage = (index: number) => {
+        setReviewImages(prev => prev.filter((_, i) => i !== index));
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -519,8 +551,47 @@ export default function Profile() {
                                         value={reviewComment}
                                         onChange={(e) => setReviewComment(e.target.value)}
                                         placeholder="Tell us about the service, food, and room..."
-                                        className="w-full p-6 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 focus:ring-4 focus:ring-primary-50/10 focus:border-primary-500 outline-none transition-all min-h-[150px] resize-none shadow-inner"
+                                        className="w-full p-6 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 focus:ring-4 focus:ring-primary-50/10 focus:border-primary-500 outline-none transition-all min-h-[120px] resize-none shadow-inner"
                                     />
+                                </div>
+
+                                {/* Image Upload */}
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 block px-1">Add Photos (Optional)</label>
+                                    <div className="grid grid-cols-4 gap-3">
+                                        {reviewImages.map((url, idx) => (
+                                            <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-100">
+                                                <img src={url} className="w-full h-full object-cover" />
+                                                <button
+                                                    onClick={() => removeReviewImage(idx)}
+                                                    className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <XCircle className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {reviewImages.length < 4 && (
+                                            <label className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-xl hover:bg-gray-50 hover:border-primary-200 transition-all cursor-pointer">
+                                                {isUploadingReviewImages ? (
+                                                    <Loader2 className="h-5 w-5 animate-spin text-primary-400" />
+                                                ) : (
+                                                    <>
+                                                        <Camera className="h-5 w-5 text-primary-400 mb-1" />
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Add Photo</span>
+                                                    </>
+                                                )}
+                                                <input
+                                                    type="file"
+                                                    multiple
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={handleReviewImageUpload}
+                                                    disabled={isUploadingReviewImages}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                    <p className="text-[9px] text-gray-400 font-medium">You can upload up to 4 photos of your experience.</p>
                                 </div>
 
                                 <button

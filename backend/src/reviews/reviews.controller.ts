@@ -17,6 +17,7 @@ export class ReviewsController {
         roomTypeId?: string;
         rating: number;
         comment?: string;
+        images?: string[];
     }) {
         return this.reviewsService.create(req.user.id, dto);
     }

@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn, Camera } from 'lucide-react';
+import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn, Camera, CheckCircle2, AlertCircle } from 'lucide-react';
 import { differenceInDays, format, addDays } from 'date-fns';
 import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
@@ -20,6 +20,14 @@ declare global {
     }
 }
 
+const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
+    AADHAR: { pattern: /^\d{12}$/, message: 'Aadhar must be exactly 12 digits', sample: 'e.g. 1234 5678 9012' },
+    PASSPORT: { pattern: /^[A-Z][0-9]{7}$/, message: '1 Letter + 7 Digits (e.g. A1234567)', sample: 'e.g. A1234567' },
+    VOTER_ID: { pattern: /^[A-Z]{3}[0-9]{7}$/, message: '3 Letters + 7 Digits', sample: 'e.g. ABC1234567' },
+    DRIVING_LICENSE: { pattern: /^[A-Z]{2}[0-9]{13}$/, message: '2 Letters + 13 Digits', sample: 'e.g. MH1220100012345' },
+    PAN: { pattern: /^[A-Z]{5}[0-9]{4}[A-Z]$/, message: 'Invalid PAN format', sample: 'e.g. ABCDE1234F' },
+};
+
 const userSchema = z.object({
     firstName: z.string().min(2, 'First name is required'),
     lastName: z.string().min(2, 'Last name is required'),
@@ -29,6 +37,19 @@ const userSchema = z.object({
     specialRequests: z.string().optional(),
     idType: z.string().optional(),
     idNumber: z.string().optional(),
+}).refine((data) => {
+    if (data.idType && !data.idNumber) return false;
+    if (!data.idType) return true;
+    
+    const patternObj = ID_VALIDATION_PATTERNS[data.idType];
+    if (patternObj) {
+        return patternObj.pattern.test((data.idNumber || '').replace(/\s/g, ''));
+    }
+    
+    return true;
+}, {
+    message: "Invalid ID number format",
+    path: ["idNumber"],
 });
 
 type FormData = z.infer<typeof userSchema>;
@@ -86,9 +107,13 @@ export default function Checkout() {
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
 
-    const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
+    const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
         resolver: zodResolver(userSchema),
+        mode: 'onChange',
     });
+
+    const watchIdType = watch('idType');
+    const watchIdNumber = watch('idNumber') || '';
 
     // Fetch room details directly by ID for the summary
     const { data: selectedRoom } = useQuery<any>({
@@ -401,56 +426,91 @@ export default function Checkout() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">ID Type (Optional)</label>
-                                <select
-                                    {...register('idType')}
-                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                                >
-                                    <option value="">Select ID Type</option>
-                                    <option value="AADHAR">Aadhar Card</option>
-                                    <option value="PASSPORT">Passport</option>
-                                    <option value="VOTER_ID">Voter ID</option>
-                                    <option value="DRIVING_LICENSE">Driving License</option>
-                                    <option value="OTHER">Other</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">ID Number (Optional)</label>
-                                <input
-                                    {...register('idNumber')}
-                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                                    placeholder="Enter your ID number"
-                                />
-                            </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">ID Type (Optional)</label>
+                            <select
+                                {...register('idType')}
+                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                            >
+                                <option value="">Select ID Type</option>
+                                <option value="AADHAR">Aadhar Card</option>
+                                <option value="PASSPORT">Passport</option>
+                                <option value="VOTER_ID">Voter ID</option>
+                                <option value="DRIVING_LICENSE">Driving License</option>
+                                <option value="PAN">PAN Card</option>
+                                <option value="OTHER">Other Identification</option>
+                            </select>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Upload Guest ID (Optional)</label>
-                            <div className="flex items-center gap-4">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                    id="idImage-upload"
-                                />
-                                <label
-                                    htmlFor="idImage-upload"
-                                    className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600 flex items-center gap-2"
-                                >
-                                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                                    {idImage ? 'Change ID Image' : 'Click to Upload ID Image'}
-                                </label>
-                                {idImage && (
-                                    <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
-                                        <ShieldCheck className="h-4 w-4" /> ID Image Uploaded
+                        {watchIdType && (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="space-y-2 col-span-2">
+                                        <label className="text-sm font-medium text-gray-700">ID Number</label>
+                                        <div className="relative">
+                                            <input
+                                                {...register('idNumber')}
+                                                className={`w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all ${
+                                                    errors.idNumber 
+                                                        ? 'border-red-500 ring-red-50/50' 
+                                                        : watchIdType && ID_VALIDATION_PATTERNS[watchIdType]?.pattern.test(watchIdNumber.replace(/\s/g, ''))
+                                                            ? 'border-emerald-500/50 ring-emerald-50/50'
+                                                            : 'border-gray-200'
+                                                }`}
+                                                placeholder={watchIdType && ID_VALIDATION_PATTERNS[watchIdType] ? ID_VALIDATION_PATTERNS[watchIdType].sample : "Enter document number"}
+                                            />
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                {errors.idNumber ? (
+                                                    <AlertCircle className="h-4 w-4 text-red-500" />
+                                                ) : watchIdType && ID_VALIDATION_PATTERNS[watchIdType]?.pattern.test(watchIdNumber.replace(/\s/g, '')) ? (
+                                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                        {errors.idNumber ? (
+                                            <p className="text-[10px] text-red-500 font-bold pl-1 mt-1">{ID_VALIDATION_PATTERNS[watchIdType]?.message || errors.idNumber.message}</p>
+                                        ) : watchIdType && ID_VALIDATION_PATTERNS[watchIdType] && (
+                                            <p className={`text-[10px] font-medium pl-1 mt-1 transition-all duration-300 ${
+                                                ID_VALIDATION_PATTERNS[watchIdType].pattern.test(watchIdNumber.replace(/\s/g, ''))
+                                                    ? 'text-emerald-600 font-bold'
+                                                    : 'text-gray-500'
+                                            }`}>
+                                                {ID_VALIDATION_PATTERNS[watchIdType].pattern.test(watchIdNumber.replace(/\s/g, ''))
+                                                    ? `Perfect, ${watchIdType.toLowerCase()} format matches`
+                                                    : ID_VALIDATION_PATTERNS[watchIdType].sample
+                                                }
+                                            </p>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                            <p className="text-[10px] text-gray-400 italic">Accepted formats: JPG, PNG. Max 5MB.</p>
-                        </div>
+                                </div>
+
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <label className="text-sm font-medium text-gray-700">Upload Guest ID</label>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleFileUpload}
+                                            className="hidden"
+                                            id="idImage-upload"
+                                        />
+                                        <label
+                                            htmlFor="idImage-upload"
+                                            className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600 flex items-center gap-2"
+                                        >
+                                            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                            {idImage ? 'Change ID Image' : 'Click to Upload ID Image'}
+                                        </label>
+                                        {idImage && (
+                                            <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
+                                                <ShieldCheck className="h-4 w-4" /> ID Image Uploaded
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 italic">Accepted formats: JPG, PNG. Max 5MB.</p>
+                                </div>
+                            </>
+                        )}
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-gray-700">Special Requests (Optional)</label>
@@ -460,41 +520,6 @@ export default function Checkout() {
                                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                                 placeholder="Dietary restrictions, quiet room, etc."
                             />
-                        </div>
-
-                        <div className="border-t border-gray-100 pt-6 space-y-6">
-                            <h3 className="text-lg font-semibold flex items-center gap-2">
-                                <CreditCard className="h-5 w-5 text-primary-600" />
-                                Payment Strategy
-                            </h3>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setPaymentOption('FULL')}
-                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'FULL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
-                                >
-                                    <div className="flex items-center justify-between w-full">
-                                        <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'FULL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Full Amount</span>
-                                        {paymentOption === 'FULL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates)}</span>
-                                    <p className="text-[10px] text-gray-500 italic">Highly recommended for faster check-in</p>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setPaymentOption('PARTIAL')}
-                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'PARTIAL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
-                                >
-                                    <div className="flex items-center justify-between w-full">
-                                        <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'PARTIAL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay 1/3rd Advance</span>
-                                        {paymentOption === 'PARTIAL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round(effectivePricing?.totalAmount / 3), selectedCurrency, rates)}</span>
-                                    <p className="text-[10px] text-gray-500 italic">Pay the remaining balance at the property</p>
-                                </button>
-                            </div>
                         </div>
 
                         <div className="border-t border-gray-100 pt-6 space-y-6">
@@ -569,6 +594,43 @@ export default function Checkout() {
                             </div>
                         </div>
 
+                        <div className="border-t border-gray-100 pt-6 space-y-6">
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <CreditCard className="h-5 w-5 text-primary-600" />
+                                Payment Strategy
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentOption('FULL')}
+                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'FULL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                >
+                                    <div className="flex items-center justify-between w-full">
+                                        <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'FULL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Full Amount</span>
+                                        {paymentOption === 'FULL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
+                                    </div>
+                                    <span className="text-lg font-bold text-gray-900">{formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates)}</span>
+                                    <p className="text-[10px] text-gray-500 italic">Highly recommended for faster check-in</p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentOption('PARTIAL')}
+                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'PARTIAL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                >
+                                    <div className="flex items-center justify-between w-full">
+                                        <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'PARTIAL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Advance</span>
+                                        {paymentOption === 'PARTIAL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
+                                    </div>
+                                    <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round(effectivePricing?.totalAmount / 3), selectedCurrency, rates)}</span>
+                                    <p className="text-[10px] text-gray-500 italic">Pay the remaining balance at the property</p>
+                                </button>
+                            </div>
+                        </div>
+
+
+
                         {cpProfile && appliedReferralCode === cpProfile.referralCode && (
                             <div className="bg-primary-50 p-5 rounded-xl border border-primary-100 space-y-4">
                                 <div className="flex items-center justify-between">
@@ -622,7 +684,7 @@ export default function Checkout() {
                                     <Loader2 className="animate-spin h-5 w-5" /> Processing...
                                 </>
                             ) : (
-                                `Reserve & Pay ${formatPrice(
+                                `Pay & Reserve ${formatPrice(
                                     paymentMethod === 'WALLET'
                                         ? (effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0))
                                         : (paymentOption === 'PARTIAL' ? Math.round(effectivePricing?.totalAmount / 3) : effectivePricing?.totalAmount),
