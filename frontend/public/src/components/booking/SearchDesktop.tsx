@@ -1,8 +1,9 @@
 import React from 'react';
 import DatePicker from 'react-datepicker';
-import { Users, Calendar, MapPin, Search, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe, Navigation, Loader2 } from 'lucide-react';
+import { Users, Calendar, Search, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe, Navigation, Loader2 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { PropertyCategory } from '../../types';
+import LocationAutocomplete from './LocationAutocomplete';
 
 const ICON_MAP: Record<string, any> = {
     Palmtree,
@@ -146,27 +147,23 @@ export default function SearchDesktop({
                                 {isLocating ? 'Locating...' : 'Use My Location'}
                             </button>
                         </div>
-                        <div className="flex items-center gap-5">
-                            <MapPin className={`h-7 w-7 ${isDark ? 'text-white/40' : 'text-gray-300'} group-hover:text-primary-400 transition-colors`} />
-                            <div className="flex-1">
-                                <input
-                                    type="text"
-                                    value={location}
-                                    onChange={(e) => {
-                                        setLocation(e.target.value);
-                                        if (latitude || longitude) {
-                                            setLatitude(null);
-                                            setLongitude(null);
-                                        }
-                                    }}
-                                    placeholder="Where are you going?"
-                                    className={`w-full bg-transparent text-2xl font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-300'} outline-none border-none p-0 focus:ring-0`}
-                                />
-                                <p className={`text-[11px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-2 font-medium italic tracking-wide`}>
-                                    {latitude && longitude ? `Searching within ${radius}km of your location` : 'Destination, city or resort'}
-                                </p>
-                            </div>
-                        </div>
+                        <LocationAutocomplete
+                            value={location}
+                            onChange={(val) => {
+                                setLocation(val);
+                                if (latitude || longitude) {
+                                    setLatitude(null);
+                                    setLongitude(null);
+                                }
+                            }}
+                            onSelect={(description) => setLocation(description.split(',')[0])}
+                            placeholder="Where are you going?"
+                            theme={theme}
+                            inputClassName={`w-full bg-transparent text-2xl font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-300'} outline-none border-none p-0 focus:ring-0`}
+                        />
+                        <p className={`text-[11px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-2 font-medium italic tracking-wide`}>
+                            {latitude && longitude ? `Searching within ${radius}km of your location` : 'Destination, city or resort'}
+                        </p>
                     </div>
 
                     {/* Check In Segment */}

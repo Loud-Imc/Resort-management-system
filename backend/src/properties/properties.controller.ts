@@ -42,6 +42,26 @@ export class PropertiesController {
         return this.propertiesService.findAll(query);
     }
 
+    @Get('autocomplete')
+    @ApiOperation({ summary: 'Google Places autocomplete proxy (public)' })
+    autocomplete(@Query('input') input: string) {
+        return this.propertiesService.getPlaceAutocomplete(input || '');
+    }
+
+    @Get('nearby')
+    @ApiOperation({ summary: 'Find nearby properties by lat/lng (public)' })
+    findNearby(
+        @Query('lat') lat: string,
+        @Query('lng') lng: string,
+        @Query('radius') radius?: string,
+    ) {
+        return this.propertiesService.findNearby(
+            parseFloat(lat),
+            parseFloat(lng),
+            radius ? parseFloat(radius) : 100,
+        );
+    }
+
     @Get(':slug')
     @ApiOperation({ summary: 'Get property by slug (public)' })
     findBySlug(@Param('slug') slug: string) {

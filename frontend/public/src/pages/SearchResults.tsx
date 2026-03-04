@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
+// import { propertyApi } from '../services/properties';
 import { useCurrency } from '../context/CurrencyContext';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
 import PropertyFilters from '../components/PropertyFilters';
-import { Loader2, AlertCircle, Search } from 'lucide-react';
+import { Loader2, AlertCircle, Search, MapPin } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 export default function SearchResults() {
@@ -58,6 +59,10 @@ export default function SearchResults() {
         }),
         enabled: !!checkIn && !!checkOut,
     });
+
+    // Nearby fallback state
+    const [nearbyProperties, setNearbyProperties] = useState<any[]>([]);
+    const [isLoadingNearby, setIsLoadingNearby] = useState(false);
 
     const handleApplyFilters = () => {
         const params = new URLSearchParams(searchParams);
@@ -167,6 +172,19 @@ export default function SearchResults() {
         });
     }, [data]);
 
+    // When primary results are empty and a location was searched, try to find nearby
+    useEffect(() => {
+        if (!isLoading && groupedProperties.length === 0 && locationParam) {
+            setIsLoadingNearby(true);
+            fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/properties?search=${encodeURIComponent(locationParam)}&limit=6`)
+                .then(r => r.json())
+                .then((json: any) => setNearbyProperties(json.data || []))
+                .catch(() => setNearbyProperties([]))
+                .finally(() => setIsLoadingNearby(false));
+        } else {
+            setNearbyProperties([]);
+        }
+    }, [isLoading, groupedProperties.length, locationParam]);
 
     if (error) {
         return (
@@ -228,17 +246,47 @@ export default function SearchResults() {
                         </div>
 
                         {/* Property Cards Grid */}
+                        {/* Property Cards Grid or Nearby Fallback */}
                         {!isLoading && groupedProperties.length === 0 ? (
-                            <div className="bg-white p-16 rounded-3xl text-center border border-gray-100 shadow-sm max-w-2xl mx-auto">
-                                <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                                <h2 className="text-xl font-bold text-gray-900 mb-2">No matching properties</h2>
-                                <p className="text-gray-500 mb-8">We couldn't find any stays matching your filters. Try clearing them to see more options.</p>
-                                <button
-                                    onClick={clearFilters}
-                                    className="px-8 py-3 bg-primary-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-500/20"
-                                >
-                                    Clear all filters
-                                </button>
+                            <div className="space-y-8">
+                                <div className="bg-white p-10 rounded-3xl text-center border border-gray-100 shadow-sm max-w-2xl mx-auto">
+                                    <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                                    <h2 className="text-xl font-bold text-gray-900 mb-2">No matching properties</h2>
+                                    <p className="text-gray-500 mb-6">We couldn't find any stays matching your filters.</p>
+                                    <button
+                                        onClick={clearFilters}
+                                        className="px-8 py-3 bg-primary-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-500/20"
+                                    >
+                                        Clear all filters
+                                    </button>
+                                </div>
+
+                                {/* Nearby Fallback */}
+                                {(isLoadingNearby || nearbyProperties.length > 0) && (
+                                    <div className="space-y-6">
+                                        <div className="flex items-center gap-3 px-2">
+                                            <div className="h-px flex-1 bg-gray-200" />
+                                            <div className="flex items-center gap-2 text-sm font-bold text-gray-500 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
+                                                <MapPin className="h-4 w-4 text-primary-500" />
+                                                {isLoadingNearby ? 'Finding nearby stays...' : `Nearby stays you might like`}
+                                            </div>
+                                            <div className="h-px flex-1 bg-gray-200" />
+                                        </div>
+                                        {isLoadingNearby ? (
+                                            <div className="flex justify-center py-8">
+                                                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                                {nearbyProperties.map((property) => (
+                                                    <div key={property.id} className="relative group animate-in fade-in zoom-in-95 duration-300">
+                                                        <PropertyCard property={property} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

@@ -1,76 +1,109 @@
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from 'lucide-react';
+import { useState } from 'react';
+import { Facebook, Instagram, Twitter, Youtube, Send } from 'lucide-react';
 import logo from '../../assets/routeguide.svg';
 
 export default function Footer() {
+    const [email, setEmail] = useState('');
+    const [subscribed, setSubscribed] = useState(false);
+
+    const handleSubscribe = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (email) { setSubscribed(true); setEmail(''); }
+    };
+
     return (
-        <footer className="bg-gray-900 text-white pt-16 pb-8" id="contact">
+        <footer className="bg-gray-950 text-white pt-16 pb-8" id="contact">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
-                    <div>
-                        <div className="flex items-center mb-1">
-                            <img src={logo} alt="Route Guide" className="h-50 w-auto brightness-0 invert" />
+
+                {/* Main 3-column layout */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-center mb-14">
+
+                    {/* Left — Quick links / tagline */}
+                    <div className="flex flex-col gap-4 md:items-start items-center text-center md:text-left">
+                        <p className="text-[10px] font-black uppercase tracking-[0.35em] text-primary-400">Explore</p>
+                        <ul className="space-y-3">
+                            {[
+                                { label: 'Home', href: '/' },
+                                { label: 'Resorts', href: '/properties' },
+                                { label: 'About Us', href: '/about' },
+                                { label: 'Contact', href: '/contact' },
+                                { label: 'List Your Property', href: 'http://localhost:5175/register', highlight: true },
+                            ].map(link => (
+                                <li key={link.label}>
+                                    <a
+                                        href={link.href}
+                                        target={link.href.startsWith('http') ? '_blank' : undefined}
+                                        rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                                        className={`text-sm font-medium transition-colors ${link.highlight ? 'text-primary-400 hover:text-primary-300 font-bold' : 'text-gray-400 hover:text-white'}`}
+                                    >
+                                        {link.label}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Center — Logo + Social */}
+                    <div className="flex flex-col items-center gap-6">
+                        <img
+                            src={logo}
+                            alt="Route Guide"
+                            className="h-16 w-auto brightness-0 invert opacity-90"
+                        />
+                        <div className="flex items-center gap-5">
+                            {[
+                                { Icon: Facebook, href: '#', label: 'Facebook' },
+                                { Icon: Instagram, href: '#', label: 'Instagram' },
+                                { Icon: Twitter, href: '#', label: 'Twitter' },
+                                { Icon: Youtube, href: '#', label: 'YouTube' },
+                            ].map(({ Icon, href, label }) => (
+                                <a
+                                    key={label}
+                                    href={href}
+                                    aria-label={label}
+                                    className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary-600/80 hover:border-primary-500 transition-all duration-300"
+                                >
+                                    <Icon className="h-4 w-4" />
+                                </a>
+                            ))}
                         </div>
-                        <p className="text-gray-400">
-                            Experience the ultimate tranquility at Banasura Sagar Dam. Your journey to peace begins here.
+                    </div>
+
+                    {/* Right — Newsletter */}
+                    <div className="flex flex-col gap-4 md:items-end items-center text-center md:text-right">
+                        <p className="text-[10px] font-black uppercase tracking-[0.35em] text-primary-400">Newsletter</p>
+                        <p className="text-gray-400 text-sm leading-relaxed max-w-xs">
+                            Get exclusive deals and travel inspiration straight to your inbox.
                         </p>
-                        <div className="flex gap-4 mt-1">
-                            <a href="#" className="text-gray-400 hover:text-white transition-colors"><Facebook className="h-5 w-5" /></a>
-                            <a href="#" className="text-gray-400 hover:text-white transition-colors"><Instagram className="h-5 w-5" /></a>
-                            <a href="#" className="text-gray-400 hover:text-white transition-colors"><Twitter className="h-5 w-5" /></a>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 className="font-bold mb-6 uppercase text-sm tracking-widest text-primary-400">Quick Links</h4>
-                        <ul className="space-y-4">
-                            <li><a href="/" className="text-gray-400 hover:text-white transition-colors">Home</a></li>
-                            <li><a href="/properties" className="text-gray-400 hover:text-white transition-colors">Resorts</a></li>
-                            <li><a href="/about" className="text-gray-400 hover:text-white transition-colors">About Us</a></li>
-                            <li><a href="/#events" className="text-gray-400 hover:text-white transition-colors">Events</a></li>
-                            <li><a href="/contact" className="text-gray-400 hover:text-white transition-colors">Contact</a></li>
-                            <li><a href="http://localhost:5175/register" target="_blank" rel="noopener noreferrer" className="text-primary-400 font-bold hover:text-primary-300 transition-colors">List Your Property</a></li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h4 className="text-lg font-semibold mb-6">Contact Us</h4>
-                        <ul className="space-y-4">
-                            <li className="flex items-start gap-3 text-gray-400">
-                                <MapPin className="h-5 w-5 text-primary-400 shrink-0 mt-0.5" />
-                                <span>Banasura Sagar Dam, Wayanad, Kerala</span>
-                            </li>
-                            <li className="flex items-center gap-3 text-gray-400">
-                                <Phone className="h-5 w-5 text-primary-400 shrink-0" />
-                                <span>+91 98765 43210</span>
-                            </li>
-                            <li className="flex items-center gap-3 text-gray-400">
-                                <Mail className="h-5 w-5 text-primary-400 shrink-0" />
-                                <span>info@routeguide.com</span>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h4 className="text-lg font-semibold mb-6">Newsletter</h4>
-                        <p className="text-gray-400 mb-4">Subscribe for wellness tips and exclusive offers.</p>
-                        <div className="flex gap-2">
-                            <input
-                                type="email"
-                                placeholder="Your email"
-                                className="bg-gray-800 text-white px-4 py-2 rounded-lg flex-1 border border-gray-700 focus:outline-none focus:border-primary-500"
-                            />
-                            <button className="bg-primary-600 px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors">
-                                Subscribe
-                            </button>
-                        </div>
+                        {subscribed ? (
+                            <p className="text-primary-400 text-sm font-bold">✓ You're subscribed!</p>
+                        ) : (
+                            <form onSubmit={handleSubscribe} className="flex gap-2 w-full max-w-xs">
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Your email address"
+                                    required
+                                    className="flex-1 bg-white/5 border border-white/10 text-white text-sm px-4 py-2.5 rounded-xl placeholder:text-gray-500 focus:outline-none focus:border-primary-500 transition-colors"
+                                />
+                                <button
+                                    type="submit"
+                                    className="bg-primary-600 hover:bg-primary-500 text-white px-3 py-2.5 rounded-xl transition-colors flex items-center justify-center"
+                                >
+                                    <Send className="h-4 w-4" />
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
 
-                <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center text-gray-500 text-sm">
-                    <p>&copy; {new Date().getFullYear()} Route Guide. All rights reserved.</p>
-                    <div className="flex gap-4 mt-4 md:mt-0">
-                        <a href="/terms" className="hover:text-white">Terms & Conditions</a>
-                        <a href="/privacy" className="hover:text-white">Privacy Policy</a>
+                {/* Bottom bar */}
+                <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-gray-600 text-xs">
+                    <p>© {new Date().getFullYear()} Route Guide. All rights reserved.</p>
+                    <div className="flex gap-6">
+                        <a href="/terms" className="hover:text-gray-400 transition-colors">Terms & Conditions</a>
+                        <a href="/privacy" className="hover:text-gray-400 transition-colors">Privacy Policy</a>
                     </div>
                 </div>
             </div>

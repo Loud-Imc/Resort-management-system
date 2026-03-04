@@ -498,4 +498,59 @@ export class PropertiesService {
             data: { isActive },
         });
     }
+
+    // Google Places Autocomplete proxy — keeps API key server-side
+    async getPlaceAutocomplete(input: string) {
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        if (!apiKey) return [];
+        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=(cities)&key=${apiKey}`;
+        const res = await fetch(url);
+        const data: any = await res.json();
+        if (!data.predictions) return [];
+        return data.predictions.map((p: any) => ({
+            placeId: p.place_id,
+            description: p.description,
+            mainText: p.structured_formatting?.main_text || p.description,
+            secondaryText: p.structured_formatting?.secondary_text || '',
+        }));
+    }
+
+    // Geocode a free-text location string to lat/lng (used for nearby fallback)
+    async geocodeLocation(location: string): Promise<{ lat: number; lng: number } | null> {
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        if (!apiKey) return null;
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location)}&key=${apiKey}`;
+        const res = await fetch(url);
+        const data: any = await res.json();
+        const result = data.results?.[0];
+        if (!result) return null;
+        return {
+            lat: result.geometry.location.lat,
+            lng: result.geometry.location.lng,
+        };
+    }
+
+    // Find nearby properties by lat/lng within a radius (km)
+    async findNearby(lat: number, lng: number, radiusKm = 100) {
+        const results = await this.prisma.$queryRaw<any[]>`
+            SELECT id FROM properties
+            WHERE status = 'APPROVED' AND "isActive" = true
+            AND (
+                6371 * acos(
+                    cos(radians(${lat})) * cos(radians(CAST(latitude AS DOUBLE PRECISION))) *
+                    cos(radians(CAST(longitude AS DOUBLE PRECISION)) - radians(${lng})) +
+                    sin(radians(${lat})) * sin(radians(CAST(latitude AS DOUBLE PRECISION)))
+                )
+            ) <= ${radiusKm}
+        `;
+        if (!results.length) return [];
+        const ids = results.map((r) => r.id);
+        return this.prisma.property.findMany({
+            where: { id: { in: ids }, isActive: true },
+            include: {
+                category: true,
+                _count: { select: { rooms: true, bookings: true } },
+            },
+        });
+    }
 }

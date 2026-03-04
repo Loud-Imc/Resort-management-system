@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import DatePicker from 'react-datepicker';
-import { Users, Calendar, MapPin, Search, X, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe } from 'lucide-react';
+import { Users, Calendar, Search, X, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe } from 'lucide-react';
 import { addDays, format } from 'date-fns';
 import { PropertyCategory } from '../../types';
+import LocationAutocomplete from './LocationAutocomplete';
 
 const ICON_MAP: Record<string, any> = {
     Palmtree,
@@ -102,13 +103,13 @@ export default function SearchInline({
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Destination</label>
                                 <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
-                                    <MapPin className="h-5 w-5 text-gray-400" />
-                                    <input
-                                        type="text"
+                                    <LocationAutocomplete
                                         value={location}
-                                        onChange={(e) => setLocation(e.target.value)}
+                                        onChange={setLocation}
+                                        onSelect={(description) => setLocation(description.split(',')[0])}
                                         placeholder="Where to?"
-                                        className="bg-transparent text-base font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full"
+                                        theme="light"
+                                        inputClassName="bg-transparent text-base font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full"
                                     />
                                 </div>
                             </div>
@@ -237,16 +238,14 @@ export default function SearchInline({
                 {/* Location */}
                 <div className="w-[30%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group">
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Destination</label>
-                    <div className="flex items-center gap-3">
-                        <MapPin className="h-4 w-4 text-primary-500" />
-                        <input
-                            type="text"
-                            value={location}
-                            onChange={(e) => setLocation(e.target.value)}
-                            placeholder="Where to?"
-                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full placeholder:text-gray-300"
-                        />
-                    </div>
+                    <LocationAutocomplete
+                        value={location}
+                        onChange={setLocation}
+                        onSelect={(description) => setLocation(description.split(',')[0])}
+                        placeholder="Where to?"
+                        theme="light"
+                        inputClassName="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full placeholder:text-gray-300"
+                    />
                 </div>
 
                 {/* Dates */}

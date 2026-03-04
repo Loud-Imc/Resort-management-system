@@ -1,8 +1,9 @@
 import React from 'react';
 import DatePicker from 'react-datepicker';
-import { Users, Calendar, MapPin, Search, ChevronLeft, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe } from 'lucide-react';
+import { Users, Calendar, Search, ChevronLeft, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { PropertyCategory } from '../../types';
+import LocationAutocomplete from './LocationAutocomplete';
 
 const ICON_MAP: Record<string, any> = {
     Palmtree,
@@ -152,16 +153,14 @@ export default function SearchMobile({
                     {/* Location */}
                     <div className={`p-4 active:${isDark ? 'bg-white/5' : 'bg-gray-50'} transition-colors cursor-pointer group`}>
                         <label className={`block text-[8px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/40' : 'text-primary-500/80'} mb-1.5`}>Where to?</label>
-                        <div className="flex items-center gap-3">
-                            <MapPin className={`h-5 w-5 ${isDark ? 'text-white/40' : 'text-primary-600'}`} />
-                            <input
-                                type="text"
-                                value={location}
-                                onChange={(e) => setLocation(e.target.value)}
-                                placeholder="City or Resort Name"
-                                className={`w-full bg-transparent text-lg font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-200'} outline-none border-none p-0 focus:ring-0`}
-                            />
-                        </div>
+                        <LocationAutocomplete
+                            value={location}
+                            onChange={setLocation}
+                            onSelect={(description) => setLocation(description.split(',')[0])}
+                            placeholder="City or Resort Name"
+                            theme={theme}
+                            inputClassName={`w-full bg-transparent text-lg font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-200'} outline-none border-none p-0 focus:ring-0`}
+                        />
                     </div>
 
                     {/* Dates */}

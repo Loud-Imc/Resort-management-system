@@ -37,6 +37,18 @@ export const propertyApi = {
         const response = await api.get('/property-categories');
         return response.data;
     },
+
+    // Get nearby properties by lat/lng
+    async getNearby(lat: number, lng: number, radius = 100): Promise<Property[]> {
+        const response = await api.get('/properties/nearby', { params: { lat, lng, radius } });
+        return response.data;
+    },
+
+    // Get location autocomplete suggestions
+    async autocomplete(input: string): Promise<{ placeId: string; description: string; mainText: string; secondaryText: string }[]> {
+        const response = await api.get('/properties/autocomplete', { params: { input } });
+        return response.data;
+    },
 };
 
 // Channel Partner API Service

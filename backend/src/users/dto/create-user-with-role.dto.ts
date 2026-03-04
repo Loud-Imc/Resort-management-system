@@ -46,4 +46,9 @@ export class CreateUserWithRoleDto {
     @IsString()
     @IsOptional()
     avatar?: string;
+
+    @ApiProperty({ required: false })
+    @IsString()
+    @IsOptional()
+    fcmToken?: string;
 }

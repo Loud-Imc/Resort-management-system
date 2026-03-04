@@ -1,18 +1,27 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging } from '../config/firebase';
-import axios from 'axios';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export default function NotificationManager() {
+    const location = useLocation();
+    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+
+    useEffect(() => {
+        const handleStorage = () => {
+            setToken(localStorage.getItem('token'));
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
     useEffect(() => {
         const setupNotifications = async () => {
-            const user = localStorage.getItem('user');
-            const token = localStorage.getItem('token');
-
-            if (!user || !token) return;
+            const userStr = localStorage.getItem('user');
+            if (!userStr || !token) return;
 
             try {
                 // Request permission
@@ -20,14 +29,12 @@ export default function NotificationManager() {
                 if (permission === 'granted') {
                     // Get FCM Token
                     const fcmToken = await getToken(messaging, {
-                        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY // User needs to provide this
+                        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
                     });
 
                     if (fcmToken) {
                         // Send to backend
-                        await axios.patch(`${API_URL}/users/profile`, { fcmToken }, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        });
+                        await api.patch('/users/me', { fcmToken });
                         console.log('FCM Token registered successfully');
                     }
                 }
@@ -48,7 +55,7 @@ export default function NotificationManager() {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [token, location.pathname]);
 
     return null;
 }

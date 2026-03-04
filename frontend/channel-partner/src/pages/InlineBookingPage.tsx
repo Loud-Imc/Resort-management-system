@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { formatPrice } from '../utils/currency';
+import LocationAutocomplete from '../components/LocationAutocomplete';
 
 // --- Types ---
 interface Property {
@@ -266,15 +267,23 @@ const InlineBookingPage: React.FC = () => {
                         <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Find a Property</h3>
 
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                            <div style={{ flex: 1, position: 'relative' }}>
-                                <Search size={18} style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
-                                <input
-                                    type="text"
-                                    placeholder="Search by property name or city..."
+                        <div style={{ flex: 1, position: 'relative' }}>
+                                <LocationAutocomplete
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && searchProperties()}
-                                    style={{ width: '100%', padding: '0.85rem 1rem 0.85rem 2.8rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box' }}
+                                    onChange={setSearchQuery}
+                                    onSelect={(description) => {
+                                        const city = description.split(',')[0];
+                                        setSearchQuery(city);
+                                        // Auto-search when a suggestion is picked
+                                        setTimeout(() => searchProperties(), 100);
+                                    }}
+                                    placeholder="Search by property name or city..."
+                                    wrapperStyle={{ width: '100%' }}
+                                    inputStyle={{
+                                        width: '100%', padding: '0.85rem 1rem', border: '1px solid var(--border-glass)',
+                                        borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', boxSizing: 'border-box' as const,
+                                        fontFamily: 'inherit', fontSize: '0.95rem',
+                                    }}
                                 />
                             </div>
                             <button
