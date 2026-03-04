@@ -14,6 +14,17 @@ export const paymentService = {
         return data;
     },
 
+    initiateQrPayment: async (params: { bookingId: string }) => {
+        const { data } = await api.post<{
+            qrCodeId: string;
+            paymentSource: string;
+            upiUri: string;
+            amount: number;
+            currency: string;
+        }>('/payments/public/initiate-qr', params);
+        return data;
+    },
+
     verifyPayment: async (verificationData: {
         razorpayOrderId: string;
         razorpayPaymentId: string;

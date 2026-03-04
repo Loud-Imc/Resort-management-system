@@ -51,17 +51,24 @@ export class PaymentsService {
                 throw new NotFoundException('Booking not found');
             }
 
-            if (booking.status !== 'PENDING_PAYMENT') {
-                throw new BadRequestException('Booking is not pending payment');
+            if (booking.status !== 'PENDING_PAYMENT' && booking.status !== 'CONFIRMED') {
+                throw new BadRequestException('Booking is not in a payable status');
             }
 
             // Calculate amount to charge
-            let chargeAmount = Number(booking.amountInBookingCurrency);
+            const totalAmount = Number(booking.amountInBookingCurrency);
+            const paidAmountInBookingCurrency = Number(booking.paidAmount) / Number(booking.exchangeRate || 1);
+            let chargeAmount = totalAmount - paidAmountInBookingCurrency;
+
             const currency = booking.bookingCurrency || 'INR';
 
-            if (booking.paymentOption === 'PARTIAL') {
-                // If it's a partial payment, charge 1/3rd for the first payment
-                chargeAmount = Math.round(chargeAmount / 3);
+            if (booking.status === 'PENDING_PAYMENT' && booking.paymentOption === 'PARTIAL') {
+                // If it's a first-time partial payment, charge 1/3rd
+                chargeAmount = Math.round(totalAmount / 3);
+            }
+
+            if (chargeAmount <= 0) {
+                throw new BadRequestException('Booking is already fully paid');
             }
 
             // Create Razorpay order
@@ -93,13 +100,14 @@ export class PaymentsService {
 
             return {
                 orderId: order.id,
-                amount: order.amount,
-                currency: order.currency,
+                amount: this.convertToSmallestUnit(chargeAmount, currency),
+                currency: currency,
                 keyId: this.configService.get<string>('RAZORPAY_KEY_ID'),
                 booking: {
                     id: booking.id,
                     bookingNumber: booking.bookingNumber,
                     totalAmount: booking.totalAmount,
+                    paidAmount: booking.paidAmount,
                 },
                 payment: {
                     id: payment.id,
@@ -161,6 +169,62 @@ export class PaymentsService {
                     id: payment.id,
                 },
             };
+        }
+    }
+
+    /**
+     * Initiate QR Payment - Create Razorpay QR Code
+     */
+    async initiateQrPayment(bookingId: string) {
+        const booking = await this.prisma.booking.findUnique({
+            where: { id: bookingId },
+            include: { user: true },
+        });
+
+        if (!booking) {
+            throw new NotFoundException('Booking not found');
+        }
+
+        const currency = booking.bookingCurrency || 'INR';
+        const totalAmount = Number(booking.amountInBookingCurrency);
+        const paidAmountInBookingCurrency = Number(booking.paidAmount) / Number(booking.exchangeRate || 1);
+        let chargeAmount = totalAmount - paidAmountInBookingCurrency;
+
+        if (booking.status === 'PENDING_PAYMENT' && booking.paymentOption === 'PARTIAL') {
+            chargeAmount = Math.round(totalAmount / 3);
+        }
+
+        if (chargeAmount <= 0) {
+            throw new BadRequestException('Booking is already fully paid');
+        }
+
+        // Create Razorpay QR Code
+        try {
+            const qrCode = await (this.razorpay as any).qrCode.create({
+                type: 'upi_qr',
+                name: `Booking ${booking.bookingNumber}`,
+                usage: 'single_payment',
+                fixed_amount: true,
+                payment_amount: this.convertToSmallestUnit(chargeAmount, currency),
+                amount: this.convertToSmallestUnit(chargeAmount, currency),
+                description: `Payment for booking ${booking.bookingNumber}`,
+                notes: {
+                    bookingId: booking.id,
+                    bookingNumber: booking.bookingNumber,
+                    type: 'RESORT_BOOKING_QR'
+                },
+            });
+
+            return {
+                qrCodeId: qrCode.id,
+                paymentSource: qrCode.image_url,
+                upiUri: qrCode.payment_source,
+                amount: chargeAmount,
+                currency: currency,
+            };
+        } catch (error: any) {
+            console.error('[PaymentsService] QR Code Creation Failed:', error);
+            throw new BadRequestException(error.description || error.message || 'Failed to create payment QR code');
         }
     }
 
@@ -343,8 +407,8 @@ export class PaymentsService {
      * Handle payment captured event
      */
     private async handlePaymentCaptured(paymentData: any) {
-        const payment = await this.prisma.payment.findUnique({
-            where: { razorpayOrderId: paymentData.order_id },
+        let payment = await this.prisma.payment.findUnique({
+            where: { razorpayOrderId: paymentData.order_id || 'NONE' },
             include: {
                 booking: {
                     include: {
@@ -361,6 +425,36 @@ export class PaymentsService {
                 }
             },
         });
+
+        // For QR Payments, the order_id might be missing or different
+        // We can find the booking via notes
+        if (!payment && paymentData.notes?.bookingId) {
+            const bookingId = paymentData.notes.bookingId;
+            // For QR payments we create the payment record on-the-fly when captured
+            // since we don't have a pre-created PENDING record for every QR scan
+            
+            payment = await this.prisma.payment.create({
+                data: {
+                    amount: Number(paymentData.amount) / 100,
+                    currency: paymentData.currency,
+                    status: 'PENDING',
+                    razorpayPaymentId: paymentData.id,
+                    razorpayOrderId: paymentData.order_id,
+                    bookingId: bookingId,
+                    paymentMethod: paymentData.method,
+                },
+                include: {
+                    booking: {
+                        include: {
+                            user: true,
+                            roomType: true,
+                            property: true,
+                        }
+                    },
+                    eventBooking: true
+                }
+            }) as any;
+        }
 
         if (!payment) {
             console.error('Payment not found for order:', paymentData.order_id);

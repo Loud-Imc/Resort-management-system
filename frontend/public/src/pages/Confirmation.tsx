@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link, Navigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User } from 'lucide-react';
+import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
+import { paymentService } from '../services/payment';
 import { formatPrice } from '../utils/currency';
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
@@ -17,11 +18,25 @@ export default function Confirmation() {
     const bookingIdFromUrl = searchParams.get('bookingId');
     const invoiceRef = useRef<HTMLDivElement>(null);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    // Load Razorpay Script
+    useEffect(() => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        document.body.appendChild(script);
+        return () => {
+            if (document.body.contains(script)) {
+                document.body.removeChild(script);
+            }
+        };
+    }, []);
 
     // 1. First check if we have booking in state (from fresh checkout)
     // 2. Otherwise check if we have bookingId in URL (from My Bookings)
 
-    const { data: fetchedBooking, isLoading, error } = useQuery({
+    const { data: fetchedBooking, isLoading, error, refetch } = useQuery({
         queryKey: ['booking', bookingIdFromUrl],
         queryFn: () => bookingService.getBookingById(bookingIdFromUrl!),
         enabled: !!bookingIdFromUrl,
@@ -64,15 +79,7 @@ export default function Confirmation() {
     const property = booking.property || booking.room?.property;
     const roomType = booking.roomType;
 
-    // Calculate totals from payments for accuracy (especially after refunds)
     const payments = booking.payments || [];
-    const originalPaidAmount = payments.reduce((sum: number, p: any) => {
-        if (p.status === 'PAID' || p.status === 'REFUNDED' || p.status === 'PARTIALLY_REFUNDED') {
-            return sum + Number(p.amount);
-        }
-        return sum;
-    }, 0);
-
     const totalRefundedAmount = payments.reduce((sum: number, p: any) => {
         return sum + (Number(p.refundAmount) || 0);
     }, 0);
@@ -81,6 +88,10 @@ export default function Confirmation() {
 
     const isCancelled = booking.status === 'CANCELLED' || booking.status === 'REFUNDED';
 
+    const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
+    const canPayBalance = !isCancelled && balanceDue > 0;
+    const isDepositPaid = Number(booking.paidAmount) >= Number(booking.totalAmount) / 3;
+
     const getStatusStyles = (status: string) => {
         switch (status) {
             case 'CONFIRMED': return 'bg-green-100 text-green-800 border-green-200';
@@ -88,6 +99,56 @@ export default function Confirmation() {
             case 'CANCELLED': return 'bg-red-100 text-red-800 border-red-200';
             case 'REFUNDED': return 'bg-purple-100 text-purple-800 border-purple-200';
             default: return 'bg-gray-100 text-gray-800 border-gray-200';
+        }
+    };
+
+    const handlePayBalance = async () => {
+        setIsProcessing(true);
+        try {
+            const paymentInfo = await paymentService.initiatePayment({ bookingId: booking.id });
+
+            const options = {
+                key: paymentInfo.keyId,
+                amount: paymentInfo.amount,
+                currency: paymentInfo.currency,
+                name: 'Route Guide',
+                description: isDepositPaid ? `Balance Payment - ${booking.bookingNumber}` : `Deposit Payment - ${booking.bookingNumber}`,
+                order_id: paymentInfo.orderId,
+                handler: async function (response: any) {
+                    try {
+                        setIsProcessing(true);
+                        await paymentService.verifyPayment({
+                            razorpayOrderId: response.razorpay_order_id,
+                            razorpayPaymentId: response.razorpay_payment_id,
+                            razorpaySignature: response.razorpay_signature
+                        });
+                        refetch();
+                    } catch (error) {
+                        console.error('Payment verification failed', error);
+                        alert('Payment verification failed. Please contact support.');
+                    } finally {
+                        setIsProcessing(false);
+                    }
+                },
+                prefill: {
+                    name: `${booking.user?.firstName} ${booking.user?.lastName || ''}`,
+                    email: booking.user?.email,
+                    contact: booking.user?.phone
+                },
+                theme: { color: '#0f172a' },
+                modal: {
+                    ondismiss: function () {
+                        setIsProcessing(false);
+                    }
+                }
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            rzp.open();
+        } catch (error: any) {
+            console.error('Payment initiation failed', error);
+            alert(error.response?.data?.message || 'Failed to initiate payment');
+            setIsProcessing(false);
         }
     };
 
@@ -305,17 +366,17 @@ export default function Confirmation() {
 
                                         <div className="flex justify-between items-center text-emerald-700 print:text-gray-900 [.pdf-capture-mode_&]:text-gray-900">
                                             <span className="text-sm font-bold uppercase tracking-wider print:text-xs [.pdf-capture-mode_&]:text-xs">Amount Paid</span>
-                                            <span className="text-lg font-black print:text-base [.pdf-capture-mode_&]:text-base underline decoration-emerald-100 decoration-2 underline-offset-4 [.pdf-capture-mode_&]:no-underline">{formatPrice(originalPaidAmount, booking.bookingCurrency || 'INR')}</span>
+                                            <span className="text-lg font-black print:text-base [.pdf-capture-mode_&]:text-base underline decoration-emerald-100 decoration-2 underline-offset-4 [.pdf-capture-mode_&]:no-underline">{formatPrice(Number(booking.paidAmount), booking.bookingCurrency || 'INR')}</span>
                                         </div>
 
-                                        {!isCancelled && Number(booking.paidAmount) < Number(booking.totalAmount) && (
+                                        {!isCancelled && balanceDue > 0 && (
                                             <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl border border-amber-100 print:bg-white print:border-gray-200 print:p-2 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200 [.pdf-capture-mode_&]:p-2">
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">Balance Due</span>
                                                     <span className="text-xs text-amber-700 italic print:hidden [.pdf-capture-mode_&]:hidden">To be paid during check-in</span>
                                                 </div>
                                                 <span className="text-xl font-black text-amber-600 print:text-base [.pdf-capture-mode_&]:text-base">
-                                                    {formatPrice(Number(booking.totalAmount) - Number(booking.paidAmount), booking.bookingCurrency || 'INR')}
+                                                    {formatPrice(balanceDue, booking.bookingCurrency || 'INR')}
                                                 </span>
                                             </div>
                                         )}
@@ -335,25 +396,37 @@ export default function Confirmation() {
                                         )}
                                     </div>
 
-                                    <div className="mt-8 pt-8 border-t border-gray-200 print:hidden [.pdf-capture-mode_&]:hidden space-y-3">
+                                    {/* Action Buttons Section */}
+                                    <div className="mt-8 pt-8 border-t border-gray-200 print:hidden [.pdf-capture-mode_&]:hidden space-y-4">
+                                        {canPayBalance && (
+                                            <button
+                                                onClick={handlePayBalance}
+                                                disabled={isProcessing}
+                                                className="w-full bg-primary-600 text-white hover:bg-primary-700 px-6 py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200 disabled:opacity-50"
+                                            >
+                                                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                                                {isDepositPaid ? 'Pay Remaining Balance' : 'Pay Deposit Online'}
+                                            </button>
+                                        )}
+
                                         {!isCancelled && (
-                                            <>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 <button
                                                     onClick={handleDownloadPDF}
                                                     disabled={isDownloading}
-                                                    className="w-full bg-primary-600 text-white hover:bg-primary-700 px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200 disabled:opacity-50"
+                                                    className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                 >
                                                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                                                    Download Invoice (PDF)
+                                                    Invoice (PDF)
                                                 </button>
                                                 <button
                                                     onClick={() => window.print()}
-                                                    className="w-full bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-50 px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                                    className="w-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <Download className="h-4 w-4" />
-                                                    Print Confirmation
+                                                    Print
                                                 </button>
-                                            </>
+                                            </div>
                                         )}
                                         <Link
                                             to="/"

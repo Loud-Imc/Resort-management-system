@@ -30,6 +30,12 @@ export class PaymentsController {
         return this.paymentsService.recordManualPayment(dto, req.user.id);
     }
 
+    @Post('public/initiate-qr')
+    @ApiOperation({ summary: 'Initiate QR payment (Public)' })
+    initiateQrPayment(@Body() dto: { bookingId: string }) {
+        return this.paymentsService.initiateQrPayment(dto.bookingId);
+    }
+
     @Post('public/initiate')
     @ApiOperation({ summary: 'Initiate payment (Public)' })
     initiatePublicPayment(@Body() dto: InitiatePaymentDto) {
