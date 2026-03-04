@@ -18,6 +18,7 @@ export const bookingService = {
             longitude: params.longitude,
             radius: params.radius,
             currency: params.currency,
+            propertyId: params.propertyId,
         });
         return data;
     },

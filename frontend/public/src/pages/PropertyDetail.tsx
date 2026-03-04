@@ -107,7 +107,7 @@ export default function PropertyDetail() {
     }, [property, checkIn, checkOut]);
 
     const fetchAvailability = async () => {
-        if (!checkIn || !checkOut) return;
+        if (!property || !checkIn || !checkOut) return;
         try {
             setLoadingAvailability(true);
             const data = await bookingService.checkAvailability({
@@ -115,7 +115,8 @@ export default function PropertyDetail() {
                 checkOutDate: checkOut.toISOString(),
                 adults,
                 children,
-                includeSoldOut: true
+                includeSoldOut: true,
+                propertyId: property.id
             });
             setAvailability(data.availableRoomTypes);
         } catch (err) {

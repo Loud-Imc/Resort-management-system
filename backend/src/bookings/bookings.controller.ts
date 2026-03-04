@@ -61,6 +61,7 @@ export class BookingsController {
             dto.longitude,
             dto.radius,
             dto.currency,
+            dto.propertyId,
         );
 
         return {

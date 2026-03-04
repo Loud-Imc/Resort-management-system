@@ -37,6 +37,7 @@ export interface BookingSearchParams {
     longitude?: number;
     radius?: number;
     currency?: string;
+    propertyId?: string;
 }
 
 export interface AvailabilityResponse {

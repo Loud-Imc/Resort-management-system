@@ -52,6 +52,11 @@ export class SearchRoomsDto {
     @Type(() => Boolean)
     includeSoldOut?: boolean;
 
+    @ApiProperty({ example: 'uuid-of-property', required: false })
+    @IsOptional()
+    @IsString()
+    propertyId?: string;
+
     @ApiProperty({ example: 11.6892, required: false })
     @IsOptional()
     @IsNumber()

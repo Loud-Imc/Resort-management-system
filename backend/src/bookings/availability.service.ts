@@ -177,6 +177,7 @@ export class AvailabilityService {
         longitude?: number,
         radius?: number,
         currency: string = 'INR',
+        propertyId?: string,
     ) {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
@@ -210,6 +211,7 @@ export class AvailabilityService {
                 maxAdults: { gte: minAdultsPerRoom },
                 maxChildren: { gte: minChildrenPerRoom },
                 isPubliclyVisible: true, // Only public ones
+                propertyId: propertyId || undefined,
                 property: {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
