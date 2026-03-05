@@ -533,4 +533,49 @@ export class NotificationsService {
       this.logger.error(`Failed to send push notification to user ${userId}:`, error);
     }
   }
+
+  /**
+   * Send Balance Payment Reminder (24h before check-in)
+   */
+  async sendBalanceReminder(booking: any) {
+    if (!booking.userId) return;
+
+    const paidAmount = Number(booking.paidAmount || 0);
+    const totalAmount = Number(booking.totalAmount);
+    const balance = totalAmount - paidAmount;
+    const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL');
+    const paymentLink = `${frontendUrl}/confirmation?bookingId=${booking.id}`;
+
+    // 1. Internal Notification (Inbox)
+    await this.createNotification({
+      userId: booking.userId,
+      title: 'Payment Reminder: Balance Due 💳',
+      message: `Your stay at ${booking.property?.name} is tomorrow. Please complete the remaining balance of ₹${balance.toLocaleString('en-IN')} to ensure a smooth check-in.`,
+      type: 'BALANCE_REMINDER',
+      data: { bookingId: booking.id, balance, paymentLink }
+    });
+
+    // 2. Email Notification
+    await this.mailService.sendBalancePaymentReminder(booking);
+
+    // 3. WhatsApp Notification
+    const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+    if (targetNumber) {
+      const whatsappMsg = `💳 *Balance Payment Reminder*\n\n` +
+        `Your stay at *${booking.property?.name}* starts tomorrow!\n\n` +
+        `Booking #: ${booking.bookingNumber}\n` +
+        `Remaining Balance: *₹${balance.toLocaleString('en-IN')}*\n\n` +
+        `Please complete your payment here:\n${paymentLink}\n\n` +
+        `Ignore if already paid. See you soon! 🤝`;
+      await this.sendWhatsApp(targetNumber, whatsappMsg);
+    }
+
+    // 4. Update booking to track reminder sent
+    await this.prisma.booking.update({
+      where: { id: booking.id },
+      data: { balanceReminderSentAt: new Date() }
+    });
+
+    this.logger.log(`24h Balance reminder sent for booking ${booking.bookingNumber}`);
+  }
 }

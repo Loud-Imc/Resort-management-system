@@ -417,4 +417,122 @@ export class MailService {
             console.error('[MailService] Error sending CP alert:', error);
         }
     }
+
+    async sendBalancePaymentReminder(booking: any) {
+        console.log(`[MailService] Sending balance reminder to ${booking.user.email}`);
+        const from = this.configService.get('EMAIL_FROM');
+        const to = booking.user.email;
+        const subject = `Action Required: Balance Payment for your stay at ${booking.property?.name}`;
+
+        const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        const paidAmount = Number(booking.paidAmount || 0);
+        const totalAmount = Number(booking.totalAmount);
+        const balance = totalAmount - paidAmount;
+        const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL');
+        const paymentLink = `${frontendUrl}/confirmation?bookingId=${booking.id}`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f1f8fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+              .wrapper { width: 100%; table-layout: fixed; background-color: #f1f8fa; padding-bottom: 40px; }
+              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #093f4a; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(9, 63, 74, 0.05); }
+              .header { background-color: #093f4a; padding: 40px 20px; text-align: center; }
+              .logo-text { color: #f1f8fa; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
+              .hero { padding: 40px 40px 20px 40px; text-align: center; }
+              .hero h1 { font-size: 28px; margin: 0; color: #e11d48; font-weight: 800; }
+              .hero p { font-size: 16px; color: #62a1b1; margin-top: 10px; }
+              .content { padding: 0 40px 40px 40px; }
+              .details-box { background-color: #f1f8fa; border-radius: 12px; padding: 20px; margin: 30px 0; border: 1px solid #e3f1f4; }
+              
+              .detail-table { width: 100%; border-spacing: 0; }
+              .detail-table td { padding: 12px 0; border-bottom: 1px solid rgba(34, 124, 138, 0.1); }
+              .detail-table tr:last-child td { border-bottom: none; }
+              
+              .label { color: #62a1b1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 40%; }
+              .value { color: #093f4a; font-size: 15px; font-weight: 700; text-align: right; }
+              
+              .amount-info { margin-top: 30px; text-align: center; background: #fff1f2; padding: 25px; border-radius: 12px; border: 1px solid #fecdd3; }
+              .total-label { font-size: 14px; color: #e11d48; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+              .total-amount { font-size: 36px; color: #e11d48; font-weight: 800; margin-top: 5px; }
+              
+              .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #95c2ce; border-top: 1px solid #f1f8fa; }
+              .btn-wrapper { text-align: center; margin-top: 35px; }
+              .btn { display: inline-block; background-color: #e11d48; color: #ffffff !important; padding: 18px 40px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 18px; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.2); }
+          </style>
+      </head>
+      <body>
+          <div class="wrapper">
+              <table class="main" width="100%" align="center">
+                  <tr>
+                      <td class="header">
+                          <div class="logo-text">ROUTE GUIDE</div>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="hero">
+                          <h1>Pending Balance Reminder</h1>
+                          <p>Your stay at <strong>${booking.property?.name}</strong> starts tomorrow! Please complete your balance payment to ensure a smooth check-in.</p>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="content">
+                          <div class="details-box">
+                              <table class="detail-table">
+                                  <tr>
+                                      <td class="label">Reservation #</td>
+                                      <td class="value">${booking.bookingNumber}</td>
+                                  </tr>
+                                  <tr>
+                                      <td class="label">Check-in Date</td>
+                                      <td class="value">${checkIn}</td>
+                                  </tr>
+                                  <tr>
+                                      <td class="label">Total Amount</td>
+                                      <td class="value">₹${totalAmount.toLocaleString('en-IN')}</td>
+                                  </tr>
+                                  <tr>
+                                      <td class="label">Paid Amount</td>
+                                      <td class="value">₹${paidAmount.toLocaleString('en-IN')}</td>
+                                  </tr>
+                              </table>
+                          </div>
+ 
+                          <div class="amount-info">
+                              <div class="total-label">Balance Due</div>
+                              <div class="total-amount">₹${balance.toLocaleString('en-IN')}</div>
+                          </div>
+ 
+                          <div class="btn-wrapper">
+                              <a href="${paymentLink}" class="btn">Pay Balance Now</a>
+                          </div>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="footer">
+                          <p style="margin-bottom: 8px;">If you have already paid, please ignore this message.</p>
+                          <p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p>
+                      </td>
+                  </tr>
+              </table>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            await this.transporter.sendMail({
+                from,
+                to,
+                subject,
+                html,
+            });
+            console.log(`[MailService] Balance reminder sent to ${to} for ${booking.bookingNumber}`);
+        } catch (error) {
+            console.error('[MailService] Error sending balance reminder email:', error);
+        }
+    }
 }

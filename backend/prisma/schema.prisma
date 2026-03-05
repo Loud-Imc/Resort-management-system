@@ -211,6 +211,7 @@ model Booking {
   checkedOutAt            DateTime?
   cancelledAt             DateTime?
   abandonedCartSentAt     DateTime?
+  balanceReminderSentAt   DateTime?
   reviewRequestSentAt     DateTime?
   channelPartnerId        String?
   cpCommission            Decimal?             @db.Decimal(10, 2)

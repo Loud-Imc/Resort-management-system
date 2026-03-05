@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, Building2, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -11,6 +11,37 @@ export default function Login() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [searchParams] = useSearchParams();
+
+    useEffect(() => {
+        const action = searchParams.get('action');
+        const token = searchParams.get('token');
+        const encodedUser = searchParams.get('user');
+        const propertyId = searchParams.get('propertyId');
+
+        if (action === 'impersonate' && token && encodedUser) {
+            try {
+                const userData = atob(encodedUser);
+                localStorage.setItem('property_token', token);
+                localStorage.setItem('property_user', userData);
+                
+                if (propertyId) {
+                    localStorage.setItem('property_selectedPropertyId', propertyId);
+                }
+
+                toast.success('Admin impersonation successful');
+                
+                // Clear URL and redirect
+                navigate('/', { replace: true });
+                
+                // Reload to ensure all context providers pick up the new localStorage items
+                window.location.reload();
+            } catch (e) {
+                console.error('Failed to decode user for impersonation', e);
+                toast.error('Impersonation failed: Invalid user data');
+            }
+        }
+    }, [searchParams, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

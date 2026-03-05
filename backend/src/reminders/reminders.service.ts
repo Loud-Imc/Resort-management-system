@@ -122,4 +122,43 @@ export class RemindersService {
             this.logger.error('Failed to process review requests:', error);
         }
     }
+
+    /**
+     * Run every hour to check for bookings starting tomorrow with partial payments
+     */
+    @Cron(CronExpression.EVERY_HOUR)
+    async processBalanceReminders() {
+        this.logger.log('Checking for bookings requiring balance reminders...');
+
+        const tomorrow = addDays(new Date(), 1);
+        const startOfTomorrow = startOfDay(tomorrow);
+        const endOfTomorrow = endOfDay(tomorrow);
+
+        try {
+            const bookings = await this.prisma.booking.findMany({
+                where: {
+                    checkInDate: {
+                        gte: startOfTomorrow,
+                        lte: endOfTomorrow,
+                    },
+                    status: 'CONFIRMED',
+                    paymentStatus: 'PARTIAL',
+                    balanceReminderSentAt: null,
+                },
+                include: {
+                    user: true,
+                    property: true,
+                },
+            });
+
+            this.logger.log(`Found ${bookings.length} partially paid bookings for balance reminders tomorrow.`);
+
+            for (const booking of bookings) {
+                await this.notificationsService.sendBalanceReminder(booking);
+                this.logger.log(`Triggered balance reminder for booking ${booking.bookingNumber}`);
+            }
+        } catch (error) {
+            this.logger.error('Failed to process balance reminders:', error);
+        }
+    }
 }

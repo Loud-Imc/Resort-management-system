@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, Plus, MapPin, Star, CheckCircle, XCircle, Loader2, Edit, Users } from 'lucide-react';
+import { Building2, Plus, MapPin, Star, CheckCircle, XCircle, Loader2, Edit, Users, LayoutDashboard } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { categoryService } from '../../services/category';
@@ -103,6 +103,29 @@ export default function PropertiesList() {
         } catch (err: any) {
             toast.error(err.message || 'Failed to update property status');
         }
+    };
+
+    const handleOpenDashboard = (propertyId: string) => {
+        const token = localStorage.getItem('token');
+        const userData = localStorage.getItem('user');
+        
+        if (!token || !userData) {
+            toast.error('Authentication session not found');
+            return;
+        }
+
+        const propertyUrl = 'http://localhost:5175/login';
+        // Base64 encode user data for safe transmission
+        const encodedUser = btoa(userData);
+        
+        const params = new URLSearchParams({
+            action: 'impersonate',
+            token: token,
+            user: encodedUser,
+            propertyId: propertyId
+        });
+
+        window.open(`${propertyUrl}?${params.toString()}`, '_blank');
     };
 
     if (loading) {
@@ -260,64 +283,76 @@ export default function PropertiesList() {
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex flex-col gap-2 mt-5 pt-4 border-t border-border">
+                                <div className="flex flex-col gap-3 mt-5 pt-4 border-t border-border">
                                     {property.status === 'PENDING' ? (
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => handleUpdateStatus(property.id, 'APPROVED')}
-                                                className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition-colors"
+                                                className="flex-1 bg-green-600 text-white px-3 py-2.5 rounded-xl text-sm font-bold hover:bg-green-700 transition-colors shadow-sm shadow-green-200"
                                             >
                                                 Approve
                                             </button>
                                             <button
                                                 onClick={() => handleUpdateStatus(property.id, 'REJECTED')}
-                                                className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
+                                                className="flex-1 bg-red-600 text-white px-3 py-2.5 rounded-xl text-sm font-bold hover:bg-red-700 transition-colors shadow-sm shadow-red-200"
                                             >
                                                 Reject
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="flex items-center gap-2">
+                                        <div className="space-y-3">
+                                            {/* Primary Action */}
                                             <button
-                                                onClick={() => navigate(`/rooms?propertyId=${property.id}`)}
-                                                className="flex-1 flex items-center justify-center gap-1 px-2 py-2 text-sm font-bold text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                                title="Manage Rooms"
+                                                onClick={() => handleOpenDashboard(property.id)}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl transition-all shadow-sm group/btn"
                                             >
-                                                <Plus className="h-4 w-4" />
-                                                Rooms
+                                                <LayoutDashboard className="h-4 w-4 transition-transform group-hover/btn:scale-110" />
+                                                Open Property Dashboard
                                             </button>
-                                            <button
-                                                onClick={() => navigate(`/room-types?propertyId=${property.id}`)}
-                                                className="flex-1 flex items-center justify-center gap-1 px-2 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-lg transition-colors"
-                                                title="Manage Room Types"
-                                            >
-                                                <Building2 className="h-4 w-4" />
-                                                Types
-                                            </button>
-                                            <button
-                                                onClick={() => navigate(`/properties/${property.id}/edit`)}
-                                                className="flex-1 flex items-center justify-center p-2 text-sm font-bold text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-                                                title="Edit Property"
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => navigate(`/properties/${property.id}/staff`)}
-                                                className="flex-1 flex items-center justify-center p-2 text-sm font-bold text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"
-                                                title="Manage Staff"
-                                            >
-                                                <Users className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleToggleActive(property.id, property.isActive)}
-                                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-bold rounded-lg transition-colors ${property.isActive
-                                                    ? 'text-amber-500 hover:bg-amber-500/10'
-                                                    : 'text-emerald-500 hover:bg-emerald-500/10'
-                                                    }`}
-                                            >
-                                                {property.isActive ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
-                                                {property.isActive ? 'Disable' : 'Enable'}
-                                            </button>
+
+                                            {/* Secondary Actions Grid */}
+                                            <div className="grid grid-cols-5 gap-2">
+                                                <button
+                                                    onClick={() => navigate(`/rooms?propertyId=${property.id}`)}
+                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all border border-border/50"
+                                                    title="Manage Rooms"
+                                                >
+                                                    <Plus className="h-4.5 w-4.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => navigate(`/room-types?propertyId=${property.id}`)}
+                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all border border-border/50"
+                                                    title="Manage Room Types"
+                                                >
+                                                    <Building2 className="h-4.5 w-4.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => navigate(`/properties/${property.id}/edit`)}
+                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-border/50"
+                                                    title="Edit Property"
+                                                >
+                                                    <Edit className="h-4.5 w-4.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => navigate(`/properties/${property.id}/staff`)}
+                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-border/50"
+                                                    title="Manage Staff"
+                                                >
+                                                    <Users className="h-4.5 w-4.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleToggleActive(property.id, property.isActive)}
+                                                    className={clsx(
+                                                        "flex items-center justify-center p-2.5 rounded-xl transition-all border border-border/50",
+                                                        property.isActive 
+                                                            ? "text-amber-500 hover:bg-amber-50 hover:border-amber-100" 
+                                                            : "text-emerald-500 hover:bg-emerald-50 hover:border-emerald-100"
+                                                    )}
+                                                    title={property.isActive ? 'Disable Property' : 'Enable Property'}
+                                                >
+                                                    {property.isActive ? <XCircle className="h-4.5 w-4.5" /> : <CheckCircle className="h-4.5 w-4.5" />}
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
