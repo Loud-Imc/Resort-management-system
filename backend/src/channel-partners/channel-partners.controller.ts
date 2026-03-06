@@ -69,8 +69,8 @@ export class ChannelPartnersController {
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Register as a Channel Partner (Current User)' })
-    register(@Request() req) {
-        return this.cpService.register(req.user.id);
+    register(@Request() req, @Body() dto: RegisterChannelPartnerDto) {
+        return this.cpService.register(req.user.id, dto);
     }
 
     @Get('me')

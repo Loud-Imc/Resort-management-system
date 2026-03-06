@@ -34,6 +34,8 @@ export default function SearchResults() {
     const latitudeParam = searchParams.get('latitude') ? Number(searchParams.get('latitude')) : undefined;
     const longitudeParam = searchParams.get('longitude') ? Number(searchParams.get('longitude')) : undefined;
     const radiusParam = searchParams.get('radius') ? Number(searchParams.get('radius')) : 50;
+    const isGroupBooking = searchParams.get('isGroupBooking') === 'true';
+    const groupSize = Number(searchParams.get('groupSize')) || 10;
 
     // Local filter state
     const [search, setSearch] = useState(locationParam);
@@ -42,7 +44,7 @@ export default function SearchResults() {
     const [radius, setRadius] = useState<number>(radiusParam);
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['availability', checkIn, checkOut, adults, children, rooms, locationParam, categoryIdParam, latitudeParam, longitudeParam, radiusParam],
+        queryKey: ['availability', checkIn, checkOut, adults, children, rooms, locationParam, categoryIdParam, latitudeParam, longitudeParam, radiusParam, isGroupBooking, groupSize],
         queryFn: () => bookingService.searchRooms({
             checkInDate: checkIn,
             checkOutDate: checkOut,
@@ -55,7 +57,9 @@ export default function SearchResults() {
             latitude: latitudeParam,
             longitude: longitudeParam,
             radius: radiusParam,
-            currency: selectedCurrency
+            currency: selectedCurrency,
+            isGroupBooking,
+            groupSize
         }),
         enabled: !!checkIn && !!checkOut,
     });
@@ -189,9 +193,23 @@ export default function SearchResults() {
     if (error) {
         return (
             <div className="max-w-4xl mx-auto px-4 py-12 text-center pt-28">
-                <div className="bg-red-50 text-red-800 p-4 rounded-lg inline-flex items-center gap-2 mb-4">
-                    <AlertCircle className="h-5 w-5" />
-                    Unable to load availability. Please try again later.
+                <div className="bg-red-50 text-red-900 p-8 rounded-3xl border border-red-100 max-w-lg mx-auto shadow-sm">
+                    <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-red-900 mb-2">
+                        {isGroupBooking ? 'Group Stay Search Unavailable' : 'Search Error'}
+                    </h3>
+                    <p className="text-red-600 text-sm font-medium leading-relaxed mb-6">
+                        {isGroupBooking 
+                            ? "Currently, we're having trouble retrieving group stay options. This may be because no properties have configured group packages yet."
+                            : "We encountered an issue while loading availability. Please try again in a few moments."
+                        }
+                    </p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-colors"
+                    >
+                        Try Refreshing
+                    </button>
                 </div>
             </div>
         );
@@ -251,8 +269,15 @@ export default function SearchResults() {
                             <div className="space-y-8">
                                 <div className="bg-white p-10 rounded-3xl text-center border border-gray-100 shadow-sm max-w-2xl mx-auto">
                                     <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                                    <h2 className="text-xl font-bold text-gray-900 mb-2">No matching properties</h2>
-                                    <p className="text-gray-500 mb-6">We couldn't find any stays matching your filters.</p>
+                                    <h2 className="text-xl font-bold text-gray-900 mb-2">
+                                        {isGroupBooking ? 'No groups available' : 'No matching properties'}
+                                    </h2>
+                                    <p className="text-gray-500 mb-6 font-medium">
+                                        {isGroupBooking 
+                                            ? `We couldn't find any stays that can accommodate a group of ${groupSize} on these dates. Try a smaller group or different dates.`
+                                            : "We couldn't find any stays matching your filters. Try adjusting your search."
+                                        }
+                                    </p>
                                     <button
                                         onClick={clearFilters}
                                         className="px-8 py-3 bg-primary-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-500/20"

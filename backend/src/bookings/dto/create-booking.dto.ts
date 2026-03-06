@@ -162,4 +162,16 @@ export class CreateBookingDto {
     @IsString()
     @IsOptional()
     currency?: string;
+
+    @ApiProperty({ example: false, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isGroupBooking?: boolean;
+
+    @ApiProperty({ example: 10, required: false })
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    @Type(() => Number)
+    groupSize?: number;
 }

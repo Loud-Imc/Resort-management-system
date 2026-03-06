@@ -98,6 +98,12 @@ export default function RoomTypesList() {
                                     <Users className="h-4 w-4" />
                                     <span>Max {type.maxAdults} Adults, {type.maxChildren} Children</span>
                                 </div>
+                                {type.isAvailableForGroupBooking && (
+                                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                                        <Users className="h-4 w-4" />
+                                        <span>In Group Pool (Property Global Price)</span>
+                                    </div>
+                                )}
                                 {type.amenities && type.amenities.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-2">
                                         {type.amenities.slice(0, 3).map((amenity, idx) => (

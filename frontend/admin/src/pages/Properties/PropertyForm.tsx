@@ -68,6 +68,9 @@ export default function PropertyForm() {
         latitude: undefined,
         longitude: undefined,
         taxRate: 12,
+        allowsGroupBooking: false,
+        maxGroupCapacity: 40,
+        groupPricePerHead: 500,
     });
 
     useEffect(() => {
@@ -155,6 +158,9 @@ export default function PropertyForm() {
                 whatsappNumber: property.whatsappNumber || '',
                 categoryId: property.categoryId || '',
                 taxRate: property.taxRate || 12,
+                allowsGroupBooking: property.allowsGroupBooking || false,
+                maxGroupCapacity: property.maxGroupCapacity || 40,
+                groupPricePerHead: property.groupPricePerHead || 0,
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -497,6 +503,59 @@ export default function PropertyForm() {
                                 className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all resize-none"
                                 placeholder="Describe your property..."
                             />
+                        </div>
+
+                        <div className="md:col-span-2 pt-4 border-t border-border mt-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <label className="flex items-center gap-2 text-sm font-bold text-muted-foreground cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        name="allowsGroupBooking"
+                                        checked={formData.allowsGroupBooking}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, allowsGroupBooking: e.target.checked }))}
+                                        className="h-4 w-4 text-primary border-border rounded"
+                                    />
+                                    Allow Group Bookings (Property Level)
+                                </label>
+                            </div>
+                            {formData.allowsGroupBooking && (
+                                <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                                Maximum Group Capacity
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="maxGroupCapacity"
+                                                value={formData.maxGroupCapacity}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, maxGroupCapacity: e.target.value ? parseInt(e.target.value) : 0 }))}
+                                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                                placeholder="e.g. 40"
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1 italic">
+                                                * Total people allowed in a single group booking.
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                                Group Price / Head (₹)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="groupPricePerHead"
+                                                value={formData.groupPricePerHead}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, groupPricePerHead: e.target.value ? parseInt(e.target.value) : 0 }))}
+                                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold"
+                                                placeholder="e.g. 500"
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1 italic">
+                                                * Global price per person for group bookings.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

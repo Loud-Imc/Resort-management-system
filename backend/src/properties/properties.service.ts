@@ -5,6 +5,7 @@ import { RegisterPropertyDto } from './dto/register-property.dto';
 import { Prisma, PropertyStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
+import { normalizePhone } from '../common/utils/phone';
 
 @Injectable()
 export class PropertiesService {
@@ -79,22 +80,15 @@ export class PropertiesService {
             where: {
                 OR: [
                     { email: dto.ownerEmail },
-                    { phone: dto.ownerPhone },
+                    { phone: normalizePhone(dto.ownerPhone) },
                 ],
             },
+            include: {
+                roles: {
+                    include: { role: true }
+                }
+            }
         });
-
-        if (existingUser) {
-            if (existingUser.email === dto.ownerEmail) {
-                throw new ConflictException('Email already exists');
-            }
-            if (existingUser.phone === dto.ownerPhone) {
-                throw new ConflictException('Phone number already exists');
-            }
-        }
-
-        const slug = await this.generateUniqueSlug(dto.propertyName);
-        const hashedPassword = await bcrypt.hash(dto.ownerPassword, 10);
 
         // Find PropertyOwner role
         const ownerRole = await this.prisma.role.findFirst({
@@ -105,65 +99,99 @@ export class PropertiesService {
             throw new NotFoundException('Property Owner role not found in system');
         }
 
-        const result = await this.prisma.$transaction(async (tx) => {
-            // 1. Create User
-            const user = await tx.user.create({
-                data: {
-                    email: dto.ownerEmail,
-                    password: hashedPassword,
-                    firstName: dto.ownerFirstName,
-                    lastName: dto.ownerLastName,
-                    phone: dto.ownerPhone,
-                    isActive: true,
-                    roles: {
-                        create: {
-                            roleId: ownerRole.id,
+        let user: any = existingUser;
+
+        if (existingUser) {
+            // 1. Verify password
+            const isPasswordValid = await bcrypt.compare(dto.ownerPassword, existingUser.password);
+            if (!isPasswordValid) {
+                throw new ConflictException('A user with this email or phone already exists. Please enter the correct password to link your account.');
+            }
+            user = existingUser;
+        }
+
+        const slug = await this.generateUniqueSlug(dto.propertyName);
+        const hashedPassword = await bcrypt.hash(dto.ownerPassword, 10);
+
+        try {
+            const result = await this.prisma.$transaction(async (tx) => {
+                // 1. Create or Update User
+                if (!user) {
+                    user = await tx.user.create({
+                        data: {
+                            email: dto.ownerEmail,
+                            password: hashedPassword,
+                            firstName: dto.ownerFirstName,
+                            lastName: dto.ownerLastName,
+                            phone: normalizePhone(dto.ownerPhone),
+                            isActive: true,
+                            roles: {
+                                create: {
+                                    roleId: ownerRole.id,
+                                },
+                            },
                         },
+                    });
+                } else {
+                    // Check if we need to add the role
+                    const hasRole = user.roles.some((ur: any) => ur.role.name === 'PropertyOwner');
+                    if (!hasRole) {
+                        await tx.userRole.create({
+                            data: {
+                                userId: user.id,
+                                roleId: ownerRole.id,
+                            },
+                        });
+                    }
+                }
+
+                // 2. Create Property
+                const property = await tx.property.create({
+                    data: {
+                        name: dto.propertyName,
+                        slug,
+                        description: dto.propertyDescription,
+                        type: dto.propertyType,
+                        categoryId: dto.categoryId || null,
+                        address: dto.address,
+                        city: dto.city,
+                        state: dto.state,
+                        country: dto.country,
+                        pincode: dto.pincode,
+                        phone: normalizePhone(dto.propertyPhone),
+                        email: dto.propertyEmail,
+                        ownerId: user.id,
+                        images: dto.images || [],
+                        amenities: dto.amenities || [],
+                        licenceImage: dto.licenceImage,
+                        gstNumber: dto.gstNumber,
+                        ownerAadhaarNumber: dto.ownerAadhaarNumber,
+                        ownerAadhaarImage: dto.ownerAadhaarImage,
+                        allowsGroupBooking: dto.allowsGroupBooking || false,
+                        status: PropertyStatus.PENDING,
                     },
-                },
+                });
+
+                return {
+                    id: property.id,
+                    slug: property.slug,
+                    status: property.status,
+                    owner: {
+                        id: user.id,
+                        email: user.email,
+                    },
+                };
             });
+            // Notify admins of new registration
+            await this.notificationsService.notifyPropertyRegistration(result);
 
-            // 2. Create Property
-            const property = await tx.property.create({
-                data: {
-                    name: dto.propertyName,
-                    slug,
-                    description: dto.propertyDescription,
-                    type: dto.propertyType,
-                    categoryId: dto.categoryId || null,
-                    address: dto.address,
-                    city: dto.city,
-                    state: dto.state,
-                    country: dto.country,
-                    pincode: dto.pincode,
-                    phone: dto.propertyPhone,
-                    email: dto.propertyEmail,
-                    ownerId: user.id,
-                    images: dto.images || [],
-                    amenities: dto.amenities || [],
-                    licenceImage: dto.licenceImage,
-                    gstNumber: dto.gstNumber,
-                    ownerAadhaarNumber: dto.ownerAadhaarNumber,
-                    ownerAadhaarImage: dto.ownerAadhaarImage,
-                    status: PropertyStatus.PENDING,
-                },
-            });
-
-            return {
-                id: property.id,
-                slug: property.slug,
-                status: property.status,
-                owner: {
-                    id: user.id,
-                    email: user.email,
-                },
-            };
-        });
-
-        // Notify admins of new registration
-        await this.notificationsService.notifyPropertyRegistration(result);
-
-        return result;
+            return result;
+        } catch (error) {
+            if (error.code === 'P2002') {
+                throw new ConflictException('A user with this email or phone already exists. Please login with your existing credentials.');
+            }
+            throw error;
+        }
     }
 
     private async generateUniqueSlug(name: string): Promise<string> {
@@ -212,6 +240,7 @@ export class PropertiesService {
             ...(query.categoryId && { categoryId: query.categoryId }),
             ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
+            ...(query.allowsGroupBooking !== undefined && { allowsGroupBooking: String(query.allowsGroupBooking) === 'true' }),
             ...(search && {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
@@ -274,6 +303,7 @@ export class PropertiesService {
             ...(query.categoryId && { categoryId: query.categoryId }),
             ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
+            ...(query.allowsGroupBooking !== undefined && { allowsGroupBooking: String(query.allowsGroupBooking) === 'true' }),
             ...(search && {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },

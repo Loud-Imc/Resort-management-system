@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, UserCheck } from 'lucide-react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import logo from '../assets/routeguide.svg';
 
 const Register: React.FC = () => {
+    const { user: authUser, logout } = useAuth();
     const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
+        firstName: authUser?.firstName || '',
+        lastName: authUser?.lastName || '',
+        email: authUser?.email || '',
         password: '',
-        phone: '',
+        phone: (authUser as any)?.phone || '',
         partnerType: 'INDIVIDUAL',
         organizationName: '',
+        taxId: '',
         authorizedPersonName: '',
         businessAddress: '',
         aadhaarImage: '',
@@ -32,7 +35,15 @@ const Register: React.FC = () => {
 
         try {
             // 1. Submit Registration Data
-            const response: any = await api.post('/channel-partners/public-register', formData);
+            let response: any;
+            if (authUser) {
+                // If logged in, use the authenticated register endpoint
+                response = await api.post('/channel-partners/register', formData);
+            } else {
+                // If not logged in, use the public-register endpoint
+                response = await api.post('/channel-partners/public-register', formData);
+            }
+
             const cpId = response.id;
 
             // 2. Initiate Payment Order
@@ -57,7 +68,8 @@ const Register: React.FC = () => {
                             razorpayPaymentId: paymentRes.razorpay_payment_id,
                             razorpaySignature: paymentRes.razorpay_signature,
                         });
-                        alert('Registration and Payment successful! Your account is now active.');
+                        alert('Registration and Payment successful! Your account is now active. Please log in again to refresh your permissions.');
+                        if (authUser) logout();
                         navigate('/login');
                     } catch (err: any) {
                         console.error('Payment verification error:', err);
@@ -163,51 +175,86 @@ const Register: React.FC = () => {
                         </select>
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>First Name</label>
-                        <input name="firstName" placeholder="John" onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
-                    </div>
+                    {authUser ? (
+                        <div style={{
+                            gridColumn: 'span 2',
+                            padding: '1.2rem',
+                            background: 'rgba(8, 71, 78, 0.05)',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-teal)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '1rem',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <div style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                background: 'var(--primary-teal)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}>
+                                <UserCheck size={20} />
+                            </div>
+                            <div>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', margin: 0 }}>Applying as</p>
+                                <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--primary-teal)', margin: 0 }}>
+                                    {authUser.firstName} {authUser.lastName} ({authUser.email})
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>First Name</label>
+                                <input name="firstName" placeholder="John" value={formData.firstName} onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
+                            </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Last Name</label>
-                        <input name="lastName" placeholder="Doe" onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
-                    </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Last Name</label>
+                                <input name="lastName" placeholder="Doe" value={formData.lastName} onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
+                            </div>
 
-                    <div style={{ gridColumn: 'span 2' }}>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Email Address</label>
-                        <input name="email" type="email" placeholder="john@example.com" onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
-                    </div>
+                            <div style={{ gridColumn: 'span 2' }}>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Email Address</label>
+                                <input name="email" type="email" placeholder="john@example.com" value={formData.email} onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
+                            </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Phone Number</label>
-                        <PhoneInput
-                            country={'in'}
-                            value={formData.phone}
-                            onChange={(phone) => setFormData({ ...formData, phone: phone.startsWith('+') ? phone : `+${phone}` })}
-                            autoFormat={true}
-                            inputStyle={{
-                                width: '100%',
-                                height: '42px',
-                                background: '#ffffff',
-                                border: '1px solid var(--border-glass)',
-                                borderRadius: 'var(--radius-md)',
-                                color: 'var(--text-main)',
-                            }}
-                            buttonStyle={{
-                                background: 'transparent',
-                                border: '1px solid var(--border-glass)',
-                                borderRight: 'none',
-                                borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
-                            }}
-                            containerStyle={{ width: '100%' }}
-                            enableSearch={true}
-                        />
-                    </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Phone Number</label>
+                                <PhoneInput
+                                    country={'in'}
+                                    value={formData.phone}
+                                    onChange={(phone) => setFormData({ ...formData, phone: phone.startsWith('+') ? phone : `+${phone}` })}
+                                    autoFormat={true}
+                                    inputStyle={{
+                                        width: '100%',
+                                        height: '42px',
+                                        background: '#ffffff',
+                                        border: '1px solid var(--border-glass)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--text-main)',
+                                    }}
+                                    buttonStyle={{
+                                        background: 'transparent',
+                                        border: '1px solid var(--border-glass)',
+                                        borderRight: 'none',
+                                        borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                                    }}
+                                    containerStyle={{ width: '100%' }}
+                                    enableSearch={true}
+                                />
+                            </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Password</label>
-                        <input name="password" type="password" placeholder="••••••••" onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
-                    </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Password</label>
+                                <input name="password" type="password" placeholder="••••••••" value={formData.password} onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
+                            </div>
+                        </>
+                    )}
 
                     {formData.partnerType === 'ORGANIZATION' && (
                         <>
@@ -357,7 +404,7 @@ const DocumentUpload: React.FC<{
                     onChange={handleFileChange}
                     accept="image/*,application/pdf"
                 />
-                
+
                 {value ? (
                     <div style={{ width: '100%', position: 'relative' }}>
                         {value.toLowerCase().match(/\.(pdf)$/) ? (
@@ -366,22 +413,22 @@ const DocumentUpload: React.FC<{
                                 <div style={{ fontSize: '0.75rem' }}>Document Uploaded</div>
                             </div>
                         ) : (
-                            <img 
-                                src={value} 
-                                alt="Preview" 
-                                style={{ 
-                                    maxWidth: '100%', 
-                                    maxHeight: '120px', 
+                            <img
+                                src={value}
+                                alt="Preview"
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '120px',
                                     borderRadius: '4px',
                                     display: 'block',
-                                    margin: '0 auto' 
-                                }} 
+                                    margin: '0 auto'
+                                }}
                             />
                         )}
-                        <div style={{ 
-                            marginTop: '0.5rem', 
-                            fontSize: '0.7rem', 
-                            color: 'var(--primary-teal)', 
+                        <div style={{
+                            marginTop: '0.5rem',
+                            fontSize: '0.7rem',
+                            color: 'var(--primary-teal)',
                             fontWeight: 700,
                             background: 'rgba(255,255,255,0.8)',
                             padding: '2px 8px',

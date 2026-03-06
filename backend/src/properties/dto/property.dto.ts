@@ -123,6 +123,21 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsNumber()
     taxRate?: number;
+
+    @ApiProperty({ example: false, description: 'Whether this property allows group bookings' })
+    @IsOptional()
+    @IsBoolean()
+    allowsGroupBooking?: boolean;
+
+    @ApiProperty({ example: 40, description: 'Maximum capacity for a single group booking' })
+    @IsOptional()
+    @IsNumber()
+    maxGroupCapacity?: number;
+
+    @ApiProperty({ example: 500, description: 'Price per head for group bookings' })
+    @IsOptional()
+    @IsNumber()
+    groupPricePerHead?: number;
 }
 
 export class UpdatePropertyDto {
@@ -232,6 +247,18 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsNumber()
     taxRate?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    allowsGroupBooking?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    maxGroupCapacity?: number;
+
+    @IsOptional()
+    @IsNumber()
+    groupPricePerHead?: number;
 }
 
 export class PropertyQueryDto {
@@ -307,5 +334,20 @@ export class PropertyQueryDto {
     @IsOptional()
     @IsEnum(PropertyStatus)
     status?: PropertyStatus;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    allowsGroupBooking?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    maxGroupCapacity?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    groupPricePerHead?: number;
 }
 

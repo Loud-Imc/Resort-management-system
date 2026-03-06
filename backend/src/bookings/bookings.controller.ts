@@ -62,6 +62,8 @@ export class BookingsController {
             dto.radius,
             dto.currency,
             dto.propertyId,
+            dto.isGroupBooking || false,
+            dto.groupSize,
         );
 
         return {
@@ -81,6 +83,8 @@ export class BookingsController {
             dto.couponCode,
             dto.referralCode,
             dto.currency,
+            dto.isGroupBooking,
+            dto.groupSize,
         );
     }
 

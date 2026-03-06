@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 
 interface DashboardStats {
+    id: string;
     referralCode: string;
     commissionRate: number;
     totalPoints: number;
@@ -26,22 +27,75 @@ interface DashboardStats {
 const Home: React.FC = () => {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const data: any = await api.get('/channel-partners/me/stats');
-                setStats(data);
-            } catch (error) {
-                console.error('Error fetching dashboard stats:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+    const fetchStats = async () => {
+        try {
+            const data: any = await api.get('/channel-partners/me/stats');
+            setStats(data);
+        } catch (error) {
+            console.error('Error fetching dashboard stats:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
+    useEffect(() => {
         fetchStats();
     }, []);
+
+    const initiatePayment = async (data: DashboardStats) => {
+        setIsProcessingPayment(true);
+        try {
+            const payRes: any = await api.post('/channel-partners/registration-payment/initiate', {
+                channelPartnerId: data.id
+            });
+            const { orderId, amount, currency, keyId } = payRes;
+
+            const options = {
+                key: keyId,
+                amount: amount,
+                currency: currency,
+                name: 'Route Guide',
+                description: 'Channel Partner Registration Fee',
+                order_id: orderId,
+                handler: async (paymentRes: any) => {
+                    try {
+                        setIsProcessingPayment(true);
+                        await api.post('/channel-partners/registration-payment/verify', {
+                            channelPartnerId: data.id,
+                            razorpayOrderId: paymentRes.razorpay_order_id,
+                            razorpayPaymentId: paymentRes.razorpay_payment_id,
+                            razorpaySignature: paymentRes.razorpay_signature,
+                        });
+                        alert('Payment successful! Your account is now active.');
+                        fetchStats();
+                    } catch (err: any) {
+                        console.error('Payment verification error:', err);
+                        alert('Payment verification failed. Please contact support.');
+                    } finally {
+                        setIsProcessingPayment(false);
+                    }
+                },
+                modal: {
+                    ondismiss: () => {
+                        setIsProcessingPayment(false);
+                    },
+                },
+                theme: {
+                    color: '#08474e',
+                },
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            rzp.open();
+        } catch (err: any) {
+            console.error('Payment initialization error:', err);
+            alert('Failed to initiate payment. Please try again.');
+            setIsProcessingPayment(false);
+        }
+    };
 
     const copyCode = () => {
         if (stats?.referralCode) {
@@ -79,16 +133,40 @@ const Home: React.FC = () => {
                     </h2>
                     <p style={{ color: 'var(--text-dim)', lineHeight: '1.6' }}>
                         {stats.status === 'PENDING'
-                            ? "Thank you for joining! Our team is currently reviewing your registration. You'll receive full access to the dashboard once your account is approved."
+                            ? "Thank you for joining! Our team is currently reviewing your registration."
                             : "Your account is currently inactive. Please contact the administrator for more information."}
                     </p>
+
+                    {stats.status === 'PENDING' && !stats.registrationFeePaid && (
+                        <div style={{ marginTop: '1.5rem', padding: '1.5rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid #f59e0b' }}>
+                            <p style={{ fontSize: '0.9rem', color: '#d97706', marginBottom: '1rem', fontWeight: 600 }}>
+                                Complete your registration by paying the ₹1,000 one-time verification fee.
+                            </p>
+                            <button
+                                onClick={() => initiatePayment(stats)}
+                                disabled={isProcessingPayment}
+                                style={{
+                                    padding: '0.8rem 1.5rem',
+                                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                    color: '#ffffff',
+                                    fontWeight: 700,
+                                    borderRadius: 'var(--radius-md)',
+                                    border: 'none',
+                                    cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
+                                    boxShadow: '0 4px 10px rgba(245, 158, 11, 0.2)',
+                                    opacity: isProcessingPayment ? 0.7 : 1
+                                }}
+                            >
+                                {isProcessingPayment ? 'Processing...' : 'Pay Verification Fee (₹1,000)'}
+                            </button>
+                        </div>
+                    )}
+
                     <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(8, 71, 78, 0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-teal)' }}>
                         <p style={{ fontSize: '0.9rem', color: 'var(--primary-teal)', fontWeight: 600 }}>
                             <strong>Status:</strong> {stats.status}
                         </p>
                     </div>
-
-
                 </div>
             </div>
         );

@@ -40,6 +40,10 @@ interface SearchProps {
     handleSearch: (e: React.FormEvent) => void;
     categories: PropertyCategory[];
     theme?: 'dark' | 'light';
+    isGroupBooking: boolean;
+    setIsGroupBooking: (v: boolean) => void;
+    groupSize: number;
+    setGroupSize: (v: number) => void;
 }
 
 export default function SearchDesktop({
@@ -55,10 +59,25 @@ export default function SearchDesktop({
     radius,
     handleSearch,
     categories,
-    theme = 'dark'
+    theme = 'dark',
+    isGroupBooking, setIsGroupBooking,
+    groupSize, setGroupSize
 }: SearchProps) {
     const isDark = theme === 'dark';
     const [isLocating, setIsLocating] = React.useState(false);
+    const [showGuestModal, setShowGuestModal] = React.useState(false);
+    const modalRef = React.useRef<HTMLDivElement>(null);
+
+    // Click outside handler
+    React.useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+                setShowGuestModal(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const handleUseMyLocation = () => {
         if (!navigator.geolocation) {
@@ -135,8 +154,8 @@ export default function SearchDesktop({
             >
                 <div className={`flex divide-x ${isDark ? 'divide-white/10' : 'divide-gray-100'}`}>
                     {/* Location Segment */}
-                    <div className={`flex-[1.5] p-10 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} first:hover:rounded-l-[3rem] transition-all duration-300 cursor-pointer group`}>
-                        <div className="flex items-center justify-between mb-4">
+                    <div className={`flex-[1.5] p-8 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} first:hover:rounded-l-[3rem] transition-all duration-300 cursor-pointer group`}>
+                        <div className="flex items-center justify-between mb-3">
                             <label className={`block text-[11px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/50' : 'text-gray-400'} mb-0`}>WHERE TO?</label>
                             <button
                                 type="button"
@@ -159,18 +178,18 @@ export default function SearchDesktop({
                             onSelect={(description) => setLocation(description.split(',')[0])}
                             placeholder="Where are you going?"
                             theme={theme}
-                            inputClassName={`w-full bg-transparent text-2xl font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-300'} outline-none border-none p-0 focus:ring-0`}
+                            inputClassName={`w-full bg-transparent text-xl font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-300'} outline-none border-none p-0 focus:ring-0`}
                         />
-                        <p className={`text-[11px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-2 font-medium italic tracking-wide`}>
+                        <p className={`text-[10px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-1 font-medium italic tracking-wide`}>
                             {latitude && longitude ? `Searching within ${radius}km of your location` : 'Destination, city or resort'}
                         </p>
                     </div>
 
                     {/* Check In Segment */}
-                    <div className={`flex-1 p-10 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} transition-all duration-300 cursor-pointer group relative`}>
-                        <label className={`block text-[11px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/50' : 'text-gray-400'} mb-4`}>Check In</label>
-                        <div className="flex items-center gap-5">
-                            <Calendar className={`h-7 w-7 ${isDark ? 'text-white/40' : 'text-gray-300'} group-hover:text-primary-400 transition-colors`} />
+                    <div className={`flex-1 p-8 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} transition-all duration-300 cursor-pointer group relative`}>
+                        <label className={`block text-[11px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/50' : 'text-gray-400'} mb-3`}>Check In</label>
+                        <div className="flex items-center gap-4">
+                            <Calendar className={`h-6 w-6 ${isDark ? 'text-white/40' : 'text-gray-300'} group-hover:text-primary-400 transition-colors`} />
                             <div className="flex-1">
                                 <DatePicker
                                     selected={checkIn}
@@ -180,18 +199,20 @@ export default function SearchDesktop({
                                     endDate={checkOut}
                                     minDate={new Date()}
                                     dateFormat="dd MMM ''yy"
-                                    className={`w-full bg-transparent text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} outline-none border-none p-0 focus:ring-0 cursor-pointer`}
+                                    popperPlacement="bottom-start"
+                                    portalId="root"
+                                    className={`w-full bg-transparent text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} outline-none border-none p-0 focus:ring-0 cursor-pointer`}
                                 />
-                                <p className={`text-[11px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-2 font-medium tracking-wide`}>{checkIn ? format(checkIn, 'EEEE') : 'Select date'}</p>
+                                <p className={`text-[10px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-1 font-medium tracking-wide`}>{checkIn ? format(checkIn, 'EEEE') : 'Select date'}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Check Out Segment */}
-                    <div className={`flex-1 p-10 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} transition-all duration-300 cursor-pointer group`}>
-                        <label className={`block text-[11px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/50' : 'text-gray-400'} mb-4`}>Check Out</label>
-                        <div className="flex items-center gap-5">
-                            <Calendar className={`h-7 w-7 ${isDark ? 'text-white/40' : 'text-gray-300'} group-hover:text-primary-400 transition-colors`} />
+                    <div className={`flex-1 p-8 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} transition-all duration-300 cursor-pointer group`}>
+                        <label className={`block text-[11px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/50' : 'text-gray-400'} mb-3`}>Check Out</label>
+                        <div className="flex items-center gap-4">
+                            <Calendar className={`h-6 w-6 ${isDark ? 'text-white/40' : 'text-gray-300'} group-hover:text-primary-400 transition-colors`} />
                             <div className="flex-1">
                                 <DatePicker
                                     selected={checkOut}
@@ -201,56 +222,188 @@ export default function SearchDesktop({
                                     endDate={checkOut}
                                     minDate={checkIn ? addDays(checkIn, 1) : new Date()}
                                     dateFormat="dd MMM ''yy"
-                                    className={`w-full bg-transparent text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} outline-none border-none p-0 focus:ring-0 cursor-pointer`}
+                                    popperPlacement="bottom-start"
+                                    portalId="root"
+                                    className={`w-full bg-transparent text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} outline-none border-none p-0 focus:ring-0 cursor-pointer`}
                                 />
-                                <p className={`text-[11px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-2 font-medium tracking-wide`}>{checkOut ? format(checkOut, 'EEEE') : 'Select date'}</p>
+                                <p className={`text-[10px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-1 font-medium tracking-wide`}>{checkOut ? format(checkOut, 'EEEE') : 'Select date'}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Guests Segment */}
-                    <div className={`flex-1 p-10 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} last:hover:rounded-r-[3rem] transition-all duration-300 cursor-pointer group`}>
-                        <label className={`block text-[11px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/50' : 'text-gray-400'} mb-4`}>Travellers</label>
-                        <div className="flex items-center gap-5">
-                            <Users className={`h-7 w-7 ${isDark ? 'text-white/40' : 'text-gray-300'} group-hover:text-primary-400 transition-colors`} />
-                            <div className="flex-1 relative">
-                                <div className="flex items-baseline gap-2">
-                                    <span className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{adults + children}</span>
-                                    <span className={`text-[10px] font-black ${isDark ? 'text-white/60' : 'text-gray-500'} uppercase tracking-[0.1em]`}>People</span>
-                                </div>
-                                <div className="flex gap-4 mt-3">
-                                    <select
-                                        value={adults}
-                                        onChange={(e) => setAdults(Number(e.target.value))}
-                                        className={`text-[12px] font-black ${isDark ? 'text-white/40' : 'text-gray-400'} bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none hover:text-primary-400 transition-colors uppercase tracking-widest`}
-                                    >
-                                        {[1, 2, 3, 4, 5, 6].map(num => (
-                                            <option key={num} value={num} className="bg-gray-900 text-white">{num} Adult(s)</option>
-                                        ))}
-                                    </select>
-                                    <span className={`text-[10px] ${isDark ? 'text-white/10' : 'text-gray-200'}`}>|</span>
-                                    <select
-                                        value={children}
-                                        onChange={(e) => setChildren(Number(e.target.value))}
-                                        className={`text-[12px] font-black ${isDark ? 'text-white/40' : 'text-gray-400'} bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none hover:text-primary-400 transition-colors uppercase tracking-widest`}
-                                    >
-                                        {[0, 1, 2, 3, 4].map(num => (
-                                            <option key={num} value={num} className="bg-gray-900 text-white">{num} Child(ren)</option>
-                                        ))}
-                                    </select>
-                                    <span className={`text-[10px] ${isDark ? 'text-white/10' : 'text-gray-200'}`}>|</span>
-                                    <select
-                                        value={rooms}
-                                        onChange={(e) => setRooms(Number(e.target.value))}
-                                        className={`text-[12px] font-black ${isDark ? 'text-white/40' : 'text-gray-400'} bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none hover:text-primary-400 transition-colors uppercase tracking-widest`}
-                                    >
-                                        {[1, 2, 3, 4, 5, 6].map(num => (
-                                            <option key={num} value={num} className="bg-gray-900 text-white">{num} Room(s)</option>
-                                        ))}
-                                    </select>
-                                </div>
+                    <div
+                        className={`flex-1 p-8 hover:${isDark ? 'bg-white/5' : 'bg-gray-50'} last:hover:rounded-r-[3rem] transition-all duration-300 cursor-pointer group relative overflow-visible`}
+                        onClick={() => setShowGuestModal(!showGuestModal)}
+                    >
+                        <div className="flex items-center justify-between mb-3">
+                            <label className={`block text-[11px] font-black uppercase tracking-[0.3em] ${isDark ? 'text-white/50' : 'text-gray-400'} mb-0`}>Travellers</label>
+                            <label className="flex items-center gap-2 cursor-pointer group/toggle" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                    type="checkbox"
+                                    checked={isGroupBooking}
+                                    onChange={(e) => setIsGroupBooking(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className={`w-8 h-4 bg-gray-200 dark:bg-white/10 rounded-full peer peer-checked:bg-primary-600 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4`}></div>
+                                <span className={`text-[9px] font-black uppercase tracking-widest ${isGroupBooking ? 'text-primary-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Group</span>
+                            </label>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <Users className={`h-6 w-6 ${isDark ? 'text-white/40' : 'text-gray-300'} group-hover:text-primary-400 transition-colors`} />
+                            <div className="flex-1">
+                                {isGroupBooking ? (
+                                    <div className="flex flex-col">
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{groupSize}</span>
+                                            <span className={`text-[9px] font-black ${isDark ? 'text-white/60' : 'text-gray-500'} uppercase tracking-[0.05em]`}>Group Members</span>
+                                        </div>
+                                        <p className={`text-[10px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-1 font-medium tracking-wide`}>Click to edit</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col">
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{adults + children}</span>
+                                            <span className={`text-[9px] font-black ${isDark ? 'text-white/60' : 'text-gray-500'} uppercase tracking-[0.05em]`}>People</span>
+                                        </div>
+                                        <p className={`text-[10px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-1 font-medium tracking-wide italic`}>
+                                            {rooms} {rooms === 1 ? 'Room' : 'Rooms'}, {adults} {adults === 1 ? 'Adult' : 'Adults'}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
+
+                        {/* Guest Selection Modal/Popover */}
+                        {showGuestModal && (
+                            <div
+                                ref={modalRef}
+                                onClick={(e) => e.stopPropagation()}
+                                className={`absolute top-full right-0 mt-1 p-6 rounded-[2.5rem] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.3)] border bg-white border-gray-100 z-50 animate-in fade-in slide-in-from-top-4 zoom-in-95 duration-300 w-[420px] cursor-default`}
+                            >
+                                <div className="space-y-2 text-gray-900">
+                                    {isGroupBooking ? (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between gap-6">
+                                                <div>
+                                                    <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">Group Size</h4>
+                                                    <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Total Travellers</p>
+                                                </div>
+                                                <div className="flex items-center gap-4 bg-primary-50 p-2 rounded-2xl border border-primary-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setGroupSize(Math.max(1, groupSize - 1))}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary-300 text-black text-lg font-black hover:bg-primary-500 transition-all active:scale-95 shadow-lg shadow-primary-600/20"
+                                                    >-</button>
+                                                    <input
+                                                        type="number"
+                                                        value={groupSize}
+                                                        onChange={(e) => setGroupSize(Math.max(1, parseInt(e.target.value) || 1))}
+                                                        className="w-16 bg-transparent text-center text-xl font-black outline-none border-none p-0 focus:ring-0 text-gray-900"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setGroupSize(groupSize + 1)}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary-300 text-black text-lg font-black hover:bg-primary-500 transition-all active:scale-95 shadow-lg shadow-primary-600/20"
+                                                    >+</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {/* Adults */}
+                                            <div className="flex items-center justify-between gap-6">
+                                                <div>
+                                                    <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">Adults</h4>
+                                                    <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Ages 13+</p>
+                                                </div>
+                                                <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAdults(Math.max(1, adults - 1))}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl transition-all font-black text-lg bg-primary-300 text-black hover:bg-gray-100 border border-gray-100"
+                                                    >-</button>
+                                                    <input
+                                                        type="number"
+                                                        value={adults}
+                                                        onChange={(e) => setAdults(Math.max(1, parseInt(e.target.value) || 1))}
+                                                        className="w-12 bg-transparent text-center text-xl font-black outline-none border-none p-0 focus:ring-0 text-gray-900"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAdults(adults + 1)}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl transition-all font-black text-lg bg-primary-300 text-black hover:bg-gray-100 border border-gray-100"
+                                                    >+</button>
+                                                </div>
+                                            </div>
+
+                                            {/* Children */}
+                                            <div className="flex items-center justify-between gap-6">
+                                                <div>
+                                                    <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">Children</h4>
+                                                    <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Ages 2–12</p>
+                                                </div>
+                                                <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setChildren(Math.max(0, children - 1))}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl transition-all font-black text-lg bg-primary-300 text-black hover:bg-gray-100 border border-gray-100"
+                                                    >-</button>
+                                                    <input
+                                                        type="number"
+                                                        value={children}
+                                                        onChange={(e) => setChildren(Math.max(0, parseInt(e.target.value) || 0))}
+                                                        className="w-12 bg-transparent text-center text-xl font-black outline-none border-none p-0 focus:ring-0 text-gray-900"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setChildren(children + 1)}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl transition-all font-black text-lg bg-primary-300 text-black hover:bg-gray-100 border border-gray-100"
+                                                    >+</button>
+                                                </div>
+                                            </div>
+
+                                            {/* Rooms */}
+                                            <div className="flex items-center justify-between gap-6">
+                                                <div>
+                                                    <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">Rooms</h4>
+                                                    <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Required</p>
+                                                </div>
+                                                <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRooms(Math.max(1, rooms - 1))}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl transition-all font-black text-lg bg-primary-300 text-black hover:bg-gray-100 border border-gray-100"
+                                                    >-</button>
+                                                    <input
+                                                        type="number"
+                                                        value={rooms}
+                                                        onChange={(e) => setRooms(Math.max(1, parseInt(e.target.value) || 1))}
+                                                        className="w-12 bg-transparent text-center text-xl font-black outline-none border-none p-0 focus:ring-0 text-gray-900"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRooms(rooms + 1)}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl transition-all font-black text-lg bg-primary-300 text-black hover:bg-gray-100 border border-gray-100"
+                                                    >+</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowGuestModal(false);
+                                        }}
+                                        className="w-full py-4 bg-primary-600 text-white font-black uppercase tracking-[0.3em] text-[11px] rounded-2xl hover:bg-primary-500 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary-600/20"
+                                    >
+                                        Apply Selection
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -267,6 +420,57 @@ export default function SearchDesktop({
                     </button>
                 </div>
             </form>
+
+            <style>{`
+                /* Custom DatePicker Styling */
+                .react-datepicker-wrapper { width: 100%; }
+                .react-datepicker {
+                    font-family: inherit;
+                    border: 1px solid #f3f4f6;
+                    border-radius: 1.5rem;
+                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+                    overflow: hidden;
+                    background: white;
+                }
+                .react-datepicker__header {
+                    background-color: white;
+                    border-bottom: 1px solid #f3f4f6;
+                    padding-top: 1.5rem;
+                }
+                .react-datepicker__day-name, .react-datepicker__day {
+                    width: 2.5rem;
+                    line-height: 2.5rem;
+                    margin: 0.2rem;
+                    font-weight: 600;
+                    color: #374151;
+                    border-radius: 0.75rem;
+                }
+                .react-datepicker__day:hover {
+                    background-color: #f0fdf4 !important;
+                    color: #16a34a !important;
+                }
+                .react-datepicker__day--selected,
+                .react-datepicker__day--in-selecting-range,
+                .react-datepicker__day--in-range {
+                    background-color: #16a34a !important;
+                    color: white !important;
+                }
+                .react-datepicker__day--keyboard-selected {
+                    background-color: #dcfce7 !important;
+                    color: #16a34a !important;
+                }
+                .react-datepicker__current-month {
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    letter-spacing: 0.1em;
+                    font-size: 0.875rem;
+                }
+                .react-datepicker-popper {
+                    z-index: 1000 !important;
+                }
+                .react-datepicker__navigation { top: 1.5rem; }
+                .react-datepicker__triangle { display: none; }
+            `}</style>
         </div>
     );
 }

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
 import { useProperty } from '../../context/PropertyContext';
 import ImageUpload from '../../components/ImageUpload';
-import { Loader2, ArrowLeft, Save, Plus, X, Check } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Plus, X, Check, Users } from 'lucide-react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../types/room';
@@ -54,6 +54,7 @@ const roomTypeSchema = z.object({
     marketingBadgeText: z.string().optional(),
     marketingBadgeType: z.string().optional(),
     images: z.array(z.string()),
+    isAvailableForGroupBooking: z.boolean(),
 });
 
 type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
@@ -86,6 +87,7 @@ export default function CreateRoomType() {
             marketingBadgeText: '',
             marketingBadgeType: 'POSITIVE', images: [],
             propertyId: selectedProperty?.id || '',
+            isAvailableForGroupBooking: false,
         },
     });
 
@@ -114,6 +116,7 @@ export default function CreateRoomType() {
                 marketingBadgeText: existingRoomType.marketingBadgeText || '',
                 marketingBadgeType: existingRoomType.marketingBadgeType || 'POSITIVE',
                 images: existingRoomType.images || [],
+                isAvailableForGroupBooking: existingRoomType.isAvailableForGroupBooking || false,
             });
         }
     }, [existingRoomType, isEdit, reset]);
@@ -244,12 +247,44 @@ export default function CreateRoomType() {
                             <input type="number" {...register('freeChildrenCount', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all" />
                         </div>
 
-                        <div className="flex items-center md:pt-4">
-                            <label className="relative inline-flex items-center cursor-pointer group">
-                                <input type="checkbox" {...register('isPubliclyVisible')} id="isPubliclyVisible" className="sr-only peer" />
-                                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                                <span className="ml-3 text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Publicly Visible</span>
-                            </label>
+                        <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-2">
+                                <Users className="h-5 w-5 text-primary-600" />
+                                <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">Group Booking Configuration</h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                                <div className="flex flex-col justify-center">
+                                    <label className="relative inline-flex items-center cursor-pointer group">
+                                        <input type="checkbox" {...register('isPubliclyVisible')} id="isPubliclyVisible" className="sr-only peer" />
+                                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                        <div className="ml-3">
+                                            <span className="block text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Publicly Visible</span>
+                                            <span className="block text-[10px] text-gray-500 font-medium">Show this room type on the public website</span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div className="flex flex-col justify-center">
+                                    <label className="relative inline-flex items-center cursor-pointer group">
+                                        <input type="checkbox" {...register('isAvailableForGroupBooking')} id="isAvailableForGroupBooking" className="sr-only peer" />
+                                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                        <div className="ml-3">
+                                            <span className="block text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Enable Group Bookings</span>
+                                            <span className="block text-[10px] text-gray-500 font-medium">Allows guests to book per head for large groups</span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {watch('isAvailableForGroupBooking') && (
+                                    <div className="animate-in fade-in slide-in-from-left-4 duration-300 flex flex-col justify-center">
+                                        <div className="px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl">
+                                            <span className="block text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Pricing Notice</span>
+                                            <span className="block text-[10px] text-blue-500 font-medium">Group price is now managed globally at the property level.</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="md:col-span-1">

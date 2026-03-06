@@ -55,6 +55,15 @@ export class PaymentsService {
                 throw new BadRequestException('Booking is not in a payable status');
             }
 
+            // Expiry Check: If status is PENDING_PAYMENT, it must be within the 30-minute window
+            if (booking.status === 'PENDING_PAYMENT') {
+                const thirtyMinutesAgo = new Date();
+                thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+                if (booking.createdAt < thirtyMinutesAgo) {
+                    throw new BadRequestException('This booking session has expired (30-minute limit). Please return to the search page to re-book.');
+                }
+            }
+
             // Calculate amount to charge
             const totalAmount = Number(booking.amountInBookingCurrency);
             const paidAmountInBookingCurrency = Number(booking.paidAmount) / Number(booking.exchangeRate || 1);
@@ -299,7 +308,7 @@ export class PaymentsService {
             await this.prisma.booking.update({
                 where: { id: payment.bookingId },
                 data: {
-                    status: 'CONFIRMED',
+                    status: isFullyPaid ? 'CONFIRMED' : 'RESERVED',
                     confirmedAt: payment.booking.confirmedAt || new Date(),
                     paidAmount: newPaidAmount,
                     paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
@@ -485,7 +494,7 @@ export class PaymentsService {
             await this.prisma.booking.update({
                 where: { id: payment.bookingId },
                 data: {
-                    status: 'CONFIRMED',
+                    status: isFullyPaid ? 'CONFIRMED' : 'RESERVED',
                     confirmedAt: payment.booking.confirmedAt || new Date(),
                     paidAmount: newPaidAmount,
                     paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',

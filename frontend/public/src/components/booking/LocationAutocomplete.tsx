@@ -103,8 +103,8 @@ export default function LocationAutocomplete({
         <div ref={containerRef} className="relative w-full">
             <div className="flex items-center gap-3 w-full">
                 {isLoading
-                    ? <Loader2 className={`h-5 w-5 shrink-0 animate-spin ${isDark ? 'text-white/40' : 'text-primary-500'}`} />
-                    : <MapPin className={`h-5 w-5 shrink-0 ${isDark ? 'text-white/40' : 'text-gray-300'}`} />
+                    ? <Loader2 className={`h-6 w-6 shrink-0 animate-spin ${isDark ? 'text-white/40' : 'text-primary-500'}`} />
+                    : <MapPin className={`h-6 w-6 shrink-0 ${isDark ? 'text-white/40' : 'text-gray-300'}`} />
                 }
                 <input
                     type="text"
@@ -129,22 +129,22 @@ export default function LocationAutocomplete({
 
             {/* Dropdown */}
             {isOpen && suggestions.length > 0 && (
-                <div className={`absolute top-full left-0 right-0 mt-3 z-[200] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-gray-900/95 backdrop-blur-xl border-white/10' : 'bg-white border-gray-100'}`}>
+                <div className="absolute top-full left-0 right-0 mt-1 z-[200] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 bg-white border-gray-100">
                     {suggestions.map((s, i) => (
                         <button
                             key={s.placeId}
                             type="button"
                             onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
                             className={`w-full flex items-center gap-3 px-5 py-3.5 text-left transition-colors ${i === activeIndex
-                                ? isDark ? 'bg-white/10' : 'bg-primary-50'
-                                : isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
-                                } ${i < suggestions.length - 1 ? isDark ? 'border-b border-white/5' : 'border-b border-gray-50' : ''}`}
+                                ? 'bg-primary-50'
+                                : 'hover:bg-gray-50'
+                                } ${i < suggestions.length - 1 ? 'border-b border-gray-50' : ''}`}
                         >
-                            <MapPin className={`h-4 w-4 shrink-0 ${isDark ? 'text-primary-400' : 'text-primary-500'}`} />
+                            <MapPin className="h-4 w-4 shrink-0 text-primary-500" />
                             <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{s.mainText}</p>
+                                <p className="text-sm font-bold truncate text-gray-900">{s.mainText}</p>
                                 {s.secondaryText && (
-                                    <p className={`text-[11px] truncate ${isDark ? 'text-white/40' : 'text-gray-400'}`}>{s.secondaryText}</p>
+                                    <p className="text-[11px] truncate text-gray-400">{s.secondaryText}</p>
                                 )}
                             </div>
                         </button>

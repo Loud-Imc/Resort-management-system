@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import * as bcrypt from 'bcrypt';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
+import { normalizePhone } from '../common/utils/phone';
 
 @Injectable()
 export class ChannelPartnersService {
@@ -26,55 +27,92 @@ export class ChannelPartnersService {
         return code;
     }
 
-    // Register as a Channel Partner (Manual/Staff version)
-    async register(userId: string) {
+    // Register as a Channel Partner (Authenticated User version)
+    async register(userId: string, dto?: any) {
         // Check if user is already a CP
         const existing = await this.prisma.channelPartner.findUnique({
             where: { userId },
         });
 
         if (existing) {
-            throw new ConflictException('User is already a Channel Partner');
+            if (existing.status === ChannelPartnerStatus.APPROVED) {
+                throw new ConflictException('You are already registered and approved as a Channel Partner.');
+            }
+            // If exists but not approved, we can update it if DTO is provided
+            if (!dto) return existing;
         }
 
-        // Generate unique referral code
-        const referralCode = await this.getUniqueReferralCode();
+        // Generate unique referral code if new
+        const referralCode = existing?.referralCode || await this.getUniqueReferralCode();
 
-        return this.prisma.channelPartner.create({
-            data: {
-                userId,
-                referralCode,
-                status: ChannelPartnerStatus.APPROVED, // Manual registration by staff is auto-approved
-            },
-            include: {
-                user: {
-                    select: { id: true, firstName: true, lastName: true, email: true },
+        // Get CP role
+        const cpRole = await this.prisma.role.findFirst({
+            where: { name: 'ChannelPartner', propertyId: null },
+        });
+
+        if (!cpRole) throw new NotFoundException('Channel Partner role not found');
+
+        return this.prisma.$transaction(async (tx) => {
+            // Add role if missing
+            const userWithRoles = await tx.user.findUnique({
+                where: { id: userId },
+                include: { roles: { include: { role: true } } }
+            });
+
+            if (userWithRoles && !userWithRoles.roles.some(ur => ur.role.name === 'ChannelPartner')) {
+                await tx.userRole.create({
+                    data: { userId, roleId: cpRole.id }
+                });
+            }
+
+            return tx.channelPartner.upsert({
+                where: { userId },
+                create: {
+                    userId,
+                    referralCode,
+                    partnerType: dto?.partnerType || 'INDIVIDUAL',
+                    status: ChannelPartnerStatus.PENDING,
+                    organizationName: dto?.organizationName,
+                    taxId: dto?.taxId,
+                    businessAddress: dto?.businessAddress,
+                    authorizedPersonName: dto?.authorizedPersonName,
+                    aadhaarImage: dto?.aadhaarImage,
+                    licenceImage: dto?.licenceImage,
+                    commissionRate: 10.0,
                 },
-            },
+                update: {
+                    partnerType: dto?.partnerType,
+                    organizationName: dto?.organizationName,
+                    taxId: dto?.taxId,
+                    businessAddress: dto?.businessAddress,
+                    authorizedPersonName: dto?.authorizedPersonName,
+                    aadhaarImage: dto?.aadhaarImage,
+                    licenceImage: dto?.licenceImage,
+                },
+                include: {
+                    user: {
+                        select: { id: true, firstName: true, lastName: true, email: true },
+                    },
+                },
+            });
         });
     }
 
     // Public Registration for Channel Partners
     async publicRegister(dto: RegisterChannelPartnerDto) {
-        const existingUser = await this.prisma.user.findUnique({
-            where: { email: dto.email },
+        const existingUser = await this.prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email: dto.email },
+                    { phone: normalizePhone(dto.phone) },
+                ],
+            },
+            include: {
+                roles: {
+                    include: { role: true }
+                }
+            }
         });
-
-        if (existingUser) {
-            throw new ConflictException('Email already exists');
-        }
-
-        // Check for existing user by phone
-        const existingPhone = await this.prisma.user.findUnique({
-            where: { phone: dto.phone },
-        });
-
-        if (existingPhone) {
-            throw new ConflictException('Phone number already registered');
-        }
-
-        const referralCode = await this.getUniqueReferralCode();
-        const hashedPassword = await bcrypt.hash(dto.password, 10);
 
         // Find ChannelPartner role
         const cpRole = await this.prisma.role.findFirst({
@@ -85,54 +123,110 @@ export class ChannelPartnersService {
             throw new NotFoundException('Channel Partner role not found in system');
         }
 
+        let user: any = existingUser;
+
+        if (existingUser) {
+            // 1. Verify password
+            const isPasswordValid = await bcrypt.compare(dto.password, existingUser.password);
+            if (!isPasswordValid) {
+                throw new ConflictException('A user with this email or phone already exists. Please enter the correct password to link your account.');
+            }
+
+            // 2. Check if already has the CP record
+            const existingCP = await this.prisma.channelPartner.findUnique({
+                where: { userId: existingUser.id },
+            });
+
+            if (existingCP) {
+                if (existingCP.status === ChannelPartnerStatus.APPROVED) {
+                    throw new ConflictException('You are already registered and approved as a Channel Partner.');
+                }
+                // If PENDING or REJECTED, we allow updating the existing record in the transaction below
+                user = existingUser;
+            }
+        }
+
+        const referralCode = await this.getUniqueReferralCode();
+        const hashedPassword = await bcrypt.hash(dto.password, 10);
+
         let result: any;
-        result = await this.prisma.$transaction(async (tx) => {
-            // 1. Create User
-            const user = await tx.user.create({
-                data: {
-                    email: dto.email,
-                    password: hashedPassword,
-                    firstName: dto.firstName,
-                    lastName: dto.lastName,
-                    phone: dto.phone,
-                    isActive: true, // User is active, but CP status is PENDING
-                    roles: {
-                        create: {
-                            roleId: cpRole.id,
+        try {
+            result = await this.prisma.$transaction(async (tx) => {
+                // 1. Create or Update User
+                if (!user) {
+                    user = await tx.user.create({
+                        data: {
+                            email: dto.email,
+                            password: hashedPassword,
+                            firstName: dto.firstName,
+                            lastName: dto.lastName,
+                            phone: normalizePhone(dto.phone),
+                            isActive: true, // User is active, but CP status is PENDING
+                            roles: {
+                                create: {
+                                    roleId: cpRole.id,
+                                },
+                            },
                         },
+                    });
+                } else {
+                    // Check if we need to add the role
+                    const hasRole = user.roles.some((ur: any) => ur.role.name === 'ChannelPartner');
+                    if (!hasRole) {
+                        await tx.userRole.create({
+                            data: {
+                                userId: user.id,
+                                roleId: cpRole.id,
+                            },
+                        });
+                    }
+                }
+
+                // 2. Create or Update Channel Partner record
+                const cp = await tx.channelPartner.upsert({
+                    where: { userId: user.id },
+                    create: {
+                        userId: user.id,
+                        referralCode,
+                        partnerType: dto.partnerType,
+                        status: ChannelPartnerStatus.PENDING,
+                        organizationName: dto.organizationName,
+                        taxId: dto.taxId,
+                        businessAddress: dto.businessAddress,
+                        authorizedPersonName: dto.authorizedPersonName,
+                        aadhaarImage: dto.aadhaarImage,
+                        licenceImage: dto.licenceImage,
+                        commissionRate: 10.0,
                     },
-                },
-            });
+                    update: {
+                        partnerType: dto.partnerType,
+                        organizationName: dto.organizationName,
+                        taxId: dto.taxId,
+                        businessAddress: dto.businessAddress,
+                        authorizedPersonName: dto.authorizedPersonName,
+                        aadhaarImage: dto.aadhaarImage,
+                        licenceImage: dto.licenceImage,
+                    }
+                });
 
-            // 2. Create Channel Partner record
-            const cp = await tx.channelPartner.create({
-                data: {
-                    userId: user.id,
-                    referralCode,
-                    partnerType: dto.partnerType,
-                    status: ChannelPartnerStatus.PENDING,
-                    organizationName: dto.organizationName,
-                    taxId: dto.taxId,
-                    businessAddress: dto.businessAddress,
-                    authorizedPersonName: dto.authorizedPersonName,
-                    aadhaarImage: dto.aadhaarImage,
-                    licenceImage: dto.licenceImage,
-                    commissionRate: 10.0, // Default base commission
-                },
+                return {
+                    id: cp.id,
+                    referralCode: cp.referralCode,
+                    status: cp.status,
+                    user: {
+                        id: user.id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                    },
+                };
             });
-
-            return {
-                id: cp.id,
-                referralCode: cp.referralCode,
-                status: cp.status,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                },
-            };
-        });
+        } catch (error) {
+            if (error.code === 'P2002') {
+                throw new ConflictException('A user with this email or phone already exists. Please login with your existing credentials.');
+            }
+            throw error;
+        }
 
         // Notify admins of new registration
         await this.notificationsService.notifyCPRegistration(result);
@@ -248,6 +342,7 @@ export class ChannelPartnersService {
         ]);
 
         return {
+            id: cp.id,
             referralCode: cp.referralCode,
             commissionRate: cp.commissionRate,
             totalPoints: cp.totalPoints,

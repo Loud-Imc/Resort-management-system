@@ -81,6 +81,26 @@ export class ReportsController {
         );
     }
 
+    @Get('abandoned')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
+    @ApiOperation({ summary: 'Get abandoned bookings (Pending Payment)' })
+    @ApiQuery({ name: 'startDate', required: true })
+    @ApiQuery({ name: 'endDate', required: true })
+    @ApiQuery({ name: 'propertyId', required: false })
+    getAbandonedBookings(
+        @Request() req,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        return this.reportsService.getAbandonedBookings(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId,
+        );
+    }
+
     @Get('partners')
     @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
     @ApiOperation({ summary: 'Get channel partner performance report' })

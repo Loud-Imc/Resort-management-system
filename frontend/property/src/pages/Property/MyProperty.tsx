@@ -7,7 +7,8 @@ import toast from 'react-hot-toast';
 import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
     Camera, X, CheckCircle, XCircle, Star, Image as ImageIcon,
-    Plus, Clock, Percent, ShieldAlert, Trash2, FileText
+    Plus, Clock, Percent, ShieldAlert, Trash2, FileText,
+    Users
 } from 'lucide-react';
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
@@ -30,6 +31,9 @@ export default function MyProperty() {
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [whatsappNumber, setWhatsappNumber] = useState('');
+    const [allowsGroupBooking, setAllowsGroupBooking] = useState(false);
+    const [maxGroupCapacity, setMaxGroupCapacity] = useState<number | ''>('');
+    const [groupPricePerHead, setGroupPricePerHead] = useState<number | ''>('');
     const [amenities, setAmenities] = useState<string[]>([]);
     const [newAmenity, setNewAmenity] = useState('');
     const [images, setImages] = useState<string[]>([]);
@@ -91,6 +95,9 @@ export default function MyProperty() {
         setAmenities(p.amenities || []);
         setImages(p.images || []);
         setCoverImage(p.coverImage || '');
+        setAllowsGroupBooking(p.allowsGroupBooking || false);
+        setMaxGroupCapacity(p.maxGroupCapacity || '');
+        setGroupPricePerHead(p.groupPricePerHead || '');
     };
 
     const handleSave = async () => {
@@ -100,6 +107,9 @@ export default function MyProperty() {
             const updated = await propertiesService.update(property.id, {
                 name, description, address, city, state, country, pincode,
                 phone, email, whatsappNumber, amenities, images, coverImage,
+                allowsGroupBooking,
+                maxGroupCapacity: maxGroupCapacity === '' ? null : Number(maxGroupCapacity),
+                groupPricePerHead: groupPricePerHead === '' ? null : Number(groupPricePerHead),
             });
             setProperty(updated);
             populateFields(updated);
@@ -325,6 +335,56 @@ export default function MyProperty() {
                     <Field label="WhatsApp" icon={<Phone className="h-4 w-4" />} value={whatsappNumber}
                         onChange={setWhatsappNumber} editMode={editMode} type="tel" />
                 </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                    <input
+                        id="allowsGroupBooking"
+                        type="checkbox"
+                        checked={allowsGroupBooking}
+                        onChange={(e) => setAllowsGroupBooking(e.target.checked)}
+                        disabled={!editMode}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="allowsGroupBooking" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Allow Group Bookings (Multiple people in one booking)
+                    </label>
+                </div>
+
+                {allowsGroupBooking && (
+                    <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Maximum Group Capacity</label>
+                            <div className="flex items-center gap-3">
+                                <Users className="h-4 w-4 text-gray-400" />
+                                <input
+                                    type="number"
+                                    value={maxGroupCapacity}
+                                    onChange={(e) => setMaxGroupCapacity(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                    disabled={!editMode}
+                                    placeholder="e.g. 40"
+                                    className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
+                                />
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total people allowed in a single group booking across all rooms.</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Global Group Price (Per Head)</label>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm font-bold text-gray-400">₹</span>
+                                <input
+                                    type="number"
+                                    value={groupPricePerHead}
+                                    onChange={(e) => setGroupPricePerHead(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                    disabled={!editMode}
+                                    placeholder="e.g. 500"
+                                    className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
+                                />
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Flat price per person for group bookings, regardless of room type.</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>

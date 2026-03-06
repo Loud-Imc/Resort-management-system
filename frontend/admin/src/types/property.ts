@@ -52,12 +52,15 @@ export interface Property {
     marketingCommission?: number;
     platformCommission?: number;
     commissionStatus?: 'PENDING' | 'PAID' | 'CANCELLED';
+    allowsGroupBooking: boolean;
     addedBy?: {
         id: string;
         firstName: string;
         email: string;
     };
     taxRate?: number;
+    maxGroupCapacity?: number;
+    groupPricePerHead?: number;
 }
 
 export interface CreatePropertyDto {
@@ -85,6 +88,9 @@ export interface CreatePropertyDto {
     ownerId?: string;
     isFeatured?: boolean;
     taxRate?: number;
+    allowsGroupBooking?: boolean;
+    maxGroupCapacity?: number;
+    groupPricePerHead?: number;
 }
 
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {
@@ -103,6 +109,7 @@ export interface PropertyQueryParams {
     latitude?: number;
     longitude?: number;
     radius?: number;
+    allowsGroupBooking?: boolean;
 }
 
 export interface PropertyListResponse {

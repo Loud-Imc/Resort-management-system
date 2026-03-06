@@ -62,6 +62,12 @@ export default function Reports() {
         enabled: isGlobalAdmin && !selectedProperty, // Show global partner report if no property selected
     });
 
+    // Fetch Abandoned Bookings
+    const { data: abandonedBookings } = useQuery({
+        queryKey: ['abandonedBookings', dateRange, selectedProperty?.id],
+        queryFn: () => reportsService.getAbandonedBookings(dateRange.startDate, dateRange.endDate, selectedProperty?.id),
+    });
+
     const handleRangeChange = (type: string) => {
         setRangeType(type);
         const now = new Date();
@@ -365,6 +371,56 @@ export default function Reports() {
             {isGlobalAdmin && !selectedProperty && financialReport?.platformSummary && (
                 <PlatformSummaryCard summary={financialReport.platformSummary} />
             )}
+
+            {/* Abandoned Bookings Section (Pending Payment) */}
+            <div className="bg-card p-6 rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="text-lg font-bold">Abandoned Bookings</h3>
+                        <p className="text-xs text-muted-foreground font-medium">Sessions that reached payment but were not completed (Pending Payment)</p>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-muted text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky top-0">
+                            <tr>
+                                <th className="px-4 py-3 rounded-l-lg">Guest</th>
+                                <th className="px-4 py-3">Property / Unit</th>
+                                <th className="px-4 py-3">Dates</th>
+                                <th className="px-4 py-3">Amount</th>
+                                <th className="px-4 py-3 rounded-r-lg">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                            {abandonedBookings?.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground font-medium italic">No abandoned bookings found for this period.</td>
+                                </tr>
+                            ) : (
+                                abandonedBookings?.map((item: any) => (
+                                    <tr key={item.id} className="group hover:bg-muted/30 transition-colors">
+                                        <td className="px-4 py-4">
+                                            <div className="font-bold text-sm">{item.guestName}</div>
+                                            <div className="text-[10px] text-muted-foreground font-medium">{item.guestEmail}</div>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <div className="text-sm font-medium">{item.propertyName}</div>
+                                            <div className="text-[10px] text-muted-foreground">{item.roomType}</div>
+                                        </td>
+                                        <td className="px-4 py-4 text-xs font-medium">
+                                            {format(new Date(item.checkIn), 'MMM dd')} - {format(new Date(item.checkOut), 'MMM dd, yyyy')}
+                                        </td>
+                                        <td className="px-4 py-4 font-black text-sm">₹{item.amount.toLocaleString()}</td>
+                                        <td className="px-4 py-4 text-xs text-muted-foreground font-medium">
+                                            {format(new Date(item.createdAt), 'MMM dd, HH:mm')}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 }

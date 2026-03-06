@@ -75,34 +75,49 @@ export class AvailabilityService {
         checkOutDate: Date,
     ): Promise<boolean> {
         // Check for overlapping bookings
+        const thirtyMinutesAgo = new Date();
+        thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+
         const overlappingBookings = await this.prisma.booking.findMany({
             where: {
                 roomId,
-                status: {
-                    in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'],
-                },
-                OR: [
+                AND: [
                     {
-                        // New booking starts during existing booking
-                        AND: [
-                            { checkInDate: { lte: checkInDate } },
-                            { checkOutDate: { gt: checkInDate } },
-                        ],
+                        OR: [
+                            { status: { in: ['CONFIRMED', 'RESERVED', 'CHECKED_IN'] } },
+                            {
+                                AND: [
+                                    { status: 'PENDING_PAYMENT' },
+                                    { createdAt: { gte: thirtyMinutesAgo } } // Only block if it's recent (last 30 mins)
+                                ]
+                            }
+                        ]
                     },
                     {
-                        // New booking ends during existing booking
-                        AND: [
-                            { checkInDate: { lt: checkOutDate } },
-                            { checkOutDate: { gte: checkOutDate } },
-                        ],
-                    },
-                    {
-                        // New booking completely contains existing booking
-                        AND: [
-                            { checkInDate: { gte: checkInDate } },
-                            { checkOutDate: { lte: checkOutDate } },
-                        ],
-                    },
+                        OR: [
+                            {
+                                // New booking starts during existing booking
+                                AND: [
+                                    { checkInDate: { lte: checkInDate } },
+                                    { checkOutDate: { gt: checkInDate } },
+                                ],
+                            },
+                            {
+                                // New booking ends during existing booking
+                                AND: [
+                                    { checkInDate: { lt: checkOutDate } },
+                                    { checkOutDate: { gte: checkOutDate } },
+                                ],
+                            },
+                            {
+                                // New booking completely contains existing booking
+                                AND: [
+                                    { checkInDate: { gte: checkInDate } },
+                                    { checkOutDate: { lte: checkOutDate } },
+                                ],
+                            },
+                        ]
+                    }
                 ],
             },
         });
@@ -178,6 +193,8 @@ export class AvailabilityService {
         radius?: number,
         currency: string = 'INR',
         propertyId?: string,
+        isGroupBooking: boolean = false,
+        groupSize?: number,
     ) {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
@@ -205,12 +222,99 @@ export class AvailabilityService {
         const minAdultsPerRoom = Math.ceil(adults / rooms);
         const minChildrenPerRoom = Math.ceil(children / rooms);
 
+        const results: any[] = [];
+
+        if (isGroupBooking) {
+            // Group Booking Search: Check total capacity of the property's group pool
+            const properties = await this.prisma.property.findMany({
+                where: {
+                    allowsGroupBooking: true,
+                    isActive: true,
+                    status: PropertyStatus.APPROVED,
+                    categoryId: categoryId || undefined,
+                    ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
+                    ...(location && {
+                        OR: [
+                            { city: { contains: location, mode: 'insensitive' } },
+                            { address: { contains: location, mode: 'insensitive' } },
+                            { state: { contains: location, mode: 'insensitive' } },
+                            { name: { contains: location, mode: 'insensitive' } },
+                        ]
+                    }),
+                    ...(type && type !== 'ALL' && { type: type as any }),
+                    maxGroupCapacity: groupSize ? { gte: groupSize } : undefined,
+                },
+                include: {
+                    roomTypes: {
+                        where: { isAvailableForGroupBooking: true },
+                    }
+                }
+            });
+
+            for (const property of properties) {
+                if (property.roomTypes.length === 0) continue;
+
+                let totalPoolCapacity = 0;
+                for (const rt of property.roomTypes) {
+                    const availableCount = await this.getAvailableRoomCount(rt.id, checkInDate, checkOutDate);
+                    totalPoolCapacity += availableCount * (rt.maxAdults + rt.maxChildren);
+                }
+
+                if (totalPoolCapacity >= (groupSize || 0)) {
+                    // Use the first room type as a delegate for pricing (it uses property-level group price anyway)
+                    const delegateType = property.roomTypes[0];
+                    try {
+                        const pricing = await this.pricingService.calculatePrice(
+                            delegateType.id,
+                            checkInDate,
+                            checkOutDate,
+                            adults,
+                            children,
+                            undefined,
+                            undefined,
+                            currency,
+                            true,
+                            groupSize
+                        );
+
+                        results.push({
+                            ...delegateType,
+                            name: 'Group Stay Package',
+                            description: `Whole property access for your group of ${groupSize} guests.`,
+                            property,
+                            availableCount: 1, // Represented as 1 package
+                            totalPrice: pricing.convertedTotal,
+                            isSoldOut: false,
+                            isGroupPackage: true
+                        });
+                    } catch (err) {
+                        console.error(`[AvailabilityService] Error calculating group price for property ${property.id}:`, err.message);
+                        // If pricing fails (e.g. missing price-per-head), we skip this property for now
+                        continue;
+                    }
+                } else if (includeSoldOut) {
+                    const delegateType = property.roomTypes[0];
+                    results.push({
+                        ...delegateType,
+                        name: 'Group Stay Package',
+                        property,
+                        availableCount: 0,
+                        totalPrice: 0,
+                        isSoldOut: true,
+                        isGroupPackage: true
+                    });
+                }
+            }
+            return results;
+        }
+
+        // Standard Search logic
         // 1. Get all room types that fit the guest capacity
         const suitableTypes = await this.prisma.roomType.findMany({
             where: {
                 maxAdults: { gte: minAdultsPerRoom },
                 maxChildren: { gte: minChildrenPerRoom },
-                isPubliclyVisible: true, // Only public ones
+                isPubliclyVisible: true,
                 propertyId: propertyId || undefined,
                 property: {
                     isActive: true,
@@ -229,7 +333,7 @@ export class AvailabilityService {
                 }
             },
             include: {
-                rooms: true, // Need rooms to check availability
+                rooms: true,
                 property: {
                     include: {
                         _count: {
@@ -239,7 +343,7 @@ export class AvailabilityService {
                             }
                         }
                     }
-                }, // Needed for grouping by property
+                },
                 offers: {
                     where: {
                         isActive: true,
@@ -251,11 +355,8 @@ export class AvailabilityService {
             },
         });
 
-        const results: any[] = [];
-
         // 2. For each type, check availability
         for (const type of suitableTypes) {
-            // Get count of available rooms for this type in date range
             const availableCount = await this.getAvailableRoomCount(
                 type.id,
                 checkInDate,
@@ -263,7 +364,6 @@ export class AvailabilityService {
             );
 
             if (availableCount >= rooms || includeSoldOut) {
-                // Return the type with availability info
                 const { rooms: _rooms, offers, ...typeData }: any = type;
                 const activeOffer = offers[0] || null;
 
@@ -275,7 +375,9 @@ export class AvailabilityService {
                     children,
                     undefined,
                     undefined,
-                    currency
+                    currency,
+                    false,
+                    undefined
                 );
 
                 results.push({

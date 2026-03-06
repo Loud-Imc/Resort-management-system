@@ -1,5 +1,6 @@
 export const BookingStatus = {
     PENDING_PAYMENT: 'PENDING_PAYMENT',
+    RESERVED: 'RESERVED',
     CONFIRMED: 'CONFIRMED',
     CHECKED_IN: 'CHECKED_IN',
     CHECKED_OUT: 'CHECKED_OUT',
@@ -61,6 +62,8 @@ export interface Booking {
     agentId?: string;
     commissionAmount: number;
     guests: BookingGuest[];
+    isGroupBooking: boolean;
+    groupSize?: number;
     createdAt: string;
 }
 
@@ -81,6 +84,8 @@ export interface CreateBookingDto {
     referralCode?: string;
     roomId?: string;
     isManualBooking?: boolean;
+    isGroupBooking?: boolean;
+    groupSize?: number;
 }
 
 export interface CheckAvailabilityDto {
@@ -97,6 +102,8 @@ export interface PriceCalculationDto {
     childrenCount: number;
     couponCode?: string;
     referralCode?: string;
+    isGroupBooking?: boolean;
+    groupSize?: number;
 }
 
 export interface PriceCalculationResult {

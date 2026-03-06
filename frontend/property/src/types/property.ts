@@ -63,6 +63,9 @@ export interface Property {
     cancellationPolicies?: CancellationPolicy[];
     defaultCancellationPolicyId?: string;
     defaultCancellationPolicy?: CancellationPolicy;
+    allowsGroupBooking: boolean;
+    maxGroupCapacity?: number;
+    groupPricePerHead?: number;
 }
 
 export interface PropertyListResponse {

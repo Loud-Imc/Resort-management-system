@@ -33,6 +33,10 @@ interface SearchProps {
     setRooms: (v: number) => void;
     handleSearch: (e: React.FormEvent) => void;
     categories: PropertyCategory[];
+    isGroupBooking: boolean;
+    setIsGroupBooking: (v: boolean) => void;
+    groupSize: number;
+    setGroupSize: (v: number) => void;
 }
 
 export default function SearchInline({
@@ -44,7 +48,9 @@ export default function SearchInline({
     children, setChildren,
     rooms, setRooms,
     handleSearch,
-    categories
+    categories,
+    isGroupBooking, setIsGroupBooking,
+    groupSize, setGroupSize
 }: SearchProps) {
     const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
@@ -152,35 +158,63 @@ export default function SearchInline({
 
                             {/* Guests */}
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Who's Coming?</label>
+                                <div className="flex items-center justify-between px-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600">Who's Coming?</label>
+                                    <label className="flex items-center gap-2 cursor-pointer group/toggle">
+                                        <input
+                                            type="checkbox"
+                                            checked={isGroupBooking}
+                                            onChange={(e) => setIsGroupBooking(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
+                                        <span className={`text-[9px] font-black uppercase tracking-widest ${isGroupBooking ? 'text-primary-600' : 'text-gray-400'}`}>Group</span>
+                                    </label>
+                                </div>
                                 <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl p-4">
-                                    <div className="flex items-center gap-3">
-                                        <Users className="h-5 w-5 text-gray-400" />
-                                        <span className="text-base font-bold text-gray-900">{adults + children} Travellers</span>
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <select
-                                            value={adults}
-                                            onChange={(e) => setAdults(Number(e.target.value))}
-                                            className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
-                                        >
-                                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}A</option>)}
-                                        </select>
-                                        <select
-                                            value={children}
-                                            onChange={(e) => setChildren(Number(e.target.value))}
-                                            className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
-                                        >
-                                            {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n}C</option>)}
-                                        </select>
-                                        <select
-                                            value={rooms}
-                                            onChange={(e) => setRooms(Number(e.target.value))}
-                                            className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
-                                        >
-                                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}R</option>)}
-                                        </select>
-                                    </div>
+                                    {isGroupBooking ? (
+                                        <div className="flex items-center gap-3 w-full">
+                                            <Users className="h-5 w-5 text-gray-400" />
+                                            <span className="text-base font-bold text-gray-900 flex-1">{groupSize} Member Group</span>
+                                            <select
+                                                value={groupSize}
+                                                onChange={(e) => setGroupSize(Number(e.target.value))}
+                                                className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
+                                            >
+                                                {[10, 20, 30, 40, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center gap-3">
+                                                <Users className="h-5 w-5 text-gray-400" />
+                                                <span className="text-base font-bold text-gray-900">{adults + children} Travellers</span>
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <select
+                                                    value={adults}
+                                                    onChange={(e) => setAdults(Number(e.target.value))}
+                                                    className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
+                                                >
+                                                    {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}A</option>)}
+                                                </select>
+                                                <select
+                                                    value={children}
+                                                    onChange={(e) => setChildren(Number(e.target.value))}
+                                                    className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
+                                                >
+                                                    {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n}C</option>)}
+                                                </select>
+                                                <select
+                                                    value={rooms}
+                                                    onChange={(e) => setRooms(Number(e.target.value))}
+                                                    className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
+                                                >
+                                                    {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}R</option>)}
+                                                </select>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
@@ -283,38 +317,65 @@ export default function SearchInline({
                     </div>
                 </div>
 
-                {/* Guests */}
-                <div className="w-[20%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group relative">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Travellers</label>
+                <div className="w-[30%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group relative">
+                    <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Travellers</label>
+                        <label className="flex items-center gap-1.5 cursor-pointer group/toggle">
+                            <input
+                                type="checkbox"
+                                checked={isGroupBooking}
+                                onChange={(e) => setIsGroupBooking(e.target.checked)}
+                                className="sr-only peer"
+                            />
+                            <div className="w-7 h-3.5 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 relative after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:after:translate-x-3.5"></div>
+                            <span className={`text-[8px] font-black uppercase tracking-widest ${isGroupBooking ? 'text-primary-600' : 'text-gray-400'}`}>Grp</span>
+                        </label>
+                    </div>
                     <div className="flex items-center gap-3">
                         <Users className="h-4 w-4 text-gray-400" />
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-bold text-gray-900">{adults + children}</span>
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Guests</span>
-                        </div>
-                        <div className="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                            <select
-                                value={adults}
-                                onChange={(e) => setAdults(Number(e.target.value))}
-                                className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
-                            >
-                                {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}A</option>)}
-                            </select>
-                            <select
-                                value={children}
-                                onChange={(e) => setChildren(Number(e.target.value))}
-                                className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
-                            >
-                                {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n}C</option>)}
-                            </select>
-                            <select
-                                value={rooms}
-                                onChange={(e) => setRooms(Number(e.target.value))}
-                                className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
-                            >
-                                {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}R</option>)}
-                            </select>
-                        </div>
+                        {isGroupBooking ? (
+                            <div className="flex items-baseline gap-2 flex-1">
+                                <span className="text-sm font-bold text-gray-900">{groupSize}</span>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase">Members</span>
+                                <select
+                                    value={groupSize}
+                                    onChange={(e) => setGroupSize(Number(e.target.value))}
+                                    className="text-[9px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none ml-auto"
+                                >
+                                    {[10, 20, 30, 40, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-sm font-bold text-gray-900">{adults + children}</span>
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Guests</span>
+                                </div>
+                                <div className="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <select
+                                        value={adults}
+                                        onChange={(e) => setAdults(Number(e.target.value))}
+                                        className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
+                                    >
+                                        {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}A</option>)}
+                                    </select>
+                                    <select
+                                        value={children}
+                                        onChange={(e) => setChildren(Number(e.target.value))}
+                                        className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
+                                    >
+                                        {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n}C</option>)}
+                                    </select>
+                                    <select
+                                        value={rooms}
+                                        onChange={(e) => setRooms(Number(e.target.value))}
+                                        className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
+                                    >
+                                        {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}R</option>)}
+                                    </select>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 

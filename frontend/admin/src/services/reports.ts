@@ -69,6 +69,13 @@ export const reportsService = {
         return data;
     },
 
+    getAbandonedBookings: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get<any[]>('/reports/abandoned', {
+            params: { startDate, endDate, propertyId },
+        });
+        return data;
+    },
+
     exportExcel: async (startDate: string, endDate: string, propertyId?: string) => {
         const { data } = await api.get('/reports/export/excel', {
             params: { startDate, endDate, propertyId },

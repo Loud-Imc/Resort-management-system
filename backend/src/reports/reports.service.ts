@@ -877,4 +877,56 @@ export class ReportsService {
         }
     }
 
+    async getAbandonedBookings(user: any, startDate: Date, endDate: Date, propertyId?: string) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (isGlobalAdmin) {
+            if (propertyId) propertyFilter.id = propertyId;
+        } else {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+            if (propertyId) propertyFilter.id = propertyId;
+        }
+
+        const abandonedBookings = await this.prisma.booking.findMany({
+            where: {
+                status: 'PENDING_PAYMENT',
+                createdAt: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+                room: {
+                    property: propertyFilter
+                }
+            },
+            include: {
+                user: true,
+                room: {
+                    include: {
+                        property: true,
+                        roomType: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        return abandonedBookings.map(b => ({
+            id: b.id,
+            guestName: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'Guest',
+            guestEmail: b.user?.email || 'N/A',
+            propertyName: b.room?.property?.name || 'N/A',
+            roomType: b.room?.roomType?.name || 'N/A',
+            checkIn: b.checkInDate,
+            checkOut: b.checkOutDate,
+            amount: b.totalAmount,
+            createdAt: b.createdAt
+        }));
+    }
 }

@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsNotEmpty, IsOptional, IsEnum, MinLength, IsPhoneNumber, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsOptional, IsEnum, MinLength, IsPhoneNumber, IsArray, IsNumber, IsBoolean } from 'class-validator';
 import { PropertyType } from '@prisma/client';
 
 export class RegisterPropertyDto {
@@ -96,4 +96,12 @@ export class RegisterPropertyDto {
     @IsOptional()
     @IsString()
     ownerAadhaarImage?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    allowsGroupBooking?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    maxGroupCapacity?: number;
 }

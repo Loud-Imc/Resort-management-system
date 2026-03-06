@@ -13,6 +13,8 @@ interface Referral {
     paidAmount: number;
     totalAmount: number;
     points: number;
+    isGroupBooking: boolean;
+    groupSize?: number;
 }
 
 const Referrals: React.FC = () => {
@@ -33,6 +35,8 @@ const Referrals: React.FC = () => {
                     date: new Date(ref.createdAt).toLocaleDateString(),
                     commission: `₹${Number(ref.cpCommission || 0).toLocaleString()}`,
                     points: Math.floor(Number(ref.totalAmount || 0) / 100),
+                    isGroupBooking: ref.isGroupBooking || false,
+                    groupSize: ref.groupSize,
                 }));
                 setReferrals(mappedData);
             } catch (error) {
@@ -46,7 +50,19 @@ const Referrals: React.FC = () => {
     }, []);
 
     const columns = [
-        { header: 'Guest Name', accessor: 'guestName' as keyof Referral },
+        {
+            header: 'Guest Name',
+            accessor: (item: Referral) => (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 600 }}>{item.guestName}</span>
+                    {item.isGroupBooking && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--primary-teal)', fontWeight: 700 }}>
+                            Group Booking ({item.groupSize} people)
+                        </span>
+                    )}
+                </div>
+            )
+        },
         { header: 'Date', accessor: 'date' as keyof Referral },
         {
             header: 'Booking Status',
@@ -77,18 +93,18 @@ const Referrals: React.FC = () => {
             accessor: (item: Referral) => {
                 const isFull = item.paymentStatus === 'FULL';
                 const isPartial = item.paymentStatus === 'PARTIAL';
-                
+
                 return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <div style={{ 
-                                width: '8px', 
-                                height: '8px', 
-                                borderRadius: '50%', 
-                                background: isFull ? '#10b981' : isPartial ? '#f59e0b' : '#ef4444' 
+                            <div style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                background: isFull ? '#10b981' : isPartial ? '#f59e0b' : '#ef4444'
                             }} />
-                            <span style={{ 
-                                fontSize: '0.8rem', 
+                            <span style={{
+                                fontSize: '0.8rem',
                                 fontWeight: 700,
                                 color: isFull ? '#059669' : isPartial ? '#d97706' : '#dc2626'
                             }}>
@@ -99,17 +115,17 @@ const Referrals: React.FC = () => {
                             ₹{item.paidAmount.toLocaleString()} / ₹{item.totalAmount.toLocaleString()}
                         </div>
                         {isPartial && (
-                            <div style={{ 
-                                width: '100%', 
-                                height: '4px', 
-                                background: '#e2e8f0', 
+                            <div style={{
+                                width: '100%',
+                                height: '4px',
+                                background: '#e2e8f0',
                                 borderRadius: '2px',
                                 overflow: 'hidden'
                             }}>
-                                <div style={{ 
-                                    width: `${(item.paidAmount / item.totalAmount) * 100}%`, 
-                                    height: '100%', 
-                                    background: '#f59e0b' 
+                                <div style={{
+                                    width: `${(item.paidAmount / item.totalAmount) * 100}%`,
+                                    height: '100%',
+                                    background: '#f59e0b'
                                 }} />
                             </div>
                         )}

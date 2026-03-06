@@ -108,16 +108,16 @@ export default function PropertiesList() {
     const handleOpenDashboard = (propertyId: string) => {
         const token = localStorage.getItem('token');
         const userData = localStorage.getItem('user');
-        
+
         if (!token || !userData) {
             toast.error('Authentication session not found');
             return;
         }
 
-        const propertyUrl = 'http://localhost:5175/login';
+        const propertyUrl = import.meta.env.VITE_PROPERTY_URL;
         // Base64 encode user data for safe transmission
         const encodedUser = btoa(userData);
-        
+
         const params = new URLSearchParams({
             action: 'impersonate',
             token: token,
@@ -344,8 +344,8 @@ export default function PropertiesList() {
                                                     onClick={() => handleToggleActive(property.id, property.isActive)}
                                                     className={clsx(
                                                         "flex items-center justify-center p-2.5 rounded-xl transition-all border border-border/50",
-                                                        property.isActive 
-                                                            ? "text-amber-500 hover:bg-amber-50 hover:border-amber-100" 
+                                                        property.isActive
+                                                            ? "text-amber-500 hover:bg-amber-50 hover:border-amber-100"
                                                             : "text-emerald-500 hover:bg-emerald-50 hover:border-emerald-100"
                                                     )}
                                                     title={property.isActive ? 'Disable Property' : 'Enable Property'}

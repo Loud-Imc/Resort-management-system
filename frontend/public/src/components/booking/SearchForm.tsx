@@ -24,6 +24,8 @@ export default function SearchForm({
     const [adults, setAdults] = useState(2);
     const [children, setChildren] = useState(0);
     const [rooms, setRooms] = useState(1);
+    const [isGroupBooking, setIsGroupBooking] = useState(false);
+    const [groupSize, setGroupSize] = useState(10);
     const [isExpanded, setIsExpanded] = useState(false);
 
     // Geo-location state
@@ -48,6 +50,8 @@ export default function SearchForm({
             adults: adults.toString(),
             children: children.toString(),
             rooms: rooms.toString(),
+            isGroupBooking: isGroupBooking.toString(),
+            groupSize: groupSize.toString(),
         });
 
         if (latitude && longitude) {
@@ -70,6 +74,8 @@ export default function SearchForm({
         latitude, setLatitude,
         longitude, setLongitude,
         radius, setRadius,
+        isGroupBooking, setIsGroupBooking,
+        groupSize, setGroupSize,
         handleSearch,
         categories: categories || []
     };

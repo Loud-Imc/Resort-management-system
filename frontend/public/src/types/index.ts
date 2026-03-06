@@ -21,6 +21,8 @@ export interface RoomType {
     rooms?: { id: string; status: string }[];
     property?: Property;
     bookingCurrency?: string;
+    isAvailableForGroupBooking?: boolean;
+    groupPricePerHead?: number;
 }
 
 export interface BookingSearchParams {
@@ -38,6 +40,8 @@ export interface BookingSearchParams {
     radius?: number;
     currency?: string;
     propertyId?: string;
+    isGroupBooking?: boolean;
+    groupSize?: number;
 }
 
 export interface AvailabilityResponse {
@@ -71,6 +75,8 @@ export interface CreateBookingDto {
     referralCode?: string; // CP referral code
     paymentMethod?: 'ONLINE' | 'WALLET';
     currency?: string;
+    isGroupBooking?: boolean;
+    groupSize?: number;
 }
 
 // Marketplace Types
@@ -118,6 +124,9 @@ export interface Property {
     minPrice?: number;
     baseCurrency?: string;
     availableRoomCount?: number;
+    allowsGroupBooking?: boolean;
+    maxGroupCapacity?: number;
+    groupPricePerHead?: number;
 }
 
 export interface PropertySearchParams {

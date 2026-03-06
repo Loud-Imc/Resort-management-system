@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsDateString, IsInt, Min, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsDateString, IsInt, Min, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -44,4 +44,16 @@ export class CalculatePriceDto {
     @IsString()
     @IsOptional()
     currency?: string;
+
+    @ApiProperty({ example: false, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isGroupBooking?: boolean;
+
+    @ApiProperty({ example: 10, required: false })
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    @Type(() => Number)
+    groupSize?: number;
 }

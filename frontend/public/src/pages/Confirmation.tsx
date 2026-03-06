@@ -95,6 +95,7 @@ export default function Confirmation() {
     const getStatusStyles = (status: string) => {
         switch (status) {
             case 'CONFIRMED': return 'bg-green-100 text-green-800 border-green-200';
+            case 'RESERVED': return 'bg-amber-100 text-amber-800 border-amber-200';
             case 'PENDING_PAYMENT': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
             case 'CANCELLED': return 'bg-red-100 text-red-800 border-red-200';
             case 'REFUNDED': return 'bg-purple-100 text-purple-800 border-purple-200';
@@ -234,18 +235,26 @@ export default function Confirmation() {
                     `}</style>
 
                     {/* Header Area */}
-                    <div className={`${isCancelled ? 'bg-gray-800' : 'bg-primary-600'} header-bg p-8 md:p-12 text-center text-white transition-colors print:bg-white print:text-gray-900 print:text-left print:p-0 print:border-b print:border-gray-100 print:flex print:justify-between print:items-center [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:text-gray-900 [.pdf-capture-mode_&]:text-left [.pdf-capture-mode_&]:p-8 [.pdf-capture-mode_&]:border-b [.pdf-capture-mode_&]:border-gray-100 [.pdf-capture-mode_&]:flex [.pdf-capture-mode_&]:justify-between [.pdf-capture-mode_&]:items-center`}>
+                    <div className={`${isCancelled ? 'bg-gray-800' : (booking.status === 'RESERVED' || booking.status === 'PENDING_PAYMENT' ? 'bg-primary-800' : 'bg-primary-600')} header-bg p-8 md:p-12 text-center text-white transition-colors print:bg-white print:text-gray-900 print:text-left print:p-0 print:border-b print:border-gray-100 print:flex print:justify-between print:items-center [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:text-gray-900 [.pdf-capture-mode_&]:text-left [.pdf-capture-mode_&]:p-8 [.pdf-capture-mode_&]:border-b [.pdf-capture-mode_&]:border-gray-100 [.pdf-capture-mode_&]:flex [.pdf-capture-mode_&]:justify-between [.pdf-capture-mode_&]:items-center`}>
                         <div className="print:hidden [.pdf-capture-mode_&]:hidden">
-                            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6">
-                                <CheckCircle className="h-10 w-10 text-white" />
+                            <div className={`w-20 h-20 ${booking.status === 'RESERVED' || booking.status === 'PENDING_PAYMENT' ? 'bg-amber-500/20' : 'bg-white/20'} backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6`}>
+                                <CheckCircle className={`h-10 w-10 ${booking.status === 'RESERVED' || booking.status === 'PENDING_PAYMENT' ? 'text-amber-500' : 'text-white'}`} />
                             </div>
-                            <h1 className="text-3xl md:text-4xl font-serif font-bold mb-2">
-                                {isCancelled ? 'Booking Cancelled' : 'Booking Confirmed!'}
+                            <h1 className={`text-3xl md:text-4xl font-serif font-bold mb-2 ${booking.status === 'RESERVED' || booking.status === 'PENDING_PAYMENT' ? 'text-amber-500' : 'text-white'}`}>
+                                {isCancelled
+                                    ? 'Booking Cancelled'
+                                    : booking.status === 'PENDING_PAYMENT'
+                                        ? 'Booking Pending Payment'
+                                        : (booking.status === 'RESERVED')
+                                            ? 'Booking Reserved'
+                                            : 'Booking Confirmed!'}
                             </h1>
                             <p className="text-primary-50 opacity-90 max-w-md mx-auto">
                                 {isCancelled
                                     ? 'Your reservation has been cancelled. Refund details are provided below.'
-                                    : `Thank you for choosing us ${booking.user?.firstName} ${booking.user?.lastName ? `, ${booking.user.lastName}` : ''}. We've sent your confirmation details to your registered email.`
+                                    : (booking.status === 'RESERVED' || booking.status === 'PENDING_PAYMENT')
+                                        ? `Your stay at ${property?.name} is reserved. Please complete the payment to fully confirm your booking.`
+                                        : `Thank you for choosing us ${booking.user?.firstName} ${booking.user?.lastName ? `, ${booking.user.lastName}` : ''}. We've sent your confirmation details to your registered email.`
                                 }
                             </p>
                         </div>
@@ -298,7 +307,9 @@ export default function Confirmation() {
                                         </div>
                                         <div>
                                             <h4 className="font-bold text-gray-900">{property?.name || 'Luxury Resort'}</h4>
-                                            <p className="text-xs text-gray-500 mt-0.5">{roomType?.name || 'Suite Room'}</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                {booking.isGroupBooking ? 'Group Stay Package' : (roomType?.name || 'Suite Room')}
+                                            </p>
                                             <div className="flex items-center gap-1 mt-1 text-primary-600 font-bold text-sm">
                                                 <span>#{booking.bookingNumber}</span>
                                             </div>
@@ -324,7 +335,12 @@ export default function Confirmation() {
                                             <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Guests</span>
                                             <div className="flex items-center gap-2 text-gray-800">
                                                 <User className="h-4 w-4 text-primary-500" />
-                                                <span className="font-bold">{booking.adultsCount} Adults, {booking.childrenCount} Child</span>
+                                                <span className="font-bold">
+                                                    {booking.isGroupBooking
+                                                        ? `${booking.groupSize} Guests`
+                                                        : `${booking.adultsCount} Adults, ${booking.childrenCount} Child`
+                                                    }
+                                                </span>
                                             </div>
                                         </div>
                                         <div className="space-y-1">
@@ -405,7 +421,7 @@ export default function Confirmation() {
                                                 className="w-full bg-primary-600 text-white hover:bg-primary-700 px-6 py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200 disabled:opacity-50"
                                             >
                                                 {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                                                {isDepositPaid ? 'Pay Remaining Balance' : 'Pay Deposit Online'}
+                                                {balanceDue > 0 ? 'Pay Due Balance' : (isDepositPaid ? 'Pay Remaining Balance' : 'Pay Deposit Online')}
                                             </button>
                                         )}
 

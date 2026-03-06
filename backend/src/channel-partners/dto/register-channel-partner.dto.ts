@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsNotEmpty, IsOptional, IsEnum, MinLength, IsPhoneNumber } from 'class-validator';
+import { IsString, IsNumber, IsEmail, IsNotEmpty, IsOptional, IsEnum, MinLength, IsPhoneNumber, IsBoolean } from 'class-validator';
 import { PartnerType } from '@prisma/client';
 
 export class RegisterChannelPartnerDto {
@@ -52,4 +52,12 @@ export class RegisterChannelPartnerDto {
     @IsString()
     @IsOptional()
     licenceImage?: string;
+
+    @IsBoolean()
+    @IsOptional()
+    allowsGroupBooking?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    maxGroupCapacity?: number;
 }

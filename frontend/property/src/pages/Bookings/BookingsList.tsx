@@ -181,6 +181,8 @@ export default function BookingsList() {
                 return 'bg-muted text-muted-foreground';
             case BookingStatus.PENDING_PAYMENT:
                 return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
+            case BookingStatus.RESERVED:
+                return 'bg-orange-500/10 text-orange-600 dark:text-orange-400';
             case BookingStatus.CANCELLED:
                 return 'bg-destructive/10 text-destructive';
             default:
@@ -241,6 +243,7 @@ export default function BookingsList() {
                             >
                                 <option value="">All Statuses</option>
                                 <option value="CONFIRMED">Confirmed</option>
+                                <option value="RESERVED">Reserved</option>
                                 <option value="CHECKED_IN">Checked In</option>
                                 <option value="CHECKED_OUT">Checked Out</option>
                                 <option value="PENDING_PAYMENT">Pending Payment</option>
@@ -277,6 +280,13 @@ export default function BookingsList() {
                                                 {booking.user.firstName} {booking.user.lastName}
                                             </div>
                                             <div className="text-sm text-muted-foreground">{booking.user.email}</div>
+                                            {booking.isGroupBooking && (
+                                                <div className="mt-1">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase">
+                                                        Group of {booking.groupSize}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">Unit {booking.room.roomNumber}</div>
@@ -321,7 +331,7 @@ export default function BookingsList() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-3">
-                                                {booking.status === BookingStatus.CONFIRMED && (
+                                                {(booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.RESERVED) && (
                                                     <button
                                                         onClick={() => handleOpenCheckIn(booking)}
                                                         className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white p-2.5 rounded-2xl transition-all shadow-sm hover:shadow-emerald-500/20 active:scale-90"

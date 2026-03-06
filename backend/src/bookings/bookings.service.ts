@@ -42,6 +42,8 @@ export class BookingsService {
             overrideTotal,
             overrideReason,
             whatsappNumber,
+            isGroupBooking = false,
+            groupSize,
         } = createBookingDto;
 
         const bookingSourceId = rawBookingSourceId || undefined;
@@ -81,6 +83,22 @@ export class BookingsService {
             throw new BadRequestException('No rooms available for the selected dates');
         }
 
+        // 2.1 Validate Group Capacity (Property Level)
+        if (isGroupBooking && groupSize) {
+            const roomType = await this.prisma.roomType.findUnique({
+                where: { id: roomTypeId },
+                select: { property: { select: { allowsGroupBooking: true, maxGroupCapacity: true } } }
+            });
+
+            if (!roomType?.property.allowsGroupBooking) {
+                throw new BadRequestException('This property does not support group bookings');
+            }
+
+            if (roomType.property.maxGroupCapacity && groupSize > roomType.property.maxGroupCapacity) {
+                throw new BadRequestException(`Group size exceeds property's maximum capacity of ${roomType.property.maxGroupCapacity}`);
+            }
+        }
+
         // 3. Calculate pricing
         const pricing = await this.pricingService.calculatePrice(
             roomTypeId,
@@ -91,7 +109,52 @@ export class BookingsService {
             couponCode,
             referralCode,
             createBookingDto.currency || 'INR',
+            isGroupBooking,
+            groupSize,
         );
+
+        // 3.1 Handle Group Room Allocation across Multiple Rooms
+        let allocatedRooms: any[] = [];
+        if (isGroupBooking && groupSize) {
+            const baseRoomType = await this.prisma.roomType.findUnique({
+                where: { id: roomTypeId },
+                select: { propertyId: true }
+            });
+
+            if (!baseRoomType) throw new NotFoundException('Room type not found');
+
+            // Find all RoomTypes in the Group Pool for this property
+            const groupPoolTypes = await this.prisma.roomType.findMany({
+                where: {
+                    propertyId: baseRoomType.propertyId,
+                    isAvailableForGroupBooking: true,
+                }
+            });
+
+            // Find all available rooms across these types
+            let allAvailableRooms: any[] = [];
+            for (const type of groupPoolTypes) {
+                const availableForType = await this.availabilityService.getAvailableRooms(type.id, checkIn, checkOut);
+                allAvailableRooms.push(...availableForType.map(r => ({
+                    ...r,
+                    capacity: type.maxAdults + (type.maxChildren || 0)
+                })));
+            }
+
+            // Sort by capacity descending to fill larger rooms first
+            allAvailableRooms.sort((a, b) => b.capacity - a.capacity);
+
+            let remainingHeadcount = groupSize;
+            for (const room of allAvailableRooms) {
+                if (remainingHeadcount <= 0) break;
+                allocatedRooms.push(room);
+                remainingHeadcount -= room.capacity;
+            }
+
+            if (remainingHeadcount > 0) {
+                throw new BadRequestException(`Not enough capacity in the group pool for ${groupSize} guests. Only ${groupSize - remainingHeadcount} spots available.`);
+            }
+        }
 
         // 4. Handle price override
         let finalTotal = pricing.totalAmount;
@@ -107,13 +170,17 @@ export class BookingsService {
 
         // 5. Get an available room
         let selectedRoom: any;
-        const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId, checkIn, checkOut);
-        if (roomId) {
-            selectedRoom = availableRooms.find(r => r.id === roomId);
-            if (!selectedRoom) throw new BadRequestException('Selected room is not available');
+        if (isGroupBooking && allocatedRooms.length > 0) {
+            selectedRoom = allocatedRooms[0];
         } else {
-            if (availableRooms.length === 0) throw new BadRequestException('No rooms available');
-            selectedRoom = availableRooms[0];
+            const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId, checkIn, checkOut);
+            if (roomId) {
+                selectedRoom = availableRooms.find(r => r.id === roomId);
+                if (!selectedRoom) throw new BadRequestException('Selected room is not available');
+            } else {
+                if (availableRooms.length === 0) throw new BadRequestException('No rooms available');
+                selectedRoom = availableRooms[0];
+            }
         }
 
         // 6. Resolve IDs and generation logic
@@ -241,7 +308,7 @@ export class BookingsService {
                     paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'FULL' : 'UNPAID',
                     confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
                     guests: {
-                        create: guests.map(g => ({
+                        create: (isGroupBooking && guests.length === 0) ? [] : guests.map(g => ({
                             firstName: g.firstName,
                             lastName: g.lastName,
                             email: g.email,
@@ -253,6 +320,8 @@ export class BookingsService {
                             idImage: g.idImage,
                         })),
                     },
+                    isGroupBooking,
+                    groupSize,
                 },
                 include: {
                     room: true,
@@ -338,11 +407,29 @@ export class BookingsService {
                 });
             }
 
+            // 7.7 If Group Booking, block extra rooms
+            if (isGroupBooking && allocatedRooms.length > 1) {
+                const extraRooms = allocatedRooms.slice(1);
+                for (const room of extraRooms) {
+                    await tx.roomBlock.create({
+                        data: {
+                            roomId: room.id,
+                            startDate: checkIn,
+                            endDate: checkOut,
+                            reason: `Group Booking ${bookingNumber}`,
+                            notes: `Automatically blocked for group booking ${newBooking.id}`,
+                            createdById: finalBookingUserId,
+                            bookingId: newBooking.id,
+                        }
+                    });
+                }
+            }
+
             return newBooking;
         });
 
         // 8. Broadcast notifications (Outside transaction)
-        if (booking.status === 'CONFIRMED') {
+        if (['CONFIRMED', 'RESERVED'].includes(booking.status)) {
             await this.notificationsService.broadcastNewBooking(booking);
         }
 
@@ -577,8 +664,8 @@ export class BookingsService {
     async checkIn(id: string, user: any, dto?: any) {
         const booking = await this.findOne(id, user);
 
-        if (booking.status !== 'CONFIRMED') {
-            throw new BadRequestException('Only confirmed bookings can be checked in');
+        if (!['CONFIRMED', 'RESERVED'].includes(booking.status)) {
+            throw new BadRequestException('Only confirmed or reserved bookings can be checked in');
         }
 
         // 1. Update guest details if provided
@@ -697,8 +784,8 @@ export class BookingsService {
     async cancel(id: string, user: any, reason?: string) {
         const booking = await this.findOne(id, user);
 
-        if (!['PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status)) {
-            throw new BadRequestException('Only pending or confirmed bookings can be cancelled');
+        if (!['PENDING_PAYMENT', 'CONFIRMED', 'RESERVED'].includes(booking.status)) {
+            throw new BadRequestException('Only pending, confirmed, or reserved bookings can be cancelled');
         }
 
         const updated = await this.prisma.booking.update({
@@ -943,6 +1030,25 @@ export class BookingsService {
     /**
      * Generate unique booking number
      */
+    async cancelPayment(id: string, reason: string = 'Payment dismissed by user') {
+        const booking = await this.prisma.booking.findUnique({ where: { id } });
+        if (!booking) throw new NotFoundException('Booking not found');
+
+        if (booking.status !== 'PENDING_PAYMENT') {
+            throw new BadRequestException('Can only cancel payment for pending bookings');
+        }
+
+        const statusLabel = reason.toLowerCase().includes('fail') ? 'PAYMENT_FAILED' : 'PAYMENT_CANCELLED';
+
+        return this.prisma.booking.update({
+            where: { id },
+            data: {
+                status: statusLabel as any,
+                cancelledAt: new Date(),
+            },
+        });
+    }
+
     private async generateBookingNumber(): Promise<string> {
         const date = new Date();
         const year = date.getFullYear();

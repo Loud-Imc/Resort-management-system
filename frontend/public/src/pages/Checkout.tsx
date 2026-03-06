@@ -40,12 +40,12 @@ const userSchema = z.object({
 }).refine((data) => {
     if (data.idType && !data.idNumber) return false;
     if (!data.idType) return true;
-    
+
     const patternObj = ID_VALIDATION_PATTERNS[data.idType];
     if (patternObj) {
         return patternObj.pattern.test((data.idNumber || '').replace(/\s/g, ''));
     }
-    
+
     return true;
 }, {
     message: "Invalid ID number format",
@@ -106,6 +106,8 @@ export default function Checkout() {
 
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
+    const isGroupBooking = searchParams.get('isGroupBooking') === 'true';
+    const groupSize = Number(searchParams.get('groupSize')) || 10;
 
     const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
         resolver: zodResolver(userSchema),
@@ -132,6 +134,8 @@ export default function Checkout() {
             adultsCount: adults,
             childrenCount: children,
             currency: selectedCurrency,
+            isGroupBooking,
+            groupSize
         }),
         enabled: !!roomId,
     });
@@ -148,6 +152,8 @@ export default function Checkout() {
             couponCode: appliedCoupon || undefined,
             referralCode: appliedReferralCode || undefined,
             currency: selectedCurrency,
+            isGroupBooking,
+            groupSize
         }),
         enabled: !!roomId && (!!appliedCoupon || !!appliedReferralCode),
         retry: false,
@@ -235,6 +241,8 @@ export default function Checkout() {
                 paymentMethod: paymentMethod,
                 paymentOption: paymentOption,
                 currency: selectedCurrency,
+                isGroupBooking,
+                groupSize,
                 guests: [{
                     firstName: userData.firstName,
                     lastName: userData.lastName,
@@ -450,13 +458,12 @@ export default function Checkout() {
                                         <div className="relative">
                                             <input
                                                 {...register('idNumber')}
-                                                className={`w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all ${
-                                                    errors.idNumber 
-                                                        ? 'border-red-500 ring-red-50/50' 
+                                                className={`w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all ${errors.idNumber
+                                                        ? 'border-red-500 ring-red-50/50'
                                                         : watchIdType && ID_VALIDATION_PATTERNS[watchIdType]?.pattern.test(watchIdNumber.replace(/\s/g, ''))
                                                             ? 'border-emerald-500/50 ring-emerald-50/50'
                                                             : 'border-gray-200'
-                                                }`}
+                                                    }`}
                                                 placeholder={watchIdType && ID_VALIDATION_PATTERNS[watchIdType] ? ID_VALIDATION_PATTERNS[watchIdType].sample : "Enter document number"}
                                             />
                                             <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -470,11 +477,10 @@ export default function Checkout() {
                                         {errors.idNumber ? (
                                             <p className="text-[10px] text-red-500 font-bold pl-1 mt-1">{ID_VALIDATION_PATTERNS[watchIdType]?.message || errors.idNumber.message}</p>
                                         ) : watchIdType && ID_VALIDATION_PATTERNS[watchIdType] && (
-                                            <p className={`text-[10px] font-medium pl-1 mt-1 transition-all duration-300 ${
-                                                ID_VALIDATION_PATTERNS[watchIdType].pattern.test(watchIdNumber.replace(/\s/g, ''))
+                                            <p className={`text-[10px] font-medium pl-1 mt-1 transition-all duration-300 ${ID_VALIDATION_PATTERNS[watchIdType].pattern.test(watchIdNumber.replace(/\s/g, ''))
                                                     ? 'text-emerald-600 font-bold'
                                                     : 'text-gray-500'
-                                            }`}>
+                                                }`}>
                                                 {ID_VALIDATION_PATTERNS[watchIdType].pattern.test(watchIdNumber.replace(/\s/g, ''))
                                                     ? `Perfect, ${watchIdType.toLowerCase()} format matches`
                                                     : ID_VALIDATION_PATTERNS[watchIdType].sample
@@ -707,8 +713,15 @@ export default function Checkout() {
                                 </div>
 
                                 <div>
-                                    <h4 className="font-bold text-gray-900">{selectedRoom.name}</h4>
-                                    <p className="text-sm text-gray-500">{nights} Nights, {adults} Guests</p>
+                                    <h4 className="font-bold text-gray-900">
+                                        {isGroupBooking ? 'Group Stay Package' : selectedRoom.name}
+                                    </h4>
+                                    <p className="text-sm text-gray-500">
+                                        {isGroupBooking ? `Property: ${selectedRoom.property?.name || 'Selected Property'}` : selectedRoom.description?.slice(0, 50) + '...'}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        {nights} Nights, {isGroupBooking ? `${groupSize} Guests (Group Stay)` : `${adults + children} Guests`}
+                                    </p>
                                 </div>
 
                                 <div className="border-t border-dashed border-gray-200 my-4"></div>

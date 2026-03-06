@@ -19,6 +19,8 @@ export const bookingService = {
             radius: params.radius,
             currency: params.currency,
             propertyId: params.propertyId,
+            isGroupBooking: params.isGroupBooking,
+            groupSize: params.groupSize,
         });
         return data;
     },
@@ -62,6 +64,8 @@ export const bookingService = {
         couponCode?: string;
         referralCode?: string;
         currency?: string;
+        isGroupBooking?: boolean;
+        groupSize?: number;
     }) => {
         const { data } = await api.post('/bookings/calculate-price', params);
         return data;

@@ -122,6 +122,7 @@ model RoomType {
   rooms              Room[]
   cancellationPolicyId String?
   cancellationPolicy   CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  isAvailableForGroupBooking Boolean @default(false)
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -173,6 +174,8 @@ model RoomBlock {
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  bookingId   String?
+  booking     Booking? @relation(fields: [bookingId], references: [id])
   createdBy   User     @relation(fields: [createdById], references: [id])
   room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
@@ -227,8 +230,11 @@ model Booking {
   paymentOption           BookingPaymentOption @default(FULL)
   paymentStatus           BookingPaymentStatus @default(UNPAID)
   isSeenByProperty        Boolean              @default(false)
+  isGroupBooking          Boolean              @default(false)
+  groupSize               Int?
   auditLogs               AuditLog[]
   guests                  BookingGuest[]
+  roomBlocks              RoomBlock[]
   agent                   User?                @relation("AgentBookings", fields: [agentId], references: [id])
   bookingSource           BookingSource?       @relation(fields: [bookingSourceId], references: [id])
   channelPartner          ChannelPartner?      @relation("CPReferrals", fields: [channelPartnerId], references: [id])
@@ -456,6 +462,9 @@ model Property {
   cancellationPolicies CancellationPolicy[] @relation("PropertyPolicies")
   defaultCancellationPolicyId String?
   defaultCancellationPolicy   CancellationPolicy? @relation("PropertyDefaultPolicy", fields: [defaultCancellationPolicyId], references: [id])
+  allowsGroupBooking   Boolean           @default(false)
+  maxGroupCapacity     Int?
+  groupPricePerHead    Decimal?          @db.Decimal(10, 2)
   icalSyncs            PropertyIcal[]
 
   @@map("properties")
@@ -705,12 +714,15 @@ enum RoomStatus {
 
 enum BookingStatus {
   PENDING_PAYMENT
+  RESERVED
   CONFIRMED
   CHECKED_IN
   CHECKED_OUT
   CANCELLED
   NO_SHOW
   REFUNDED
+  PAYMENT_FAILED
+  PAYMENT_CANCELLED
 }
 
 enum BookingPaymentStatus {

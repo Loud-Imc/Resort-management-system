@@ -99,4 +99,9 @@ export class CreateRoomTypeDto {
     @IsString()
     @IsNotEmpty()
     propertyId: string;
+
+    @ApiProperty({ example: false, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isAvailableForGroupBooking?: boolean;
 }

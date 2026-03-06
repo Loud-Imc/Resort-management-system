@@ -36,6 +36,10 @@ interface SearchProps {
     setIsExpanded: (v: boolean) => void;
     categories: PropertyCategory[];
     theme?: 'dark' | 'light';
+    isGroupBooking: boolean;
+    setIsGroupBooking: (v: boolean) => void;
+    groupSize: number;
+    setGroupSize: (v: number) => void;
 }
 
 export default function SearchMobile({
@@ -49,7 +53,9 @@ export default function SearchMobile({
     handleSearch,
     isExpanded, setIsExpanded,
     categories,
-    theme = 'dark'
+    theme = 'dark',
+    isGroupBooking, setIsGroupBooking,
+    groupSize, setGroupSize
 }: SearchProps) {
     const isDark = theme === 'dark';
 
@@ -207,36 +213,64 @@ export default function SearchMobile({
 
                     {/* Guests */}
                     <div className={`p-4 active:${isDark ? 'bg-black/5' : 'bg-gray-50'} transition-colors cursor-pointer group`}>
-                        <label className={`block text-[8px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/40' : 'text-primary-500/80'} mb-1.5`}>Who's coming?</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className={`block text-[8px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/40' : 'text-primary-500/80'}`}>Who's coming?</label>
+                            <label className="flex items-center gap-2 cursor-pointer group/toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={isGroupBooking}
+                                    onChange={(e) => setIsGroupBooking(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className={`w-8 h-4 bg-gray-200 dark:bg-white/10 rounded-full peer peer-checked:bg-primary-600 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4`}></div>
+                                <span className={`text-[9px] font-black uppercase tracking-widest ${isGroupBooking ? 'text-primary-400' : isDark ? 'text-white/40' : 'text-gray-400'}`}>Grp</span>
+                            </label>
+                        </div>
                         <div className="flex items-center gap-4">
                             <Users className={`h-5 w-5 ${isDark ? 'text-white/40' : 'text-gray-400'}`} />
-                            <div className="flex-1 flex items-baseline gap-2">
-                                <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{adults + children}</span>
-                                <span className={`text-[10px] font-black ${isDark ? 'text-white/60' : 'text-gray-900'} uppercase`}>Travellers</span>
-                            </div>
-                            <div className="flex gap-4">
-                                <select
-                                    value={adults}
-                                    onChange={(e) => setAdults(Number(e.target.value))}
-                                    className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-primary-600'} bg-transparent border-none p-0 focus:ring-0 appearance-none`}
-                                >
-                                    {[1, 2, 3, 4, 5, 6].map(num => <option key={num} value={num} className="bg-primary-900 text-white">{num} Adult</option>)}
-                                </select>
-                                <select
-                                    value={children}
-                                    onChange={(e) => setChildren(Number(e.target.value))}
-                                    className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-primary-600'} bg-transparent border-none p-0 focus:ring-0 appearance-none`}
-                                >
-                                    {[0, 1, 2, 3, 4].map(num => <option key={num} value={num} className="bg-primary-900 text-white">{num} Child</option>)}
-                                </select>
-                                <select
-                                    value={rooms}
-                                    onChange={(e) => setRooms(Number(e.target.value))}
-                                    className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-primary-600'} bg-transparent border-none p-0 focus:ring-0 appearance-none`}
-                                >
-                                    {[1, 2, 3, 4, 5, 6].map(num => <option key={num} value={num} className="bg-primary-900 text-white">{num} Room</option>)}
-                                </select>
-                            </div>
+                            {isGroupBooking ? (
+                                <div className="flex-1 flex items-baseline gap-2">
+                                    <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{groupSize}</span>
+                                    <span className={`text-[10px] font-black ${isDark ? 'text-white/60' : 'text-gray-900'} uppercase`}>Members</span>
+                                    <select
+                                        value={groupSize}
+                                        onChange={(e) => setGroupSize(Number(e.target.value))}
+                                        className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-primary-600'} bg-transparent border-none p-0 focus:ring-0 appearance-none ml-auto`}
+                                    >
+                                        {[10, 20, 30, 40, 50, 100].map(num => <option key={num} value={num} className="bg-primary-900 text-white">{num}</option>)}
+                                    </select>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex-1 flex items-baseline gap-2">
+                                        <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{adults + children}</span>
+                                        <span className={`text-[10px] font-black ${isDark ? 'text-white/60' : 'text-gray-900'} uppercase`}>Travellers</span>
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <select
+                                            value={adults}
+                                            onChange={(e) => setAdults(Number(e.target.value))}
+                                            className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-primary-600'} bg-transparent border-none p-0 focus:ring-0 appearance-none`}
+                                        >
+                                            {[1, 2, 3, 4, 5, 6].map(num => <option key={num} value={num} className="bg-primary-900 text-white">{num} Adult</option>)}
+                                        </select>
+                                        <select
+                                            value={children}
+                                            onChange={(e) => setChildren(Number(e.target.value))}
+                                            className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-primary-600'} bg-transparent border-none p-0 focus:ring-0 appearance-none`}
+                                        >
+                                            {[0, 1, 2, 3, 4].map(num => <option key={num} value={num} className="bg-primary-900 text-white">{num} Child</option>)}
+                                        </select>
+                                        <select
+                                            value={rooms}
+                                            onChange={(e) => setRooms(Number(e.target.value))}
+                                            className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-primary-600'} bg-transparent border-none p-0 focus:ring-0 appearance-none`}
+                                        >
+                                            {[1, 2, 3, 4, 5, 6].map(num => <option key={num} value={num} className="bg-primary-900 text-white">{num} Room</option>)}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

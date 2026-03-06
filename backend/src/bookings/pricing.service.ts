@@ -45,15 +45,23 @@ export class PricingService {
         couponCode?: string,
         referralCode?: string,
         targetCurrency: string = 'INR',
+        isGroupBooking: boolean = false,
+        groupSize?: number,
     ): Promise<PricingBreakdown> {
         // 1. Get room type pricing configuration
         const roomType = await this.prisma.roomType.findUnique({
             where: { id: roomTypeId },
             include: { property: true },
-        });
+        }) as any;
 
         if (!roomType) {
+            console.error(`[PricingService] Room type not found: ${roomTypeId}`);
             throw new NotFoundException('Room type not found');
+        }
+
+        if (!roomType.property) {
+            console.error(`[PricingService] Property relation missing for roomType: ${roomTypeId}`);
+            throw new BadRequestException('Property information missing for this room type');
         }
 
         const baseCurrency = (roomType.property as any).baseCurrency || 'INR';
@@ -69,30 +77,55 @@ export class PricingService {
             throw new BadRequestException('Check-out date must be after check-in date');
         }
 
-        // Validate guest counts
-        if (adultsCount > roomType.maxAdults) {
-            throw new BadRequestException(
-                `Maximum ${roomType.maxAdults} adults allowed for this room type`,
-            );
+        // Validate guest counts (Skip for group bookings as they use groupSize and per-head pricing)
+        if (!isGroupBooking) {
+            if (adultsCount > roomType.maxAdults) {
+                throw new BadRequestException(
+                    `Maximum ${roomType.maxAdults} adults allowed for this room type`,
+                );
+            }
+
+            if (childrenCount > roomType.maxChildren) {
+                throw new BadRequestException(
+                    `Maximum ${roomType.maxChildren} children allowed for this room type`,
+                );
+            }
+        } else if (groupSize && groupSize > (roomType.maxAdults + roomType.maxChildren) * 5) {
+            // Optional: sanity check for group size (e.g. 5x total max capacity?)
+            // Or just trust the isAvailableForGroupBooking flag implies it's a hall/dorm
         }
 
-        if (childrenCount > roomType.maxChildren) {
-            throw new BadRequestException(
-                `Maximum ${roomType.maxChildren} children allowed for this room type`,
-            );
+        // 3. Calculate base price
+        let baseAmount = 0;
+        let extraAdultAmount = 0;
+        let extraChildAmount = 0;
+        let basePricePerNight = 0;
+
+        if (isGroupBooking && groupSize) {
+            if (!roomType.isAvailableForGroupBooking) {
+                console.warn(`[PricingService] Group booking attempted on non-group roomType: ${roomTypeId}`);
+                throw new BadRequestException('This room type is not available for group booking pool');
+            }
+            const propertyGroupPrice = (roomType.property as any).groupPricePerHead;
+            if (propertyGroupPrice === null || propertyGroupPrice === undefined) {
+                console.error(`[PricingService] Missing groupPricePerHead for property: ${roomType.property.name}`);
+                throw new BadRequestException(`Group price per head is not configured for property: ${roomType.property.name}`);
+            }
+            basePricePerNight = Number(propertyGroupPrice) * groupSize;
+            baseAmount = basePricePerNight * numberOfNights;
+        } else {
+            // Standard pricing (nights * base price for 1 adult)
+            basePricePerNight = Number(roomType.basePrice);
+            baseAmount = basePricePerNight * numberOfNights;
+
+            // 4. Calculate extra adult charges
+            const extraAdults = Math.max(0, adultsCount - 1); // First adult included in base
+            extraAdultAmount = extraAdults * Number(roomType.extraAdultPrice) * numberOfNights;
+
+            // 5. Calculate extra child charges
+            const extraChildren = Math.max(0, childrenCount - roomType.freeChildrenCount);
+            extraChildAmount = extraChildren * Number(roomType.extraChildPrice) * numberOfNights;
         }
-
-        // 3. Calculate base price (nights * base price for 1 adult)
-        const basePricePerNight = Number(roomType.basePrice);
-        const baseAmount = basePricePerNight * numberOfNights;
-
-        // 4. Calculate extra adult charges
-        const extraAdults = Math.max(0, adultsCount - 1); // First adult included in base
-        const extraAdultAmount = extraAdults * Number(roomType.extraAdultPrice) * numberOfNights;
-
-        // 5. Calculate extra child charges
-        const extraChildren = Math.max(0, childrenCount - roomType.freeChildrenCount);
-        const extraChildAmount = extraChildren * Number(roomType.extraChildPrice) * numberOfNights;
 
         // 6. Apply seasonal pricing rules if any
         const pricingRule = await this.getApplicablePricingRule(
