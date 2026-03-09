@@ -104,4 +104,10 @@ export class CreateRoomTypeDto {
     @IsBoolean()
     @IsOptional()
     isAvailableForGroupBooking?: boolean;
+
+    @ApiProperty({ example: 6, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Type(() => Number)
+    groupMaxOccupancy?: number;
 }

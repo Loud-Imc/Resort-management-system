@@ -22,6 +22,7 @@ export interface RoomType {
     property?: Property;
     bookingCurrency?: string;
     isAvailableForGroupBooking?: boolean;
+    groupMaxOccupancy?: number;
     groupPricePerHead?: number;
 }
 
@@ -127,6 +128,8 @@ export interface Property {
     allowsGroupBooking?: boolean;
     maxGroupCapacity?: number;
     groupPricePerHead?: number;
+    groupPriceAdult?: number;
+    groupPriceChild?: number;
 }
 
 export interface PropertySearchParams {

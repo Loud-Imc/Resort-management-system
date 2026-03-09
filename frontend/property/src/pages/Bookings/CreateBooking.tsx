@@ -28,6 +28,8 @@ const bookingSchema = z.object({
     bookingSourceId: z.string().optional(),
     roomId: z.string().optional(),
     isManualBooking: z.boolean().optional(),
+    isGroupBooking: z.boolean().optional(),
+    groupSize: z.number().optional(),
     overrideTotal: z.number().optional(),
     overrideReason: z.string().optional(),
     paymentMethod: z.enum(['CASH', 'UPI', 'ONLINE']),
@@ -57,7 +59,7 @@ export default function CreateBooking() {
     const preSelectedRoomTypeId = searchParams.get('roomTypeId');
 
     const {
-        register, control, handleSubmit,
+        register, control, handleSubmit, watch,
         formState: { errors }, getValues, setValue,
     } = useForm<BookingFormData>({
         resolver: zodResolver(bookingSchema),
@@ -69,6 +71,8 @@ export default function CreateBooking() {
             roomTypeId: preSelectedRoomTypeId || '',
             roomId: preSelectedRoomId || undefined,
             isManualBooking: true,
+            isGroupBooking: false,
+            groupSize: undefined,
             overrideTotal: undefined,
             overrideReason: '',
             paymentMethod: 'CASH',
@@ -101,6 +105,8 @@ export default function CreateBooking() {
 
     const { fields, append, remove } = useFieldArray({ control, name: 'guests' });
 
+    const isGroupMode = !!watch('isGroupBooking');
+
     const handleCheckAvailability = async () => {
         const values = getValues();
         if (!values.checkInDate || !values.checkOutDate || !values.roomTypeId) return;
@@ -108,19 +114,23 @@ export default function CreateBooking() {
         setAvailability(null);
         setPriceDetails(null);
         try {
-            const avail = await bookingsService.checkAvailability({
+            const avail = await (bookingsService as any).checkAvailability({
                 roomTypeId: values.roomTypeId,
                 checkInDate: values.checkInDate,
                 checkOutDate: values.checkOutDate,
+                isGroupBooking: values.isGroupBooking,
+                groupSize: values.isGroupBooking ? Number(values.groupSize) : undefined,
             });
             setAvailability(avail);
             if (avail.available) {
-                const price = await bookingsService.calculatePrice({
+                const price = await (bookingsService as any).calculatePrice({
                     roomTypeId: values.roomTypeId,
                     checkInDate: values.checkInDate,
                     checkOutDate: values.checkOutDate,
                     adultsCount: Number(values.adultsCount),
                     childrenCount: Number(values.childrenCount),
+                    isGroupBooking: values.isGroupBooking,
+                    groupSize: values.isGroupBooking ? (Number(values.adultsCount) + Number(values.childrenCount)) : undefined,
                     couponCode: values.couponCode,
                     referralCode: values.referralCode,
                 });
@@ -209,12 +219,73 @@ export default function CreateBooking() {
                                     {errors.checkOutDate && <p className="text-red-500 text-xs mt-1">{errors.checkOutDate.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Adults</label>
-                                    <input type="number" min="1" {...register('adultsCount', { valueAsNumber: true })} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Children</label>
-                                    <input type="number" min="0" {...register('childrenCount', { valueAsNumber: true })} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm" />
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Guests & Capacity</label>
+                                        <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setValue('isGroupBooking', false);
+                                                    handleCheckAvailability();
+                                                }}
+                                                className={clsx('px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', !isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+                                            >
+                                                Standard
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setValue('isGroupBooking', true);
+                                                    setValue('groupSize', getValues('adultsCount') + getValues('childrenCount'));
+                                                    handleCheckAvailability();
+                                                }}
+                                                className={clsx('px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+                                            >
+                                                Group
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Adults (13+)</label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    {...register('adultsCount', {
+                                                        valueAsNumber: true,
+                                                        onChange: (e) => {
+                                                            if (isGroupMode) setValue('groupSize', (parseInt(e.target.value) || 1) + watch('childrenCount'));
+                                                            handleCheckAvailability();
+                                                        }
+                                                    })}
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Children (2-12)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    {...register('childrenCount', {
+                                                        valueAsNumber: true,
+                                                        onChange: (e) => {
+                                                            if (isGroupMode) setValue('groupSize', watch('adultsCount') + (parseInt(e.target.value) || 0));
+                                                            handleCheckAvailability();
+                                                        }
+                                                    })}
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 font-bold"
+                                                />
+                                            </div>
+                                        </div>
+                                        {isGroupMode && (
+                                            <div className="flex items-center justify-between py-2 px-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800 animate-in fade-in zoom-in-95">
+                                                <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Group Stay Package Active</span>
+                                                <span className="text-[10px] font-bold text-gray-500">Total: {watch('adultsCount') + watch('childrenCount')} Members</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Code (Optional)</label>

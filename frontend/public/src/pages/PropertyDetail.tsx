@@ -4,8 +4,9 @@ import { clsx } from 'clsx';
 import {
     MapPin, Star, Phone, Mail, CheckCircle, ArrowLeft,
     Wifi, Car, Coffee, Dumbbell, Waves, Loader2,
-    Building2, Users, BedDouble, ChevronRight, Clock, Utensils,
-    Tv, Trees, Sparkles, Lock, ConciergeBell, Ticket, Snowflake, Sunset, Mountain, Calendar
+    Building2, Users, Maximize, BedDouble, Bath, ChevronRight, Clock, Info, Utensils,
+    Tv, Trees, Sparkles, Lock, ConciergeBell, Ticket, Snowflake, Sunset, Mountain,
+    AlertCircle, Calendar
 } from 'lucide-react';
 import { propertyApi } from '../services/properties';
 import { bookingService } from '../services/booking';
@@ -282,67 +283,110 @@ export default function PropertyDetail() {
 
                                             return (
                                                 <div className={clsx(
-                                                    "p-8 hover:bg-gray-50/30 transition-colors relative",
+                                                    "p-6 hover:bg-gray-50/30 transition-colors relative",
                                                     isSoldOut && "opacity-75 grayscale-[0.5]"
                                                 )}>
                                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                                        {/* Left: Meta & Identity */}
                                                         <div className="md:col-span-1 space-y-4">
-                                                            <div className="relative aspect-square rounded-2xl overflow-hidden shadow-md">
+                                                            <div className="relative aspect-square rounded-2xl overflow-hidden shadow-md group">
                                                                 <img
                                                                     src={groupStay.images?.[0] || property.coverImage}
                                                                     alt="Group Stay"
-                                                                    className="w-full h-full object-cover"
+                                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                                 />
-                                                            </div>
-                                                            <div className="bg-primary-50 p-4 rounded-xl border border-primary-100">
-                                                                <div className="flex items-center gap-2 text-primary-700 mb-1">
-                                                                    <Users className="h-4 w-4" />
-                                                                    <span className="text-xs font-black uppercase tracking-wider">Group Special</span>
+                                                                <div className="absolute top-2 left-2 flex flex-col gap-1">
+                                                                    <span className="bg-primary-600 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-lg uppercase tracking-wider">
+                                                                        Group Special
+                                                                    </span>
+                                                                    <span className="bg-green-600 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-lg uppercase tracking-wider">
+                                                                        Best Value
+                                                                    </span>
                                                                 </div>
-                                                                <p className="text-[10px] text-primary-600 font-bold leading-tight">Price is locked per person regardless of room allocation.</p>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <h3 className="text-xl font-bold text-gray-900 leading-tight">
+                                                                    Group Stay Package
+                                                                </h3>
+                                                                <div className="flex flex-col gap-2 pt-2">
+                                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                        <Users className="h-3.5 w-3.5 text-primary-500" />
+                                                                        <span>Up to {property.maxGroupCapacity} Guests</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                        <Building2 className="h-3.5 w-3.5 text-primary-500" />
+                                                                        <span>Whole Property Access</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-primary-600 text-xs font-semibold flex items-center gap-1 mt-3">
+                                                                    Contact for Special Requests <Info className="h-3 w-3" />
+                                                                </div>
                                                             </div>
                                                         </div>
 
-                                                        <div className="md:col-span-2 space-y-4">
-                                                            <div>
-                                                                <h3 className="text-2xl font-black text-gray-900 mb-2">Group Stay Package</h3>
-                                                                <p className="text-sm text-gray-600 leading-relaxed font-medium">
+                                                        {/* Center: Benefits & Features */}
+                                                        <div className="md:col-span-2 space-y-4 border-l border-gray-100 pl-8">
+                                                            <div className="space-y-3">
+                                                                <h4 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Group Benefits & Inclusions</h4>
+                                                                <ul className="space-y-2.5">
+                                                                    <li className="flex items-start gap-2.5 text-sm text-green-700 font-medium bg-green-50/50 p-2 rounded-lg border border-green-100/50">
+                                                                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                                        <span>Flexible Room Allocation across the property</span>
+                                                                    </li>
+                                                                    <li className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                        <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
+                                                                            <Users className="h-3.5 w-3.5" />
+                                                                        </div>
+                                                                        <span className="pt-0.5">Pooled Accommodations for consistent pricing</span>
+                                                                    </li>
+                                                                    <li className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                        <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
+                                                                            <CheckCircle className="h-4 w-4 text-primary-600" />
+                                                                        </div>
+                                                                        <span className="pt-0.5">Unified Billing & Priority Check-in</span>
+                                                                    </li>
+                                                                    <li className="flex items-start gap-2.5 text-sm text-blue-700 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
+                                                                        <Sparkles className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                                                                        <span>Dedicated Group Hosting & Setup</span>
+                                                                    </li>
+                                                                </ul>
+                                                            </div>
+
+                                                            <div className="pt-4 border-t border-dashed border-gray-100">
+                                                                <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
                                                                     {groupStay.description}
                                                                 </p>
                                                             </div>
-                                                            <div className="space-y-3 pt-4 border-t border-gray-100">
-                                                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Included Features</h4>
-                                                                <div className="grid grid-cols-2 gap-3">
-                                                                    <div className="flex items-center gap-2.5 text-xs text-gray-700 font-bold">
-                                                                        <CheckCircle className="h-4 w-4 text-green-500" />
-                                                                        <span>Pooled Accommodations</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2.5 text-xs text-gray-700 font-bold">
-                                                                        <CheckCircle className="h-4 w-4 text-green-500" />
-                                                                        <span>Unified Pricing</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2.5 text-xs text-gray-700 font-bold">
-                                                                        <CheckCircle className="h-4 w-4 text-green-500" />
-                                                                        <span>Priority Group Setup</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2.5 text-xs text-gray-700 font-bold">
-                                                                        <CheckCircle className="h-4 w-4 text-green-500" />
-                                                                        <span>Dedicated Host</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
                                                         </div>
 
+                                                        {/* Right: Pricing & CTA */}
                                                         <div className="md:col-span-1 border-l border-gray-100 pl-8 flex flex-col justify-between">
-                                                            <div className="text-right">
-                                                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Starting from</div>
-                                                                <div className="text-4xl font-black text-gray-900">
-                                                                    {formatPrice(property.groupPricePerHead || 0, selectedCurrency, rates)}
+                                                            <div className="text-right space-y-3">
+                                                                {/* Adult Pricing */}
+                                                                <div className="space-y-0.5">
+                                                                    <div className="text-4xl font-black text-gray-900 leading-none">
+                                                                        {formatPrice(property.groupPriceAdult || property.groupPricePerHead || 0, selectedCurrency, rates)}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Per Adult / Night</div>
                                                                 </div>
-                                                                <div className="text-[10px] text-gray-500 font-bold mt-1">/ person / night</div>
+
+                                                                {/* Child Pricing (Only if different or explicitly set) */}
+                                                                {(property.groupPriceChild !== null && property.groupPriceChild !== undefined && property.groupPriceChild !== property.groupPriceAdult) && (
+                                                                    <div className="pt-2 border-t border-dashed border-gray-100">
+                                                                        <div className="text-2xl font-black text-primary-600 leading-none">
+                                                                            {formatPrice(property.groupPriceChild, selectedCurrency, rates)}
+                                                                        </div>
+                                                                        <div className="text-[9px] text-gray-400 font-black uppercase tracking-tighter">Per Child / Night</div>
+                                                                    </div>
+                                                                )}
                                                             </div>
 
-                                                            <div className="mt-8">
+                                                            <div className="space-y-3 mt-8">
+                                                                <div className="bg-primary-50 text-primary-700 p-3 rounded-lg border border-primary-100">
+                                                                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Group Privilege</p>
+                                                                    <p className="text-[11px] leading-snug">Locked pricing per head regardless of room type.</p>
+                                                                </div>
+
                                                                 {isExceedingCapacity ? (
                                                                     <div className="space-y-3">
                                                                         <button disabled className="w-full py-4 bg-red-50 text-red-600 border border-red-100 font-bold rounded-xl cursor-not-allowed text-[10px] uppercase tracking-widest">
@@ -353,19 +397,34 @@ export default function PropertyDetail() {
                                                                         </p>
                                                                     </div>
                                                                 ) : isSoldOut ? (
-                                                                    <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-bold rounded-xl border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest">
-                                                                        Fully Booked
-                                                                    </button>
+                                                                    <div className="space-y-3">
+                                                                        <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-bold rounded-xl border border-gray-200 cursor-not-allowed text-sm uppercase tracking-wider">
+                                                                            Sold Out
+                                                                        </button>
+                                                                        <p className="text-[10px] text-gray-500 font-bold text-center leading-tight font-serif italic">Group stays sell fast!</p>
+                                                                    </div>
                                                                 ) : (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
                                                                         to={checkIn && checkOut ? `/book?roomId=${groupStay.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=true&groupSize=${groupSize}` : '#'}
-                                                                        className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-xl shadow-lg shadow-primary-600/20 transition-all text-xs uppercase tracking-widest"
+                                                                        className="block w-full py-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white text-center font-bold rounded-xl shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-sm uppercase tracking-wider"
                                                                     >
-                                                                        {(!checkIn || !checkOut) ? 'Dates Mandatory' : 'Book Group Stay'}
+                                                                        {(!checkIn || !checkOut) ? 'Select Dates' : 'Book Group Stay'}
                                                                     </Link>
                                                                 )}
                                                             </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Amenities Tray */}
+                                                    <div className="mt-8 pt-6 border-t border-dashed border-gray-200">
+                                                        <div className="flex flex-wrap gap-4">
+                                                            {property.amenities?.slice(0, 8).map((amenity, idx) => (
+                                                                <div key={idx} className="flex items-center gap-2 text-[10px] text-gray-400 font-black uppercase tracking-widest hover:text-primary-600 transition-colors cursor-default">
+                                                                    {getFeatureIcon(amenity)}
+                                                                    <span>{amenity}</span>
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -378,70 +437,225 @@ export default function PropertyDetail() {
                                             const isFundamentallySoldOut = roomType.rooms && roomType.rooms.length > 0 &&
                                                 roomType.rooms.every((r: any) => r.status !== 'AVAILABLE');
                                             const isSoldOut = (checkIn && checkOut) ? availabilityInfo?.isSoldOut : isFundamentallySoldOut;
-                                            // const availableCount = (checkIn && checkOut) ? availabilityInfo?.availableCount : 10; // dummy for preview
+                                            const availableCount = (checkIn && checkOut) ? availabilityInfo?.availableCount : roomType.rooms?.filter((r: any) => r.status === 'AVAILABLE').length;
 
                                             return (
                                                 <div key={roomType.id} className={clsx(
                                                     "p-6 hover:bg-gray-50/30 transition-colors relative",
                                                     isSoldOut && "opacity-75 grayscale-[0.5]"
                                                 )}>
+                                                    {isSoldOut && (
+                                                        <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                                            <div className="bg-white/90 shadow-xl border border-rose-200 px-6 py-3 rounded-2xl flex flex-col items-center gap-1 transform -rotate-3">
+                                                                <span className="text-rose-600 font-black text-xl uppercase tracking-tighter">Fully Booked</span>
+                                                                <span className="text-gray-500 text-[10px] font-bold">Try different dates for this room</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                                        {/* Left: Photos & Basic Info */}
                                                         <div className="md:col-span-1 space-y-4">
                                                             <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-sm group">
                                                                 {roomType.images && roomType.images.length > 0 ? (
-                                                                    <img src={roomType.images[0]} alt={roomType.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                                    <img
+                                                                        src={roomType.images[0]}
+                                                                        alt={roomType.name}
+                                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                                    />
                                                                 ) : (
                                                                     <div className="w-full h-full bg-gray-100 flex items-center justify-center">
                                                                         <Building2 className="h-10 w-10 text-gray-300" />
                                                                     </div>
                                                                 )}
+                                                                <Link
+                                                                    to={`/properties/${property.slug}/rooms/${roomType.id}`}
+                                                                    className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1.5 border border-white/10 hover:bg-black/80 transition-colors"
+                                                                >
+                                                                    <span>{roomType.images?.length || 0} PHOTOS</span>
+                                                                    <ChevronRight className="h-2.5 w-2.5" />
+                                                                </Link>
                                                             </div>
+
                                                             <div className="space-y-1">
-                                                                <h3 className="text-lg font-bold text-gray-900 leading-tight">{roomType.name}</h3>
+                                                                <div className="flex items-start justify-between">
+                                                                    <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                                                                        {roomType.name}
+                                                                    </h3>
+                                                                    {isSoldOut ? (
+                                                                        <span className="bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-rose-200 shadow-sm shrink-0 whitespace-nowrap ml-2">
+                                                                            Sold Out
+                                                                        </span>
+                                                                    ) : roomType.marketingBadgeText && (
+                                                                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border shadow-sm shrink-0 whitespace-nowrap ml-2 ${roomType.marketingBadgeType === 'URGENT'
+                                                                            ? 'bg-red-50 text-red-600 border-red-200 shadow-red-100/50'
+                                                                            : roomType.marketingBadgeType === 'NEUTRAL'
+                                                                                ? 'bg-gray-50 text-gray-600 border-gray-200'
+                                                                                : 'bg-green-50 text-green-600 border-green-200'
+                                                                            }`}>
+                                                                            {roomType.marketingBadgeText}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="flex flex-col gap-2 pt-2">
+                                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                        <Maximize className="h-3.5 w-3.5 text-primary-500" />
+                                                                        <span>{roomType.size || 280} sq.ft</span>
+                                                                    </div>
                                                                     <div className="flex items-center gap-2 text-xs text-gray-500">
                                                                         <BedDouble className="h-3.5 w-3.5 text-primary-500" />
                                                                         <span>{roomType.maxAdults} Adult(s) & {roomType.maxChildren} Child(ren)</span>
                                                                     </div>
+                                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                        <Bath className="h-3.5 w-3.5 text-primary-500" />
+                                                                        <span>Private Bathroom</span>
+                                                                    </div>
                                                                 </div>
+                                                                <Link
+                                                                    to={`/properties/${property.slug}/rooms/${roomType.id}`}
+                                                                    className="text-primary-600 text-xs font-semibold hover:underline flex items-center gap-1 mt-3"
+                                                                >
+                                                                    View Details <Info className="h-3 w-3" />
+                                                                </Link>
                                                             </div>
                                                         </div>
 
+                                                        {/* Center: Highlights & Features */}
                                                         <div className="md:col-span-2 space-y-4 border-l border-gray-100 pl-8">
                                                             <div className="space-y-3">
-                                                                <h4 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Room Highlights</h4>
+                                                                <h4 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Room Highlights & Inclusions</h4>
                                                                 <ul className="space-y-2.5">
-                                                                    {roomType.inclusions?.slice(0, 3).map((inclusion, idx) => (
-                                                                        <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-700">
-                                                                            <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
-                                                                                {getFeatureIcon(inclusion)}
+                                                                    {roomType.cancellationPolicy ? (
+                                                                        <li className="flex items-start gap-2.5 text-sm text-green-700 font-medium bg-green-50/50 p-2 rounded-lg border border-green-100/50">
+                                                                            <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                                            <span>{roomType.cancellationPolicy}</span>
+                                                                        </li>
+                                                                    ) : (
+                                                                        <li className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                            <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                                            <span>Standard Cancellation Policy applies</span>
+                                                                        </li>
+                                                                    )}
+
+                                                                    {roomType.inclusions && roomType.inclusions.length > 0 ? (
+                                                                        roomType.inclusions.map((inclusion, idx) => (
+                                                                            <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                                <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
+                                                                                    {getFeatureIcon(inclusion)}
+                                                                                </div>
+                                                                                <span className="pt-0.5">{inclusion}</span>
+                                                                            </li>
+                                                                        ))
+                                                                    ) : (
+                                                                        roomType.amenities.includes('Breakfast') && (
+                                                                            <li className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                                <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
+                                                                                    <Utensils className="h-3.5 w-3.5" />
+                                                                                </div>
+                                                                                <span className="pt-0.5">Complimentary Breakfast included</span>
+                                                                            </li>
+                                                                        )
+                                                                    )}
+
+                                                                    {roomType.highlights && roomType.highlights.length > 0 && roomType.highlights.map((highlight, idx) => (
+                                                                        <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                            <div className="bg-blue-50 p-1.5 rounded-md text-blue-500">
+                                                                                {getFeatureIcon(highlight)}
                                                                             </div>
-                                                                            <span className="pt-0.5">{inclusion}</span>
+                                                                            <span className="pt-0.5">{highlight}</span>
                                                                         </li>
                                                                     ))}
+
+                                                                    {(!roomType.highlights || roomType.highlights.length === 0) && (
+                                                                        <li className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                            <div className="bg-blue-50 p-1 rounded-md">
+                                                                                <Clock className="h-3 w-3 text-blue-500 shrink-0" />
+                                                                            </div>
+                                                                            <span>Early Check-In (subject to availability)</span>
+                                                                        </li>
+                                                                    )}
                                                                 </ul>
+                                                            </div>
+
+                                                            <div className="pt-4 mt-4 border-t border-dashed border-gray-100">
+                                                                <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+                                                                    {roomType.amenities.slice(0, 6).map((amenity) => (
+                                                                        <div key={amenity} className="flex items-center gap-2 text-[11px] text-gray-500">
+                                                                            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+                                                                            {amenity}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
                                                             </div>
                                                         </div>
 
+                                                        {/* Right: Pricing & CTA */}
                                                         <div className="md:col-span-1 border-l border-gray-100 pl-8 flex flex-col justify-between">
-                                                            <div className="text-right">
-                                                                <div className="text-3xl font-black text-gray-900">
-                                                                    {formatPrice(roomType.basePrice || 0, selectedCurrency, rates)}
+                                                            <div className="text-right space-y-1">
+                                                                {roomType.offers && roomType.offers.length > 0 ? (
+                                                                    <>
+                                                                        <div className="text-gray-400 text-xs line-through decoration-red-400">
+                                                                            {formatPrice(roomType.basePrice, selectedCurrency, rates)}
+                                                                        </div>
+                                                                        <div className="text-3xl font-black text-gray-900">
+                                                                            {formatPrice(Math.round(roomType.basePrice * (1 - Number(roomType.offers[0].discountPercentage) / 100)), selectedCurrency, rates)}
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <div className="text-gray-400 text-xs line-through decoration-gray-300">
+                                                                            {formatPrice(Math.round(roomType.basePrice * 1.25), selectedCurrency, rates)}
+                                                                        </div>
+                                                                        <div className="text-3xl font-black text-gray-900">
+                                                                            {formatPrice(roomType.basePrice, selectedCurrency, rates)}
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                                <div className="text-[10px] text-gray-500 font-medium">
+                                                                    + {formatPrice(Math.round(roomType.basePrice * 0.12), selectedCurrency, rates)} Taxes & fees / night
                                                                 </div>
-                                                                <div className="text-[10px] text-gray-500 font-medium">/ night</div>
+                                                                {checkIn && checkOut && !isSoldOut && availableCount !== undefined && availableCount <= 3 && availableCount > 0 && (
+                                                                    <div className="flex items-center justify-end gap-1.5 text-[10px] font-black text-rose-600 uppercase tracking-tight pt-1">
+                                                                        <AlertCircle className="h-3 w-3 animate-pulse" />
+                                                                        Only {availableCount} room{availableCount > 1 ? 's' : ''} left!
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                            <div className="mt-8">
+
+                                                            <div className="space-y-3 mt-8">
+                                                                {roomType.offers && roomType.offers.length > 0 ? (
+                                                                    <div className="bg-orange-50 text-orange-700 p-3 rounded-lg border border-orange-100">
+                                                                        <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Limited Time Deal</p>
+                                                                        <p className="text-[11px] leading-snug">Save {roomType.offers[0].discountPercentage}% with this special offer!</p>
+                                                                    </div>
+                                                                ) : roomType.marketingBadgeText ? (
+                                                                    <div className="bg-primary-50 text-primary-700 p-3 rounded-lg border border-primary-100">
+                                                                        <p className="text-[10px] font-bold uppercase tracking-wider mb-1">{roomType.marketingBadgeType || 'Member Benefit'}</p>
+                                                                        <p className="text-[11px] leading-snug">{roomType.marketingBadgeText}</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="bg-green-50 text-green-700 p-3 rounded-lg border border-green-100">
+                                                                        <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Best Value</p>
+                                                                        <p className="text-[11px] leading-snug">Lowest price guaranteed for today.</p>
+                                                                    </div>
+                                                                )}
+
                                                                 {isSoldOut ? (
-                                                                    <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-bold rounded-xl border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest">Sold Out</button>
+                                                                    <button disabled className="block w-full py-4 px-6 bg-gray-100 text-gray-400 text-center font-bold rounded-xl border border-gray-200 cursor-not-allowed text-sm uppercase tracking-wider">
+                                                                        Sold Out
+                                                                    </button>
                                                                 ) : (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
                                                                         to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=false` : '#'}
-                                                                        className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-xl shadow-lg shadow-primary-600/20 transition-all text-xs uppercase tracking-widest"
+                                                                        className="block w-full py-4 px-6 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-xl shadow-lg shadow-primary-500/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-sm uppercase tracking-wider"
                                                                     >
-                                                                        {(!checkIn || !checkOut) ? 'Dates Mandatory' : 'Book Now'}
+                                                                        {(!checkIn || !checkOut) ? 'Select Dates' : 'Book Now'}
                                                                     </Link>
                                                                 )}
+                                                                <p className="text-[10px] text-center text-gray-400">
+                                                                    Instant confirmation • Secure payment
+                                                                </p>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -661,7 +875,7 @@ export default function PropertyDetail() {
 
                             <div ref={pickerRef} id="stay-selection" className="space-y-5 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 transition-all duration-300">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Check In & Out</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">CHECK IN & OUT</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="relative">
                                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none z-10" />
@@ -672,6 +886,8 @@ export default function PropertyDetail() {
                                                 startDate={checkIn}
                                                 endDate={checkOut}
                                                 minDate={new Date()}
+                                                dateFormat="dd MMM yyyy"
+                                                showPopperArrow={true}
                                                 placeholderText="Check In"
                                                 className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                                             />
@@ -685,6 +901,8 @@ export default function PropertyDetail() {
                                                 startDate={checkIn}
                                                 endDate={checkOut}
                                                 minDate={checkIn ? addDays(checkIn, 1) : addDays(new Date(), 1)}
+                                                dateFormat="dd MMM yyyy"
+                                                showPopperArrow={true}
                                                 placeholderText="Check Out"
                                                 className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                                             />
@@ -694,60 +912,69 @@ export default function PropertyDetail() {
 
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between px-1">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-primary-600">Travel Type</label>
-                                        <label className="flex items-center gap-2 cursor-pointer group/toggle">
-                                            <input
-                                                type="checkbox"
-                                                checked={isGroupBooking}
-                                                onChange={(e) => setIsGroupBooking(e.target.checked)}
-                                                className="sr-only peer"
-                                            />
-                                            <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
-                                            <span className={`text-[9px] font-black uppercase tracking-widest ${isGroupBooking ? 'text-primary-600' : 'text-gray-400'}`}>Group Booking</span>
-                                        </label>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-primary-600">Stay Context</label>
+                                        <div className="flex bg-gray-100 p-1 rounded-xl">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsGroupBooking(false)}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${!isGroupBooking ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                            >
+                                                Standard
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsGroupBooking(true);
+                                                    setGroupSize(Math.max(10, adults + children));
+                                                }}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${isGroupBooking ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                            >
+                                                Group
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    {isGroupBooking ? (
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Group Size</label>
-                                            <div className="relative">
-                                                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                                <select
-                                                    value={groupSize}
-                                                    onChange={(e) => setGroupSize(Number(e.target.value))}
-                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20 appearance-none"
-                                                >
-                                                    {Array.from({ length: (property.maxGroupCapacity ? Math.ceil(property.maxGroupCapacity / 5) : 20) }, (_, i) => (i + 2) * 5).filter(n => !property.maxGroupCapacity || n <= property.maxGroupCapacity).map(n => <option key={n} value={n}>{n} Members</option>)}
-                                                </select>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Guests</label>
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex-1 relative">
-                                                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                                    <select
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (13+)</label>
+                                                <div className="relative">
+                                                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                                                    <input
+                                                        type="number"
                                                         value={adults}
-                                                        onChange={(e) => setAdults(Number(e.target.value))}
-                                                        className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20 appearance-none"
-                                                    >
-                                                        {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} Adults</option>)}
-                                                    </select>
+                                                        onChange={(e) => {
+                                                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                            setAdults(val);
+                                                            if (isGroupBooking) setGroupSize(val + children);
+                                                        }}
+                                                        className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                    />
                                                 </div>
-                                                <div className="flex-1 relative">
-                                                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                                    <select
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Children (2-12)</label>
+                                                <div className="relative">
+                                                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                                                    <input
+                                                        type="number"
                                                         value={children}
-                                                        onChange={(e) => setChildren(Number(e.target.value))}
-                                                        className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20 appearance-none"
-                                                    >
-                                                        {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n} Children</option>)}
-                                                    </select>
+                                                        onChange={(e) => {
+                                                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                            setChildren(val);
+                                                            if (isGroupBooking) setGroupSize(adults + val);
+                                                        }}
+                                                        className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
+                                        {isGroupBooking && (
+                                            <div className="flex items-center justify-center gap-2 py-2 bg-primary-50 rounded-xl border border-primary-100 animate-in fade-in zoom-in-95 duration-300">
+                                                <span className="text-[9px] font-black text-primary-600 uppercase tracking-widest">Total Group Stay: {groupSize} Members</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {loadingAvailability && (

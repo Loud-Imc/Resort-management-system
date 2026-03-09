@@ -257,7 +257,8 @@ export class AvailabilityService {
                 let totalPoolCapacity = 0;
                 for (const rt of property.roomTypes) {
                     const availableCount = await this.getAvailableRoomCount(rt.id, checkInDate, checkOutDate);
-                    totalPoolCapacity += availableCount * (rt.maxAdults + rt.maxChildren);
+                    const roomCapacity = (rt as any).groupMaxOccupancy || (rt.maxAdults + rt.maxChildren);
+                    totalPoolCapacity += availableCount * roomCapacity;
                 }
 
                 if (totalPoolCapacity >= (groupSize || 0)) {

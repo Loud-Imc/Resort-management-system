@@ -55,10 +55,10 @@ export default function Home() {
     return (
         <div className="space-y-0">
             {/* Hero Section */}
-            <section className="relative h-[80vh] md:h-screen flex items-start pt-32 md:items-center md:justify-center md:pt-0 overflow-hidden">
+            <section className="relative h-[80vh] md:h-screen flex items-start pt-32 md:items-center md:justify-center md:pt-0 z-20">
                 <HeroCarousel />
                 <div className="absolute inset-0 bg-black/20 z-10" />
-                <div className="relative z-20 max-w-7xl mx-auto px-4 w-full">
+                <div className="relative z-30 max-w-7xl mx-auto px-4 w-full">
                     <SearchForm className="animate-fade-in-up" />
                 </div>
             </section>

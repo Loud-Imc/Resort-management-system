@@ -123,6 +123,7 @@ model RoomType {
   cancellationPolicyId String?
   cancellationPolicy   CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
   isAvailableForGroupBooking Boolean @default(false)
+  groupMaxOccupancy          Int?
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -465,6 +466,8 @@ model Property {
   allowsGroupBooking   Boolean           @default(false)
   maxGroupCapacity     Int?
   groupPricePerHead    Decimal?          @db.Decimal(10, 2)
+  groupPriceAdult      Decimal?          @db.Decimal(10, 2)
+  groupPriceChild      Decimal?          @db.Decimal(10, 2)
   icalSyncs            PropertyIcal[]
 
   @@map("properties")

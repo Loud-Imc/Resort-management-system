@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     Users, Loader2, CheckCircle, XCircle, DollarSign, Percent,
-    Eye, X, Calendar, ArrowRight, TrendingUp, Hash
+    Eye, X, Calendar, ArrowRight, TrendingUp, Hash, Search
 } from 'lucide-react';
 import { channelPartnerService } from '../../services/channel-partners';
 import { ChannelPartner, CPPartnerDetails, CPReferralBooking } from '../../types/channel-partner';
@@ -22,6 +22,7 @@ export default function CPList() {
     const [activeTab, setActiveTab] = useState<'bookings' | 'transactions'>('bookings');
     const [transactions, setTransactions] = useState<any[]>([]);
     const [txLoading, setTxLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Adjustment Modal
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
@@ -187,6 +188,16 @@ export default function CPList() {
         return styles[status] || 'bg-gray-100 text-gray-600';
     };
 
+    const filteredPartners = partners.filter(partner => {
+        const search = searchTerm.toLowerCase();
+        return (
+            partner.user?.firstName?.toLowerCase().includes(search) ||
+            partner.user?.lastName?.toLowerCase().includes(search) ||
+            partner.user?.email?.toLowerCase().includes(search) ||
+            partner.referralCode?.toLowerCase().includes(search)
+        );
+    });
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -198,9 +209,21 @@ export default function CPList() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Channel Partners</h1>
-                <p className="text-gray-500">Manage all channel partners, commission rates, and view their referrals</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Channel Partners</h1>
+                    <p className="text-gray-500 text-sm font-medium">Manage all channel partners, commission rates, and payouts</p>
+                </div>
+                <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search partners by name, email or code..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500/20 shadow-sm transition-all"
+                    />
+                </div>
             </div>
 
             {/* Error */}
@@ -232,8 +255,15 @@ export default function CPList() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {partners.map(partner => (
-                                <tr key={partner.id} className="hover:bg-gray-50">
+                            {filteredPartners.length === 0 ? (
+                                <tr>
+                                    <td colSpan={9} className="px-6 py-12 text-center text-gray-500 italic font-medium">
+                                        No partners matching your search.
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredPartners.map(partner => (
+                                    <tr key={partner.id} className="hover:bg-gray-50">
                                     <td className="px-6 py-4">
                                         <div>
                                             <div className="font-medium text-gray-900">
@@ -390,7 +420,7 @@ export default function CPList() {
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                            )))}
                         </tbody>
                     </table>
                 </div>

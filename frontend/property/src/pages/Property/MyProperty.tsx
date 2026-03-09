@@ -34,6 +34,8 @@ export default function MyProperty() {
     const [allowsGroupBooking, setAllowsGroupBooking] = useState(false);
     const [maxGroupCapacity, setMaxGroupCapacity] = useState<number | ''>('');
     const [groupPricePerHead, setGroupPricePerHead] = useState<number | ''>('');
+    const [groupPriceAdult, setGroupPriceAdult] = useState<number | ''>('');
+    const [groupPriceChild, setGroupPriceChild] = useState<number | ''>('');
     const [amenities, setAmenities] = useState<string[]>([]);
     const [newAmenity, setNewAmenity] = useState('');
     const [images, setImages] = useState<string[]>([]);
@@ -98,6 +100,8 @@ export default function MyProperty() {
         setAllowsGroupBooking(p.allowsGroupBooking || false);
         setMaxGroupCapacity(p.maxGroupCapacity || '');
         setGroupPricePerHead(p.groupPricePerHead || '');
+        setGroupPriceAdult(p.groupPriceAdult || '');
+        setGroupPriceChild(p.groupPriceChild || '');
     };
 
     const handleSave = async () => {
@@ -110,6 +114,8 @@ export default function MyProperty() {
                 allowsGroupBooking,
                 maxGroupCapacity: maxGroupCapacity === '' ? null : Number(maxGroupCapacity),
                 groupPricePerHead: groupPricePerHead === '' ? null : Number(groupPricePerHead),
+                groupPriceAdult: groupPriceAdult === '' ? null : Number(groupPriceAdult),
+                groupPriceChild: groupPriceChild === '' ? null : Number(groupPriceChild),
             });
             setProperty(updated);
             populateFields(updated);
@@ -368,21 +374,37 @@ export default function MyProperty() {
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Global Group Price (Per Head)</label>
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold text-gray-400">₹</span>
-                                <input
-                                    type="number"
-                                    value={groupPricePerHead}
-                                    onChange={(e) => setGroupPricePerHead(e.target.value === '' ? '' : parseInt(e.target.value))}
-                                    disabled={!editMode}
-                                    placeholder="e.g. 500"
-                                    className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
-                                />
-                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Flat price per person for group bookings, regardless of room type.</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Group Price (Adult)</label>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-bold text-gray-400">₹</span>
+                                    <input
+                                        type="number"
+                                        value={groupPriceAdult}
+                                        onChange={(e) => setGroupPriceAdult(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                        disabled={!editMode}
+                                        placeholder="e.g. 600"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Group Price (Child)</label>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-bold text-gray-400">₹</span>
+                                    <input
+                                        type="number"
+                                        value={groupPriceChild}
+                                        onChange={(e) => setGroupPriceChild(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                        disabled={!editMode}
+                                        placeholder="e.g. 400"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
+                                    />
+                                </div>
                             </div>
                         </div>
+                        <p className="text-[10px] text-gray-400 font-medium italic">* These prices override individual room rates during group bookings.</p>
                     </div>
                 )}
 

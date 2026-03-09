@@ -51,7 +51,7 @@ export class PaymentsService {
                 throw new NotFoundException('Booking not found');
             }
 
-            if (booking.status !== 'PENDING_PAYMENT' && booking.status !== 'CONFIRMED') {
+            if (booking.status !== 'PENDING_PAYMENT' && booking.status !== 'RESERVED') {
                 throw new BadRequestException('Booking is not in a payable status');
             }
 
@@ -441,7 +441,7 @@ export class PaymentsService {
             const bookingId = paymentData.notes.bookingId;
             // For QR payments we create the payment record on-the-fly when captured
             // since we don't have a pre-created PENDING record for every QR scan
-            
+
             payment = await this.prisma.payment.create({
                 data: {
                     amount: Number(paymentData.amount) / 100,

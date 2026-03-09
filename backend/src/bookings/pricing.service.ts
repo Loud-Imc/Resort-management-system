@@ -90,9 +90,17 @@ export class PricingService {
                     `Maximum ${roomType.maxChildren} children allowed for this room type`,
                 );
             }
-        } else if (groupSize && groupSize > (roomType.maxAdults + roomType.maxChildren) * 5) {
-            // Optional: sanity check for group size (e.g. 5x total max capacity?)
-            // Or just trust the isAvailableForGroupBooking flag implies it's a hall/dorm
+        } else if (isGroupBooking && groupSize) {
+            // Validate against property capacity if global group booking is enabled, otherwise room capacity
+            const maxGroupCap = (roomType.property as any).allowsGroupBooking
+                ? (roomType.property as any).maxGroupCapacity || 999
+                : (roomType.groupMaxOccupancy || (roomType.maxAdults * 2));
+
+            if (groupSize > maxGroupCap) {
+                throw new BadRequestException(
+                    `Maximum ${maxGroupCap} guests allowed for group booking in this ${(roomType.property as any).allowsGroupBooking ? 'property' : 'room type'}`,
+                );
+            }
         }
 
         // 3. Calculate base price
@@ -106,12 +114,22 @@ export class PricingService {
                 console.warn(`[PricingService] Group booking attempted on non-group roomType: ${roomTypeId}`);
                 throw new BadRequestException('This room type is not available for group booking pool');
             }
-            const propertyGroupPrice = (roomType.property as any).groupPricePerHead;
-            if (propertyGroupPrice === null || propertyGroupPrice === undefined) {
-                console.error(`[PricingService] Missing groupPricePerHead for property: ${roomType.property.name}`);
-                throw new BadRequestException(`Group price per head is not configured for property: ${roomType.property.name}`);
+            const propertyGroupPricePerHead = (roomType.property as any).groupPricePerHead;
+            const propertyGroupPriceAdult = (roomType.property as any).groupPriceAdult;
+            const propertyGroupPriceChild = (roomType.property as any).groupPriceChild;
+
+            if (propertyGroupPriceAdult === null || propertyGroupPriceAdult === undefined) {
+                // Backward compatibility: use the old per-head price for both if new ones aren't set
+                if (propertyGroupPricePerHead === null || propertyGroupPricePerHead === undefined) {
+                    console.error(`[PricingService] Missing group pricing for property: ${roomType.property.name}`);
+                    throw new BadRequestException(`Group pricing is not configured for property: ${roomType.property.name}`);
+                }
+                basePricePerNight = Number(propertyGroupPricePerHead) * groupSize;
+            } else {
+                const adultPrice = Number(propertyGroupPriceAdult);
+                const childPrice = propertyGroupPriceChild !== null ? Number(propertyGroupPriceChild) : adultPrice;
+                basePricePerNight = (adultPrice * adultsCount) + (childPrice * childrenCount);
             }
-            basePricePerNight = Number(propertyGroupPrice) * groupSize;
             baseAmount = basePricePerNight * numberOfNights;
         } else {
             // Standard pricing (nights * base price for 1 adult)

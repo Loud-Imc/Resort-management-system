@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import DatePicker from 'react-datepicker';
 import { Users, Calendar, Search, X, Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe } from 'lucide-react';
-import { addDays, format } from 'date-fns';
+import { format } from 'date-fns';
 import { PropertyCategory } from '../../types';
 import LocationAutocomplete from './LocationAutocomplete';
 
@@ -54,6 +54,7 @@ export default function SearchInline({
 }: SearchProps) {
     const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
+
     const getIcon = (iconName?: string) => {
         const Icon = iconName ? ICON_MAP[iconName] : Layout;
         return Icon || Layout;
@@ -93,8 +94,8 @@ export default function SearchInline({
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
                         onClick={() => setIsMobileModalOpen(false)}
                     />
-                    <div className="absolute top-0 inset-x-0 bg-white rounded-b-[2.5rem] shadow-2xl overflow-hidden animate-slide-down">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <div className="absolute top-0 inset-x-0 bg-white rounded-b-[2.5rem] shadow-2xl overflow-hidden  flex flex-col animate-slide-down">
+                        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
                             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-900">Update Your Search</h3>
                             <button
                                 onClick={() => setIsMobileModalOpen(false)}
@@ -104,11 +105,11 @@ export default function SearchInline({
                             </button>
                         </div>
 
-                        <form onSubmit={onSubmit} className="p-6 space-y-6">
+                        <form onSubmit={onSubmit} className="p-5 space-y-4 overflow-y-auto flex-1 no-scrollbar pb-8">
                             {/* Destination */}
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Destination</label>
-                                <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                                <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3.5">
                                     <LocationAutocomplete
                                         value={location}
                                         onChange={setLocation}
@@ -123,8 +124,8 @@ export default function SearchInline({
                             {/* Dates */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Check In</label>
-                                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">CHECK IN</label>
+                                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3.5">
                                         <Calendar className="h-5 w-5 text-gray-400" />
                                         <DatePicker
                                             selected={checkIn}
@@ -133,14 +134,17 @@ export default function SearchInline({
                                             startDate={checkIn}
                                             endDate={checkOut}
                                             minDate={new Date()}
-                                            dateFormat="dd MMM"
-                                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full"
+                                            dateFormat="dd MMM yyyy"
+                                            showPopperArrow={true}
+                                            portalId="root"
+                                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full cursor-pointer"
+                                            placeholderText="Add date"
                                         />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Check Out</label>
-                                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">CHECK OUT</label>
+                                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3.5">
                                         <Calendar className="h-5 w-5 text-gray-400" />
                                         <DatePicker
                                             selected={checkOut}
@@ -148,103 +152,208 @@ export default function SearchInline({
                                             selectsEnd
                                             startDate={checkIn}
                                             endDate={checkOut}
-                                            minDate={checkIn ? addDays(checkIn, 1) : new Date()}
-                                            dateFormat="dd MMM"
-                                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full"
+                                            minDate={checkIn || new Date()}
+                                            dateFormat="dd MMM yyyy"
+                                            showPopperArrow={true}
+                                            portalId="root"
+                                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full cursor-pointer"
+                                            placeholderText="Add date"
                                         />
                                     </div>
                                 </div>
                             </div>
 
                             {/* Guests */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between px-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-600">Who's Coming?</label>
-                                    <label className="flex items-center gap-2 cursor-pointer group/toggle">
-                                        <input
-                                            type="checkbox"
-                                            checked={isGroupBooking}
-                                            onChange={(e) => setIsGroupBooking(e.target.checked)}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
-                                        <span className={`text-[9px] font-black uppercase tracking-widest ${isGroupBooking ? 'text-primary-600' : 'text-gray-400'}`}>Group</span>
-                                    </label>
-                                </div>
-                                <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl p-4">
-                                    {isGroupBooking ? (
-                                        <div className="flex items-center gap-3 w-full">
-                                            <Users className="h-5 w-5 text-gray-400" />
-                                            <span className="text-base font-bold text-gray-900 flex-1">{groupSize} Member Group</span>
-                                            <select
-                                                value={groupSize}
-                                                onChange={(e) => setGroupSize(Number(e.target.value))}
-                                                className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
-                                            >
-                                                {[10, 20, 30, 40, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
-                                            </select>
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary-600 px-1">Traveler Details</label>
+                                <div className="space-y-3">
+                                    {/* Adults */}
+                                    <div className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                                <Users className="h-4.5 w-4.5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
+                                                    {isGroupBooking ? 'Group Adults' : 'Adults'}
+                                                </p>
+                                                <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 13+</p>
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <>
+                                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newVal = Math.max(1, adults - 1);
+                                                    setAdults(newVal);
+                                                    if (isGroupBooking) setGroupSize(newVal + children);
+                                                }}
+                                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                            >-</button>
+                                            <input
+                                                type="number"
+                                                value={adults}
+                                                onChange={(e) => {
+                                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                    setAdults(val);
+                                                    if (isGroupBooking) setGroupSize(val + children);
+                                                }}
+                                                className="w-9 bg-transparent text-center font-black text-gray-900 outline-none border-none p-0 focus:ring-0"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newVal = adults + 1;
+                                                    setAdults(newVal);
+                                                    if (isGroupBooking) setGroupSize(newVal + children);
+                                                }}
+                                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                            >+</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Children */}
+                                    <div className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                                <Users className="h-4.5 w-4.5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
+                                                    {isGroupBooking ? 'Group Children' : 'Children'}
+                                                </p>
+                                                <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 2-12</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newVal = Math.max(0, children - 1);
+                                                    setChildren(newVal);
+                                                    if (isGroupBooking) setGroupSize(adults + newVal);
+                                                }}
+                                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                            >-</button>
+                                            <input
+                                                type="number"
+                                                value={children}
+                                                onChange={(e) => {
+                                                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                    setChildren(val);
+                                                    if (isGroupBooking) setGroupSize(adults + val);
+                                                }}
+                                                className="w-9 bg-transparent text-center font-black text-gray-900 outline-none border-none p-0 focus:ring-0"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newVal = children + 1;
+                                                    setChildren(newVal);
+                                                    if (isGroupBooking) setGroupSize(adults + newVal);
+                                                }}
+                                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                            >+</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Rooms */}
+                                    {!isGroupBooking && (
+                                        <div className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm group">
                                             <div className="flex items-center gap-3">
-                                                <Users className="h-5 w-5 text-gray-400" />
-                                                <span className="text-base font-bold text-gray-900">{adults + children} Travellers</span>
+                                                <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                                    <Hotel className="h-4.5 w-4.5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Rooms</p>
+                                                    <p className="text-[8px] font-bold text-gray-400 uppercase">Total rooms needed</p>
+                                                </div>
                                             </div>
-                                            <div className="flex gap-4">
-                                                <select
-                                                    value={adults}
-                                                    onChange={(e) => setAdults(Number(e.target.value))}
-                                                    className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
-                                                >
-                                                    {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}A</option>)}
-                                                </select>
-                                                <select
-                                                    value={children}
-                                                    onChange={(e) => setChildren(Number(e.target.value))}
-                                                    className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
-                                                >
-                                                    {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n}C</option>)}
-                                                </select>
-                                                <select
+                                            <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setRooms(Math.max(1, rooms - 1))}
+                                                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                                >-</button>
+                                                <input
+                                                    type="number"
                                                     value={rooms}
-                                                    onChange={(e) => setRooms(Number(e.target.value))}
-                                                    className="text-xs font-bold text-primary-600 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-0"
-                                                >
-                                                    {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}R</option>)}
-                                                </select>
+                                                    onChange={(e) => setRooms(Math.max(1, parseInt(e.target.value) || 1))}
+                                                    className="w-9 bg-transparent text-center font-black text-gray-900 outline-none border-none p-0 focus:ring-0"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setRooms(rooms + 1)}
+                                                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                                >+</button>
                                             </div>
-                                        </>
+                                        </div>
+                                    )}
+
+                                    {isGroupBooking && (
+                                        <div className="p-4 bg-primary-50 rounded-2xl border border-primary-100/50 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
+                                                    <Users className="h-4 w-4" />
+                                                </div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-primary-900">Total Group Size</span>
+                                            </div>
+                                            <span className="text-xl font-black text-primary-600">{groupSize}</span>
+                                        </div>
                                     )}
                                 </div>
                             </div>
 
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Property Type</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Travel Categories</label>
                                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                                     <button
                                         type="button"
-                                        onClick={() => setCategoryId('')}
-                                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${categoryId === ''
+                                        onClick={() => {
+                                            setIsGroupBooking(false);
+                                            setCategoryId('');
+                                        }}
+                                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(!isGroupBooking && categoryId === '')
                                             ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-500/30'
                                             : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
                                             }`}
                                     >
-                                        <Building className={`h-3 w-3 ${categoryId === '' ? 'text-white' : 'text-gray-400'}`} />
+                                        <Building className={`h-3 w-3 ${(!isGroupBooking && categoryId === '') ? 'text-white' : 'text-gray-400'}`} />
                                         All Stays
                                     </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsGroupBooking(true);
+                                            setGroupSize(Math.max(10, adults + children));
+                                            setCategoryId('');
+                                        }}
+                                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${isGroupBooking
+                                            ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-500/30'
+                                            : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
+                                            }`}
+                                    >
+                                        <Users className={`h-3 w-3 ${isGroupBooking ? 'text-white' : 'text-gray-400'}`} />
+                                        Group Stay
+                                    </button>
+
                                     {categories.map(cat => {
                                         const Icon = getIcon(cat.icon);
                                         return (
                                             <button
                                                 key={cat.id}
                                                 type="button"
-                                                onClick={() => setCategoryId(cat.id)}
-                                                className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${categoryId === cat.id
+                                                onClick={() => {
+                                                    setIsGroupBooking(false);
+                                                    setCategoryId(cat.id);
+                                                }}
+                                                className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(categoryId === cat.id && !isGroupBooking)
                                                     ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-500/30'
                                                     : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
                                                     }`}
                                             >
-                                                <Icon className={`h-3 w-3 ${categoryId === cat.id ? 'text-white' : 'text-gray-400'}`} />
+                                                <Icon className={`h-3 w-3 ${(categoryId === cat.id && !isGroupBooking) ? 'text-white' : 'text-gray-400'}`} />
                                                 {cat.name}
                                             </button>
                                         );
@@ -267,7 +376,7 @@ export default function SearchInline({
             {/* Desktop Horizontal Bar (Visible only on LG+) */}
             <form
                 onSubmit={handleSearch}
-                className="hidden lg:flex bg-white border border-gray-200 rounded-2xl shadow-sm items-center divide-x divide-gray-100 overflow-hidden"
+                className="hidden lg:flex bg-white border border-gray-200 rounded-2xl shadow-sm items-center divide-x divide-gray-100 overflow-visible"
             >
                 {/* Location */}
                 <div className="w-[30%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group">
@@ -284,7 +393,7 @@ export default function SearchInline({
 
                 {/* Dates */}
                 <div className="w-[20%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Check In</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">CHECK IN</label>
                     <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         <DatePicker
@@ -295,13 +404,16 @@ export default function SearchInline({
                             endDate={checkOut}
                             minDate={new Date()}
                             dateFormat="dd MMM yyyy"
-                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full cursor-pointer"
+                            showPopperArrow={true}
+                            portalId="root"
+                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 cursor-pointer"
+                            placeholderText="Add date"
                         />
                     </div>
                 </div>
 
                 <div className="w-[20%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Check Out</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">CHECK OUT</label>
                     <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         <DatePicker
@@ -310,82 +422,101 @@ export default function SearchInline({
                             selectsEnd
                             startDate={checkIn}
                             endDate={checkOut}
-                            minDate={checkIn ? addDays(checkIn, 1) : new Date()}
+                            minDate={checkIn || new Date()}
                             dateFormat="dd MMM yyyy"
-                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full cursor-pointer"
+                            showPopperArrow={true}
+                            portalId="root"
+                            className="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 cursor-pointer"
+                            placeholderText="Add date"
                         />
                     </div>
                 </div>
 
-                <div className="w-[30%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group relative">
-                    <div className="flex items-center justify-between mb-1">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Travellers</label>
-                        <label className="flex items-center gap-1.5 cursor-pointer group/toggle">
-                            <input
-                                type="checkbox"
-                                checked={isGroupBooking}
-                                onChange={(e) => setIsGroupBooking(e.target.checked)}
-                                className="sr-only peer"
-                            />
-                            <div className="w-7 h-3.5 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 relative after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:after:translate-x-3.5"></div>
-                            <span className={`text-[8px] font-black uppercase tracking-widest ${isGroupBooking ? 'text-primary-600' : 'text-gray-400'}`}>Grp</span>
-                        </label>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Users className="h-4 w-4 text-gray-400" />
+                <div className="w-[30%] px-8 py-4 hover:bg-white transition-colors cursor-pointer group relative">
+                    <label className="block text-[8px] font-black uppercase tracking-[0.3em] text-primary-600 mb-1.5 group-hover:text-primary-700 transition-colors">
+                        {isGroupBooking ? 'Group Stay Details' : 'Traveler Details'}
+                    </label>
+                    <div className="flex items-center gap-6">
                         {isGroupBooking ? (
-                            <div className="flex items-baseline gap-2 flex-1">
-                                <span className="text-sm font-bold text-gray-900">{groupSize}</span>
-                                <span className="text-[9px] font-bold text-gray-500 uppercase">Members</span>
-                                <select
-                                    value={groupSize}
-                                    onChange={(e) => setGroupSize(Number(e.target.value))}
-                                    className="text-[9px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none ml-auto"
-                                >
-                                    {[10, 20, 30, 40, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
-                                </select>
+                            <div className="flex items-center justify-between w-full">
+                                <div className="flex gap-4">
+                                    <div className="flex flex-col">
+                                        <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Adults</span>
+                                        <input
+                                            type="number"
+                                            value={adults}
+                                            onChange={(e) => {
+                                                const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                setAdults(val);
+                                                setGroupSize(val + children);
+                                            }}
+                                            className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Children</span>
+                                        <input
+                                            type="number"
+                                            value={children}
+                                            onChange={(e) => {
+                                                const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                setChildren(val);
+                                                setGroupSize(adults + val);
+                                            }}
+                                            className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest">{groupSize} Members</span>
+                                    <span className="text-[7px] font-bold text-gray-400 uppercase">Whole Resort</span>
+                                </div>
                             </div>
                         ) : (
-                            <>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-sm font-bold text-gray-900">{adults + children}</span>
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Guests</span>
-                                </div>
-                                <div className="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <select
+                            <div className="flex items-center gap-4 w-full divide-x divide-gray-100">
+                                <div className="flex flex-col">
+                                    <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Adults</span>
+                                    <input
+                                        type="number"
+                                        min={1}
                                         value={adults}
-                                        onChange={(e) => setAdults(Number(e.target.value))}
-                                        className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
-                                    >
-                                        {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}A</option>)}
-                                    </select>
-                                    <select
-                                        value={children}
-                                        onChange={(e) => setChildren(Number(e.target.value))}
-                                        className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
-                                    >
-                                        {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n}C</option>)}
-                                    </select>
-                                    <select
-                                        value={rooms}
-                                        onChange={(e) => setRooms(Number(e.target.value))}
-                                        className="text-[10px] font-bold text-primary-600 bg-transparent border-none p-0 focus:ring-0 cursor-pointer appearance-none"
-                                    >
-                                        {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}R</option>)}
-                                    </select>
+                                        onChange={(e) => setAdults(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
+                                    />
                                 </div>
-                            </>
+                                <div className="flex flex-col pl-4">
+                                    <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Children</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={children}
+                                        onChange={(e) => setChildren(Math.max(0, parseInt(e.target.value) || 0))}
+                                        className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
+                                    />
+                                </div>
+                                <div className="flex flex-col pl-4">
+                                    <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Rooms</span>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={rooms}
+                                        onChange={(e) => setRooms(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
+                                    />
+                                </div>
+                            </div>
                         )}
+                        <Users className="h-4 w-4 text-gray-300 group-hover:text-primary-600 transition-colors ml-auto" />
                     </div>
                 </div>
 
                 {/* Search Action */}
-                <div className="w-[10%] p-2">
+                <div className="w-[10%] p-3">
                     <button
                         type="submit"
-                        className="w-full lg:h-full bg-primary-600 hover:bg-primary-700 text-white rounded-xl py-3 px-4 transition-all duration-300 flex items-center justify-center gap-2 group shadow-lg shadow-primary-500/20"
+                        className="w-full aspect-square lg:h-full bg-gradient-to-br from-primary-600 to-primary-800 hover:from-primary-700 hover:to-primary-900 text-white rounded-xl transition-all duration-500 flex items-center justify-center group shadow-[0_10px_20px_-5px_rgba(22,163,74,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(22,163,74,0.5)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
                     >
-                        <Search className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                        <Search className="h-5 w-5 group-hover:scale-110 transition-transform duration-500" />
                     </button>
                 </div>
             </form>
@@ -395,15 +526,32 @@ export default function SearchInline({
                 <button
                     onClick={(e) => {
                         e.preventDefault();
+                        setIsGroupBooking(false);
                         setCategoryId('');
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${categoryId === ''
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(!isGroupBooking && categoryId === '')
                         ? 'bg-primary-50 border-primary-200 text-primary-600'
                         : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600'
                         }`}
                 >
-                    <Building className={`h-3 w-3 ${categoryId === '' ? 'text-primary-600' : 'text-gray-300'}`} />
+                    <Building className={`h-3 w-3 ${(!isGroupBooking && categoryId === '') ? 'text-primary-600' : 'text-gray-300'}`} />
                     All Stays
+                </button>
+
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        setIsGroupBooking(true);
+                        setGroupSize(Math.max(10, adults + children));
+                        setCategoryId('');
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${isGroupBooking
+                        ? 'bg-primary-50 border-primary-200 text-primary-600'
+                        : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600'
+                        }`}
+                >
+                    <Users className={`h-3 w-3 ${isGroupBooking ? 'text-primary-600' : 'text-gray-300'}`} />
+                    Group Stay
                 </button>
                 {categories.map(cat => {
                     const Icon = getIcon(cat.icon);
@@ -412,14 +560,15 @@ export default function SearchInline({
                             key={cat.id}
                             onClick={(e) => {
                                 e.preventDefault();
+                                setIsGroupBooking(false);
                                 setCategoryId(cat.id);
                             }}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${categoryId === cat.id
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(categoryId === cat.id && !isGroupBooking)
                                 ? 'bg-primary-50 border-primary-200 text-primary-600'
                                 : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600'
                                 }`}
                         >
-                            <Icon className={`h-3 w-3 ${categoryId === cat.id ? 'text-primary-600' : 'text-gray-300'}`} />
+                            <Icon className={`h-3 w-3 ${(categoryId === cat.id && !isGroupBooking) ? 'text-primary-600' : 'text-gray-300'}`} />
                             {cat.name}
                         </button>
                     );

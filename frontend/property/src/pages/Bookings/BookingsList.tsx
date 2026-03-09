@@ -259,6 +259,7 @@ export default function BookingsList() {
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Booking Info</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Guest</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phone</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Room</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment</th>
@@ -289,6 +290,9 @@ export default function BookingsList() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm text-foreground">{booking.guests[0].phone}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">Unit {booking.room.roomNumber}</div>
                                             <div className="text-xs text-muted-foreground">{booking.room.roomType?.name}</div>
                                         </td>
@@ -311,7 +315,11 @@ export default function BookingsList() {
                                                     {booking.paymentStatus}
                                                 </span>
                                                 <div className="text-[10px] text-muted-foreground font-bold tracking-tight">
-                                                    <div>₹{Number(booking.paidAmount).toLocaleString()} / ₹{Number(booking.totalAmount).toLocaleString()}</div>
+                                                    <div>
+                                                        <span className={booking.paymentStatus === 'PARTIAL' ? 'text-emerald-600' : ''}>
+                                                            ₹{Number(booking.paidAmount).toLocaleString()}
+                                                        </span> / ₹{Number(booking.totalAmount).toLocaleString()}
+                                                    </div>
                                                     {booking.bookingCurrency && booking.bookingCurrency !== 'INR' && (
                                                         <div className="text-[9px] text-primary/70">
                                                             ({booking.bookingCurrency} {Number(booking.amountInBookingCurrency).toLocaleString()})
@@ -716,8 +724,8 @@ export default function BookingsList() {
                                     type="submit"
                                     disabled={checkInMutation.isPending || uploadingGuestId !== null}
                                     className={`flex-1 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-3 group shadow-lg ${(Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0) || verificationData.some(g => !g.idType || !g.idNumber || !g.idImage)
-                                            ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70'
-                                            : 'bg-primary text-primary-foreground hover:shadow-[0_20px_40px_-12px_rgba(var(--primary),0.3)] shadow-primary/20'
+                                        ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70'
+                                        : 'bg-primary text-primary-foreground hover:shadow-[0_20px_40px_-12px_rgba(var(--primary),0.3)] shadow-primary/20'
                                         }`}
                                 >
                                     {checkInMutation.isPending ? (

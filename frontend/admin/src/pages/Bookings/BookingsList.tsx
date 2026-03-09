@@ -248,6 +248,9 @@ export default function BookingsList() {
                                         Guest
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        Phone
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                         Room
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -287,6 +290,9 @@ export default function BookingsList() {
                                                     </span>
                                                 </div>
                                             )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm text-foreground">{booking.guests[0].phone}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">Unit {booking.room.roomNumber}</div>

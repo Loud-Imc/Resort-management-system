@@ -66,6 +66,8 @@ export interface Property {
     allowsGroupBooking: boolean;
     maxGroupCapacity?: number;
     groupPricePerHead?: number;
+    groupPriceAdult?: number;
+    groupPriceChild?: number;
 }
 
 export interface PropertyListResponse {

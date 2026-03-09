@@ -138,6 +138,16 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsNumber()
     groupPricePerHead?: number;
+
+    @ApiProperty({ example: 600, description: 'Group price per adult' })
+    @IsOptional()
+    @IsNumber()
+    groupPriceAdult?: number;
+
+    @ApiProperty({ example: 400, description: 'Group price per child' })
+    @IsOptional()
+    @IsNumber()
+    groupPriceChild?: number;
 }
 
 export class UpdatePropertyDto {
@@ -259,6 +269,14 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsNumber()
     groupPricePerHead?: number;
+
+    @IsOptional()
+    @IsNumber()
+    groupPriceAdult?: number;
+
+    @IsOptional()
+    @IsNumber()
+    groupPriceChild?: number;
 }
 
 export class PropertyQueryDto {

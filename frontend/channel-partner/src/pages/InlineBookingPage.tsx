@@ -50,6 +50,7 @@ const InlineBookingPage: React.FC = () => {
     const [checkOut, setCheckOut] = useState('');
     const [adults, setAdults] = useState(2);
     const [children, setChildren] = useState(0);
+    const [isGroupBooking, setIsGroupBooking] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
     // Step 2
@@ -94,8 +95,10 @@ const InlineBookingPage: React.FC = () => {
             const res: any = await api.post('/bookings/search', {
                 checkInDate: checkIn,
                 checkOutDate: checkOut,
-                adults,
-                children,
+                adults: adults,
+                children: children,
+                isGroupBooking,
+                groupSize: isGroupBooking ? (adults + children) : undefined,
                 location: selectedProperty.name, // scope to this property by name
                 currency: selectedProperty.currency || 'INR',
             });
@@ -144,6 +147,8 @@ const InlineBookingPage: React.FC = () => {
                 checkOutDate: checkOut,
                 adultsCount: adults,
                 childrenCount: children,
+                isGroupBooking,
+                groupSize: isGroupBooking ? (adults + children) : undefined,
                 guests: [
                     {
                         firstName,
@@ -152,9 +157,6 @@ const InlineBookingPage: React.FC = () => {
                         phone: guestPhone || undefined,
                     },
                 ],
-                guestName,
-                guestEmail,
-                guestPhone: guestPhone || undefined,
                 referralCode: cpStats?.referralCode,
                 paymentMethod,
                 currency: selectedProperty?.currency || 'INR',
@@ -267,7 +269,7 @@ const InlineBookingPage: React.FC = () => {
                         <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>Find a Property</h3>
 
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                        <div style={{ flex: 1, position: 'relative' }}>
+                            <div style={{ flex: 1, position: 'relative' }}>
                                 <LocationAutocomplete
                                     value={searchQuery}
                                     onChange={setSearchQuery}
@@ -351,17 +353,74 @@ const InlineBookingPage: React.FC = () => {
                             </div>
                         </div>
 
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.4)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Users size={16} color="var(--primary-teal)" />
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Stay Type</span>
+                            </div>
+                            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.04)', padding: '0.2rem', borderRadius: 'var(--radius-sm)' }}>
+                                <button
+                                    onClick={() => setIsGroupBooking(false)}
+                                    style={{
+                                        padding: '0.4rem 1rem', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+                                        background: !isGroupBooking ? '#fff' : 'transparent',
+                                        color: !isGroupBooking ? 'var(--primary-teal)' : 'var(--text-dim)',
+                                        boxShadow: !isGroupBooking ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                    }}
+                                >
+                                    Individual
+                                </button>
+                                <button
+                                    onClick={() => setIsGroupBooking(true)}
+                                    style={{
+                                        padding: '0.4rem 1rem', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+                                        background: isGroupBooking ? '#fff' : 'transparent',
+                                        color: isGroupBooking ? 'var(--primary-teal)' : 'var(--text-dim)',
+                                        boxShadow: isGroupBooking ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                    }}
+                                >
+                                    Group
+                                </button>
+                            </div>
+                        </div>
+
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                            <div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
-                                    <Users size={14} /> Adults
-                                </label>
-                                <input type="number" min={1} max={10} value={adults} onChange={(e) => setAdults(Number(e.target.value))} style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box' }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
+                                        <Users size={14} /> Adults (13+)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={adults}
+                                        onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            setAdults(val);
+                                        }}
+                                        style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box', fontWeight: 700 }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Children (2-12)</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={children}
+                                        onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            setChildren(val);
+                                        }}
+                                        style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box', fontWeight: 700 }}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Children</label>
-                                <input type="number" min={0} max={10} value={children} onChange={(e) => setChildren(Number(e.target.value))} style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box' }} />
-                            </div>
+                            {isGroupBooking && (
+                                <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(8,71,78,0.05)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-teal)' }}>GROUP STAY ACTIVE</span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Total: {adults + children} Members</span>
+                                </div>
+                            )}
                         </div>
 
                         <button

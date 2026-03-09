@@ -137,7 +137,7 @@ export class BookingsService {
                 const availableForType = await this.availabilityService.getAvailableRooms(type.id, checkIn, checkOut);
                 allAvailableRooms.push(...availableForType.map(r => ({
                     ...r,
-                    capacity: type.maxAdults + (type.maxChildren || 0)
+                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))
                 })));
             }
 

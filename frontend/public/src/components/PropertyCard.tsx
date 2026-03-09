@@ -107,19 +107,29 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                 {/* Price Display */}
                 <div className="mt-4 flex items-end justify-between">
                     <div>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">
-                            {searchParams.get('isGroupBooking') === 'true' ? 'Group Stay Package' : 'Starting from'}
-                        </p>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-xl font-black text-gray-900">
-                                {property.minPrice ? `₹${property.minPrice.toLocaleString()}` : 'N/A'}
-                            </span>
-                            <span className="text-[10px] text-gray-500 font-bold">
-                                {searchParams.get('isGroupBooking') === 'true' ? '/ total' : '/ night'}
-                            </span>
-                        </div>
+                        {searchParams.get('isGroupBooking') === 'true' && (property.groupPriceAdult || property.groupPricePerHead || property.minPrice) ? (
+                            <>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">
+                                    Starting Package
+                                </p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-xl font-black text-gray-900">
+                                        ₹{(property.groupPriceAdult || property.groupPricePerHead || property.minPrice)?.toLocaleString()}
+                                    </span>
+                                    <span className="text-[10px] text-gray-500 font-bold">
+                                        / person
+                                    </span>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="pb-1">
+                                <span className="text-[10px] text-primary-600 font-black uppercase tracking-wider bg-primary-50 px-2 py-1 rounded-md">
+                                    Check Availability
+                                </span>
+                            </div>
+                        )}
                     </div>
-                    
+
                     <div className="px-4 py-2 bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg group-hover:bg-primary-600 transition-colors">
                         View Details
                     </div>

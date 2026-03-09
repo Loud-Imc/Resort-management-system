@@ -28,6 +28,7 @@ export interface RoomType {
     extraChildPrice: number;
     freeChildrenCount: number;
     isAvailableForGroupBooking: boolean;
+    groupMaxOccupancy?: number;
     propertyId: string;
     property?: {
         id: string;
@@ -59,6 +60,7 @@ export interface CreateRoomTypeDto {
     extraChildPrice: number;
     freeChildrenCount: number;
     isAvailableForGroupBooking: boolean;
+    groupMaxOccupancy?: number;
     propertyId?: string;
 }
 

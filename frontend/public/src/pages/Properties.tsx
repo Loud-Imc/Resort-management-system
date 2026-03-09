@@ -70,7 +70,7 @@ export default function PropertiesPage() {
         <div className="min-h-screen bg-gray-50 pt-16">
 
             {/* Hero Section with Search */}
-            <section className="relative h-[45vh] flex items-center justify-center overflow-hidden mb-12">
+            <section className="relative h-[45vh] flex items-center justify-center mb-12 z-20">
                 <div className="absolute inset-0 z-0">
                     <div
                         className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out"
@@ -79,7 +79,7 @@ export default function PropertiesPage() {
                     <div className="absolute inset-0 bg-black/40 z-10" />
                 </div>
 
-                <div className="relative z-20 max-w-7xl mx-auto px-4 w-full">
+                <div className="relative z-30 max-w-7xl mx-auto px-4 w-full">
                     <div className="text-center mb-10 animate-fade-in">
                         <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-4">
                             Properties Marketplace
