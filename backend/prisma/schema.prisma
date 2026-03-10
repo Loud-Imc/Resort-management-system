@@ -862,3 +862,14 @@ model Notification {
 
   @@map("notifications")
 }
+
+model GlobalSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("global_settings")
+}

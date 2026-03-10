@@ -5,8 +5,8 @@ import { useProperty } from '../context/PropertyContext';
 import { useTheme } from '../context/ThemeContext';
 import {
     LayoutDashboard,
-    Calendar,
-    BedDouble,
+    // Calendar,
+    // BedDouble,
     Users,
     CreditCard,
     DollarSign,
@@ -14,7 +14,7 @@ import {
     Menu,
     X,
     PieChart,
-    Briefcase,
+    // Briefcase,
     Shield,
     Loader2,
     Building2,
@@ -22,7 +22,8 @@ import {
     Sun,
     Moon,
     Bell,
-    Megaphone
+    Megaphone,
+    Settings
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/routeguide.svg';
@@ -70,34 +71,35 @@ export default function DashboardLayout() {
         ] : []),
 
         // Bookings & Rooms
-        ...(hasPermission('bookings.read') ? [
-            { icon: Calendar, label: 'Bookings', path: '/bookings' },
-            { icon: Users, label: 'Guests', path: '/guests' },
-        ] : []),
+        // ...(hasPermission('bookings.read') ? [
+        //     { icon: Calendar, label: 'Bookings', path: '/bookings' },
+        //     { icon: Users, label: 'Guests', path: '/guests' },
+        // ] : []),
 
-        ...(hasPermission('roomTypes.read') ? [
-            { icon: BedDouble, label: 'Room Types', path: '/room-types' },
-        ] : []),
+        // ...(hasPermission('roomTypes.read') ? [
+        //     { icon: BedDouble, label: 'Room Types', path: '/room-types' },
+        // ] : []),
 
-        ...(hasPermission('rooms.read') ? [
-            { icon: BedDouble, label: 'Rooms', path: '/rooms' },
-        ] : []),
+        // ...(hasPermission('rooms.read') ? [
+        //     { icon: BedDouble, label: 'Rooms', path: '/rooms' },
+        // ] : []),
 
 
 
         // Events
-        ...(hasPermission('events.read') ? [
-            { icon: Calendar, label: 'Events', path: '/events' },
-            { icon: Users, label: 'Attendees', path: '/events/bookings' },
-            { icon: Shield, label: 'Check-In', path: '/events/check-in' }
-        ] : []),
+        // ...(hasPermission('events.read') ? [
+        //     { icon: Calendar, label: 'Events', path: '/events' },
+        //     { icon: Users, label: 'Attendees', path: '/events/bookings' },
+        //     { icon: Shield, label: 'Check-In', path: '/events/check-in' }
+        // ] : []),
 
         // Marketing
         ...(hasPermission('marketing.read') ? [
             { icon: DollarSign, label: 'Marketing', path: '/marketing' },
             { icon: Ticket, label: 'Coupons', path: '/marketing/coupons' },
             { icon: Megaphone, label: 'Broadcast Alerts', path: '/marketing/notifications' },
-            { icon: Users, label: 'Channel Partners', path: '/channel-partners' }
+            { icon: Users, label: 'Channel Partners', path: '/channel-partners' },
+            { icon: Settings, label: 'Loyalty Management', path: '/loyalty-management' }
         ] : []),
 
         // Financials
@@ -109,9 +111,9 @@ export default function DashboardLayout() {
             { icon: DollarSign, label: 'Financials', path: '/financials' },
         ] : []),
 
-        ...(hasPermission('bookingSources.read') ? [
-            { icon: Briefcase, label: 'Sources', path: '/booking-sources' },
-        ] : []),
+        // ...(hasPermission('bookingSources.read') ? [
+        //     { icon: Briefcase, label: 'Sources', path: '/booking-sources' },
+        // ] : []),
 
         // User Management
         ...(hasPermission('users.read') ? [
@@ -132,12 +134,12 @@ export default function DashboardLayout() {
         <div className="min-h-screen bg-background text-foreground flex">
             {/* Sidebar - Desktop */}
             <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border fixed h-full z-10 transition-colors duration-300">
-                <div className="p-6 border-b border-gray-100">
+                <div className="p-1 border-b border-gray-100">
                     <Link to="/" className="flex items-center justify-center mb-6 overflow-hidden">
-                        <img 
-                            src={logo} 
-                            alt="Route Guide" 
-                            className="h-28 w-auto object-contain -my-8" 
+                        <img
+                            src={logo}
+                            alt="Route Guide"
+                            className="h-12 w-auto object-contain mt-2"
                         />
                     </Link>
 
@@ -236,7 +238,7 @@ export default function DashboardLayout() {
             {/* Mobile Header & Sidebar Overlay */}
             <div className="md:hidden fixed w-full bg-card border-b border-border z-20 flex items-center justify-between p-4">
                 <Link to="/" className="flex items-center">
-                    <img src={logo} alt="Route Guide" className="h-16 w-auto object-contain -my-4" />
+                    <img src={logo} alt="Route Guide" className="h-10 w-auto object-contain -my-4" />
                 </Link>
                 <div className="flex items-center gap-2">
                     <button

@@ -58,7 +58,6 @@ export interface Property {
         firstName: string;
         email: string;
     };
-    taxRate?: number;
     maxGroupCapacity?: number;
     groupPricePerHead?: number;
 }
@@ -87,7 +86,6 @@ export interface CreatePropertyDto {
     platformCommission?: number;
     ownerId?: string;
     isFeatured?: boolean;
-    taxRate?: number;
     allowsGroupBooking?: boolean;
     maxGroupCapacity?: number;
     groupPricePerHead?: number;

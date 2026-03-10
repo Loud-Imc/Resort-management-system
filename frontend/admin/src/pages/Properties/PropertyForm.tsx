@@ -67,7 +67,6 @@ export default function PropertyForm() {
         categoryId: '',
         latitude: undefined,
         longitude: undefined,
-        taxRate: 12,
         allowsGroupBooking: false,
         maxGroupCapacity: 40,
         groupPricePerHead: 500,
@@ -157,7 +156,6 @@ export default function PropertyForm() {
                 platformCommission: property.platformCommission || 10,
                 whatsappNumber: property.whatsappNumber || '',
                 categoryId: property.categoryId || '',
-                taxRate: property.taxRate || 12,
                 allowsGroupBooking: property.allowsGroupBooking || false,
                 maxGroupCapacity: property.maxGroupCapacity || 40,
                 groupPricePerHead: property.groupPricePerHead || 0,
@@ -180,7 +178,6 @@ export default function PropertyForm() {
                 ...formData,
                 marketingCommission: Number(formData.marketingCommission),
                 platformCommission: Number(formData.platformCommission),
-                taxRate: Number(formData.taxRate),
             };
 
             if (isEdit && id) {
@@ -249,8 +246,7 @@ export default function PropertyForm() {
                 {/* Marketing & Commission - Only visible to Admin or if Marketing adding it (commission) */}
                 <div className="bg-card rounded-xl shadow-sm p-6 border-l-4 border-emerald-500 border border-border">
                     <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
-
-                        ₹ Marketing & Commission
+                        Marketing & Commission
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {isAdmin && (
@@ -322,25 +318,6 @@ export default function PropertyForm() {
                                 </p>
                             </div>
                         )}
-                        <div>
-                            <label className="block text-sm font-bold text-muted-foreground mb-1">
-                                Tax Rate (%) *
-                            </label>
-                            <select
-                                name="taxRate"
-                                value={formData.taxRate}
-                                onChange={handleChange}
-                                required
-                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-                            >
-                                <option value={5}>5% (GST)</option>
-                                <option value={12}>12% (GST)</option>
-                                <option value={18}>18% (GST)</option>
-                            </select>
-                            <p className="text-xs text-muted-foreground mt-1 font-medium italic">
-                                * Applied to all bookings for this property.
-                            </p>
-                        </div>
                     </div>
                 </div>
 

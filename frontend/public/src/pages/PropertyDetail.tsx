@@ -309,17 +309,24 @@ export default function PropertyDetail() {
                                                                     Group Stay Package
                                                                 </h3>
                                                                 <div className="flex flex-col gap-2 pt-2">
-                                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                    <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
                                                                         <Users className="h-3.5 w-3.5 text-primary-500" />
                                                                         <span>Up to {property.maxGroupCapacity} Guests</span>
                                                                     </div>
-                                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                    <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
                                                                         <Building2 className="h-3.5 w-3.5 text-primary-500" />
                                                                         <span>Whole Property Access</span>
                                                                     </div>
+                                                                    {property.maxGroupCapacity && (
+                                                                        <div className="flex items-center gap-2 text-[10px] text-primary-600 font-bold bg-primary-50 px-2 py-1 rounded-md w-fit">
+                                                                            <BedDouble className="h-3 w-3" />
+                                                                            <span>Estimated {Math.ceil(groupSize / property.maxGroupCapacity)} Rooms</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                                <div className="text-primary-600 text-xs font-semibold flex items-center gap-1 mt-3">
-                                                                    Contact for Special Requests <Info className="h-3 w-3" />
+                                                                <div className="text-gray-400 text-[10px] font-medium flex items-center gap-1 mt-3 italic leading-tight">
+                                                                    <Info className="h-3 w-3 shrink-0" />
+                                                                    GST is calculated per room per night as per Government regulations.
                                                                 </div>
                                                             </div>
                                                         </div>

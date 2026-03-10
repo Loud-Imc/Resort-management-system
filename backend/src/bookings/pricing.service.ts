@@ -19,9 +19,12 @@ export interface PricingBreakdown {
     targetCurrency: string;
     exchangeRate: number;
     convertedTotal: number;
+    // Group Booking
+    roomCount?: number;
 }
 
 import { CurrenciesService } from '../currencies/currencies.service';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 
 @Injectable()
 export class PricingService {
@@ -29,7 +32,8 @@ export class PricingService {
 
     constructor(
         private prisma: PrismaService,
-        private currenciesService: CurrenciesService
+        private currenciesService: CurrenciesService,
+        private systemSettingsService: SystemSettingsService
     ) { }
 
     /**
@@ -128,7 +132,14 @@ export class PricingService {
             } else {
                 const adultPrice = Number(propertyGroupPriceAdult);
                 const childPrice = propertyGroupPriceChild !== null ? Number(propertyGroupPriceChild) : adultPrice;
-                basePricePerNight = (adultPrice * adultsCount) + (childPrice * childrenCount);
+                
+                // Use breakdown if available, otherwise fallback to groupSize * adultPrice
+                const totalSpecifiedGuests = (adultsCount || 0) + (childrenCount || 0);
+                if (totalSpecifiedGuests > 0) {
+                    basePricePerNight = (adultPrice * (adultsCount || 0)) + (childPrice * (childrenCount || 0));
+                } else {
+                    basePricePerNight = adultPrice * groupSize;
+                }
             }
             baseAmount = basePricePerNight * numberOfNights;
         } else {
@@ -179,12 +190,35 @@ export class PricingService {
             subtotal -= offerDiscountAmount;
         }
 
-        // 8. Calculate tax based on property settings
-        const propertyTaxRate = (roomType.property as any).taxRate !== undefined
-            ? Number((roomType.property as any).taxRate) / 100
-            : this.DEFAULT_TAX_RATE;
+        // 8. Calculate tax based on dynamic GST tiers (Applied per room per night)
+        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        let totalTaxAmount = 0;
 
-        const taxAmount = subtotal * propertyTaxRate;
+        // Iterate through each night to handle seasonal pricing variations
+        for (let i = 0; i < numberOfNights; i++) {
+            // Estimate price for this specific night (if seasonal pricing applies)
+            // For now, we use the average nightly subtotal as we don't store nightly breakdown yet
+            // but we ensure we handle room-by-room splits
+            const subtotalThisNight = subtotal / numberOfNights;
+
+            if (isGroupBooking && groupSize) {
+                const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
+                let remainingGuests = groupSize;
+                
+                while (remainingGuests > 0) {
+                    const guestsThisRoom = Math.min(remainingGuests, roomCapacity);
+                    const roomTariffThisNight = (subtotalThisNight / groupSize) * guestsThisRoom;
+                    
+                    totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
+                    remainingGuests -= guestsThisRoom;
+                }
+            } else {
+                totalTaxAmount += this.calculateTaxForTariff(subtotalThisNight, gstTiers);
+            }
+        }
+
+        const taxAmount = totalTaxAmount;
+        const taxRate = subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 0;
 
         // 9. Apply referral discount if applicable
         let referralDiscountAmount = 0;
@@ -222,6 +256,13 @@ export class PricingService {
             exchangeRate = await this.currenciesService.convert(1, baseCurrency, targetCurrency);
         }
 
+        // Calculate estimated room count for group bookings
+        let roomCount = 1;
+        if (isGroupBooking && groupSize) {
+            const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
+            roomCount = Math.ceil(groupSize / roomCapacity);
+        }
+
         return {
             baseAmount,
             extraAdultAmount,
@@ -234,14 +275,12 @@ export class PricingService {
             totalAmount,
             numberOfNights,
             pricePerNight: basePricePerNight,
-            taxRate: (roomType.property as any).taxRate !== undefined
-                ? Number((roomType.property as any).taxRate)
-                : this.DEFAULT_TAX_RATE * 100,
+            taxRate: Math.round(taxRate * 100),
             baseCurrency,
             targetCurrency,
             exchangeRate,
-            // Add converted total for convenience
             convertedTotal: totalAmount * exchangeRate,
+            roomCount,
         };
     }
 
@@ -325,6 +364,23 @@ export class PricingService {
 
         // Discount cannot exceed subtotal
         return Math.min(discount, subtotal);
+    }
+
+    /**
+     * Calculate tax for a single tariff unit (one room for one night)
+     */
+    private calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
+        let taxRate = 0.12; // Default fallback 12%
+        if (gstTiers && Array.isArray(gstTiers)) {
+            const applicableTier = gstTiers.find(tier =>
+                tariff >= tier.min &&
+                (tier.max === null || tier.max === undefined || tariff <= tier.max)
+            );
+            if (applicableTier) {
+                taxRate = applicableTier.rate / 100;
+            }
+        }
+        return tariff * taxRate;
     }
 
     /**

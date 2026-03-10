@@ -4,9 +4,15 @@
  * @param currencyCode The currency code (e.g., 'INR', 'AED', 'USD')
  * @returns A formatted string e.g., '₹1,200', 'AED 500'
  */
-export const formatPrice = (amount: number, currencyCode: string = 'INR'): string => {
+export const formatPrice = (amount: number | undefined | null, currencyCode: string = 'INR'): string => {
     try {
-        const displayAmount = amount;
+        // Guard against undefined, null, or NaN
+        if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
+            const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US';
+            return new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(0);
+        }
+
+        const displayAmount = Number(amount);
 
         // Use locale based on currency for better formatting
         const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US';
@@ -21,7 +27,7 @@ export const formatPrice = (amount: number, currencyCode: string = 'INR'): strin
 
         return formatter.format(displayAmount);
     } catch (e) {
-        return `${currencyCode} ${amount.toLocaleString()}`;
+        return `${currencyCode} ${(amount || 0).toLocaleString()}`;
     }
 };
 

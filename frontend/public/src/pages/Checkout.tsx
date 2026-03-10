@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn, Camera, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn, Camera, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import { differenceInDays, format, addDays } from 'date-fns';
 import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
@@ -459,10 +459,10 @@ export default function Checkout() {
                                             <input
                                                 {...register('idNumber')}
                                                 className={`w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all ${errors.idNumber
-                                                        ? 'border-red-500 ring-red-50/50'
-                                                        : watchIdType && ID_VALIDATION_PATTERNS[watchIdType]?.pattern.test(watchIdNumber.replace(/\s/g, ''))
-                                                            ? 'border-emerald-500/50 ring-emerald-50/50'
-                                                            : 'border-gray-200'
+                                                    ? 'border-red-500 ring-red-50/50'
+                                                    : watchIdType && ID_VALIDATION_PATTERNS[watchIdType]?.pattern.test(watchIdNumber.replace(/\s/g, ''))
+                                                        ? 'border-emerald-500/50 ring-emerald-50/50'
+                                                        : 'border-gray-200'
                                                     }`}
                                                 placeholder={watchIdType && ID_VALIDATION_PATTERNS[watchIdType] ? ID_VALIDATION_PATTERNS[watchIdType].sample : "Enter document number"}
                                             />
@@ -478,8 +478,8 @@ export default function Checkout() {
                                             <p className="text-[10px] text-red-500 font-bold pl-1 mt-1">{ID_VALIDATION_PATTERNS[watchIdType]?.message || errors.idNumber.message}</p>
                                         ) : watchIdType && ID_VALIDATION_PATTERNS[watchIdType] && (
                                             <p className={`text-[10px] font-medium pl-1 mt-1 transition-all duration-300 ${ID_VALIDATION_PATTERNS[watchIdType].pattern.test(watchIdNumber.replace(/\s/g, ''))
-                                                    ? 'text-emerald-600 font-bold'
-                                                    : 'text-gray-500'
+                                                ? 'text-emerald-600 font-bold'
+                                                : 'text-gray-500'
                                                 }`}>
                                                 {ID_VALIDATION_PATTERNS[watchIdType].pattern.test(watchIdNumber.replace(/\s/g, ''))
                                                     ? `Perfect, ${watchIdType.toLowerCase()} format matches`
@@ -629,7 +629,7 @@ export default function Checkout() {
                                         <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'PARTIAL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Advance</span>
                                         {paymentOption === 'PARTIAL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
                                     </div>
-                                    <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round(effectivePricing?.totalAmount / 3), selectedCurrency, rates)}</span>
+                                    <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round((effectivePricing?.totalAmount || 0) / 3), selectedCurrency, rates)}</span>
                                     <p className="text-[10px] text-gray-500 italic">Pay the remaining balance at the property</p>
                                 </button>
                             </div>
@@ -658,7 +658,7 @@ export default function Checkout() {
                                     <button
                                         type="button"
                                         onClick={() => setPaymentMethod('WALLET')}
-                                        disabled={Number(cpStats?.walletBalance || 0) < (effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0))}
+                                        disabled={Number(cpStats?.walletBalance || 0) < ((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0))}
                                         className={`p-3 border rounded-lg text-sm font-bold flex flex-col items-center gap-2 transition-all ${paymentMethod === 'WALLET' ? 'bg-primary-600 border-primary-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-primary-300 disabled:opacity-50 disabled:cursor-not-allowed'}`}
                                     >
                                         <CreditCard className="h-5 w-5" />
@@ -668,11 +668,11 @@ export default function Checkout() {
 
                                 {paymentMethod === 'WALLET' && (
                                     <p className="text-[11px] text-primary-700 font-medium italic">
-                                        Amount to be deducted: {formatPrice((effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0)), selectedCurrency, rates)} (Total - Your 10% Commission)
+                                        Amount to be deducted: {formatPrice(((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0)), selectedCurrency, rates)} (Total - Your 10% Commission)
                                     </p>
                                 )}
 
-                                {paymentMethod === 'WALLET' && Number(cpStats?.walletBalance || 0) < (effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0)) && (
+                                {paymentMethod === 'WALLET' && Number(cpStats?.walletBalance || 0) < ((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0)) && (
                                     <p className="text-[11px] text-red-500 font-bold">
                                         Insufficient wallet balance. Please use online payment or top up your wallet.
                                     </p>
@@ -692,8 +692,8 @@ export default function Checkout() {
                             ) : (
                                 `Pay & Reserve ${formatPrice(
                                     paymentMethod === 'WALLET'
-                                        ? (effectivePricing?.totalAmount - (effectivePricing?.cpCommission || 0))
-                                        : (paymentOption === 'PARTIAL' ? Math.round(effectivePricing?.totalAmount / 3) : effectivePricing?.totalAmount),
+                                        ? ((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0))
+                                        : (paymentOption === 'PARTIAL' ? Math.round((effectivePricing?.totalAmount || 0) / 3) : (effectivePricing?.totalAmount || 0)),
                                     selectedCurrency,
                                     rates
                                 ) || '...'}`
@@ -720,7 +720,7 @@ export default function Checkout() {
                                         {isGroupBooking ? `Property: ${selectedRoom.property?.name || 'Selected Property'}` : selectedRoom.description?.slice(0, 50) + '...'}
                                     </p>
                                     <p className="text-sm text-gray-500">
-                                        {nights} Nights, {isGroupBooking ? `${groupSize} Guests (Group Stay)` : `${adults + children} Guests`}
+                                        {nights} Nights, {isGroupBooking ? `${groupSize} Guests (${effectivePricing?.roomCount || 1} Rooms)` : `${adults + children} Guests`}
                                     </p>
                                 </div>
 
@@ -764,8 +764,16 @@ export default function Checkout() {
                                             <span>-{formatPrice(effectivePricing.offerDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">Taxes & Fees ({Math.round((effectivePricing?.taxRate || 0.18) * 100)}%)</span>
+                                    <div className="flex justify-between text-sm group relative">
+                                        <div className="flex items-center gap-1.5 text-gray-600">
+                                            <span>Taxes & Fees</span>
+                                            <div className="group/info relative">
+                                                <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                                                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                                                    GST is calculated per room per night based on the transaction value (0%, 12%, or 18% tiers).
+                                                </div>
+                                            </div>
+                                        </div>
                                         <span>{formatPrice(effectivePricing?.taxAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
 

@@ -117,7 +117,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                                         ₹{(property.groupPriceAdult || property.groupPricePerHead || property.minPrice)?.toLocaleString()}
                                     </span>
                                     <span className="text-[10px] text-gray-500 font-bold">
-                                        / person
+                                        / person + GST
                                     </span>
                                 </div>
                             </>

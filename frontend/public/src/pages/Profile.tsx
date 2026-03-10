@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Mail, Phone, Camera, Loader2, Calendar, MapPin, Package, ChevronRight, XCircle, AlertTriangle, Star } from 'lucide-react';
+import { User, Mail, Phone, Camera, Loader2, Calendar, MapPin, Package, ChevronRight, XCircle, AlertTriangle, Star, CheckCircle } from 'lucide-react';
 import { format, isAfter, startOfToday } from 'date-fns';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
@@ -48,6 +48,8 @@ export default function Profile() {
         phone: '',
         email: ''
     });
+
+    const [managingBooking, setManagingBooking] = useState<any | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -441,26 +443,18 @@ export default function Profile() {
                                                                         <span className="block text-[9px] font-black text-gray-300 uppercase tracking-widest">Total Value</span>
                                                                         <p className="font-bold text-primary-900 text-base">{formatPrice(booking.totalAmount, booking.bookingCurrency || 'INR')}</p>
                                                                     </div>
-                                                                    <div className="flex justify-end items-center gap-4">
-                                                                        {canCancel(booking) && (
-                                                                            <button onClick={() => setCancellingBooking(booking)} className="text-red-400 hover:text-red-600 font-black text-[10px] uppercase tracking-widest transition-colors">Cancel</button>
-                                                                        )}
-                                                                        {canReview(booking) && (
-                                                                            <button
-                                                                                onClick={() => setReviewingBooking(booking)}
-                                                                                className="px-4 py-2 bg-amber-400 text-amber-950 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-500 transition-all shadow-lg shadow-amber-100 hover:scale-105 active:scale-95"
-                                                                            >
-                                                                                Leave Review
-                                                                            </button>
-                                                                        )}
-                                                                        {booking.review && (
-                                                                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 rounded-xl border border-green-100">
-                                                                                <Star className="h-3 w-3 fill-current" />
-                                                                                <span className="text-[9px] font-black uppercase tracking-widest">Reviewed</span>
-                                                                            </div>
-                                                                        )}
-                                                                        <Link to={`/confirmation?bookingId=${booking.id}`} className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-primary-900 hover:text-white transition-all group/btn border border-gray-100 hover:border-primary-900 hover:shadow-xl hover:shadow-primary-100">
-                                                                            <ChevronRight className="h-5 w-5" />
+                                                                    <div className="flex flex-col sm:flex-row justify-end items-center gap-4">
+                                                                        <button
+                                                                            onClick={() => setManagingBooking(booking)}
+                                                                            className="px-6 py-2.5 bg-primary-50 text-primary-900 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-primary-100 transition-all border border-primary-100 shadow-sm active:scale-95"
+                                                                        >
+                                                                            Manage Booking
+                                                                        </button>
+                                                                        <Link
+                                                                            to={`/confirmation?bookingId=${booking.id}`}
+                                                                            className="text-[10px] font-black uppercase tracking-widest text-primary-600 hover:text-primary-800 transition-colors py-2 px-1 underline underline-offset-4"
+                                                                        >
+                                                                            View details
                                                                         </Link>
                                                                     </div>
                                                                 </div>
@@ -484,6 +478,101 @@ export default function Profile() {
                     </div>
                 </div>
             </div>
+
+            {/* Manage Booking Modal */}
+            {managingBooking && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setManagingBooking(null)} />
+                    <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-8 md:p-10">
+                            <div className="flex justify-between items-start mb-8">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900 font-serif mb-1">Manage Stay</h3>
+                                    <p className="text-gray-400 text-xs font-medium">#{managingBooking.bookingNumber} • {toTitleCase(managingBooking.property?.name)}</p>
+                                </div>
+                                <button onClick={() => setManagingBooking(null)} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                                    <XCircle className="h-6 w-6 text-gray-300" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <Link
+                                    to={`/confirmation?bookingId=${managingBooking.id}`}
+                                    className="w-full flex items-center justify-between p-5 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:border-primary-200 transition-all group"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-sm text-gray-400 group-hover:text-primary-600">
+                                            <Package className="h-5 w-5" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold text-gray-900 text-sm">View Confirmation</p>
+                                            <p className="text-[10px] text-gray-400 font-medium">Download receipt & details</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="h-5 w-5 text-gray-300" />
+                                </Link>
+
+                                {canReview(managingBooking) && (
+                                    <button
+                                        onClick={() => {
+                                            setReviewingBooking(managingBooking);
+                                            setManagingBooking(null);
+                                        }}
+                                        className="w-full flex items-center justify-between p-5 rounded-2xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 rounded-xl bg-white border border-amber-100 shadow-sm text-amber-500">
+                                                <Star className="h-5 w-5 fill-current" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-bold text-amber-900 text-sm">Leave a Review</p>
+                                                <p className="text-[10px] text-amber-600/60 font-medium">Share your experience</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 text-amber-200" />
+                                    </button>
+                                )}
+
+                                {managingBooking.review && (
+                                    <div className="w-full flex items-center justify-between p-5 rounded-2xl border border-green-100 bg-green-50/30">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 rounded-xl bg-white border border-green-100 shadow-sm text-green-500">
+                                                <Star className="h-5 w-5 fill-current" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-bold text-green-900 text-sm">Stay Reviewed</p>
+                                                <p className="text-[10px] text-green-600/60 font-medium">Rating: {managingBooking.review.rating}/5</p>
+                                            </div>
+                                        </div>
+                                        <CheckCircle className="h-5 w-5 text-green-400" />
+                                    </div>
+                                )}
+
+                                {canCancel(managingBooking) && (
+                                    <button
+                                        onClick={() => {
+                                            setCancellingBooking(managingBooking);
+                                            setManagingBooking(null);
+                                        }}
+                                        className="w-full flex items-center justify-between p-5 rounded-2xl border border-red-100 bg-red-50/30 hover:bg-red-50 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 rounded-xl bg-white border border-red-100 shadow-sm text-red-500">
+                                                <AlertTriangle className="h-5 w-5" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-bold text-red-900 text-sm">Cancel Booking</p>
+                                                <p className="text-[10px] text-red-600/60 font-medium">Cancel your reservation</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 text-red-200" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Cancel Modal (reused from MyBookings) */}
             {cancellingBooking && (

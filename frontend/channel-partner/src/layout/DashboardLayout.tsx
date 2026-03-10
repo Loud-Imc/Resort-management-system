@@ -67,10 +67,10 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                         src={logo}
                         alt="Route Guide"
                         style={{
-                            height: '160px',
+                            height: '45px',
                             width: 'auto',
                             objectFit: 'contain',
-                            margin: '-40px 0' // Compensate for SVG empty space
+                            margin: '0px 0' // Compensate for SVG empty space
                         }}
                     />
                 </div>

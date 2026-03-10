@@ -69,6 +69,7 @@ import CategoryList from './pages/PropertyCategories/CategoryList';
 
 // Notifications
 import Notifications from './pages/Notifications';
+import LoyaltyManagement from './pages/Settings/LoyaltyManagement';
 
 const queryClient = new QueryClient();
 
@@ -146,6 +147,9 @@ function App() {
 
                     {/* Notifications */}
                     <Route path="notifications" element={<Notifications />} />
+                    
+                    {/* System Settings */}
+                    <Route path="loyalty-management" element={<LoyaltyManagement />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />

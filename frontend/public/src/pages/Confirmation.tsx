@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link, Navigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User, CreditCard } from 'lucide-react';
+import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User, CreditCard, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
@@ -337,7 +337,7 @@ export default function Confirmation() {
                                                 <User className="h-4 w-4 text-primary-500" />
                                                 <span className="font-bold">
                                                     {booking.isGroupBooking
-                                                        ? `${booking.groupSize} Guests`
+                                                        ? `${booking.groupSize} Guests (${booking.roomCount || Math.ceil(booking.groupSize / (property?.groupMaxOccupancy || 1))} Rooms)`
                                                         : `${booking.adultsCount} Adults, ${booking.childrenCount} Child`
                                                     }
                                                 </span>
@@ -365,7 +365,15 @@ export default function Confirmation() {
                                         <span className="font-medium text-gray-900">{formatPrice(booking.baseAmount || 0, booking.bookingCurrency || 'INR')}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500">Taxes & Fees</span>
+                                        <div className="flex items-center gap-1.5 text-gray-500">
+                                            <span>Taxes & Fees</span>
+                                            <div className="group/info relative print:hidden [.pdf-capture-mode_&]:hidden">
+                                                <Info className="h-3 w-3 text-gray-400 cursor-help" />
+                                                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[9px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                                                    GST is calculated per room per night at property-specific transaction values.
+                                                </div>
+                                            </div>
+                                        </div>
                                         <span className="font-medium text-gray-900">{formatPrice(booking.taxAmount || 0, booking.bookingCurrency || 'INR')}</span>
                                     </div>
                                     {(booking.couponDiscountAmount > 0) && (

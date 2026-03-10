@@ -6,9 +6,10 @@ import { PricingService } from './pricing.service';
 import { AuditModule } from '../audit/audit.module';
 import { ChannelPartnersModule } from '../channel-partners/channel-partners.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { SystemSettingsModule } from '../system-settings/system-settings.module';
 
 @Module({
-    imports: [AuditModule, ChannelPartnersModule, PaymentsModule],
+    imports: [AuditModule, ChannelPartnersModule, PaymentsModule, SystemSettingsModule],
     controllers: [BookingsController],
     providers: [BookingsService, AvailabilityService, PricingService],
     exports: [BookingsService],

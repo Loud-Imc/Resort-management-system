@@ -35,10 +35,12 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { IcalModule } from './ical/ical.module';
 import { PdfModule } from './pdf/pdf.module';
+import { SystemSettingsModule } from './system-settings/system-settings.module';
 
 @Module({
   imports: [
     PdfModule,
+    SystemSettingsModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
