@@ -8,12 +8,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 export class IcalService {
   private readonly logger = new Logger(IcalService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Sync all active iCal feeds for all properties
    */
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron('0 */15 * * * *')  // Every 15 minutes
   async syncAllCalendars() {
     this.logger.log('Starting scheduled iCal synchronization...');
     const activeSyncs = await this.prisma.propertyIcal.findMany({
@@ -35,9 +35,10 @@ export class IcalService {
   async syncPropertyIcal(syncId: string) {
     const sync = await this.prisma.propertyIcal.findUnique({
       where: { id: syncId },
-      include: { 
+      include: {
         property: true,
-        bookingSource: true
+        bookingSource: true,
+        roomType: true
       }
     });
 
@@ -50,7 +51,7 @@ export class IcalService {
       // 1. Clear existing blocks from THIS specific sync to avoid duplicates
       // We'll use the notes field to identify blocks from this sync
       const syncIdentifier = `iCal-Sync-${sync.id}`;
-      
+
       await this.prisma.roomBlock.deleteMany({
         where: {
           notes: { contains: syncIdentifier },
@@ -62,23 +63,68 @@ export class IcalService {
       for (const event of events as any[]) {
         if (!event.start || !event.end) continue;
 
-        // For simplicity in this version, we block ALL rooms in the property
-        // In a more advanced version, we would map specific RoomTypes
-        const rooms = await this.prisma.room.findMany({
-          where: { propertyId: sync.propertyId, isEnabled: true }
-        });
-
-        for (const room of rooms) {
-          await this.prisma.roomBlock.create({
-            data: {
-              roomId: room.id,
-              startDate: new Date(event.start),
-              endDate: new Date(event.end),
-              reason: `External Booking (${sync.bookingSource?.name || sync.platformName})`,
-              notes: `${syncIdentifier} | UID: ${event.uid || 'N/A'}`,
-              createdById: sync.property.ownerId
-            }
+        if (sync.roomTypeId) {
+          // Room-type-specific sync: block ONE available room of this type per event
+          const rooms = await this.prisma.room.findMany({
+            where: {
+              propertyId: sync.propertyId,
+              roomTypeId: sync.roomTypeId,
+              isEnabled: true
+            },
+            orderBy: { blocks: { _count: 'asc' } }  // Fewest blocks first
           });
+
+          // Find the first room that doesn't already have a block for these dates
+          let blocked = false;
+          for (const room of rooms) {
+            const existingBlock = await this.prisma.roomBlock.findFirst({
+              where: {
+                roomId: room.id,
+                OR: [
+                  { startDate: { lte: new Date(event.start) }, endDate: { gt: new Date(event.start) } },
+                  { startDate: { lt: new Date(event.end) }, endDate: { gte: new Date(event.end) } },
+                  { startDate: { gte: new Date(event.start) }, endDate: { lte: new Date(event.end) } },
+                ]
+              }
+            });
+
+            if (!existingBlock) {
+              await this.prisma.roomBlock.create({
+                data: {
+                  roomId: room.id,
+                  startDate: new Date(event.start),
+                  endDate: new Date(event.end),
+                  reason: `External Booking (${sync.bookingSource?.name || sync.platformName})`,
+                  notes: `${syncIdentifier} | UID: ${event.uid || 'N/A'}`,
+                  createdById: sync.property.ownerId
+                }
+              });
+              blocked = true;
+              break;
+            }
+          }
+
+          if (!blocked) {
+            this.logger.warn(`No available room of type ${sync.roomType?.name || sync.roomTypeId} for event ${event.uid || 'N/A'}`);
+          }
+        } else {
+          // Fallback: no roomTypeId configured — block ALL rooms in the property
+          const rooms = await this.prisma.room.findMany({
+            where: { propertyId: sync.propertyId, isEnabled: true }
+          });
+
+          for (const room of rooms) {
+            await this.prisma.roomBlock.create({
+              data: {
+                roomId: room.id,
+                startDate: new Date(event.start),
+                endDate: new Date(event.end),
+                reason: `External Booking (${sync.bookingSource?.name || sync.platformName})`,
+                notes: `${syncIdentifier} | UID: ${event.uid || 'N/A'}`,
+                createdById: sync.property.ownerId
+              }
+            });
+          }
         }
       }
 
@@ -136,13 +182,14 @@ export class IcalService {
   /**
    * Add a new iCal sync link
    */
-  async addSyncLink(propertyId: string, data: { icalUrl: string; platformName: string; bookingSourceId?: string }) {
+  async addSyncLink(propertyId: string, data: { icalUrl: string; platformName: string; bookingSourceId?: string; roomTypeId?: string }) {
     return this.prisma.propertyIcal.create({
       data: {
         propertyId,
         icalUrl: data.icalUrl,
         platformName: data.platformName,
-        bookingSourceId: data.bookingSourceId
+        bookingSourceId: data.bookingSourceId,
+        roomTypeId: data.roomTypeId
       }
     });
   }
@@ -152,7 +199,7 @@ export class IcalService {
    */
   async removeSyncLink(syncId: string) {
     const syncIdentifier = `iCal-Sync-${syncId}`;
-    
+
     // Cleanup blocks first
     await this.prisma.roomBlock.deleteMany({
       where: { notes: { contains: syncIdentifier } }

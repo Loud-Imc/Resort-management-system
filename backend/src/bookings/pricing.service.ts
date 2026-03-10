@@ -132,7 +132,7 @@ export class PricingService {
             } else {
                 const adultPrice = Number(propertyGroupPriceAdult);
                 const childPrice = propertyGroupPriceChild !== null ? Number(propertyGroupPriceChild) : adultPrice;
-                
+
                 // Use breakdown if available, otherwise fallback to groupSize * adultPrice
                 const totalSpecifiedGuests = (adultsCount || 0) + (childrenCount || 0);
                 if (totalSpecifiedGuests > 0) {
@@ -190,37 +190,7 @@ export class PricingService {
             subtotal -= offerDiscountAmount;
         }
 
-        // 8. Calculate tax based on dynamic GST tiers (Applied per room per night)
-        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
-        let totalTaxAmount = 0;
-
-        // Iterate through each night to handle seasonal pricing variations
-        for (let i = 0; i < numberOfNights; i++) {
-            // Estimate price for this specific night (if seasonal pricing applies)
-            // For now, we use the average nightly subtotal as we don't store nightly breakdown yet
-            // but we ensure we handle room-by-room splits
-            const subtotalThisNight = subtotal / numberOfNights;
-
-            if (isGroupBooking && groupSize) {
-                const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
-                let remainingGuests = groupSize;
-                
-                while (remainingGuests > 0) {
-                    const guestsThisRoom = Math.min(remainingGuests, roomCapacity);
-                    const roomTariffThisNight = (subtotalThisNight / groupSize) * guestsThisRoom;
-                    
-                    totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
-                    remainingGuests -= guestsThisRoom;
-                }
-            } else {
-                totalTaxAmount += this.calculateTaxForTariff(subtotalThisNight, gstTiers);
-            }
-        }
-
-        const taxAmount = totalTaxAmount;
-        const taxRate = subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 0;
-
-        // 9. Apply referral discount if applicable
+        // 8. Apply referral discount if applicable (BEFORE tax per Indian GST rules)
         let referralDiscountAmount = 0;
         if (referralCode) {
             const cp = await this.prisma.channelPartner.findFirst({
@@ -236,8 +206,7 @@ export class PricingService {
             subtotal -= referralDiscountAmount;
         }
 
-        // 10. Apply coupon discount (Apply at the end after Tax?) 
-        // Usually coupons are applied to subtotal before tax, but let's follow the previous logic: subtotal + tax - discount
+        // 9. Apply coupon discount (BEFORE tax per Indian GST rules - tax on transaction value)
         let couponDiscountAmount = 0;
         if (couponCode) {
             couponDiscountAmount = await this.calculateCouponDiscount(
@@ -245,10 +214,40 @@ export class PricingService {
                 subtotal,
                 checkInDate,
             );
+            subtotal -= couponDiscountAmount;
         }
 
-        // 11. Calculate final total
-        const totalAmount = subtotal + taxAmount - couponDiscountAmount;
+        // 10. Calculate GST based on dynamic GST tiers (Applied per room per night)
+        // GST is calculated on the fully-discounted subtotal (transaction value)
+        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        let totalTaxAmount = 0;
+
+        // Iterate through each night to handle seasonal pricing variations
+        for (let i = 0; i < numberOfNights; i++) {
+            // Per-night taxable amount (average across nights)
+            const subtotalThisNight = subtotal / numberOfNights;
+
+            if (isGroupBooking && groupSize) {
+                // Split into rooms using room capacity, calculate GST per room
+                const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
+                const numberOfRooms = Math.ceil(groupSize / roomCapacity);
+                const roomTariffThisNight = subtotalThisNight / numberOfRooms;
+
+                // Apply GST slab separately for each room
+                for (let r = 0; r < numberOfRooms; r++) {
+                    totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
+                }
+            } else {
+                // Standard booking: single room tariff per night
+                totalTaxAmount += this.calculateTaxForTariff(subtotalThisNight, gstTiers);
+            }
+        }
+
+        const taxAmount = totalTaxAmount;
+        const taxRate = subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 0;
+
+        // 11. Calculate final total (subtotal already has all discounts applied)
+        const totalAmount = subtotal + taxAmount;
 
         // 12. Handle Currency Conversion
         let exchangeRate = 1.0;
@@ -393,5 +392,59 @@ export class PricingService {
         // Allow override within reasonable bounds (e.g., not less than 50% of calculated)
         const minAllowed = calculatedTotal * 0.5;
         return overrideTotal >= minAllowed;
+    }
+
+    /**
+     * Reverse-calculate GST and Base Amount from a given Total amount.
+     * Used when an admin overrides the total price of a booking.
+     */
+    async calculateReverseGST(
+        overrideTotal: number,
+        numberOfNights: number,
+        roomCount: number
+    ): Promise<{ baseAmount: number; taxAmount: number }> {
+        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+
+        // Target total per room per night
+        const totalPerRoomPerNight = overrideTotal / (numberOfNights * roomCount);
+
+        let targetTaxRate = 0;
+        let validTariff = 0;
+
+        if (gstTiers && Array.isArray(gstTiers)) {
+            // Sort tiers descending to test highest rates first (safest for overlaps)
+            const sortedTiers = [...gstTiers].sort((a, b) => b.rate - a.rate);
+
+            for (const tier of sortedTiers) {
+                const tierRate = tier.rate / 100;
+
+                // Test tariff if this tier's rate was applied:
+                // Since Total = Tariff + (Tariff * Rate), Tariff = Total / (1 + Rate)
+                const testTariff = totalPerRoomPerNight / (1 + tierRate);
+
+                // Check if this testTariff actually falls into this tier's bracket
+                if (testTariff >= tier.min && (tier.max === null || tier.max === undefined || testTariff <= tier.max)) {
+                    targetTaxRate = tierRate;
+                    validTariff = testTariff;
+                    break;
+                }
+            }
+        }
+
+        // If no tier matched (should not happen with default 0-1000, 1000-7500, etc)
+        // Fallback to 12% reverse calculation
+        if (!validTariff) {
+            targetTaxRate = 0.12;
+        }
+
+        // Calculate precise tax and base using the selected rate
+        // Tax = Total - (Total / (1 + Rate))
+        const exactTaxAmount = overrideTotal - (overrideTotal / (1 + targetTaxRate));
+        const exactBaseAmount = overrideTotal - exactTaxAmount;
+
+        return {
+            baseAmount: Number(exactBaseAmount.toFixed(2)),
+            taxAmount: Number(exactTaxAmount.toFixed(2))
+        };
     }
 }

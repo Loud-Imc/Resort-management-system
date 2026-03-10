@@ -67,18 +67,22 @@ export class AvailabilityService {
     }
 
     /**
-     * Check if a specific room is available for the given date range
+     * Check if a specific room is available for the given date range.
+     * Accepts an optional prismaClient to run within an existing transaction.
      */
-    private async isRoomAvailable(
+    async isRoomAvailable(
         roomId: string,
         checkInDate: Date,
         checkOutDate: Date,
+        prismaClient?: any,
     ): Promise<boolean> {
+        const db = prismaClient || this.prisma;
+
         // Check for overlapping bookings
         const thirtyMinutesAgo = new Date();
         thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
-        const overlappingBookings = await this.prisma.booking.findMany({
+        const overlappingBookings = await db.booking.findMany({
             where: {
                 roomId,
                 AND: [
@@ -127,7 +131,7 @@ export class AvailabilityService {
         }
 
         // Check for room blocks
-        const overlappingBlocks = await this.prisma.roomBlock.findMany({
+        const overlappingBlocks = await db.roomBlock.findMany({
             where: {
                 roomId,
                 OR: [

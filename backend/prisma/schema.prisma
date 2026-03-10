@@ -124,6 +124,7 @@ model RoomType {
   cancellationPolicy   CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
   isAvailableForGroupBooking Boolean @default(false)
   groupMaxOccupancy          Int?
+  icalSyncs                  PropertyIcal[]
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -485,6 +486,8 @@ model PropertyIcal {
   property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   bookingSourceId String?
   bookingSource   BookingSource? @relation(fields: [bookingSourceId], references: [id], onDelete: SetNull)
+  roomTypeId      String?
+  roomType        RoomType?      @relation(fields: [roomTypeId], references: [id], onDelete: SetNull)
 
   @@map("property_icals")
 }

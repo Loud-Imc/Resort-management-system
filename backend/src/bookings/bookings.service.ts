@@ -166,6 +166,24 @@ export class BookingsService {
             finalTotal = overrideTotal;
             isPriceOverridden = true;
             pricing.convertedTotal = finalTotal * pricing.exchangeRate;
+
+            // Recalculate GST components in reverse
+            const reversePricing = await this.pricingService.calculateReverseGST(
+                finalTotal,
+                pricing.numberOfNights,
+                pricing.roomCount || 1
+            );
+
+            // Update pricing object so final DB record is mathematically consistent
+            pricing.taxAmount = reversePricing.taxAmount;
+            pricing.baseAmount = reversePricing.baseAmount;
+
+            // Zero out extras since baseAmount now encapsulates the entire pre-tax value
+            pricing.extraAdultAmount = 0;
+            pricing.extraChildAmount = 0;
+            pricing.offerDiscountAmount = 0;
+            pricing.couponDiscountAmount = 0;
+            pricing.referralDiscountAmount = 0;
         }
 
         // 5. Get an available room
@@ -265,6 +283,51 @@ export class BookingsService {
                     undefined,
                     tx
                 );
+            }
+
+            // 7.2.1 Row-level lock + availability re-check to prevent double booking
+            // Lock the room row(s) so no other transaction can read/write until we commit
+            if (isGroupBooking && allocatedRooms.length > 0) {
+                // Lock ALL allocated rooms for group booking
+                for (const room of allocatedRooms) {
+                    await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${room.id} FOR UPDATE`;
+                    const isStillAvailable = await this.availabilityService.isRoomAvailable(
+                        room.id, checkIn, checkOut, tx
+                    );
+                    if (!isStillAvailable) {
+                        throw new BadRequestException(
+                            `Room ${room.roomNumber || room.id} is no longer available. Please try again.`
+                        );
+                    }
+                }
+            } else {
+                // Lock the single selected room for standard booking
+                await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${selectedRoom.id} FOR UPDATE`;
+                const isStillAvailable = await this.availabilityService.isRoomAvailable(
+                    selectedRoom.id, checkIn, checkOut, tx
+                );
+                if (!isStillAvailable) {
+                    throw new BadRequestException(
+                        'This room was just booked by another user. Please try again.'
+                    );
+                }
+            }
+
+            // 7.2.2 Mathematical Validation of Pricing Object
+            const computedTotal = (
+                pricing.baseAmount +
+                pricing.extraAdultAmount +
+                pricing.extraChildAmount +
+                pricing.taxAmount -
+                pricing.offerDiscountAmount -
+                pricing.couponDiscountAmount -
+                pricing.referralDiscountAmount
+            );
+
+            // Allow up to ±0.50 in rounding differences
+            if (Math.abs(computedTotal - finalTotal) > 0.50) {
+                console.error(`[BookingsService] Pricing discrepancy detected. Expected: ${finalTotal}, Computed: ${computedTotal}. Pricing Object:`, pricing);
+                throw new BadRequestException('Booking calculation failed internal consistency check. Please try again or contact support.');
             }
 
             // 7.3 Create the booking
