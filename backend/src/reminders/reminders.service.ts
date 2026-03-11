@@ -36,6 +36,7 @@ export class RemindersService {
                 include: {
                     user: true,
                     property: true,
+                    roomType: true,
                 },
             });
 
@@ -47,16 +48,39 @@ export class RemindersService {
                 const title = 'Check-in Reminder 🏨';
                 const message = `Friendly reminder: Your stay at ${booking.property?.name} starts tomorrow! We look forward to seeing you.`;
 
-                await this.notificationsService.createNotification({
-                    userId: booking.user.id,
-                    title,
-                    message,
-                    type: 'CHECKIN_REMINDER',
-                    data: { bookingId: booking.id, propertyId: booking.propertyId },
-                });
+                // 1. Inbox + Push notification
+                try {
+                    await this.notificationsService.createNotification({
+                        userId: booking.user.id,
+                        title,
+                        message,
+                        type: 'CHECKIN_REMINDER',
+                        data: { bookingId: booking.id, propertyId: booking.propertyId },
+                    });
+                } catch (err) {
+                    this.logger.error(`[sendCheckInReminders] Inbox/Push failed for ${booking.bookingNumber}:`, err);
+                }
 
-                // Also attempt push notification (already handled by createNotification inside NotificationsService)
-                this.logger.log(`Sent reminder to user ${booking.user.id} for booking ${booking.bookingNumber}`);
+                // 2. Email reminder
+                try {
+                    await this.notificationsService['mailService'].sendCheckInReminderEmail(booking);
+                } catch (err) {
+                    this.logger.error(`[sendCheckInReminders] Email failed for ${booking.bookingNumber}:`, err);
+                }
+
+                // 3. WhatsApp reminder
+                const targetNumber = (booking as any).whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+                if (targetNumber) {
+                    try {
+                        const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+                        const msg = `🏨 *Check-in Reminder!*\n\nHi ${booking.user.firstName}, your stay at *${booking.property?.name}* starts tomorrow (${checkIn}).\n\nBooking #: ${booking.bookingNumber}\nCheck-in Time: 2:00 PM\n\nWe look forward to welcoming you! 🙏`;
+                        await this.notificationsService.sendWhatsApp(targetNumber, msg);
+                    } catch (err) {
+                        this.logger.error(`[sendCheckInReminders] WhatsApp failed for ${booking.bookingNumber}:`, err);
+                    }
+                }
+
+                this.logger.log(`Sent check-in reminder to user ${booking.user.id} for booking ${booking.bookingNumber}`);
             }
         } catch (error) {
             this.logger.error('Failed to process check-in reminders:', error);
@@ -69,7 +93,7 @@ export class RemindersService {
     @Cron(CronExpression.EVERY_30_MINUTES)
     async processAbandonedCarts() {
         this.logger.log('Checking for abandoned carts...');
-        
+
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
         try {

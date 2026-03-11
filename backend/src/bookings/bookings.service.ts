@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
@@ -9,9 +9,11 @@ import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class BookingsService {
+    private readonly logger = new Logger(BookingsService.name);
     constructor(
         private prisma: PrismaService,
         private availabilityService: AvailabilityService,
@@ -288,8 +290,12 @@ export class BookingsService {
             // 7.2.1 Row-level lock + availability re-check to prevent double booking
             // Lock the room row(s) so no other transaction can read/write until we commit
             if (isGroupBooking && allocatedRooms.length > 0) {
+                // To prevent PostgreSQL deadlocks, we must sort the rooms by ID before locking
+                // This ensures all concurrent transactions lock rooms in the exact same deterministic order
+                const roomsToLock = [...allocatedRooms].sort((a, b) => a.id.localeCompare(b.id));
+
                 // Lock ALL allocated rooms for group booking
-                for (const room of allocatedRooms) {
+                for (const room of roomsToLock) {
                     await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${room.id} FOR UPDATE`;
                     const isStillAvailable = await this.availabilityService.isRoomAvailable(
                         room.id, checkIn, checkOut, tx
@@ -401,8 +407,16 @@ export class BookingsService {
                 },
             });
 
-            // 7.4 Update coupon usage
+            // 7.4 Update coupon usage with row-level lock
             if (couponId) {
+                // Lock row to prevent highly concurrent "last use" abuse
+                await tx.$queryRaw`SELECT id FROM coupons WHERE id = ${couponId} FOR UPDATE`;
+                const lockedCoupon = await tx.coupon.findUnique({ where: { id: couponId } });
+
+                if (lockedCoupon && lockedCoupon.maxUses && lockedCoupon.usedCount >= lockedCoupon.maxUses) {
+                    throw new BadRequestException('Coupon usage limit reached during checkout. Please remove the coupon to proceed.');
+                }
+
                 await tx.coupon.update({
                     where: { id: couponId },
                     data: { usedCount: { increment: 1 } },
@@ -864,6 +878,11 @@ export class BookingsService {
             },
         });
 
+        // Release ALL room blocks for this booking (including group booking extra rooms)
+        await this.prisma.roomBlock.deleteMany({
+            where: { bookingId: booking.id },
+        });
+
         await this.auditService.createLog({
             action: 'CANCEL',
             entity: 'Booking',
@@ -897,7 +916,6 @@ export class BookingsService {
             const hoursUntilCheckIn = Math.max(0, differenceInHours(checkInDate, now));
 
             const rules = (applicablePolicy.rules as any[]) || [];
-            // Sort rules by hoursBeforeCheckIn descending (e.g. 48, 24, 0)
             const sortedRules = [...rules].sort((a, b) => b.hoursBeforeCheckIn - a.hoursBeforeCheckIn);
 
             for (const rule of sortedRules) {
@@ -944,7 +962,6 @@ export class BookingsService {
                         }
                     });
 
-                    // Update Booking's financial totals
                     await this.prisma.booking.update({
                         where: { id: booking.id },
                         data: {
@@ -953,13 +970,38 @@ export class BookingsService {
                         }
                     });
                 } else if (payment.razorpayPaymentId) {
-                    // Refund via Razorpay
+                    // Refund via Razorpay — call processRefund but handle booking status ourselves
                     await this.paymentsService.processRefund(payment.id, actualRefundAmount, reason || `Booking cancellation (${refundPercentage}% refund)`);
+                } else {
+                    // Manual payment (CASH, UPI, bank transfer) — record refund for accounting
+                    await this.prisma.payment.update({
+                        where: { id: payment.id },
+                        data: {
+                            status: refundPercentage === 100 ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+                            refundAmount: actualRefundAmount,
+                            refundDate: new Date(),
+                            refundReason: reason || `Manual refund pending (${refundPercentage}% of ${payment.paymentMethod} payment)`
+                        }
+                    });
+
+                    await this.prisma.booking.update({
+                        where: { id: booking.id },
+                        data: {
+                            paidAmount: { decrement: actualRefundAmount },
+                            paymentStatus: refundPercentage === 100 ? 'UNPAID' : 'PARTIAL'
+                        }
+                    });
                 }
             } catch (refundError) {
                 console.error(`[BookingsService] Failed to refund payment ${payment.id}:`, refundError);
             }
         }
+
+        // Re-assert CANCELLED status after all refunds to prevent processRefund from overwriting it
+        await this.prisma.booking.update({
+            where: { id },
+            data: { status: 'CANCELLED' },
+        });
 
         return updated;
     }
@@ -1136,5 +1178,61 @@ export class BookingsService {
         const sequence = String(count + 1).padStart(4, '0');
         const entropy = Math.random().toString(36).substring(2, 6).toUpperCase();
         return `BK-${year}${month}${day}-${sequence}-${entropy}`;
+    }
+
+    /**
+     * Cron job: Expire stale PENDING_PAYMENT bookings every 5 minutes.
+     * Bookings older than 30 minutes in PENDING_PAYMENT status are cancelled
+     * and their rooms are released.
+     */
+    @Cron('0 */5 * * * *')
+    async expireStaleBookings() {
+        const thirtyMinutesAgo = new Date();
+        thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+
+        const staleBookings = await this.prisma.booking.findMany({
+            where: {
+                status: 'PENDING_PAYMENT',
+                createdAt: { lt: thirtyMinutesAgo },
+            },
+            select: { id: true, bookingNumber: true, roomId: true },
+        });
+
+        if (staleBookings.length === 0) return;
+
+        this.logger.log(`[ExpiryCron] Found ${staleBookings.length} stale PENDING_PAYMENT booking(s). Expiring...`);
+
+        for (const booking of staleBookings) {
+            try {
+                await this.prisma.$transaction(async (tx) => {
+                    // 1. Mark booking as EXPIRED
+                    await tx.booking.update({
+                        where: { id: booking.id },
+                        data: {
+                            status: 'CANCELLED',
+                            cancelledAt: new Date(),
+                        },
+                    });
+
+                    // 2. Release ALL room blocks for this booking (including group extras)
+                    await tx.roomBlock.deleteMany({
+                        where: { bookingId: booking.id },
+                    });
+
+                    // 3. Mark any PENDING payment records as EXPIRED
+                    await tx.payment.updateMany({
+                        where: {
+                            bookingId: booking.id,
+                            status: 'PENDING',
+                        },
+                        data: { status: 'FAILED' },
+                    });
+                });
+
+                this.logger.log(`[ExpiryCron] Expired booking ${booking.bookingNumber} (${booking.id})`);
+            } catch (error) {
+                this.logger.error(`[ExpiryCron] Failed to expire booking ${booking.bookingNumber}: ${error.message}`);
+            }
+        }
     }
 }

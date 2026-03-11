@@ -856,6 +856,9 @@ export class ChannelPartnersService {
     }
 
     private async executeWalletDeduction(tx: Prisma.TransactionClient, channelPartnerId: string, amount: number, description: string, referenceId?: string) {
+        // Acquire row-level lock to prevent concurrent negative balance races
+        await tx.$queryRaw`SELECT id FROM channel_partners WHERE id = ${channelPartnerId} FOR UPDATE`;
+
         const cp = await tx.channelPartner.findUnique({ where: { id: channelPartnerId } });
         if (!cp || Number(cp.walletBalance) < amount) {
             throw new BadRequestException('Insufficient wallet balance');

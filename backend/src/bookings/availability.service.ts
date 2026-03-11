@@ -287,8 +287,13 @@ export class AvailabilityService {
                             name: 'Group Stay Package',
                             description: `Whole property access for your group of ${groupSize} guests.`,
                             property,
-                            availableCount: 1, // Represented as 1 package
+                            availableCount: 1,
                             totalPrice: pricing.convertedTotal,
+                            baseAmount: pricing.baseAmount,
+                            taxAmount: pricing.taxAmount,
+                            taxRate: pricing.taxRate,
+                            pricePerNight: pricing.pricePerNight,
+                            numberOfNights: pricing.numberOfNights,
                             isSoldOut: false,
                             isGroupPackage: true
                         });
@@ -390,6 +395,11 @@ export class AvailabilityService {
                     availableCount,
                     activeOffer,
                     totalPrice: pricing.convertedTotal,
+                    baseAmount: pricing.baseAmount,
+                    taxAmount: pricing.taxAmount,
+                    taxRate: pricing.taxRate,
+                    pricePerNight: pricing.pricePerNight,
+                    numberOfNights: pricing.numberOfNights,
                     isSoldOut: availableCount < rooms,
                 });
             }

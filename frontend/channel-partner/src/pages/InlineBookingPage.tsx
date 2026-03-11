@@ -61,6 +61,10 @@ const InlineBookingPage: React.FC = () => {
     const [guestPhone, setGuestPhone] = useState('');
     const [isLoadingRooms, setIsLoadingRooms] = useState(false);
 
+    // Server-side pricing
+    const [pricing, setPricing] = useState<any>(null);
+    const [isPricingLoading, setIsPricingLoading] = useState(false);
+
     // Step 3
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
     const [cpStats, setCpStats] = useState<CPStats | null>(null);
@@ -116,17 +120,50 @@ const InlineBookingPage: React.FC = () => {
         }
     };
 
-    // Price calculations
-    const nights = checkIn && checkOut ? Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24))) : 1;
-    const baseTotal = (selectedRoom?.basePrice || 0) * nights;
-    const discountRate = cpStats?.referralDiscountRate ?? 5;
+    // Price calculations — derived from server-side pricing response
+    const nights = pricing?.numberOfNights || (checkIn && checkOut ? Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24))) : 1);
     const commissionRate = cpStats?.commissionRate ?? 10;
-    const discount = Math.round(baseTotal * discountRate / 100);
-    const commission = Math.round(baseTotal * commissionRate / 100);
-    const afterDiscount = baseTotal - discount; // What customer would pay = what CP pays online
-    const afterWallet = afterDiscount - commission; // Wallet payment: deduct commission upfront
+    const discountRate = cpStats?.referralDiscountRate ?? 5;
+
+    // All amounts from backend when available
+    const serverTotal = pricing?.totalAmount || 0;
+    const serverBase = pricing?.baseAmount || 0;
+    const serverTax = pricing?.taxAmount || 0;
+    const serverExtraAdult = pricing?.extraAdultAmount || 0;
+    const serverExtraChild = pricing?.extraChildAmount || 0;
+    const serverReferralDiscount = pricing?.referralDiscountAmount || 0;
+    const serverOfferDiscount = pricing?.offerDiscountAmount || 0;
+
+    const commission = Math.round(serverTotal * commissionRate / 100);
+    const afterDiscount = serverTotal; // Total already includes referral discount from backend
+    const afterWallet = afterDiscount - commission;
 
     const amountToPay = paymentMethod === 'WALLET' ? afterWallet : afterDiscount;
+
+    // Fetch server-side pricing when a room is selected
+    const fetchPricing = async (room: RoomType) => {
+        if (!checkIn || !checkOut) return;
+        setIsPricingLoading(true);
+        try {
+            const res: any = await api.post('/bookings/calculate-price', {
+                roomTypeId: room.id,
+                checkInDate: checkIn,
+                checkOutDate: checkOut,
+                adultsCount: adults,
+                childrenCount: children,
+                referralCode: cpStats?.referralCode,
+                currency: selectedProperty?.currency || 'INR',
+                isGroupBooking,
+                groupSize: isGroupBooking ? (adults + children) : undefined,
+            });
+            setPricing(res.data || res);
+        } catch (e) {
+            console.error('Failed to fetch pricing', e);
+            setPricing(null);
+        } finally {
+            setIsPricingLoading(false);
+        }
+    };
 
     // Step 3: Submit booking
     const handleBook = async () => {
@@ -451,23 +488,18 @@ const InlineBookingPage: React.FC = () => {
                             <div className="glass-pane" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-dim)' }}>No available rooms for those dates.</div>
                         )}
                         {roomTypes.map((rt) => {
-                            // Prefer totalPrice from search (already accounts for nights/taxes)
-                            // Fall back to basePrice * nights if not available
+                            const isSelected = selectedRoom?.id === rt.id;
                             const roomBase = rt.totalPrice ?? (rt.basePrice * nights);
-                            const roomDiscount = Math.round(roomBase * discountRate / 100);
-                            const roomCommission = Math.round(roomBase * commissionRate / 100);
-                            const roomAfterDiscount = roomBase - roomDiscount;
-                            const roomWallet = roomAfterDiscount - roomCommission;
 
                             return (
                                 <div
                                     key={rt.id}
-                                    onClick={() => setSelectedRoom(rt)}
+                                    onClick={() => { setSelectedRoom(rt); fetchPricing(rt); }}
                                     className="glass-pane"
                                     style={{
                                         padding: '1.5rem', cursor: 'pointer',
-                                        border: selectedRoom?.id === rt.id ? '2px solid var(--primary-teal)' : '1px solid var(--border-glass)',
-                                        background: selectedRoom?.id === rt.id ? 'rgba(8,71,78,0.06)' : undefined,
+                                        border: isSelected ? '2px solid var(--primary-teal)' : '1px solid var(--border-glass)',
+                                        background: isSelected ? 'rgba(8,71,78,0.06)' : undefined,
                                         transition: 'all 0.2s',
                                     }}
                                 >
@@ -481,24 +513,24 @@ const InlineBookingPage: React.FC = () => {
                                                 <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Up to {rt.maxAdults} adults{rt.maxChildren > 0 ? ` + ${rt.maxChildren} children` : ''}</p>
                                             </div>
                                         </div>
-                                        {selectedRoom?.id === rt.id && <CheckCircle size={20} color="var(--primary-teal)" />}
+                                        {isSelected && <CheckCircle size={20} color="var(--primary-teal)" />}
                                     </div>
 
-                                    <div style={{ marginTop: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                                        <div style={{ textAlign: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase' }}>Base ({nights}n)</p>
-                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, textDecoration: 'line-through', color: 'var(--text-dim)' }}>{formatPrice(roomBase, selectedProperty?.currency || 'INR')}</p>
+                                    <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div>
+                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase' }}>From</p>
+                                            <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary-teal)' }}>{formatPrice(roomBase, selectedProperty?.currency || 'INR')}</p>
+                                            <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>{nights} night{nights > 1 ? 's' : ''}</p>
                                         </div>
-                                        <div style={{ textAlign: 'center', padding: '0.75rem', background: 'rgba(16,185,129,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                                            <p style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600, textTransform: 'uppercase' }}>Online Pay</p>
-                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#10b981' }}>{formatPrice(roomAfterDiscount, selectedProperty?.currency || 'INR')}</p>
-                                            <p style={{ fontSize: '0.65rem', color: '#10b981' }}>({discountRate}% off)</p>
-                                        </div>
-                                        <div style={{ textAlign: 'center', padding: '0.75rem', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                                            <p style={{ fontSize: '0.7rem', color: '#d97706', fontWeight: 600, textTransform: 'uppercase' }}>Wallet Pay</p>
-                                            <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#d97706' }}>{formatPrice(roomWallet, selectedProperty?.currency || 'INR')}</p>
-                                            <p style={{ fontSize: '0.65rem', color: '#d97706' }}>({discountRate + commissionRate}% off)</p>
-                                        </div>
+                                        {isSelected && isPricingLoading && (
+                                            <Loader2 size={18} className="animate-spin" style={{ color: 'var(--primary-teal)' }} />
+                                        )}
+                                        {isSelected && pricing && !isPricingLoading && (
+                                            <div style={{ textAlign: 'right' }}>
+                                                <p style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 600, textTransform: 'uppercase' }}>Total (incl. GST)</p>
+                                                <p style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>{formatPrice(serverTotal, selectedProperty?.currency || 'INR')}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -573,7 +605,7 @@ const InlineBookingPage: React.FC = () => {
                             {paymentMethod === 'WALLET' && (
                                 <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', color: '#d97706' }}>
                                     <Star size={12} style={{ display: 'inline', marginRight: '0.3rem' }} />
-                                    You save {formatPrice(discount + commission, selectedProperty?.currency || 'INR')} ({discountRate + commissionRate}% off). Commission reflected instantly.
+                                    You save {formatPrice(serverReferralDiscount + commission, selectedProperty?.currency || 'INR')} ({discountRate + commissionRate}% off). Commission reflected instantly.
                                 </div>
                             )}
                         </div>
@@ -633,11 +665,35 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span style={{ color: 'var(--text-dim)' }}>{selectedRoom?.name} × {nights} night{nights > 1 ? 's' : ''}</span>
-                                    <span style={{ fontWeight: 600 }}>{formatPrice(baseTotal, selectedProperty?.currency || 'INR')}</span>
+                                    <span style={{ fontWeight: 600 }}>{formatPrice(serverBase, selectedProperty?.currency || 'INR')}</span>
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
-                                    <span>Guest Discount ({discountRate}%)</span>
-                                    <span>-{formatPrice(discount, selectedProperty?.currency || 'INR')}</span>
+                                {serverExtraAdult > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ color: 'var(--text-dim)' }}>Extra Adult Charges</span>
+                                        <span style={{ fontWeight: 600 }}>{formatPrice(serverExtraAdult, selectedProperty?.currency || 'INR')}</span>
+                                    </div>
+                                )}
+                                {serverExtraChild > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ color: 'var(--text-dim)' }}>Extra Child Charges</span>
+                                        <span style={{ fontWeight: 600 }}>{formatPrice(serverExtraChild, selectedProperty?.currency || 'INR')}</span>
+                                    </div>
+                                )}
+                                {serverOfferDiscount > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                                        <span>Offer Discount</span>
+                                        <span>-{formatPrice(serverOfferDiscount, selectedProperty?.currency || 'INR')}</span>
+                                    </div>
+                                )}
+                                {serverReferralDiscount > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                                        <span>Referral Discount ({discountRate}%)</span>
+                                        <span>-{formatPrice(serverReferralDiscount, selectedProperty?.currency || 'INR')}</span>
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-dim)' }}>GST</span>
+                                    <span style={{ fontWeight: 600 }}>{formatPrice(serverTax, selectedProperty?.currency || 'INR')}</span>
                                 </div>
                                 {paymentMethod === 'WALLET' && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#d97706' }}>

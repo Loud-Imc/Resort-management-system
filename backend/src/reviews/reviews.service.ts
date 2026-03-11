@@ -7,58 +7,77 @@ export class ReviewsService {
 
     async create(userId: string, dto: {
         propertyId: string;
+        bookingId: string;
         roomTypeId?: string;
         rating: number;
         comment?: string;
         images?: string[];
     }) {
-        const { propertyId, roomTypeId, rating, comment, images } = dto;
+        const { propertyId, bookingId, roomTypeId, rating, comment, images } = dto;
 
         if (rating < 1 || rating > 5) {
             throw new BadRequestException('Rating must be between 1 and 5');
         }
 
-        // 1. Verify if user has stayed at this property
+        // 1. Verify if user has stayed at this property with this booking
         const booking = await this.prisma.booking.findFirst({
             where: {
+                id: bookingId,
                 userId,
                 propertyId,
-                ...(roomTypeId && { roomTypeId }),
                 status: 'CHECKED_OUT'
             },
         });
 
         if (!booking) {
-            throw new ForbiddenException('You can only review rooms/properties you have stayed at.');
+            throw new ForbiddenException('You can only review stays you have completed (checked-out).');
         }
 
-        // 2. Check if already reviewed (optional but recommended)
-        const existing = await this.prisma.review.findFirst({
-            where: {
-                userId,
-                propertyId,
-                ...(roomTypeId && { roomTypeId })
-            }
+        // 2. Check if already reviewed
+        const existing = await this.prisma.review.findUnique({
+            where: { bookingId }
         });
 
         if (existing) {
             throw new BadRequestException('You have already reviewed this stay.');
         }
 
-        return this.prisma.review.create({
-            data: {
-                userId,
-                propertyId,
-                roomTypeId,
-                rating,
-                comment,
-                images: images || [],
-            },
-            include: {
-                user: {
-                    select: { firstName: true, lastName: true, avatar: true }
+        return this.prisma.$transaction(async (tx) => {
+            // Create the review
+            const review = await tx.review.create({
+                data: {
+                    userId,
+                    propertyId,
+                    bookingId,
+                    roomTypeId,
+                    rating,
+                    comment,
+                    images: images || [],
+                },
+                include: {
+                    user: {
+                        select: { firstName: true, lastName: true, avatar: true }
+                    }
                 }
-            }
+            });
+
+            // Recalculate property statistics
+            const stats = await tx.review.aggregate({
+                where: { propertyId },
+                _avg: { rating: true },
+                _count: { rating: true }
+            });
+
+            // Update the Property model
+            await tx.property.update({
+                where: { id: propertyId },
+                data: {
+                    rating: stats._avg.rating || 0,
+                    reviewCount: stats._count.rating || 0
+                }
+            });
+
+            return review;
         });
     }
 

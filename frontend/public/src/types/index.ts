@@ -16,6 +16,12 @@ export interface RoomType {
     marketingBadgeText?: string;
     marketingBadgeType?: string;
     totalPrice?: number;
+    baseAmount?: number;
+    taxAmount?: number;
+    taxRate?: number;
+    pricePerNight?: number;
+    numberOfNights?: number;
+    activeOffer?: any;
     offers?: any[];
     isSoldOut?: boolean;
     rooms?: { id: string; status: string }[];

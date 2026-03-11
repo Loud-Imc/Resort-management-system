@@ -3,6 +3,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
@@ -12,7 +14,7 @@ export class NotificationsController {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get all notifications for current user' })
@@ -60,6 +62,8 @@ export class NotificationsController {
   }
 
   @Post('broadcast')
+  @UseGuards(RolesGuard)
+  @Roles('SuperAdmin', 'Admin')
   @ApiOperation({ summary: 'Broadcast a notification (Admin only)' })
   async broadcast(@Body() payload: any) {
     return this.notificationsService.broadcastNotification(payload);

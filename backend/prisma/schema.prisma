@@ -177,10 +177,12 @@ model RoomBlock {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   bookingId   String?
-  booking     Booking? @relation(fields: [bookingId], references: [id])
+  booking     Booking? @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   createdBy   User     @relation(fields: [createdById], references: [id])
   room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
+  @@index([roomId])
+  @@index([startDate, endDate])
   @@map("room_blocks")
 }
 
@@ -247,7 +249,12 @@ model Booking {
   user                    User                 @relation(fields: [userId], references: [id])
   income                  Income[]
   payments                Payment[]
+  review                  Review?
 
+  @@index([propertyId])
+  @@index([status])
+  @@index([checkInDate, checkOutDate])
+  @@index([userId])
   @@map("bookings")
 }
 
@@ -316,6 +323,7 @@ model Coupon {
   updatedAt        DateTime     @updatedAt
   bookings         Booking[]
 
+  @@index([isActive])
   @@map("coupons")
 }
 
@@ -340,9 +348,11 @@ model Payment {
   payoutStatus      PayoutStatus  @default(PENDING)
   platformFee       Decimal?      @db.Decimal(10, 2)
   notes             String?
-  booking           Booking?      @relation(fields: [bookingId], references: [id])
-  eventBooking      EventBooking? @relation(fields: [eventBookingId], references: [id])
+  booking           Booking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  eventBooking      EventBooking? @relation(fields: [eventBookingId], references: [id], onDelete: Restrict)
 
+  @@index([bookingId])
+  @@index([status])
   @@map("payments")
 }
 
@@ -357,10 +367,12 @@ model Income {
   updatedAt      DateTime      @updatedAt
   eventBookingId String?
   propertyId     String?
-  booking        Booking?      @relation(fields: [bookingId], references: [id])
-  eventBooking   EventBooking? @relation(fields: [eventBookingId], references: [id])
+  booking        Booking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  eventBooking   EventBooking? @relation(fields: [eventBookingId], references: [id], onDelete: Restrict)
   property       Property?     @relation(fields: [propertyId], references: [id])
 
+  @@index([bookingId])
+  @@index([date])
   @@map("income")
 }
 
@@ -672,6 +684,7 @@ model Review {
   userId      String
   roomTypeId  String?
   propertyId  String
+  bookingId   String   @unique
   images      String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -679,7 +692,10 @@ model Review {
   user        User     @relation(fields: [userId], references: [id])
   roomType    RoomType? @relation(fields: [roomTypeId], references: [id])
   property    Property @relation(fields: [propertyId], references: [id])
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict)
 
+  @@index([propertyId])
+  @@index([bookingId])
   @@map("reviews")
 }
 

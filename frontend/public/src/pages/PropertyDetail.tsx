@@ -65,8 +65,16 @@ export default function PropertyDetail() {
     });
     const [adults, setAdults] = useState(Number(searchParams.get('adults')) || 2);
     const [children, setChildren] = useState(Number(searchParams.get('children')) || 0);
+    const [rooms, _setRooms] = useState(Number(searchParams.get('rooms')) || 1);
     const [isGroupBooking, setIsGroupBooking] = useState(searchParams.get('isGroupBooking') === 'true');
     const [groupSize, setGroupSize] = useState(Number(searchParams.get('groupSize')) || 10);
+
+    // Auto-sync groupSize when adults or children change in group mode
+    useEffect(() => {
+        if (isGroupBooking) {
+            setGroupSize(adults + children);
+        }
+    }, [adults, children, isGroupBooking]);
 
     const [property, setProperty] = useState<Property | null>(null);
     const [availability, setAvailability] = useState<RoomType[] | null>(null);
@@ -106,7 +114,7 @@ export default function PropertyDetail() {
         if (property && checkIn && checkOut) {
             fetchAvailability();
         }
-    }, [property, checkIn, checkOut]);
+    }, [property, checkIn, checkOut, adults, children, rooms, isGroupBooking, groupSize]);
 
     const fetchAvailability = async () => {
         if (!property || !checkIn || !checkOut) return;
@@ -117,6 +125,7 @@ export default function PropertyDetail() {
                 checkOutDate: checkOut.toISOString(),
                 adults,
                 children,
+                rooms,
                 includeSoldOut: true,
                 propertyId: property.id,
                 isGroupBooking,
@@ -599,28 +608,33 @@ export default function PropertyDetail() {
                                                         {/* Right: Pricing & CTA */}
                                                         <div className="md:col-span-1 border-l border-gray-100 pl-8 flex flex-col justify-between">
                                                             <div className="text-right space-y-1">
-                                                                {roomType.offers && roomType.offers.length > 0 ? (
+                                                                {availabilityInfo?.totalPrice ? (
                                                                     <>
-                                                                        <div className="text-gray-400 text-xs line-through decoration-red-400">
-                                                                            {formatPrice(roomType.basePrice, selectedCurrency, rates)}
-                                                                        </div>
+                                                                        {availabilityInfo.activeOffer && (
+                                                                            <div className="text-gray-400 text-xs line-through decoration-red-400">
+                                                                                {formatPrice((availabilityInfo.baseAmount || 0) + (availabilityInfo.taxAmount || 0) + (availabilityInfo.activeOffer?.discountAmount || 0), selectedCurrency, rates)}
+                                                                            </div>
+                                                                        )}
                                                                         <div className="text-3xl font-black text-gray-900">
-                                                                            {formatPrice(Math.round(roomType.basePrice * (1 - Number(roomType.offers[0].discountPercentage) / 100)), selectedCurrency, rates)}
+                                                                            {formatPrice(availabilityInfo.totalPrice, selectedCurrency, rates)}
+                                                                        </div>
+                                                                        <div className="text-[10px] text-gray-500 font-medium">
+                                                                            incl. {formatPrice(availabilityInfo.taxAmount || 0, selectedCurrency, rates)} taxes ({Math.round((availabilityInfo.taxRate || 0) * 100)}% GST)
+                                                                        </div>
+                                                                        <div className="text-[10px] text-gray-400 font-medium">
+                                                                            {formatPrice(availabilityInfo.pricePerNight, selectedCurrency, rates)} / night × {availabilityInfo.numberOfNights || 0} night{(availabilityInfo.numberOfNights || 0) > 1 ? 's' : ''}
                                                                         </div>
                                                                     </>
                                                                 ) : (
                                                                     <>
-                                                                        <div className="text-gray-400 text-xs line-through decoration-gray-300">
-                                                                            {formatPrice(Math.round(roomType.basePrice * 1.25), selectedCurrency, rates)}
-                                                                        </div>
                                                                         <div className="text-3xl font-black text-gray-900">
                                                                             {formatPrice(roomType.basePrice, selectedCurrency, rates)}
                                                                         </div>
+                                                                        <div className="text-[10px] text-gray-500 font-medium">
+                                                                            per night + taxes
+                                                                        </div>
                                                                     </>
                                                                 )}
-                                                                <div className="text-[10px] text-gray-500 font-medium">
-                                                                    + {formatPrice(Math.round(roomType.basePrice * 0.12), selectedCurrency, rates)} Taxes & fees / night
-                                                                </div>
                                                                 {checkIn && checkOut && !isSoldOut && availableCount !== undefined && availableCount <= 3 && availableCount > 0 && (
                                                                     <div className="flex items-center justify-end gap-1.5 text-[10px] font-black text-rose-600 uppercase tracking-tight pt-1">
                                                                         <AlertCircle className="h-3 w-3 animate-pulse" />

@@ -144,105 +144,174 @@ export class NotificationsService {
 
   /**
    * Convenience method for New Booking Alert
+   * Idempotent: checks for an existing BOOKING_CONFIRMED notification before sending
+   * to prevent duplicates triggered by both verifyPayment and handlePaymentCaptured.
    */
   async broadcastNewBooking(booking: any) {
     const isCPBooked = !!booking.channelPartnerId;
     const summary = `New Booking: ${booking.bookingNumber} at ${booking.property?.name}`;
-    
+
+    // --- IDEMPOTENCY GUARD ---
+    // Prevent duplicate broadcast if both verifyPayment and handlePaymentCaptured fire.
+    if (booking.userId) {
+      const alreadyNotified = await this.prisma.notification.findFirst({
+        where: {
+          userId: booking.userId,
+          type: 'BOOKING_CONFIRMED',
+          data: { path: ['bookingId'], equals: booking.id },
+        },
+      });
+      if (alreadyNotified) {
+        this.logger.warn(`Duplicate broadcastNewBooking suppressed for booking ${booking.bookingNumber}`);
+        return;
+      }
+    }
+
     // 1. WebSocket alert for dashboard toasts (Notify Property Dashboard)
-    await this.notifyDashboard('NEW_BOOKING', booking, booking.propertyId);
+    try {
+      await this.notifyDashboard('NEW_BOOKING', booking, booking.propertyId);
+    } catch (err) {
+      this.logger.error(`[broadcastNewBooking] Dashboard notify failed for ${booking.bookingNumber}:`, err);
+    }
 
     // 0. Pre-generate the PDF once to be shared across emails
-    const pdfBuffer = await this.pdfService.generateBookingConfirmation(booking);
-    const pdfAttachment = {
-      filename: `Reservation_${booking.bookingNumber}.pdf`,
-      content: pdfBuffer,
-    };
+    let pdfAttachment: { filename: string; content: Buffer } | undefined;
+    try {
+      const pdfBuffer = await this.pdfService.generateBookingConfirmation(booking);
+      pdfAttachment = {
+        filename: `Reservation_${booking.bookingNumber}.pdf`,
+        content: pdfBuffer,
+      };
+    } catch (err) {
+      this.logger.error(`[broadcastNewBooking] PDF generation failed for ${booking.bookingNumber}:`, err);
+    }
 
     // 2. Email & Persistent Notifications for Property Owner (ALWAYS)
     if (booking.property?.ownerId) {
       // Socket & DB Notification
-      await this.createNotification({
-        userId: booking.property.ownerId,
-        title: 'New Booking Received 🚀',
-        message: summary,
-        type: 'BOOKING_CREATED',
-        data: { bookingId: booking.id, propertyId: booking.propertyId }
-      });
-      
+      try {
+        await this.createNotification({
+          userId: booking.property.ownerId,
+          title: 'New Booking Received 🚀',
+          message: summary,
+          type: 'BOOKING_CREATED',
+          data: { bookingId: booking.id, propertyId: booking.propertyId }
+        });
+      } catch (err) {
+        this.logger.error(`[broadcastNewBooking] Owner inbox notification failed:`, err);
+      }
+
       // Premium Email to Property & Owner
       const propertyEmail = booking.property?.email;
       const ownerEmail = booking.property?.owner?.email;
-      
-      if (propertyEmail) {
-        await this.mailService.sendPropertyNewBookingAlert(propertyEmail, booking, pdfAttachment);
+
+      if (propertyEmail && pdfAttachment) {
+        try {
+          await this.mailService.sendPropertyNewBookingAlert(propertyEmail, booking, pdfAttachment);
+        } catch (err) {
+          this.logger.error(`[broadcastNewBooking] Property email failed to ${propertyEmail}:`, err);
+        }
       }
-      if (ownerEmail && ownerEmail !== propertyEmail) {
-        await this.mailService.sendPropertyNewBookingAlert(ownerEmail, booking, pdfAttachment);
+      if (ownerEmail && ownerEmail !== propertyEmail && pdfAttachment) {
+        try {
+          await this.mailService.sendPropertyNewBookingAlert(ownerEmail, booking, pdfAttachment);
+        } catch (err) {
+          this.logger.error(`[broadcastNewBooking] Owner email failed to ${ownerEmail}:`, err);
+        }
       }
 
       // WhatsApp alert for Property
       const propertyPhone = booking.property?.whatsappNumber || booking.property?.phone;
       if (propertyPhone) {
-        const whatsappMsg = `🏨 *New Booking Received*!\n\n` +
-          `Booking #: ${booking.bookingNumber}\n` +
-          `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
-          `Total: ₹${booking.totalAmount}\n` +
-          `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
-        await this.sendWhatsApp(propertyPhone, whatsappMsg);
+        try {
+          const whatsappMsg = `🏨 *New Booking Received*!\n\n` +
+            `Booking #: ${booking.bookingNumber}\n` +
+            `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
+            `Total: ₹${booking.totalAmount}\n` +
+            `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
+          await this.sendWhatsApp(propertyPhone, whatsappMsg);
+        } catch (err) {
+          this.logger.error(`[broadcastNewBooking] Property WhatsApp failed to ${propertyPhone}:`, err);
+        }
       }
     }
 
     // 3. Notification for Guest
     if (booking.userId) {
       // Socket & DB Notification
-      await this.createNotification({
-        userId: booking.userId,
-        title: 'Booking Confirmed! 🏨',
-        message: `Your stay at ${booking.property?.name} is confirmed. Booking #: ${booking.bookingNumber}`,
-        type: 'BOOKING_CONFIRMED',
-        data: { bookingId: booking.id, propertyId: booking.propertyId }
-      });
+      try {
+        await this.createNotification({
+          userId: booking.userId,
+          title: 'Booking Confirmed! 🏨',
+          message: `Your stay at ${booking.property?.name} is confirmed. Booking #: ${booking.bookingNumber}`,
+          type: 'BOOKING_CONFIRMED',
+          data: { bookingId: booking.id, propertyId: booking.propertyId }
+        });
+      } catch (err) {
+        this.logger.error(`[broadcastNewBooking] Guest inbox notification failed:`, err);
+      }
 
       // Premium Email to Guest with PDF Attachment
-      await this.mailService.sendBookingConfirmation(booking, pdfAttachment);
+      if (pdfAttachment) {
+        try {
+          await this.mailService.sendBookingConfirmation(booking, pdfAttachment);
+        } catch (err) {
+          this.logger.error(`[broadcastNewBooking] Guest confirmation email failed:`, err);
+        }
+      }
 
       // WhatsApp alert for Guest
-      if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
-        const whatsappMsg = `🚀 *New Booking Alert*!\n\n` +
-          `Booking #: ${booking.bookingNumber}\n` +
-          `Resort: ${booking.property?.name}\n` +
-          `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
-          `Total: ₹${booking.totalAmount}\n` +
-          `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
-        const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
-        await this.sendWhatsApp(targetNumber, whatsappMsg);
+      const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+      if (targetNumber) {
+        try {
+          const whatsappMsg = `🚀 *New Booking Alert*!\n\n` +
+            `Booking #: ${booking.bookingNumber}\n` +
+            `Resort: ${booking.property?.name}\n` +
+            `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
+            `Total: ₹${booking.totalAmount}\n` +
+            `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
+          await this.sendWhatsApp(targetNumber, whatsappMsg);
+        } catch (err) {
+          this.logger.error(`[broadcastNewBooking] Guest WhatsApp failed to ${targetNumber}:`, err);
+        }
       }
     }
 
     // 4. Notification for Channel Partner (if applicable)
     if (isCPBooked && booking.channelPartner?.userId) {
       // Socket & DB Notification
-      await this.createNotification({
-        userId: booking.channelPartner.userId,
-        title: 'New Referral Booking! 💰',
-        message: `A booking was made using your referral code at ${booking.property?.name}`,
-        type: 'CP_REFERRAL_BOOKING',
-        data: { bookingId: booking.id, commission: booking.cpCommission }
-      });
+      try {
+        await this.createNotification({
+          userId: booking.channelPartner.userId,
+          title: 'New Referral Booking! 💰',
+          message: `A booking was made using your referral code at ${booking.property?.name}`,
+          type: 'CP_REFERRAL_BOOKING',
+          data: { bookingId: booking.id, commission: booking.cpCommission }
+        });
+      } catch (err) {
+        this.logger.error(`[broadcastNewBooking] CP inbox notification failed:`, err);
+      }
 
       // Premium Email to CP
-      if (booking.channelPartner?.user?.email) {
-        await this.mailService.sendChannelPartnerBookingAlert(booking.channelPartner.user.email, booking, pdfAttachment);
+      if (booking.channelPartner?.user?.email && pdfAttachment) {
+        try {
+          await this.mailService.sendChannelPartnerBookingAlert(booking.channelPartner.user.email, booking, pdfAttachment);
+        } catch (err) {
+          this.logger.error(`[broadcastNewBooking] CP email failed:`, err);
+        }
       }
 
       // Optional: WhatsApp for CP (if number exists)
       if (booking.channelPartner?.user?.phone) {
-        const cpMsg = `💰 *New Referral Booking!*\n\n` +
-          `Booking #: ${booking.bookingNumber}\n` +
-          `Property: ${booking.property?.name}\n` +
-          `Commission earned: ₹${booking.cpCommission}`;
-        await this.sendWhatsApp(booking.channelPartner.user.phone, cpMsg);
+        try {
+          const cpMsg = `💰 *New Referral Booking!*\n\n` +
+            `Booking #: ${booking.bookingNumber}\n` +
+            `Property: ${booking.property?.name}\n` +
+            `Commission earned: ₹${booking.cpCommission}`;
+          await this.sendWhatsApp(booking.channelPartner.user.phone, cpMsg);
+        } catch (err) {
+          this.logger.error(`[broadcastNewBooking] CP WhatsApp failed:`, err);
+        }
       }
     }
   }
@@ -424,23 +493,40 @@ export class NotificationsService {
   }
 
   /**
-   * Notify guest of Cancellation
+   * Notify guest of Cancellation — Inbox + WhatsApp + Email
    */
   async notifyCancellation(booking: any) {
     if (booking.userId) {
-      await this.createNotification({
-        userId: booking.userId,
-        title: 'Booking Cancelled 🚫',
-        message: `Your booking ${booking.bookingNumber} at ${booking.property?.name} has been cancelled.`,
-        type: 'BOOKING_CANCELLED',
-        data: { bookingId: booking.id, propertyId: booking.propertyId }
-      });
+      try {
+        await this.createNotification({
+          userId: booking.userId,
+          title: 'Booking Cancelled 🚫',
+          message: `Your booking ${booking.bookingNumber} at ${booking.property?.name} has been cancelled.`,
+          type: 'BOOKING_CANCELLED',
+          data: { bookingId: booking.id, propertyId: booking.propertyId }
+        });
+      } catch (err) {
+        this.logger.error(`[notifyCancellation] Inbox notification failed:`, err);
+      }
+
+      // Email confirmation with refund status
+      try {
+        await this.mailService.sendCancellationConfirmation(booking);
+      } catch (err) {
+        this.logger.error(`[notifyCancellation] Email failed:`, err);
+      }
 
       // WhatsApp alert for Cancellation
-      if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
-        const msg = `Booking Cancelled 🚫\n\nYour booking *${booking.bookingNumber}* at *${booking.property?.name}* has been cancelled.`;
-        const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
-        await this.sendWhatsApp(targetNumber, msg);
+      const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+      if (targetNumber) {
+        try {
+          const refundAmount = Number(booking.refundAmount || 0);
+          const refundLine = refundAmount > 0 ? `\nRefund of ₹${refundAmount.toLocaleString('en-IN')} will be processed within 5–7 business days.` : '';
+          const msg = `Booking Cancelled 🚫\n\nYour booking *${booking.bookingNumber}* at *${booking.property?.name}* has been cancelled.${refundLine}`;
+          await this.sendWhatsApp(targetNumber, msg);
+        } catch (err) {
+          this.logger.error(`[notifyCancellation] WhatsApp failed:`, err);
+        }
       }
     }
   }
@@ -483,23 +569,52 @@ export class NotificationsService {
   }
 
   /**
-   * Send Review Request
+   * Send Review Request — Inbox + Push + Email + WhatsApp
    */
   async sendReviewRequest(booking: any) {
     if (booking.userId) {
-      await this.createNotification({
-        userId: booking.userId,
-        title: 'How was your stay? ⭐',
-        message: `We hope you enjoyed your stay at ${booking.property?.name}. Please leave us a review!`,
-        type: 'REVIEW_REQUEST',
-        data: { bookingId: booking.id, propertyId: booking.propertyId }
-      });
+      const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL');
+      const reviewLink = `${frontendUrl}/properties/${booking.propertyId}?review=true&bookingId=${booking.id}`;
+
+      try {
+        await this.createNotification({
+          userId: booking.userId,
+          title: 'How was your stay? ⭐',
+          message: `We hope you enjoyed your stay at ${booking.property?.name}. Please leave us a review!`,
+          type: 'REVIEW_REQUEST',
+          data: { bookingId: booking.id, propertyId: booking.propertyId, reviewLink }
+        });
+      } catch (err) {
+        this.logger.error(`[sendReviewRequest] Inbox notification failed:`, err);
+      }
+
+      // Email with direct review link
+      try {
+        await this.mailService.sendReviewRequestEmail(booking);
+      } catch (err) {
+        this.logger.error(`[sendReviewRequest] Email failed:`, err);
+      }
+
+      // WhatsApp with review link
+      const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+      if (targetNumber) {
+        try {
+          const msg = `How was your stay? ⭐\n\nHi ${booking.user?.firstName}, we hope you enjoyed *${booking.property?.name}*!\n\nWe'd love to hear your feedback. Please leave a quick review here:\n${reviewLink}`;
+          await this.sendWhatsApp(targetNumber, msg);
+        } catch (err) {
+          this.logger.error(`[sendReviewRequest] WhatsApp failed:`, err);
+        }
+      }
 
       // Update booking to track reminder sent
-      await this.prisma.booking.update({
-        where: { id: booking.id },
-        data: { reviewRequestSentAt: new Date() }
-      });
+      try {
+        await this.prisma.booking.update({
+          where: { id: booking.id },
+          data: { reviewRequestSentAt: new Date() }
+        });
+      } catch (err) {
+        this.logger.error(`[sendReviewRequest] DB update failed:`, err);
+      }
     }
   }
 

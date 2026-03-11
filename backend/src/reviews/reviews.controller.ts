@@ -14,6 +14,7 @@ export class ReviewsController {
     @ApiOperation({ summary: 'Submit a review for a property/room' })
     create(@Request() req, @Body() dto: {
         propertyId: string;
+        bookingId: string;
         roomTypeId?: string;
         rating: number;
         comment?: string;

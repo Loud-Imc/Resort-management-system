@@ -80,6 +80,33 @@ export class PaymentsService {
                 throw new BadRequestException('Booking is already fully paid');
             }
 
+            // Check for existing PENDING payment to prevent duplicate orders
+            const existingPayment = await this.prisma.payment.findFirst({
+                where: {
+                    bookingId: booking.id,
+                    status: 'PENDING',
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            if (existingPayment?.razorpayOrderId) {
+                return {
+                    orderId: existingPayment.razorpayOrderId,
+                    amount: this.convertToSmallestUnit(Number(existingPayment.amount), existingPayment.currency || currency),
+                    currency: existingPayment.currency || currency,
+                    keyId: this.configService.get<string>('RAZORPAY_KEY_ID'),
+                    booking: {
+                        id: booking.id,
+                        bookingNumber: booking.bookingNumber,
+                        totalAmount: booking.totalAmount,
+                        paidAmount: booking.paidAmount,
+                    },
+                    payment: {
+                        id: existingPayment.id,
+                    },
+                };
+            }
+
             // Create Razorpay order
             const order = await this.razorpay.orders.create({
                 amount: this.convertToSmallestUnit(chargeAmount, currency),
@@ -138,6 +165,32 @@ export class PaymentsService {
 
             if (eventBooking.status !== 'PENDING') {
                 throw new BadRequestException('Event booking is not pending payment');
+            }
+
+            // Check for existing PENDING payment to prevent duplicate orders
+            const existingPayment = await this.prisma.payment.findFirst({
+                where: {
+                    eventBookingId: eventBooking.id,
+                    status: 'PENDING',
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            if (existingPayment?.razorpayOrderId) {
+                return {
+                    orderId: existingPayment.razorpayOrderId,
+                    amount: this.convertToSmallestUnit(Number(existingPayment.amount), existingPayment.currency || 'INR'),
+                    currency: existingPayment.currency || 'INR',
+                    keyId: this.configService.get<string>('RAZORPAY_KEY_ID'),
+                    eventBooking: {
+                        id: eventBooking.id,
+                        ticketId: eventBooking.ticketId,
+                        amountPaid: eventBooking.amountPaid,
+                    },
+                    payment: {
+                        id: existingPayment.id,
+                    },
+                };
             }
 
             // Create Razorpay order
@@ -268,7 +321,7 @@ export class PaymentsService {
             throw new NotFoundException('Payment not found');
         }
 
-        // Verify signature
+        // Verify signature (pure CPU — outside transaction)
         const body = razorpayOrderId + '|' + razorpayPaymentId;
         const expectedSignature = crypto
             .createHmac('sha256', this.configService.get<string>('RAZORPAY_KEY_SECRET') || '')
@@ -276,56 +329,92 @@ export class PaymentsService {
             .digest('hex');
 
         if (expectedSignature !== razorpaySignature) {
-            // Update payment status to failed
             await this.prisma.payment.update({
                 where: { id: payment.id },
                 data: { status: 'FAILED' },
             });
-
             throw new BadRequestException('Invalid payment signature');
         }
 
-        // Update payment record
-        const updatedPayment = await this.prisma.payment.update({
-            where: { id: payment.id },
-            data: {
-                status: 'PAID',
-                razorpayPaymentId,
-                razorpaySignature,
-                paymentDate: new Date(),
-                ...this.calculateFinancials(payment),
-            },
+        // All DB mutations inside a transaction with idempotency re-check
+        const updatedPayment = await this.prisma.$transaction(async (tx) => {
+            // Re-fetch payment status inside the transaction to prevent race with webhook
+            const freshPayment = await tx.payment.findUnique({
+                where: { id: payment.id },
+                select: { status: true },
+            });
+
+            if (freshPayment?.status === 'PAID') {
+                // Webhook already processed this payment — return existing record
+                return null;
+            }
+
+            // Update payment record
+            const paid = await tx.payment.update({
+                where: { id: payment.id },
+                data: {
+                    status: 'PAID',
+                    razorpayPaymentId,
+                    razorpaySignature,
+                    paymentDate: new Date(),
+                    ...this.calculateFinancials(payment),
+                },
+            });
+
+            if (payment.bookingId && payment.booking) {
+                const exchangeRate = Number(payment.booking.exchangeRate || 1);
+                const amountInINR = Number(payment.amount) * exchangeRate;
+                const newPaidAmount = Number(payment.booking.paidAmount) + amountInINR;
+                const isFullyPaid = newPaidAmount >= Number(payment.booking.totalAmount);
+
+                await tx.booking.update({
+                    where: { id: payment.bookingId },
+                    data: {
+                        status: isFullyPaid ? 'CONFIRMED' : 'RESERVED',
+                        confirmedAt: payment.booking.confirmedAt || new Date(),
+                        paidAmount: newPaidAmount,
+                        paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
+                    },
+                });
+
+                await tx.income.create({
+                    data: {
+                        amount: Number(payment.amount) * Number(payment.booking.exchangeRate || 1),
+                        source: 'ONLINE_BOOKING',
+                        description: `Online booking ${payment.booking.bookingNumber} (${payment.amount} ${payment.currency} @ ${payment.booking.exchangeRate})`,
+                        bookingId: payment.bookingId,
+                    },
+                });
+            } else if (payment.eventBookingId && payment.eventBooking) {
+                await tx.eventBooking.update({
+                    where: { id: payment.eventBookingId },
+                    data: { status: 'PAID' },
+                });
+
+                await tx.income.create({
+                    data: {
+                        amount: payment.amount,
+                        source: 'EVENT_BOOKING',
+                        description: `Event booking ${payment.eventBooking.ticketId}`,
+                        eventBookingId: payment.eventBookingId,
+                    },
+                });
+            }
+
+            return paid;
         });
 
+        // If the webhook already processed it, still return success to the client
+        if (!updatedPayment) {
+            return {
+                success: true,
+                payment: { id: payment.id, status: 'PAID' },
+                message: 'Payment already verified',
+            };
+        }
+
+        // Post-transaction side effects (notifications, CP commission)
         if (payment.bookingId && payment.booking) {
-            // Calculate new paid amount in base currency (INR)
-            const exchangeRate = Number(payment.booking.exchangeRate || 1);
-            const amountInINR = Number(payment.amount) * exchangeRate;
-            const newPaidAmount = Number(payment.booking.paidAmount) + amountInINR;
-            const isFullyPaid = newPaidAmount >= Number(payment.booking.totalAmount);
-
-            // Update booking status and payment tracking
-            await this.prisma.booking.update({
-                where: { id: payment.bookingId },
-                data: {
-                    status: isFullyPaid ? 'CONFIRMED' : 'RESERVED',
-                    confirmedAt: payment.booking.confirmedAt || new Date(),
-                    paidAmount: newPaidAmount,
-                    paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
-                },
-            });
-
-            // Create income record in base currency (INR)
-            await this.prisma.income.create({
-                data: {
-                    amount: Number(payment.amount) * Number(payment.booking.exchangeRate || 1),
-                    source: 'ONLINE_BOOKING',
-                    description: `Online booking ${payment.booking.bookingNumber} (${payment.amount} ${payment.currency} @ ${payment.booking.exchangeRate})`,
-                    bookingId: payment.bookingId,
-                },
-            });
-
-            // Fetch refreshed booking to ensure paymentStatus and paidAmount are accurate
             const refreshedBooking = await this.prisma.booking.findUnique({
                 where: { id: payment.bookingId },
                 include: {
@@ -336,38 +425,18 @@ export class PaymentsService {
                 }
             });
 
-            // Broadcast booking confirmation across all channels
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
             }
 
-            // Process Channel Partner Reward (Pending)
             if (payment.booking.channelPartnerId) {
                 await this.channelPartnersService.processReferralCommission(
                     payment.bookingId,
                     payment.booking.channelPartnerId,
                     Number(payment.booking.totalAmount),
-                    true // isPending = true
+                    true
                 );
             }
-        } else if (payment.eventBookingId && payment.eventBooking) {
-            // Update event booking status to PAID
-            await this.prisma.eventBooking.update({
-                where: { id: payment.eventBookingId },
-                data: {
-                    status: 'PAID',
-                },
-            });
-
-            // Create income record for event
-            await this.prisma.income.create({
-                data: {
-                    amount: payment.amount,
-                    source: 'EVENT_BOOKING',
-                    description: `Event booking ${payment.eventBooking.ticketId}`,
-                    eventBookingId: payment.eventBookingId,
-                },
-            });
         }
 
         return {
@@ -381,18 +450,21 @@ export class PaymentsService {
      * Handle Razorpay webhook
      */
     async handleWebhook(body: any, signature: string) {
-        // Verify webhook signature
+        // Verify webhook signature — MANDATORY
         const webhookSecret = this.configService.get<string>('RAZORPAY_WEBHOOK_SECRET');
 
-        if (webhookSecret) {
-            const expectedSignature = crypto
-                .createHmac('sha256', webhookSecret)
-                .update(JSON.stringify(body))
-                .digest('hex');
+        if (!webhookSecret) {
+            console.error('[PaymentsService] RAZORPAY_WEBHOOK_SECRET is not configured. Rejecting webhook.');
+            throw new BadRequestException('Webhook signature verification is not configured');
+        }
 
-            if (expectedSignature !== signature) {
-                throw new BadRequestException('Invalid webhook signature');
-            }
+        const expectedSignature = crypto
+            .createHmac('sha256', webhookSecret)
+            .update(JSON.stringify(body))
+            .digest('hex');
+
+        if (expectedSignature !== signature) {
+            throw new BadRequestException('Invalid webhook signature');
         }
 
         const event = body.event;
@@ -474,43 +546,76 @@ export class PaymentsService {
             return; // Already processed
         }
 
-        // Update payment
-        await this.prisma.payment.update({
-            where: { id: payment.id },
-            data: {
-                status: 'PAID',
-                razorpayPaymentId: paymentData.id,
-                paymentMethod: paymentData.method,
-                paymentDate: new Date(paymentData.created_at * 1000),
-                ...this.calculateFinancials(payment),
-            },
+        // Wrap all mutations in a transaction to prevent race conditions with verifyPayment
+        await this.prisma.$transaction(async (tx) => {
+            // Re-fetch payment inside transaction to ensure idempotency
+            const freshPayment = await tx.payment.findUnique({
+                where: { id: payment.id },
+                select: { status: true }
+            });
+
+            if (freshPayment?.status === 'PAID') {
+                return; // Webhook or verify API already processed this
+            }
+
+            // Update payment
+            await tx.payment.update({
+                where: { id: payment.id },
+                data: {
+                    status: 'PAID',
+                    razorpayPaymentId: paymentData.id,
+                    paymentMethod: paymentData.method,
+                    paymentDate: new Date(paymentData.created_at * 1000),
+                    ...this.calculateFinancials(payment),
+                },
+            });
+
+            // Confirm booking or event booking
+            if (payment.bookingId && payment.booking) {
+                const newPaidAmount = Number(payment.booking.paidAmount) + Number(payment.amount);
+                const isFullyPaid = newPaidAmount >= Number(payment.booking.totalAmount);
+
+                await tx.booking.update({
+                    where: { id: payment.bookingId },
+                    data: {
+                        status: isFullyPaid ? 'CONFIRMED' : 'RESERVED',
+                        confirmedAt: payment.booking.confirmedAt || new Date(),
+                        paidAmount: newPaidAmount,
+                        paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
+                    },
+                });
+
+                // Create income record
+                await tx.income.create({
+                    data: {
+                        amount: payment.amount,
+                        source: 'ONLINE_BOOKING',
+                        description: `Online booking ${payment.booking?.bookingNumber}`,
+                        bookingId: payment.bookingId,
+                    },
+                });
+            } else if (payment.eventBookingId) {
+                await tx.eventBooking.update({
+                    where: { id: payment.eventBookingId },
+                    data: {
+                        status: 'PAID',
+                    },
+                });
+
+                // Create income record for event
+                await tx.income.create({
+                    data: {
+                        amount: payment.amount,
+                        source: 'EVENT_BOOKING',
+                        description: `Event booking ${payment.eventBooking?.ticketId}`,
+                        eventBookingId: payment.eventBookingId,
+                    },
+                });
+            }
         });
 
-        // Confirm booking or event booking
+        // Notifications and CP Rewards can happen securely outside the transaction
         if (payment.bookingId && payment.booking) {
-            const newPaidAmount = Number(payment.booking.paidAmount) + Number(payment.amount);
-            const isFullyPaid = newPaidAmount >= Number(payment.booking.totalAmount);
-
-            await this.prisma.booking.update({
-                where: { id: payment.bookingId },
-                data: {
-                    status: isFullyPaid ? 'CONFIRMED' : 'RESERVED',
-                    confirmedAt: payment.booking.confirmedAt || new Date(),
-                    paidAmount: newPaidAmount,
-                    paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
-                },
-            });
-
-            // Create income record
-            await this.prisma.income.create({
-                data: {
-                    amount: payment.amount,
-                    source: 'ONLINE_BOOKING',
-                    description: `Online booking ${payment.booking?.bookingNumber}`,
-                    bookingId: payment.bookingId,
-                },
-            });
-
             // Fetch refreshed booking
             const refreshedBooking = await this.prisma.booking.findUnique({
                 where: { id: payment.bookingId },
@@ -535,23 +640,6 @@ export class PaymentsService {
                     true // isPending = true
                 );
             }
-        } else if (payment.eventBookingId) {
-            await this.prisma.eventBooking.update({
-                where: { id: payment.eventBookingId },
-                data: {
-                    status: 'PAID',
-                },
-            });
-
-            // Create income record for event
-            await this.prisma.income.create({
-                data: {
-                    amount: payment.amount,
-                    source: 'EVENT_BOOKING',
-                    description: `Event booking ${payment.eventBooking?.ticketId}`,
-                    eventBookingId: payment.eventBookingId,
-                },
-            });
         }
     }
 
@@ -592,8 +680,8 @@ export class PaymentsService {
             throw new NotFoundException('Payment not found');
         }
 
-        if (payment.status !== 'PAID') {
-            throw new BadRequestException('Payment is not in paid status');
+        if (payment.status !== 'PAID' && payment.status !== 'PARTIALLY_REFUNDED') {
+            throw new BadRequestException('Payment is not in a refundable status');
         }
 
         if (!payment.razorpayPaymentId) {
@@ -602,6 +690,12 @@ export class PaymentsService {
 
         const refundAmount = amount || Number(payment.amount);
         const bookingIdentifier = payment.booking?.bookingNumber || payment.eventBooking?.ticketId || 'Unknown';
+
+        // Prevent refunding more than was paid
+        const currentRefundAmount = Number(payment.refundAmount || 0);
+        if (currentRefundAmount + refundAmount > Number(payment.amount)) {
+            throw new BadRequestException(`Cannot refund ${refundAmount}. Maximum refundable amount is ${Number(payment.amount) - currentRefundAmount}`);
+        }
 
         // Create refund in Razorpay
         const refund = await this.razorpay.payments.refund(payment.razorpayPaymentId, {
@@ -612,35 +706,68 @@ export class PaymentsService {
             },
         });
 
-        // Update payment record
-        const isFullRefund = refundAmount >= Number(payment.amount);
+        const isFullRefund = (currentRefundAmount + refundAmount) >= Number(payment.amount);
 
-        await this.prisma.payment.update({
-            where: { id: payment.id },
-            data: {
-                status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
-                refundAmount,
-                refundDate: new Date(),
-                refundReason: reason,
-            },
-        });
+        // Wrap database state updates in a transaction for atomicity
+        await this.prisma.$transaction(async (tx) => {
+            // Update payment record
+            await tx.payment.update({
+                where: { id: payment.id },
+                data: {
+                    status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+                    refundAmount: { increment: refundAmount },
+                    refundDate: new Date(),
+                    refundReason: reason,
+                },
+            });
 
-        // Update booking status
-        if (isFullRefund) {
+            // Update booking status
             if (payment.bookingId) {
-                await this.prisma.booking.update({
+                await tx.booking.update({
                     where: { id: payment.bookingId },
                     data: {
-                        status: 'REFUNDED',
+                        // Only mark the booking as fully REFUNDED if the payment is fully refunded
+                        ...(isFullRefund && { status: 'REFUNDED', paymentStatus: 'UNPAID' }),
                         paidAmount: { decrement: refundAmount },
-                        paymentStatus: 'UNPAID'
                     },
                 });
-            } else if (payment.eventBookingId) {
-                await this.prisma.eventBooking.update({
+            } else if (payment.eventBookingId && isFullRefund) {
+                await tx.eventBooking.update({
                     where: { id: payment.eventBookingId },
                     data: { status: 'REFUNDED' },
                 });
+            }
+        });
+
+        // Send refund receipt notifications (after transaction commits)
+        if (payment.bookingId) {
+            try {
+                const bookingWithDetails = await this.prisma.booking.findUnique({
+                    where: { id: payment.bookingId },
+                    include: { user: true, property: true, roomType: true },
+                });
+                if (bookingWithDetails) {
+                    // Email receipt
+                    try {
+                        await this.mailService.sendRefundReceipt(bookingWithDetails, refundAmount);
+                    } catch (err) {
+                        console.error('[processRefund] Refund receipt email failed:', err);
+                    }
+                    // Inbox + Push notification
+                    try {
+                        await this.notificationsService.createNotification({
+                            userId: bookingWithDetails.userId,
+                            title: 'Refund Initiated ✅',
+                            message: `A refund of ₹${refundAmount.toLocaleString('en-IN')} for booking ${bookingWithDetails.bookingNumber} has been processed. Please allow 5–7 business days.`,
+                            type: 'REFUND_PROCESSED',
+                            data: { bookingId: bookingWithDetails.id, refundAmount },
+                        });
+                    } catch (err) {
+                        console.error('[processRefund] Inbox notification failed:', err);
+                    }
+                }
+            } catch (err) {
+                console.error('[processRefund] Failed to send refund notifications:', err);
             }
         }
 
