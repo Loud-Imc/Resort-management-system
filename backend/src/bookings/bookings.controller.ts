@@ -91,7 +91,7 @@ export class BookingsController {
     @Post('public')
     @ApiOperation({ summary: 'Create public booking (No Auth)' })
     async createPublic(@Body() createBookingDto: CreateBookingDto) {
-        return this.bookingsService.create(createBookingDto, 'GUEST_USER');
+        return this.bookingsService.create(createBookingDto, null);
     }
 
     @Post()
@@ -99,7 +99,7 @@ export class BookingsController {
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create booking' })
     create(@Body() createBookingDto: CreateBookingDto, @Request() req) {
-        return this.bookingsService.create(createBookingDto, req.user.id);
+        return this.bookingsService.create(createBookingDto, req.user);
     }
 
     @Get()

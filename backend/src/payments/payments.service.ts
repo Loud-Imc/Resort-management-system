@@ -43,7 +43,7 @@ export class PaymentsService {
                 where: { id: bookingId },
                 include: {
                     user: true,
-                    roomType: true,
+                    roomType: { include: { property: true } },
                 },
             });
 
@@ -131,6 +131,7 @@ export class PaymentsService {
                     status: 'PENDING',
                     razorpayOrderId: order.id,
                     bookingId: booking.id,
+                    commissionRate: booking.roomType?.property?.platformCommission || 10,
                 },
             });
 
@@ -155,7 +156,7 @@ export class PaymentsService {
                 where: { id: eventBookingId },
                 include: {
                     user: true,
-                    event: true,
+                    event: { include: { property: true } },
                 },
             });
 
@@ -214,6 +215,7 @@ export class PaymentsService {
                     status: 'PENDING',
                     razorpayOrderId: order.id,
                     eventBookingId: eventBooking.id,
+                    commissionRate: eventBooking.event?.property?.platformCommission || 10,
                 },
             });
 
@@ -383,6 +385,7 @@ export class PaymentsService {
                         source: 'ONLINE_BOOKING',
                         description: `Online booking ${payment.booking.bookingNumber} (${payment.amount} ${payment.currency} @ ${payment.booking.exchangeRate})`,
                         bookingId: payment.bookingId,
+                        paymentId: payment.id,
                     },
                 });
             } else if (payment.eventBookingId && payment.eventBooking) {
@@ -511,8 +514,10 @@ export class PaymentsService {
         // We can find the booking via notes
         if (!payment && paymentData.notes?.bookingId) {
             const bookingId = paymentData.notes.bookingId;
-            // For QR payments we create the payment record on-the-fly when captured
-            // since we don't have a pre-created PENDING record for every QR scan
+            const bookingInfo = await this.prisma.booking.findUnique({
+                where: { id: bookingId },
+                include: { property: true }
+            });
 
             payment = await this.prisma.payment.create({
                 data: {
@@ -523,6 +528,7 @@ export class PaymentsService {
                     razorpayOrderId: paymentData.order_id,
                     bookingId: bookingId,
                     paymentMethod: paymentData.method,
+                    commissionRate: bookingInfo?.property?.platformCommission || 10,
                 },
                 include: {
                     booking: {
@@ -592,6 +598,7 @@ export class PaymentsService {
                         source: 'ONLINE_BOOKING',
                         description: `Online booking ${payment.booking?.bookingNumber}`,
                         bookingId: payment.bookingId,
+                        paymentId: payment.id,
                     },
                 });
             } else if (payment.eventBookingId) {
@@ -711,6 +718,10 @@ export class PaymentsService {
         // Wrap database state updates in a transaction for atomicity
         await this.prisma.$transaction(async (tx) => {
             // Update payment record
+            const commissionRate = Number(payment.commissionRate ?? 10);
+            const refundPlatformFee = (refundAmount * commissionRate) / 100;
+            const refundNetAmount = refundAmount - refundPlatformFee;
+
             await tx.payment.update({
                 where: { id: payment.id },
                 data: {
@@ -718,6 +729,8 @@ export class PaymentsService {
                     refundAmount: { increment: refundAmount },
                     refundDate: new Date(),
                     refundReason: reason,
+                    platformFee: { decrement: refundPlatformFee },
+                    netAmount: { decrement: refundNetAmount },
                 },
             });
 
@@ -731,10 +744,34 @@ export class PaymentsService {
                         paidAmount: { decrement: refundAmount },
                     },
                 });
+
+                // Create negative income record for reporting
+                await tx.income.create({
+                    data: {
+                        amount: -refundAmount,
+                        source: 'REFUND' as any,
+                        description: `Refund for booking ${payment.booking?.bookingNumber}. Reason: ${reason || 'N/A'}`,
+                        bookingId: payment.bookingId,
+                        paymentId: payment.id,
+                        propertyId: payment.booking?.propertyId,
+                    }
+                });
             } else if (payment.eventBookingId && isFullRefund) {
                 await tx.eventBooking.update({
                     where: { id: payment.eventBookingId },
                     data: { status: 'REFUNDED' },
+                });
+
+                // Create negative income record for event refund
+                await tx.income.create({
+                    data: {
+                        amount: -refundAmount,
+                        source: 'REFUND' as any,
+                        description: `Refund for event booking ${payment.eventBooking?.ticketId}. Reason: ${reason || 'N/A'}`,
+                        eventBookingId: payment.eventBookingId,
+                        paymentId: payment.id,
+                        propertyId: (payment.eventBooking as any)?.event?.propertyId,
+                    }
                 });
             }
         });
@@ -830,7 +867,10 @@ export class PaymentsService {
             let amount = 0;
             let commissionRate = 10; // Default 10%
 
-            if (payment.bookingId && payment.booking?.property) {
+            if (payment.commissionRate !== null && payment.commissionRate !== undefined) {
+                commissionRate = Number(payment.commissionRate);
+                amount = Number(payment.amount);
+            } else if (payment.bookingId && payment.booking?.property) {
                 amount = Number(payment.amount);
                 commissionRate = Number(payment.booking.property.platformCommission ?? 10);
             } else if (payment.eventBookingId && payment.eventBooking?.event?.property) {
@@ -966,12 +1006,24 @@ export class PaymentsService {
     async recordManualPayment(dto: RecordManualPaymentDto, userId: string) {
         const booking = await this.prisma.booking.findUnique({
             where: { id: dto.bookingId },
-            include: { user: true }
+            include: { user: true, property: true }
         });
 
         if (!booking) {
             throw new NotFoundException('Booking not found');
         }
+
+        const newPaidAmount = Number(booking.paidAmount) + Number(dto.amount);
+        const totalAmount = Number(booking.totalAmount);
+
+        // Prevent Overpayment
+        if (newPaidAmount > totalAmount + 0.01) { // 0.01 buffer for rounding
+            throw new BadRequestException(`Payment exceeds booking total. Remaining balance: ${totalAmount - Number(booking.paidAmount)}`);
+        }
+
+        const commissionRate = Number(booking.property?.platformCommission ?? 10);
+        const platformFee = (Number(dto.amount) * commissionRate) / 100;
+        const netAmount = Number(dto.amount) - platformFee;
 
         // Create payment record
         const payment = await this.prisma.payment.create({
@@ -983,14 +1035,14 @@ export class PaymentsService {
                 paymentDate: new Date(),
                 bookingId: dto.bookingId,
                 notes: dto.notes,
-                platformFee: 0,
-                netAmount: dto.amount,
+                platformFee: platformFee,
+                netAmount: netAmount,
+                commissionRate: commissionRate,
             },
         });
 
         // Update booking paid amount
-        const newPaidAmount = Number(booking.paidAmount) + Number(dto.amount);
-        const isFullyPaid = newPaidAmount >= Number(booking.totalAmount);
+        const isFullyPaid = newPaidAmount >= totalAmount - 0.01;
 
         await this.prisma.booking.update({
             where: { id: dto.bookingId },
@@ -1008,6 +1060,7 @@ export class PaymentsService {
                 source: 'MANUAL_PAYMENT',
                 description: `Manual payment (${dto.method}) for ${booking.bookingNumber}. ${dto.notes || ''}`,
                 bookingId: dto.bookingId,
+                paymentId: payment.id,
             },
         });
 

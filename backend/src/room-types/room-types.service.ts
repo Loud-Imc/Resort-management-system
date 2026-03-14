@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
@@ -9,7 +9,22 @@ export class RoomTypesService {
 
     constructor(private prisma: PrismaService) { }
 
-    async create(createRoomTypeDto: CreateRoomTypeDto) {
+    async create(createRoomTypeDto: CreateRoomTypeDto, requestUser?: any) {
+        if (requestUser) {
+            const property = await this.prisma.property.findUnique({
+                where: { id: createRoomTypeDto.propertyId },
+                include: { staff: true },
+            });
+            if (!property) throw new NotFoundException('Property not found');
+            const roles: string[] = requestUser.roles || [];
+            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+            const isOwner = property.ownerId === requestUser.id;
+            const isStaff = property.staff.some((s) => s.userId === requestUser.id);
+            if (!isAdmin && !isOwner && !isStaff) {
+                throw new ForbiddenException('You do not have permission to add room types to this property');
+            }
+        }
+
         try {
             const { cancellationPolicy, cancellationPolicyId, ...rest } = createRoomTypeDto;
 
@@ -81,13 +96,13 @@ export class RoomTypesService {
         });
     }
 
-    async findOne(id: string) {
+    async findOne(id: string, requestUser?: any) {
         const roomType = await this.prisma.roomType.findUnique({
             where: { id },
             include: {
                 rooms: true,
                 cancellationPolicy: true,
-                property: { select: { defaultCancellationPolicyId: true } },
+                property: { select: { ownerId: true, defaultCancellationPolicyId: true, staff: true } },
             },
         });
 
@@ -95,12 +110,22 @@ export class RoomTypesService {
             throw new NotFoundException('Room type not found');
         }
 
+        if (requestUser) {
+            const roles: string[] = requestUser.roles || [];
+            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+            const isOwner = roomType.property.ownerId === requestUser.id;
+            const isStaff = roomType.property.staff.some((s) => s.userId === requestUser.id);
+            if (!isAdmin && !isOwner && !isStaff) {
+                throw new ForbiddenException('You do not have permission to access this room type');
+            }
+        }
+
         return roomType;
     }
 
-    async update(id: string, updateRoomTypeDto: UpdateRoomTypeDto) {
+    async update(id: string, updateRoomTypeDto: UpdateRoomTypeDto, requestUser?: any) {
         try {
-            await this.findOne(id);
+            await this.findOne(id, requestUser);
             const { cancellationPolicy, cancellationPolicyId, ...rest } = updateRoomTypeDto;
 
             const data: any = {
@@ -130,11 +155,18 @@ export class RoomTypesService {
         }
     }
 
-    async remove(id: string) {
-        await this.findOne(id);
+    async remove(id: string, requestUser?: any) {
+        await this.findOne(id, requestUser);
 
-        return this.prisma.roomType.delete({
-            where: { id },
-        });
+        try {
+            return await this.prisma.roomType.delete({
+                where: { id },
+            });
+        } catch (error) {
+            if (error.code === 'P2003') {
+                throw new BadRequestException('Cannot delete room type because physical rooms or bookings depend on it');
+            }
+            throw new InternalServerErrorException('Failed to delete room type.');
+        }
     }
 }

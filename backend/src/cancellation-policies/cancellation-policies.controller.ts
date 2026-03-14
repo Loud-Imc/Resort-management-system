@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { CancellationPoliciesService } from './cancellation-policies.service';
@@ -17,8 +17,8 @@ export class CancellationPoliciesController {
     @Post()
     @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
     @ApiOperation({ summary: 'Create a new cancellation policy' })
-    create(@Body() dto: CreateCancellationPolicyDto) {
-        return this.service.create(dto);
+    create(@Request() req, @Body() dto: CreateCancellationPolicyDto) {
+        return this.service.create(dto, req.user);
     }
 
     @Get()
@@ -39,8 +39,8 @@ export class CancellationPoliciesController {
     @Patch(':id')
     @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
     @ApiOperation({ summary: 'Update a cancellation policy' })
-    update(@Param('id') id: string, @Body() dto: UpdateCancellationPolicyDto) {
-        return this.service.update(id, dto);
+    update(@Param('id') id: string, @Request() req, @Body() dto: UpdateCancellationPolicyDto) {
+        return this.service.update(id, dto, req.user);
     }
 
     @Delete(':id')

@@ -3,12 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as ical from 'node-ical';
 import { ICalCalendar } from 'ical-generator';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AvailabilityService } from '../bookings/availability.service';
 
 @Injectable()
 export class IcalService {
   private readonly logger = new Logger(IcalService.name);
 
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private availabilityService: AvailabilityService,
+  ) { }
 
   /**
    * Sync all active iCal feeds for all properties
@@ -33,23 +37,38 @@ export class IcalService {
    * Sync a specific iCal feed
    */
   async syncPropertyIcal(syncId: string) {
-    const sync = await this.prisma.propertyIcal.findUnique({
-      where: { id: syncId },
-      include: {
-        property: true,
-        bookingSource: true,
-        roomType: true
-      }
+    // 1. Atomic Lock Acquisition
+    const lock = await this.prisma.propertyIcal.updateMany({
+      where: {
+        id: syncId,
+        status: { not: 'SYNCING' }
+      },
+      data: { status: 'SYNCING' }
     });
 
-    if (!sync) throw new Error('Sync configuration not found');
+    if (lock.count === 0) {
+      this.logger.warn(`Sync already in progress or not found for ID ${syncId}. Aborting.`);
+      return { success: false, message: 'Sync already in progress' };
+    }
+
+    let finalStatus: 'ACTIVE' | 'FAILED' = 'ACTIVE';
 
     try {
+      const sync = await this.prisma.propertyIcal.findUnique({
+        where: { id: syncId },
+        include: {
+          property: true,
+          bookingSource: true,
+          roomType: true
+        }
+      });
+
+      if (!sync) throw new Error('Sync configuration not found');
+
       const data = await ical.fromURL(sync.icalUrl);
       const events = Object.values(data).filter(ev => ev && ev.type === 'VEVENT');
 
-      // 1. Clear existing blocks from THIS specific sync to avoid duplicates
-      // We'll use the notes field to identify blocks from this sync
+      // Clear existing blocks from THIS specific sync to avoid duplicates
       const syncIdentifier = `iCal-Sync-${sync.id}`;
 
       await this.prisma.roomBlock.deleteMany({
@@ -63,83 +82,59 @@ export class IcalService {
       for (const event of events as any[]) {
         if (!event.start || !event.end) continue;
 
-        if (sync.roomTypeId) {
-          // Room-type-specific sync: block ONE available room of this type per event
-          const rooms = await this.prisma.room.findMany({
-            where: {
-              propertyId: sync.propertyId,
-              roomTypeId: sync.roomTypeId,
-              isEnabled: true
-            },
-            orderBy: { blocks: { _count: 'asc' } }  // Fewest blocks first
-          });
+        const checkIn = new Date(event.start);
+        const checkOut = new Date(event.end);
 
-          // Find the first room that doesn't already have a block for these dates
-          let blocked = false;
-          for (const room of rooms) {
-            const existingBlock = await this.prisma.roomBlock.findFirst({
-              where: {
-                roomId: room.id,
-                OR: [
-                  { startDate: { lte: new Date(event.start) }, endDate: { gt: new Date(event.start) } },
-                  { startDate: { lt: new Date(event.end) }, endDate: { gte: new Date(event.end) } },
-                  { startDate: { gte: new Date(event.start) }, endDate: { lte: new Date(event.end) } },
-                ]
-              }
-            });
+        // Common logic: find a room that is truly available (no bookings, no other blocks)
+        const rooms = await this.prisma.room.findMany({
+          where: {
+            propertyId: sync.propertyId,
+            ...(sync.roomTypeId && { roomTypeId: sync.roomTypeId }),
+            isEnabled: true
+          },
+          orderBy: { blocks: { _count: 'asc' } }  // Priority to rooms with fewer existing blocks
+        });
 
-            if (!existingBlock) {
-              await this.prisma.roomBlock.create({
-                data: {
-                  roomId: room.id,
-                  startDate: new Date(event.start),
-                  endDate: new Date(event.end),
-                  reason: `External Booking (${sync.bookingSource?.name || sync.platformName})`,
-                  notes: `${syncIdentifier} | UID: ${event.uid || 'N/A'}`,
-                  createdById: sync.property.ownerId
-                }
-              });
-              blocked = true;
-              break;
-            }
-          }
+        let blocked = false;
+        for (const room of rooms) {
+          const isAvailable = await this.availabilityService.isRoomAvailable(room.id, checkIn, checkOut);
 
-          if (!blocked) {
-            this.logger.warn(`No available room of type ${sync.roomType?.name || sync.roomTypeId} for event ${event.uid || 'N/A'}`);
-          }
-        } else {
-          // Fallback: no roomTypeId configured — block ALL rooms in the property
-          const rooms = await this.prisma.room.findMany({
-            where: { propertyId: sync.propertyId, isEnabled: true }
-          });
-
-          for (const room of rooms) {
+          if (isAvailable) {
             await this.prisma.roomBlock.create({
               data: {
                 roomId: room.id,
-                startDate: new Date(event.start),
-                endDate: new Date(event.end),
+                startDate: checkIn,
+                endDate: checkOut,
                 reason: `External Booking (${sync.bookingSource?.name || sync.platformName})`,
                 notes: `${syncIdentifier} | UID: ${event.uid || 'N/A'}`,
                 createdById: sync.property.ownerId
               }
             });
+            blocked = true;
+            break; // Found a room, move to next event
           }
+        }
+
+        if (!blocked) {
+          const context = sync.roomTypeId ? `type ${sync.roomType?.name || sync.roomTypeId}` : 'any type';
+          this.logger.warn(`No available room of ${context} for event ${event.uid || 'N/A'} in property ${sync.propertyId}`);
         }
       }
 
-      await this.prisma.propertyIcal.update({
-        where: { id: syncId },
-        data: { lastSyncedAt: new Date(), status: 'ACTIVE' }
-      });
-
       return { success: true, eventCount: events.length };
     } catch (error) {
+      finalStatus = 'FAILED';
+      this.logger.error(`Sync failed for ID ${syncId}: ${error.message}`);
+      throw error;
+    } finally {
+      // 3. Always release the lock and update lastSyncedAt
       await this.prisma.propertyIcal.update({
         where: { id: syncId },
-        data: { status: 'FAILED' }
+        data: {
+          status: finalStatus,
+          lastSyncedAt: new Date()
+        }
       });
-      throw error;
     }
   }
 

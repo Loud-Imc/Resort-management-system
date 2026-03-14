@@ -19,6 +19,8 @@ import { RegisterPropertyDto } from './dto/register-property.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { PropertyStatus } from '@prisma/client';
 
 @ApiTags('Properties')
@@ -94,9 +96,9 @@ export class PropertiesController {
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.PROPERTIES.READ)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get property by ID' })
-    findById(@Param('id') id: string) {
-        return this.propertiesService.findById(id);
+    @ApiOperation({ summary: 'Get property by ID (owner, staff, or admin only)' })
+    findById(@Param('id') id: string, @Request() req) {
+        return this.propertiesService.findById(id, req.user);
     }
 
     @Put(':id')
@@ -135,10 +137,10 @@ export class PropertiesController {
     }
 
     @Patch(':id/status')
-    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
+    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @Roles('SuperAdmin', 'Admin')
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Approve/Reject/Update property status (Admin)' })
+    @ApiOperation({ summary: 'Approve/Reject/Update property status (Admin/SuperAdmin only)' })
     updateStatus(
         @Param('id') id: string,
         @Body('status') status: PropertyStatus,

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsEmail, IsArray, IsBoolean, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsEmail, IsArray, IsBoolean, IsNumber, Min, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { PropertyStatus } from '@prisma/client';
@@ -119,11 +119,6 @@ export class CreatePropertyDto {
     @IsString()
     categoryId?: string;
 
-    @ApiProperty({ example: 12.0, description: 'Tax rate for this property (5, 12, or 18)' })
-    @IsOptional()
-    @IsNumber()
-    taxRate?: number;
-
     @ApiProperty({ example: false, description: 'Whether this property allows group bookings' })
     @IsOptional()
     @IsBoolean()
@@ -153,6 +148,7 @@ export class CreatePropertyDto {
 export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
+    @MinLength(1)
     name?: string;
 
     @IsOptional()
@@ -165,14 +161,17 @@ export class UpdatePropertyDto {
 
     @IsOptional()
     @IsString()
+    @MinLength(1)
     address?: string;
 
     @IsOptional()
     @IsString()
+    @MinLength(1)
     city?: string;
 
     @IsOptional()
     @IsString()
+    @MinLength(1)
     state?: string;
 
     @IsOptional()
@@ -255,27 +254,27 @@ export class UpdatePropertyDto {
     categoryId?: string;
 
     @IsOptional()
-    @IsNumber()
-    taxRate?: number;
-
-    @IsOptional()
     @IsBoolean()
     allowsGroupBooking?: boolean;
 
     @IsOptional()
     @IsNumber()
+    @Min(0)
     maxGroupCapacity?: number;
 
     @IsOptional()
     @IsNumber()
+    @Min(0)
     groupPricePerHead?: number;
 
     @IsOptional()
     @IsNumber()
+    @Min(0)
     groupPriceAdult?: number;
 
     @IsOptional()
     @IsNumber()
+    @Min(0)
     groupPriceChild?: number;
 }
 

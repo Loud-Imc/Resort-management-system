@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PropertyStaffService } from './property-staff.service';
@@ -17,10 +17,22 @@ export class PropertyStaffController {
     @ApiOperation({ summary: 'Add staff member to property' })
     addStaff(
         @Param('id') propertyId: string,
-        @Body() data: { userId: string; role: string },
+        @Body() data: { userId: string; roleId: string },
         @Request() req
     ) {
-        return this.propertyStaffService.addStaff(propertyId, data.userId, data.role, req.user.id);
+        return this.propertyStaffService.addStaff(propertyId, data.userId, data.roleId, req.user.id);
+    }
+
+    @Patch(':userId')
+    @Permissions(PERMISSIONS.PROPERTY_STAFF.MANAGE)
+    @ApiOperation({ summary: 'Update staff member role' })
+    updateStaff(
+        @Param('id') propertyId: string,
+        @Param('userId') userId: string,
+        @Body() data: { roleId: string },
+        @Request() req
+    ) {
+        return this.propertyStaffService.updateStaff(propertyId, userId, data.roleId, req.user.id);
     }
 
     @Get()

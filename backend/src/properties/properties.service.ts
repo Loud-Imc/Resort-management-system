@@ -383,7 +383,7 @@ export class PropertiesService {
         return property;
     }
 
-    async findById(id: string) {
+    async findById(id: string, requestUser?: any) {
         const property = await this.prisma.property.findUnique({
             where: { id },
             include: {
@@ -404,6 +404,30 @@ export class PropertiesService {
 
         if (!property) {
             throw new NotFoundException('Property not found');
+        }
+
+        // Scope check — only owner, staff, or admin can access property details
+        if (requestUser) {
+            const roles: string[] = requestUser.roles || [];
+            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+            const isOwner = property.ownerId === requestUser.id;
+            const isStaff = property.staff.some((s) => s.userId === requestUser.id);
+
+            if (!isAdmin && !isOwner && !isStaff) {
+                throw new ForbiddenException('You do not have access to this property');
+            }
+
+            // Strip sensitive KYC and financial fields for non-admin callers
+            if (!isAdmin) {
+                const sanitized: any = { ...property };
+                delete sanitized.ownerAadhaarNumber;
+                delete sanitized.ownerAadhaarImage;
+                delete sanitized.licenceImage;
+                delete sanitized.gstNumber;
+                delete sanitized.platformCommission;
+                delete sanitized.marketingCommission;
+                return sanitized;
+            }
         }
 
         return property;

@@ -12,6 +12,6 @@ import { SystemSettingsModule } from '../system-settings/system-settings.module'
     imports: [AuditModule, ChannelPartnersModule, PaymentsModule, SystemSettingsModule],
     controllers: [BookingsController],
     providers: [BookingsService, AvailabilityService, PricingService],
-    exports: [BookingsService],
+    exports: [BookingsService, AvailabilityService],
 })
 export class BookingsModule { }

@@ -131,7 +131,39 @@ export class UsersService {
         return [];
     }
 
-    async update(id: string, updateUserDto: UpdateUserDto) {
+    private async checkGuestAccessScope(targetUserId: string, requestUser: any): Promise<boolean> {
+        if (!requestUser) return false;
+
+        // 1. User accessing their own profile
+        if (targetUserId === requestUser.id) return true;
+
+        // 2. Global Admins
+        const roles = requestUser.roles || [];
+        if (roles.includes('SuperAdmin') || roles.includes('Admin')) return true;
+
+        // 3. Check if target user has bookings at a property where the request user is staff/owner
+        const hasAccess = await this.prisma.booking.findFirst({
+            where: {
+                userId: targetUserId,
+                property: {
+                    OR: [
+                        { ownerId: requestUser.id },
+                        { staff: { some: { userId: requestUser.id } } }
+                    ]
+                }
+            }
+        });
+
+        return !!hasAccess;
+    }
+
+    async update(id: string, updateUserDto: UpdateUserDto, requestUser?: any) {
+        if (requestUser) {
+            const hasAccess = await this.checkGuestAccessScope(id, requestUser);
+            if (!hasAccess) {
+                throw new ForbiddenException('You do not have permission to update this user profile');
+            }
+        }
         const user = await this.prisma.user.findUnique({ where: { id } });
         if (!user) {
             throw new NotFoundException('User not found');
@@ -237,7 +269,10 @@ export class UsersService {
                 propertyStaff: {
                     some: {
                         property: {
-                            ownerId: user.id,
+                            OR: [
+                                { ownerId: user.id },
+                                { staff: { some: { userId: user.id } } }
+                            ],
                             ...(params?.propertyId && { id: params.propertyId }),
                         }
                     }
@@ -247,7 +282,10 @@ export class UsersService {
                 bookings: {
                     some: {
                         property: {
-                            ownerId: user.id,
+                            OR: [
+                                { ownerId: user.id },
+                                { staff: { some: { userId: user.id } } }
+                            ],
                             ...(params?.propertyId && { id: params.propertyId }),
                         }
                     }
@@ -268,7 +306,13 @@ export class UsersService {
         });
     }
 
-    async findOne(id: string) {
+    async findOne(id: string, requestUser?: any) {
+        if (requestUser) {
+            const hasAccess = await this.checkGuestAccessScope(id, requestUser);
+            if (!hasAccess) {
+                throw new ForbiddenException('You do not have permission to view this user profile');
+            }
+        }
         const user = await this.prisma.user.findUnique({
             where: { id },
             include: {

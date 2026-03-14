@@ -18,8 +18,8 @@ export class RoomTypesController {
     @Permissions(PERMISSIONS.ROOM_TYPES.CREATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create room type' })
-    create(@Body() createRoomTypeDto: CreateRoomTypeDto) {
-        return this.roomTypesService.create(createRoomTypeDto);
+    create(@Body() createRoomTypeDto: CreateRoomTypeDto, @Req() req: any) {
+        return this.roomTypesService.create(createRoomTypeDto, req?.user);
     }
 
     @Get()
@@ -32,9 +32,11 @@ export class RoomTypesController {
     }
 
     @Get(':id')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
     @ApiOperation({ summary: 'Get room type by ID' })
-    findOne(@Param('id') id: string) {
-        return this.roomTypesService.findOne(id);
+    findOne(@Param('id') id: string, @Req() req: any) {
+        return this.roomTypesService.findOne(id, req?.user);
     }
 
     @Patch(':id')
@@ -42,8 +44,8 @@ export class RoomTypesController {
     @Permissions(PERMISSIONS.ROOM_TYPES.UPDATE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update room type' })
-    update(@Param('id') id: string, @Body() updateRoomTypeDto: UpdateRoomTypeDto) {
-        return this.roomTypesService.update(id, updateRoomTypeDto);
+    update(@Param('id') id: string, @Body() updateRoomTypeDto: UpdateRoomTypeDto, @Req() req: any) {
+        return this.roomTypesService.update(id, updateRoomTypeDto, req?.user);
     }
 
     @Delete(':id')
@@ -51,8 +53,8 @@ export class RoomTypesController {
     @Permissions(PERMISSIONS.ROOM_TYPES.DELETE)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Delete room type' })
-    remove(@Param('id') id: string) {
-        return this.roomTypesService.remove(id);
+    remove(@Param('id') id: string, @Req() req: any) {
+        return this.roomTypesService.remove(id, req?.user);
     }
 
     @Get('admin/all')

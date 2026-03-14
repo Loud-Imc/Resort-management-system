@@ -14,7 +14,7 @@ import { PERMISSIONS } from '../auth/constants/permissions.constant';
 @ApiBearerAuth()
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
-    
+
     @Get('me')
     @ApiOperation({ summary: 'Get current user profile' })
     async getMe(@Request() req) {
@@ -50,15 +50,15 @@ export class UsersController {
 
     @Get(':id')
     @ApiOperation({ summary: 'Get user by ID' })
-    findOne(@Param('id') id: string) {
-        return this.usersService.findOne(id);
+    findOne(@Request() req, @Param('id') id: string) {
+        return this.usersService.findOne(id, req.user);
     }
 
     @Patch(':id')
     @Permissions(PERMISSIONS.USERS.UPDATE)
     @ApiOperation({ summary: 'Update user' })
-    update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-        return this.usersService.update(id, updateUserDto);
+    update(@Request() req, @Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+        return this.usersService.update(id, updateUserDto, req.user);
     }
 
     @Post(':userId/roles/:roleId')

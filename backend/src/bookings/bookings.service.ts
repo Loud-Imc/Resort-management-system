@@ -27,8 +27,8 @@ export class BookingsService {
     /**
      * Create a new booking (manual or online)
      */
-    async create(createBookingDto: CreateBookingDto, userId: string) {
-        const {
+    async create(createBookingDto: CreateBookingDto, user: any) {
+        let {
             roomTypeId,
             checkInDate,
             checkOutDate,
@@ -47,6 +47,38 @@ export class BookingsService {
             isGroupBooking = false,
             groupSize,
         } = createBookingDto;
+
+        let isAuthorizedStaff = false;
+        const userId = user?.id || 'GUEST_USER';
+
+        if (user && user.id) {
+            const roles = user.roles || [];
+            if (roles.includes('SuperAdmin') || roles.includes('Admin')) {
+                isAuthorizedStaff = true;
+            } else {
+                const roomType = await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId },
+                    select: { property: { select: { ownerId: true, staff: true } } }
+                });
+
+                if (roomType && roomType.property) {
+                    const isOwner = roomType.property.ownerId === user.id;
+                    const isStaff = roomType.property.staff.some(s => s.userId === user.id);
+                    if (isOwner || isStaff) {
+                        isAuthorizedStaff = true;
+                    }
+                }
+            }
+        }
+
+        if (!isAuthorizedStaff) {
+            isManualBooking = false;
+            overrideTotal = undefined;
+            overrideReason = undefined;
+            if (createBookingDto.paymentMethod === 'WALLET') {
+                createBookingDto.paymentMethod = 'ONLINE';
+            }
+        }
 
         const bookingSourceId = rawBookingSourceId || undefined;
         const agentId = createBookingDto.agentId || undefined;
@@ -373,6 +405,7 @@ export class BookingsService {
                     cpCommission,
                     cpDiscount: pricing.referralDiscountAmount,
                     couponId,
+                    couponCode: couponId ? couponCode : null, // Store the code string
                     paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? finalTotal : 0,
                     paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'FULL' : 'UNPAID',
                     confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
@@ -686,9 +719,11 @@ export class BookingsService {
             const isStaff = await this.prisma.propertyStaff.findUnique({
                 where: { propertyId_userId: { propertyId: booking.propertyId || '', userId: user.id } }
             });
-            isAuthorizedMember = !!(isOwner || isStaff);
+            const isChannelPartner = (booking as any).channelPartnerId ? (await this.prisma.channelPartner.findUnique({ where: { id: (booking as any).channelPartnerId } }))?.userId === user.id : false;
 
-            if (!isOwner && !isStaff && booking.userId !== user.id) {
+            isAuthorizedMember = !!(isOwner || isStaff || isChannelPartner);
+
+            if (!isOwner && !isStaff && booking.userId !== user.id && !isChannelPartner) {
                 throw new NotFoundException('Booking not found');
             }
         } else {
@@ -743,6 +778,12 @@ export class BookingsService {
 
         if (!['CONFIRMED', 'RESERVED'].includes(booking.status)) {
             throw new BadRequestException('Only confirmed or reserved bookings can be checked in');
+        }
+
+        // Logic Check: Guests must complete full payment before check-in
+        const isPaidInFull = booking.paymentStatus === 'FULL' || Number(booking.paidAmount) >= Number(booking.totalAmount) - 0.01;
+        if (!isPaidInFull) {
+            throw new BadRequestException(`Cannot check in. Booking has a pending balance of ₹${(Number(booking.totalAmount) - Number(booking.paidAmount)).toLocaleString('en-IN')}. Please record full payment first.`);
         }
 
         // 1. Update guest details if provided
@@ -865,32 +906,47 @@ export class BookingsService {
             throw new BadRequestException('Only pending, confirmed, or reserved bookings can be cancelled');
         }
 
-        const updated = await this.prisma.booking.update({
-            where: { id },
-            data: {
-                status: 'CANCELLED',
-                cancelledAt: new Date(),
-            },
-            include: {
-                room: true,
-                roomType: true,
-                guests: true,
-            },
-        });
+        const { updated, couponRestored } = await this.prisma.$transaction(async (tx) => {
+            const up = await tx.booking.update({
+                where: { id },
+                data: {
+                    status: 'CANCELLED',
+                    cancelledAt: new Date(),
+                },
+                include: {
+                    room: true,
+                    roomType: true,
+                    guests: true,
+                    coupon: true,
+                },
+            });
 
-        // Release ALL room blocks for this booking (including group booking extra rooms)
-        await this.prisma.roomBlock.deleteMany({
-            where: { bookingId: booking.id },
-        });
+            // Restore coupon usage if applicable
+            let restored = false;
+            if (up.couponId) {
+                await tx.coupon.update({
+                    where: { id: up.couponId },
+                    data: { usedCount: { decrement: 1 } }
+                });
+                restored = true;
+            }
 
-        await this.auditService.createLog({
-            action: 'CANCEL',
-            entity: 'Booking',
-            entityId: id,
-            userId: user.id,
-            oldValue: { status: booking.status },
-            newValue: { status: 'CANCELLED', reason },
-            bookingId: id,
+            // Release ALL room blocks for this booking (including group booking extra rooms)
+            await tx.roomBlock.deleteMany({
+                where: { bookingId: id },
+            });
+
+            await this.auditService.createLog({
+                action: 'CANCEL',
+                entity: 'Booking',
+                entityId: id,
+                userId: user.id,
+                oldValue: { status: booking.status },
+                newValue: { status: 'CANCELLED', reason, couponRestored: restored },
+                bookingId: id,
+            }, tx);
+
+            return { updated: up, couponRestored: restored };
         });
 
         // Notify guest of cancellation
@@ -1195,7 +1251,7 @@ export class BookingsService {
                 status: 'PENDING_PAYMENT',
                 createdAt: { lt: thirtyMinutesAgo },
             },
-            select: { id: true, bookingNumber: true, roomId: true },
+            select: { id: true, bookingNumber: true, roomId: true, couponId: true },
         });
 
         if (staleBookings.length === 0) return;
@@ -1206,13 +1262,21 @@ export class BookingsService {
             try {
                 await this.prisma.$transaction(async (tx) => {
                     // 1. Mark booking as EXPIRED
-                    await tx.booking.update({
+                    const updatedBooking = await tx.booking.update({
                         where: { id: booking.id },
                         data: {
                             status: 'CANCELLED',
                             cancelledAt: new Date(),
                         },
                     });
+
+                    // 1.1 Restore coupon usage
+                    if ((booking as any).couponId) {
+                        await tx.coupon.update({
+                            where: { id: (booking as any).couponId },
+                            data: { usedCount: { decrement: 1 } }
+                        });
+                    }
 
                     // 2. Release ALL room blocks for this booking (including group extras)
                     await tx.roomBlock.deleteMany({

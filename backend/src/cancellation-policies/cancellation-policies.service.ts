@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCancellationPolicyDto, UpdateCancellationPolicyDto } from './dto/cancellation-policy.dto';
 
@@ -6,7 +6,23 @@ import { CreateCancellationPolicyDto, UpdateCancellationPolicyDto } from './dto/
 export class CancellationPoliciesService {
     constructor(private prisma: PrismaService) { }
 
-    async create(dto: CreateCancellationPolicyDto) {
+    async create(dto: CreateCancellationPolicyDto, requestUser?: any) {
+        // Verify the requesting user owns or staffs this property
+        if (requestUser) {
+            const property = await this.prisma.property.findUnique({
+                where: { id: dto.propertyId },
+                include: { staff: true },
+            });
+            if (!property) throw new NotFoundException('Property not found');
+            const roles: string[] = requestUser.roles || [];
+            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+            const isOwner = property.ownerId === requestUser.id;
+            const isStaff = property.staff.some((s) => s.userId === requestUser.id);
+            if (!isAdmin && !isOwner && !isStaff) {
+                throw new ForbiddenException('You do not have permission to manage policies for this property');
+            }
+        }
+
         // If this is set as default, unset other defaults for the property
         if (dto.isDefault) {
             await this.prisma.cancellationPolicy.updateMany({
@@ -56,8 +72,25 @@ export class CancellationPoliciesService {
         return policy;
     }
 
-    async update(id: string, dto: UpdateCancellationPolicyDto) {
+    async update(id: string, dto: UpdateCancellationPolicyDto, requestUser?: any) {
         const existing = await this.findOne(id);
+
+        // Verify the requesting user owns or staffs this property
+        if (requestUser) {
+            const property = await this.prisma.property.findUnique({
+                where: { id: existing.propertyId },
+                include: { staff: true },
+            });
+            if (property) {
+                const roles: string[] = requestUser.roles || [];
+                const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+                const isOwner = property.ownerId === requestUser.id;
+                const isStaff = property.staff.some((s) => s.userId === requestUser.id);
+                if (!isAdmin && !isOwner && !isStaff) {
+                    throw new ForbiddenException('You do not have permission to manage policies for this property');
+                }
+            }
+        }
 
         if (dto.isDefault && !existing.isDefault) {
             await this.prisma.cancellationPolicy.updateMany({
