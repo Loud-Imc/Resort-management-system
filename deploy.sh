@@ -20,6 +20,20 @@ git reset --hard origin/main
 echo "🏗️ Building Backend..."
 cd backend
 npm install
+
+# 2.1 Check Database Connectivity
+echo "🔍 Checking Database Connectivity..."
+# Try to reach the database (assuming 127.0.0.1:5432)
+if ! command -v pg_isready &> /dev/null; then
+    echo "⚠️ pg_isready not found, skipping pre-check..."
+else
+    if ! pg_isready -h 127.0.0.1 -p 5432; then
+        echo "❌ Error: Database at 127.0.0.1:5432 is not reachable."
+        echo "Please ensure PostgreSQL is running and accessible."
+        exit 1
+    fi
+fi
+
 npx prisma generate
 npx prisma migrate deploy
 npm run build
