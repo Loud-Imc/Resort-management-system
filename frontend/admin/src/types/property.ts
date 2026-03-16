@@ -60,6 +60,8 @@ export interface Property {
     };
     maxGroupCapacity?: number;
     groupPricePerHead?: number;
+    groupPriceAdult?: number;
+    groupPriceChild?: number;
 }
 
 export interface CreatePropertyDto {
@@ -89,6 +91,8 @@ export interface CreatePropertyDto {
     allowsGroupBooking?: boolean;
     maxGroupCapacity?: number;
     groupPricePerHead?: number;
+    groupPriceAdult?: number;
+    groupPriceChild?: number;
 }
 
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {

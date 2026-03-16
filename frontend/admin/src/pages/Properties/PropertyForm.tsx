@@ -69,7 +69,9 @@ export default function PropertyForm() {
         longitude: undefined,
         allowsGroupBooking: false,
         maxGroupCapacity: 40,
-        groupPricePerHead: 500,
+        groupPricePerHead: 0,
+        groupPriceAdult: 500,
+        groupPriceChild: 300,
     });
 
     useEffect(() => {
@@ -159,6 +161,8 @@ export default function PropertyForm() {
                 allowsGroupBooking: property.allowsGroupBooking || false,
                 maxGroupCapacity: property.maxGroupCapacity || 40,
                 groupPricePerHead: property.groupPricePerHead || 0,
+                groupPriceAdult: property.groupPriceAdult || 0,
+                groupPriceChild: property.groupPriceChild || 0,
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -516,19 +520,29 @@ export default function PropertyForm() {
                                         </div>
                                         <div>
                                             <label className="block text-sm font-bold text-muted-foreground mb-1">
-                                                Group Price / Head (₹)
+                                                Group Price / Adult (₹)
                                             </label>
                                             <input
                                                 type="number"
-                                                name="groupPricePerHead"
-                                                value={formData.groupPricePerHead}
-                                                onChange={(e) => setFormData(prev => ({ ...prev, groupPricePerHead: e.target.value ? parseInt(e.target.value) : 0 }))}
+                                                name="groupPriceAdult"
+                                                value={formData.groupPriceAdult}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, groupPriceAdult: e.target.value ? parseInt(e.target.value) : 0 }))}
                                                 className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold"
-                                                placeholder="e.g. 500"
+                                                placeholder="e.g. 600"
                                             />
-                                            <p className="text-xs text-muted-foreground mt-1 italic">
-                                                * Global price per person for group bookings.
-                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                                Group Price / Child (₹)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="groupPriceChild"
+                                                value={formData.groupPriceChild}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, groupPriceChild: e.target.value ? parseInt(e.target.value) : 0 }))}
+                                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-bold"
+                                                placeholder="e.g. 400"
+                                            />
                                         </div>
                                     </div>
                                 </div>
