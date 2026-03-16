@@ -20,7 +20,7 @@ const bookingSchema = z.object({
     propertyId: z.string().min(1, 'Property is required'),
     checkInDate: z.string().min(1, 'Check-in date is required'),
     checkOutDate: z.string().min(1, 'Check-out date is required'),
-    roomTypeId: z.string().min(1, 'Room type is required'),
+    roomTypeId: z.string().optional(),
     adultsCount: z.number().min(1, 'At least 1 adult is required'),
     childrenCount: z.number().min(0),
     couponCode: z.string().optional(),
@@ -43,6 +43,12 @@ const bookingSchema = z.object({
         idType: z.string().optional(),
         idNumber: z.string().optional(),
     })).min(1, 'At least 1 guest is required'),
+}).refine(data => {
+    if (!data.isGroupBooking && !data.roomTypeId) return false;
+    return true;
+}, {
+    message: "Room type is required for standard bookings",
+    path: ["roomTypeId"]
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
@@ -51,7 +57,7 @@ export default function CreateBooking() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { selectedProperty } = useProperty();
-    const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number } | null>(null);
+    const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; allocationPreview?: any[] } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
 
@@ -109,35 +115,43 @@ export default function CreateBooking() {
 
     const handleCheckAvailability = async () => {
         const values = getValues();
-        if (!values.checkInDate || !values.checkOutDate || !values.roomTypeId) return;
+        const isGroup = values.isGroupBooking;
+
+        if (!values.checkInDate || !values.checkOutDate) return;
+        if (!isGroup && !values.roomTypeId) return;
+
         setCheckingAvailability(true);
         setAvailability(null);
         setPriceDetails(null);
         try {
             const avail = await (bookingsService as any).checkAvailability({
-                roomTypeId: values.roomTypeId,
+                roomTypeId: values.roomTypeId || undefined,
                 checkInDate: values.checkInDate,
                 checkOutDate: values.checkOutDate,
-                isGroupBooking: values.isGroupBooking,
-                groupSize: values.isGroupBooking ? Number(values.groupSize) : undefined,
+                isGroupBooking: isGroup,
+                groupSize: isGroup ? Number(values.groupSize) : undefined,
+                propertyId: values.propertyId,
             });
             setAvailability(avail);
+
             if (avail.available) {
                 const price = await (bookingsService as any).calculatePrice({
-                    roomTypeId: values.roomTypeId,
+                    roomTypeId: isGroup ? (avail.allocationPreview?.[0]?.roomTypeId || values.roomTypeId) : values.roomTypeId,
                     checkInDate: values.checkInDate,
                     checkOutDate: values.checkOutDate,
                     adultsCount: Number(values.adultsCount),
                     childrenCount: Number(values.childrenCount),
-                    isGroupBooking: values.isGroupBooking,
-                    groupSize: values.isGroupBooking ? (Number(values.adultsCount) + Number(values.childrenCount)) : undefined,
+                    isGroupBooking: isGroup,
+                    groupSize: isGroup ? Number(values.groupSize) : undefined,
                     couponCode: values.couponCode,
                     referralCode: values.referralCode,
                 });
                 setPriceDetails(price);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error checking availability:', error);
+            const message = error.response?.data?.message || 'Failed to check availability';
+            toast.error(message);
         } finally {
             setCheckingAvailability(false);
         }
@@ -157,11 +171,12 @@ export default function CreateBooking() {
     const onSubmit = (data: BookingFormData) => {
         if (!availability?.available) { toast.error('Please check availability first'); return; }
 
-        // Remove propertyId and other non-DTO fields
+        // Remove propertyId (unless needed for group allocation) and other non-DTO fields
         const { propertyId, paymentOption, ...rest } = data;
 
         const sanitizedData = {
             ...rest,
+            propertyId: data.isGroupBooking ? propertyId : undefined,
             paymentOption,
             bookingSourceId: data.bookingSourceId || undefined,
             roomId: data.roomId || undefined,
@@ -191,23 +206,25 @@ export default function CreateBooking() {
                                 <Calendar className="h-5 w-5 text-blue-600" /> Booking Details
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="md:col-span-2">
-                                    <SearchableSelect
-                                        label="Room Type"
-                                        options={roomTypes?.map((type) => ({
-                                            id: type.id,
-                                            label: `${type.name} - ₹${type.basePrice}/night`,
-                                            subLabel: `${type.rooms?.length || type._count?.rooms || 0} Total Rooms | ${type.maxAdults} Adult, ${type.maxChildren} Child`
-                                        })) || []}
-                                        value={getValues('roomTypeId')}
-                                        onChange={(val: string) => {
-                                            setValue('roomTypeId', val);
-                                            handleCheckAvailability();
-                                        }}
-                                        required
-                                    />
-                                    {errors.roomTypeId && <p className="text-red-500 text-xs mt-1">{errors.roomTypeId.message}</p>}
-                                </div>
+                                {!isGroupMode && (
+                                    <div className="md:col-span-2">
+                                        <SearchableSelect
+                                            label="Room Type"
+                                            options={roomTypes?.map((type) => ({
+                                                id: type.id,
+                                                label: `${type.name} - ₹${type.basePrice}/night`,
+                                                subLabel: `${type.rooms?.length || type._count?.rooms || 0} Total Rooms | ${type.maxAdults} Adult, ${type.maxChildren} Child`
+                                            })) || []}
+                                            value={watch('roomTypeId') || ''}
+                                            onChange={(val: string) => {
+                                                setValue('roomTypeId', val);
+                                                handleCheckAvailability();
+                                            }}
+                                            required
+                                        />
+                                        {errors.roomTypeId && <p className="text-red-500 text-xs mt-1">{errors.roomTypeId.message}</p>}
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Check-in Date</label>
                                     <input type="date" {...register('checkInDate')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm" />
@@ -322,16 +339,43 @@ export default function CreateBooking() {
                                     </button>
 
                                     {availability && (
-                                        <div className={clsx('mt-4 p-4 rounded-md border flex items-center gap-3 shadow-sm',
-                                            availability.available ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-                                                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300')}>
-                                            {availability.available ? <CheckCircle className="h-6 w-6" /> : <AlertCircle className="h-6 w-6" />}
-                                            <div className="flex-1">
-                                                <p className="font-bold text-base leading-tight">{availability.available ? 'Room Available' : 'Room Unavailable'}</p>
-                                                <p className="text-sm">{availability.available
-                                                    ? `${availability.availableRooms} rooms left for these dates.`
-                                                    : 'Please choose different dates or room type.'}</p>
+                                        <div className="space-y-4 mt-4">
+                                            <div className={clsx('p-4 rounded-md border flex items-center gap-3 shadow-sm',
+                                                availability.available ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                                                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300')}>
+                                                {availability.available ? <CheckCircle className="h-6 w-6" /> : <AlertCircle className="h-6 w-6" />}
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-base leading-tight">{availability.available ? 'Available' : 'Unavailable'}</p>
+                                                    <p className="text-sm">{availability.available
+                                                        ? isGroupMode
+                                                            ? `Aggregate capacity verified for ${watch('groupSize')} guests.`
+                                                            : `${availability.availableRooms} rooms left for these dates.`
+                                                        : 'Please choose different dates, room type or reduce group size.'}</p>
+                                                </div>
                                             </div>
+
+                                            {isGroupMode && availability.available && availability.allocationPreview && (
+                                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2">
+                                                    <h4 className="text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-3 tracking-widest">Suggested Allocation Preview</h4>
+                                                    <div className="space-y-2">
+                                                        {availability.allocationPreview.map((room, idx) => (
+                                                            <div key={idx} className="flex justify-between items-center text-sm py-1 border-b border-blue-100 dark:border-blue-800 last:border-0">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-bold text-gray-900 dark:text-white">Room {room.name}</span>
+                                                                    <span className="text-[10px] text-gray-500">{room.roomType}</span>
+                                                                </div>
+                                                                <span className="text-[10px] font-bold bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Cap: {room.capacity}</span>
+                                                            </div>
+                                                        ))}
+                                                        <div className="pt-2 flex justify-between items-center">
+                                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Total Capacity</span>
+                                                            <span className="text-sm font-black text-blue-600 dark:text-blue-400">
+                                                                {availability.allocationPreview.reduce((sum, r) => sum + r.capacity, 0)} Guests
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

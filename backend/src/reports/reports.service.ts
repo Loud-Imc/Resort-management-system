@@ -22,7 +22,7 @@ export class ReportsService {
     /**
      * Get dashboard statistics (Today's overview)
      */
-    async getDashboardStats(user: any) {
+    async getDashboardStats(user: any, propertyId?: string) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
@@ -33,12 +33,19 @@ export class ReportsService {
 
         // Define property scoping
         const propertyFilter: any = {};
-        if (!isGlobalAdmin) {
+        if (isGlobalAdmin) {
+            if (propertyId) {
+                propertyFilter.id = propertyId;
+            }
+        } else {
             // Filter by properties where user is staff or owner
             propertyFilter.OR = [
                 { ownerId: user.id },
                 { staff: { some: { userId: user.id } } }
             ];
+            if (propertyId) {
+                propertyFilter.id = propertyId;
+            }
         }
 
         // 1. Today's check-ins

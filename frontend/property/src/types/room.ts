@@ -3,6 +3,7 @@ export const RoomStatus = {
     OCCUPIED: 'OCCUPIED',
     MAINTENANCE: 'MAINTENANCE',
     BLOCKED: 'BLOCKED',
+    RESERVED: 'RESERVED',
 } as const;
 
 export type RoomStatus = typeof RoomStatus[keyof typeof RoomStatus];

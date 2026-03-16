@@ -11,20 +11,82 @@ export class AvailabilityService {
     ) { }
 
     /**
-     * Check room availability for a given date range
-     * Considers: existing bookings, room blocks, room status
+     * Check room availability for a given date range.
+     * For group bookings, it ensures enough aggregate capacity is available.
      */
     async checkAvailability(
-        roomTypeId: string,
+        roomTypeId: string | undefined,
         checkInDate: Date,
         checkOutDate: Date,
+        isGroupBooking: boolean = false,
+        groupSize?: number,
+        propertyId?: string,
     ): Promise<boolean> {
+        if (isGroupBooking && groupSize && propertyId) {
+            const allocated = await this.allocateRoomsForGroup(
+                propertyId,
+                checkInDate,
+                checkOutDate,
+                groupSize
+            );
+            return allocated.length > 0;
+        }
+
+        if (!roomTypeId) return false;
+
         const availableRooms = await this.getAvailableRooms(
             roomTypeId,
             checkInDate,
             checkOutDate,
         );
         return availableRooms.length > 0;
+    }
+
+    /**
+     * Greedy allocation for group bookings.
+     * Finds available rooms in the property's "Group Pool" and fills them until groupSize is met.
+     */
+    async allocateRoomsForGroup(
+        propertyId: string,
+        checkIn: Date,
+        checkOut: Date,
+        groupSize: number,
+    ) {
+        // Find all RoomTypes in the Group Pool for this property
+        const groupPoolTypes = await this.prisma.roomType.findMany({
+            where: {
+                propertyId,
+                isAvailableForGroupBooking: true,
+            }
+        });
+
+        // Find all available rooms across these types
+        let allAvailableRooms: any[] = [];
+        for (const type of groupPoolTypes) {
+            const availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut);
+            allAvailableRooms.push(...availableForType.map(r => ({
+                ...r,
+                roomType: type,
+                capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))
+            })));
+        }
+
+        // Sort by capacity descending to fill larger rooms first
+        allAvailableRooms.sort((a, b) => b.capacity - a.capacity);
+
+        let allocatedRooms: any[] = [];
+        let remainingHeadcount = groupSize;
+        for (const room of allAvailableRooms) {
+            if (remainingHeadcount <= 0) break;
+            allocatedRooms.push(room);
+            remainingHeadcount -= room.capacity;
+        }
+
+        if (remainingHeadcount > 0) {
+            return []; // Not enough capacity
+        }
+
+        return allocatedRooms;
     }
 
     async getAvailableRooms(

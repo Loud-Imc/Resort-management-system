@@ -17,8 +17,12 @@ export class ReportsController {
     @Get('dashboard')
     @Permissions(PERMISSIONS.REPORTS.VIEW_DASHBOARD)
     @ApiOperation({ summary: "Get dashboard statistics (Today's overview)" })
-    getDashboardStats(@Request() req) {
-        return this.reportsService.getDashboardStats(req.user);
+    @ApiQuery({ name: 'propertyId', required: false })
+    getDashboardStats(
+        @Request() req,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        return this.reportsService.getDashboardStats(req.user, propertyId);
     }
 
     @Get('financial')

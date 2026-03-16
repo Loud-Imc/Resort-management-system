@@ -74,7 +74,7 @@ export interface CreateBookingDto {
     checkOutDate: string;
     adultsCount: number;
     childrenCount: number;
-    roomTypeId: string;
+    roomTypeId?: string;
     guests: {
         firstName: string;
         lastName: string;
@@ -88,16 +88,22 @@ export interface CreateBookingDto {
     isManualBooking?: boolean;
     isGroupBooking?: boolean;
     groupSize?: number;
+    propertyId?: string;
+    paymentOption?: 'FULL' | 'PARTIAL';
+    paymentMethod?: 'CASH' | 'UPI' | 'ONLINE';
+    bookingSourceId?: string;
+    overrideTotal?: number;
+    overrideReason?: string;
 }
 
 export interface CheckAvailabilityDto {
-    roomTypeId: string;
+    roomTypeId?: string;
     checkInDate: string;
     checkOutDate: string;
 }
 
 export interface PriceCalculationDto {
-    roomTypeId: string;
+    roomTypeId?: string;
     checkInDate: string;
     checkOutDate: string;
     adultsCount: number;

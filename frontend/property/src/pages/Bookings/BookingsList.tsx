@@ -338,14 +338,14 @@ export default function BookingsList() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div className="flex items-center justify-end gap-3">
+                                            <div className="flex items-center justify-end gap-2">
                                                 {(booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.RESERVED) && (
                                                     <button
                                                         onClick={() => handleOpenCheckIn(booking)}
-                                                        className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white p-2.5 rounded-2xl transition-all shadow-sm hover:shadow-emerald-500/20 active:scale-90"
-                                                        title="Verify & Check In"
+                                                        className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-emerald-500/20 active:scale-95 text-[10px] font-black uppercase tracking-widest"
                                                     >
-                                                        <ShieldCheck className="h-5 w-5" />
+                                                        <ShieldCheck className="h-3.5 w-3.5" />
+                                                        <span>Check In</span>
                                                     </button>
                                                 )}
 
@@ -354,10 +354,10 @@ export default function BookingsList() {
                                                         onClick={() => {
                                                             if (confirm('Check-out this guest?')) checkOutMutation.mutate(booking.id);
                                                         }}
-                                                        className="text-gray-600 hover:text-gray-900"
-                                                        title="Check Out"
+                                                        className="inline-flex items-center gap-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-blue-500/20 active:scale-95 text-[10px] font-black uppercase tracking-widest"
                                                     >
-                                                        <LogOut className="h-4 w-4" />
+                                                        <LogOut className="h-3.5 w-3.5" />
+                                                        <span>Check Out</span>
                                                     </button>
                                                 )}
 
@@ -366,14 +366,14 @@ export default function BookingsList() {
                                                         onClick={() => {
                                                             if (confirm('Cancel this booking?')) cancelMutation.mutate(booking.id);
                                                         }}
-                                                        className="text-destructive hover:text-destructive/80"
-                                                        title="Cancel"
+                                                        className="inline-flex items-center gap-1.5 bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-red-500/20 active:scale-95 text-[10px] font-black uppercase tracking-widest"
                                                     >
-                                                        <XCircle className="h-4 w-4" />
+                                                        <XCircle className="h-3.5 w-3.5" />
+                                                        <span>Cancel</span>
                                                     </button>
                                                 )}
 
-                                                <button className="text-muted-foreground hover:text-foreground">
+                                                <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-90">
                                                     <MoreVertical className="h-4 w-4" />
                                                 </button>
                                             </div>

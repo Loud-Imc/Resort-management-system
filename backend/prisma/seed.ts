@@ -200,157 +200,213 @@ async function main() {
 
     const resortCategory = createdCategories.find(c => c.slug === 'resort');
 
-    // Create Sample Property
-    const sampleProperty = await prisma.property.upsert({
-        where: { slug: 'demo-resort' },
-        update: {
-            categoryId: resortCategory?.id,
-            baseCurrency: 'INR'
-        },
-        create: {
+    // --- PROPERTY DEFINITIONS ---
+    const propertiesData = [
+        {
             name: 'The Grand Heritage Resort',
             slug: 'demo-resort',
-            description: 'Experience luxury at its finest with our world-class amenities and breathtaking views.',
-            address: '456 Hillview Estate, Munnar',
+            type: 'RESORT',
             city: 'Munnar',
             state: 'Kerala',
-            country: 'India',
-            pincode: '685612',
-            type: 'RESORT',
-            baseCurrency: 'INR',
-            categoryId: resortCategory?.id,
-            email: 'bookings@grandheritage.com',
-            phone: '+919988776655',
-            ownerId: ownerUser.id,
-            images: ['https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200'],
-            amenities: ['Private Pool', 'Luxury Spa', 'Fine Dining', 'WiFi', 'EV Charging']
+            description: 'Experience luxury at its finest with our world-class amenities and breathtaking views.',
+            roomTypes: [
+                {
+                    name: 'Heritage Standard Room',
+                    basePrice: 4500,
+                    maxAdults: 2,
+                    maxChildren: 1,
+                    amenities: ['High-speed WiFi', '42-inch LED TV', 'Tea/Coffee Maker']
+                },
+                {
+                    name: 'Luxury Garden Suite',
+                    basePrice: 8500,
+                    maxAdults: 3,
+                    maxChildren: 2,
+                    amenities: ['Private Balcony', 'Nespresso Machine', 'Mini Bar']
+                },
+                {
+                    name: 'Royal Presidential Villa',
+                    basePrice: 25000,
+                    maxAdults: 4,
+                    maxChildren: 2,
+                    amenities: ['Private Infinity Pool', 'Butler Service', 'Home Theatre']
+                }
+            ]
+        },
+        {
+            name: 'Coastal Breeze Hotel',
+            slug: 'coastal-breeze',
+            type: 'HOTEL',
+            city: 'Goa',
+            state: 'Goa',
+            description: 'A modern boutique hotel just steps away from the pristine beaches of North Goa.',
+            roomTypes: [
+                {
+                    name: 'Deluxe Sea View Room',
+                    basePrice: 5500,
+                    maxAdults: 2,
+                    maxChildren: 1,
+                    amenities: ['Sea View', 'Air Conditioning', 'Balcony']
+                },
+                {
+                    name: 'Executive Suite',
+                    basePrice: 9500,
+                    maxAdults: 3,
+                    maxChildren: 1,
+                    amenities: ['Work Desk', 'Lounge Access', 'King Bed']
+                }
+            ]
+        },
+        {
+            name: 'Pine Valley Villa',
+            slug: 'pine-valley',
+            type: 'VILLA',
+            city: 'Manali',
+            state: 'Himachal Pradesh',
+            description: 'A cozy wooden villa surrounded by pine forests, perfect for a peaceful mountain getaway.',
+            roomTypes: [
+                {
+                    name: 'Standard Pine Villa',
+                    basePrice: 7000,
+                    maxAdults: 4,
+                    maxChildren: 2,
+                    amenities: ['Fireplace', 'Mountain View', 'Kitchenette']
+                },
+                {
+                    name: 'Luxury Pine Villa',
+                    basePrice: 12000,
+                    maxAdults: 6,
+                    maxChildren: 3,
+                    amenities: ['Jacuzzi', 'Private Deck', 'Large Living Area']
+                }
+            ]
+        },
+        {
+            name: 'Serene Lake Homestay',
+            slug: 'serene-lake',
+            type: 'HOMESTAY',
+            city: 'Udaipur',
+            state: 'Rajasthan',
+            description: 'A traditional Rajasthani home offering a warm stay with views of Lake Pichola.',
+            roomTypes: [
+                {
+                    name: 'Lake View Haven',
+                    basePrice: 3500,
+                    maxAdults: 2,
+                    maxChildren: 1,
+                    amenities: ['Lake View', 'Home-cooked Meals', 'Traditional Decor']
+                },
+                {
+                    name: 'Family Heritage Room',
+                    basePrice: 6000,
+                    maxAdults: 4,
+                    maxChildren: 2,
+                    amenities: ['Extra Beds', 'Shared Porch', 'Cultural Experience']
+                }
+            ]
         }
-    });
+    ];
 
-    // --- ENRICHED ROOM TYPES ---
+    for (const pData of propertiesData) {
+        const catSlug = pData.type.toLowerCase();
+        const category = createdCategories.find(c => c.slug === catSlug) || createdCategories.find(c => c.slug === 'other');
 
-    // 1. Heritage Standard Room
-    await prisma.roomType.upsert({
-        where: { propertyId_name: { propertyId: sampleProperty.id, name: 'Heritage Standard Room' } },
-        update: {},
-        create: {
-            name: 'Heritage Standard Room',
-            description: 'Gracefully designed rooms blending traditional aesthetics with modern comfort.',
-            amenities: ['High-speed WiFi', '42-inch LED TV', 'Tea/Coffee Maker', 'Premium Toiletries', 'Electronic Safe'],
-            basePrice: 4500,
-            extraAdultPrice: 1000,
-            extraChildPrice: 500,
-            maxAdults: 2,
-            maxChildren: 1,
-            images: [
-                'https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=800',
-                'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=800'
-            ],
-            highlights: ['Garden View', 'Traditional Decor', 'Handcrafted Furniture'],
-            inclusions: ['Complimentary Buffet Breakfast', 'Welcome Drink on Arrival'],
-            cancellationPolicyText: 'Free cancellation 48 hours before check-in',
-            marketingBadgeText: 'Most Popular',
-            marketingBadgeType: 'POSITIVE',
-            propertyId: sampleProperty.id,
-        },
-    });
+        const property = await prisma.property.upsert({
+            where: { slug: pData.slug },
+            update: {
+                categoryId: category?.id,
+                baseCurrency: 'INR'
+            },
+            create: {
+                name: pData.name,
+                slug: pData.slug,
+                description: pData.description,
+                address: `Sample Address for ${pData.name}`,
+                city: pData.city,
+                state: pData.state,
+                country: 'India',
+                pincode: '000000',
+                type: pData.type as any,
+                baseCurrency: 'INR',
+                categoryId: category?.id,
+                email: `info@${pData.slug}.com`,
+                phone: '+910000000000',
+                ownerId: ownerUser.id,
+                images: ['https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200'],
+                amenities: ['WiFi', 'Parking', 'Room Service']
+            }
+        });
 
-    // 2. Luxury Garden Suite
-    const deluxeRoom = await prisma.roomType.upsert({
-        where: { propertyId_name: { propertyId: sampleProperty.id, name: 'Luxury Garden Suite' } },
-        update: {},
-        create: {
-            name: 'Luxury Garden Suite',
-            description: 'An expansive suite featuring a private balcony overlooking our award-winning gardens.',
-            amenities: ['Private Balcony', 'Nespresso Machine', 'Mini Bar', 'Bath Tub', 'King-sized Bed', 'Work Desk'],
-            basePrice: 8500,
-            extraAdultPrice: 1500,
-            extraChildPrice: 750,
-            maxAdults: 3,
-            maxChildren: 2,
-            images: [
-                'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800',
-                'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800',
-                'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800'
-            ],
-            highlights: ['Private Balcony', 'Mountain View', 'Separate Living Area'],
-            inclusions: ['Breakfast & Lunch Included', 'Evening High Tea', 'Spa Voucher ₹500 off'],
-            cancellationPolicyText: 'Experience flexibility with our standard 24-hour cancellation policy.',
-            marketingBadgeText: 'Limited Inventory',
-            marketingBadgeType: 'URGENT',
-            propertyId: sampleProperty.id,
-        },
-    });
+        console.log(`🏠 Property Upserted: ${property.name}`);
 
-    // 3. Royal Presidential Villa
-    await prisma.roomType.upsert({
-        where: { propertyId_name: { propertyId: sampleProperty.id, name: 'Royal Presidential Villa' } },
-        update: {},
-        create: {
-            name: 'Royal Presidential Villa',
-            description: 'The pinnacle of luxury. A standalone villa with its own private infinity pool and personalized butler service.',
-            amenities: ['Private Infinity Pool', 'Butler Service', 'Home Theatre System', 'Kitchenette', 'Steam & Sauna', 'Outdoor Shower'],
-            basePrice: 25000,
-            extraAdultPrice: 3000,
-            extraChildPrice: 1500,
-            maxAdults: 4,
-            maxChildren: 2,
-            images: [
-                'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=800',
-                'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=800',
-                'https://images.unsplash.com/photo-1621293954908-907159247fc8?auto=format&fit=crop&w=800',
-                'https://images.unsplash.com/photo-1602343168117-bb8973059402?auto=format&fit=crop&w=800'
-            ],
-            highlights: ['Private Infinity Pool', '24/7 Butler Service', 'Complete Privacy', 'Stunning Valley Views'],
-            inclusions: ['All Meals Included', 'Airport Transfers', 'Private Candlelight Dinner (Once)', 'Guided Nature Walk'],
-            cancellationPolicyText: 'Non-refundable',
-            marketingBadgeText: 'Exclusive Offer',
-            marketingBadgeType: 'POSITIVE',
-            propertyId: sampleProperty.id,
-        },
-    });
-
-    console.log('✅ Enriched Room types created');
-
-    // Create Sample Rooms
-    const roomTypes = await prisma.roomType.findMany({ where: { propertyId: sampleProperty.id } });
-    for (const rt of roomTypes) {
-        for (let i = 1; i <= 2; i++) {
-            await prisma.room.upsert({
-                where: { propertyId_roomNumber: { propertyId: sampleProperty.id, roomNumber: `${rt.name.charAt(0)}${i}01` } },
-                update: {},
+        for (const rtData of pData.roomTypes) {
+            const rt = await prisma.roomType.upsert({
+                where: { propertyId_name: { propertyId: property.id, name: rtData.name } },
+                update: {
+                    basePrice: rtData.basePrice,
+                    maxAdults: rtData.maxAdults,
+                    maxChildren: rtData.maxChildren,
+                    amenities: rtData.amenities
+                },
                 create: {
-                    roomNumber: `${rt.name.charAt(0)}${i}01`,
-                    floor: rt.name.includes('Villa') ? 0 : 1,
-                    status: 'AVAILABLE',
-                    isEnabled: true,
-                    roomTypeId: rt.id,
-                    propertyId: sampleProperty.id,
+                    name: rtData.name,
+                    description: `${rtData.name} in ${property.name}`,
+                    amenities: rtData.amenities,
+                    basePrice: rtData.basePrice,
+                    extraAdultPrice: Math.round(rtData.basePrice * 0.2),
+                    extraChildPrice: Math.round(rtData.basePrice * 0.1),
+                    maxAdults: rtData.maxAdults,
+                    maxChildren: rtData.maxChildren,
+                    images: ['https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=800'],
+                    highlights: ['Premium Comfort', 'Modern Design'],
+                    inclusions: ['Breakfast Included'],
+                    cancellationPolicyText: 'Free cancellation 24h prior',
+                    propertyId: property.id,
                 },
             });
+
+            console.log(`  🛌 Room Type Upserted: ${rt.name}`);
+
+            // Create 5 rooms for each room type
+            for (let i = 1; i <= 5; i++) {
+                const roomNumber = `${rt.name.split(' ').map(w => w[0]).join('')}${i}0${i}`;
+                await prisma.room.upsert({
+                    where: { propertyId_roomNumber: { propertyId: property.id, roomNumber } },
+                    update: {},
+                    create: {
+                        roomNumber,
+                        floor: 1,
+                        status: 'AVAILABLE',
+                        isEnabled: true,
+                        roomTypeId: rt.id,
+                        propertyId: property.id,
+                    },
+                });
+            }
+            console.log(`    🚪 5 Rooms Upserted for ${rt.name}`);
         }
     }
 
-    console.log('✅ Sample rooms created');
-
     // --- OFFERS ---
-    const roomTypeHeritage = await prisma.roomType.findFirst({
-        where: { propertyId: sampleProperty.id, name: 'Heritage Standard Room' }
-    });
-    if (roomTypeHeritage) {
-        await prisma.offer.upsert({
-            where: { id: 'sample-offer-1' }, // Using a fixed ID for upsert if possible, or just create
-            update: {},
-            create: {
-                id: 'sample-offer-1',
-                name: 'Inaugural Discount',
-                discountPercentage: 15,
-                startDate: new Date(),
-                endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-                roomTypeId: roomTypeHeritage.id,
-                isActive: true
-            }
-        });
+    // Link an offer to the first property's first room type
+    const firstProperty = await prisma.property.findFirst({ where: { slug: 'demo-resort' } });
+    if (firstProperty) {
+        const firstRoomType = await prisma.roomType.findFirst({ where: { propertyId: firstProperty.id } });
+        if (firstRoomType) {
+            await prisma.offer.upsert({
+                where: { id: 'sample-offer-1' },
+                update: { roomTypeId: firstRoomType.id },
+                create: {
+                    id: 'sample-offer-1',
+                    name: 'Inaugural Discount',
+                    discountPercentage: 15,
+                    startDate: new Date(),
+                    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                    roomTypeId: firstRoomType.id,
+                    isActive: true
+                }
+            });
+        }
     }
 
     // --- COUPONS ---
@@ -370,38 +426,8 @@ async function main() {
         }
     });
 
-    await prisma.coupon.upsert({
-        where: { code: 'SAVE500' },
-        update: {},
-        create: {
-            code: 'SAVE500',
-            description: 'Flat ₹500 off',
-            discountType: 'FIXED_AMOUNT',
-            discountValue: 500,
-            validFrom: new Date(),
-            validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            isActive: true,
-            minBookingAmount: 2000
-        }
-    });
-
-    await prisma.coupon.upsert({
-        where: { code: 'GUEST10' },
-        update: {},
-        create: {
-            code: 'GUEST10',
-            description: 'Special 10% off for guests',
-            discountType: 'PERCENTAGE',
-            discountValue: 10,
-            validFrom: new Date(),
-            validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            isActive: true,
-            minBookingAmount: 1000
-        }
-    });
-
-    console.log('✅ Sample offers and coupons created');
-    console.log('\n🎉 Database re-seeded with premium content!');
+    console.log('✅ Coupons seeded');
+    console.log('\n🎉 Database re-seeded with 4 properties and rooms!');
 }
 
 main()

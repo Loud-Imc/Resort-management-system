@@ -88,7 +88,7 @@ export class RoomsService {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        return this.prisma.room.findMany({
+        const rooms = await this.prisma.room.findMany({
             where: {
                 roomTypeId: filters?.roomTypeId,
                 floor: filters?.floor,
@@ -121,6 +121,15 @@ export class RoomsService {
                 { floor: 'asc' },
                 { roomNumber: 'asc' },
             ],
+        });
+
+        // Dynamic status adjustment for dashboard/listing consistency
+        // If room is AVAILABLE but has a confirmed booking for today, show as RESERVED
+        return rooms.map(room => {
+            if (room.status === 'AVAILABLE' && room.bookings?.length > 0) {
+                return { ...room, status: 'RESERVED' };
+            }
+            return room;
         });
     }
 

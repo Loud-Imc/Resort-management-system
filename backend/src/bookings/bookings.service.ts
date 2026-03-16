@@ -134,7 +134,7 @@ export class BookingsService {
         }
 
         // 3. Calculate pricing
-        const pricing = await this.pricingService.calculatePrice(
+        let pricing = await this.pricingService.calculatePrice(
             roomTypeId,
             checkIn,
             checkOut,
@@ -147,51 +147,57 @@ export class BookingsService {
             groupSize,
         );
 
+        let finalTotal = pricing.totalAmount;
+
         // 3.1 Handle Group Room Allocation across Multiple Rooms
         let allocatedRooms: any[] = [];
         if (isGroupBooking && groupSize) {
-            const baseRoomType = await this.prisma.roomType.findUnique({
-                where: { id: roomTypeId },
-                select: { propertyId: true }
-            });
-
-            if (!baseRoomType) throw new NotFoundException('Room type not found');
-
-            // Find all RoomTypes in the Group Pool for this property
-            const groupPoolTypes = await this.prisma.roomType.findMany({
-                where: {
-                    propertyId: baseRoomType.propertyId,
-                    isAvailableForGroupBooking: true,
-                }
-            });
-
-            // Find all available rooms across these types
-            let allAvailableRooms: any[] = [];
-            for (const type of groupPoolTypes) {
-                const availableForType = await this.availabilityService.getAvailableRooms(type.id, checkIn, checkOut);
-                allAvailableRooms.push(...availableForType.map(r => ({
-                    ...r,
-                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))
-                })));
+            let activePropertyId: string;
+            
+            if (roomTypeId) {
+                const baseRoomType = await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId },
+                    select: { propertyId: true }
+                });
+                if (!baseRoomType) throw new NotFoundException('Room type not found');
+                activePropertyId = baseRoomType.propertyId;
+            } else if ((createBookingDto as any).propertyId) {
+                activePropertyId = (createBookingDto as any).propertyId;
+            } else {
+                throw new BadRequestException('Property ID or Room Type ID is required for group booking');
             }
 
-            // Sort by capacity descending to fill larger rooms first
-            allAvailableRooms.sort((a, b) => b.capacity - a.capacity);
+            allocatedRooms = await this.availabilityService.allocateRoomsForGroup(
+                activePropertyId,
+                checkIn,
+                checkOut,
+                groupSize
+            );
 
-            let remainingHeadcount = groupSize;
-            for (const room of allAvailableRooms) {
-                if (remainingHeadcount <= 0) break;
-                allocatedRooms.push(room);
-                remainingHeadcount -= room.capacity;
+            if (allocatedRooms.length === 0) {
+                throw new BadRequestException(`Not enough capacity in the group pool for ${groupSize} guests.`);
             }
 
-            if (remainingHeadcount > 0) {
-                throw new BadRequestException(`Not enough capacity in the group pool for ${groupSize} guests. Only ${groupSize - remainingHeadcount} spots available.`);
+            // If roomTypeId was not provided, use the first allocated room's type as the delegate
+            if (!roomTypeId) {
+                roomTypeId = allocatedRooms[0].roomTypeId;
+                // Re-calculate pricing with the newly discovered roomTypeId
+                pricing = await this.pricingService.calculatePrice(
+                    roomTypeId,
+                    checkIn,
+                    checkOut,
+                    adultsCount,
+                    childrenCount,
+                    couponCode,
+                    referralCode,
+                    createBookingDto.currency || 'INR',
+                    isGroupBooking,
+                    groupSize,
+                );
+                finalTotal = pricing.totalAmount;
             }
         }
 
-        // 4. Handle price override
-        let finalTotal = pricing.totalAmount;
         let isPriceOverridden = false;
         if (isManualBooking && overrideTotal !== undefined) {
             if (!this.pricingService.validatePriceOverride(pricing.totalAmount, overrideTotal)) {

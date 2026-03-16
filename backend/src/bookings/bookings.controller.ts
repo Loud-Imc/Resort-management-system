@@ -30,17 +30,36 @@ export class BookingsController {
             dto.roomTypeId,
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
+            dto.isGroupBooking,
+            dto.groupSize,
+            dto.propertyId,
         );
 
         const availableCount = await this.availabilityService.getAvailableRoomCount(
-            dto.roomTypeId,
+            dto.roomTypeId || '',
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
         );
 
+        let allocationPreview: any[] = [];
+        if (dto.isGroupBooking && dto.groupSize && dto.propertyId) {
+            allocationPreview = await this.availabilityService.allocateRoomsForGroup(
+                dto.propertyId,
+                new Date(dto.checkInDate),
+                new Date(dto.checkOutDate),
+                dto.groupSize
+            );
+        }
+
         return {
             available: isAvailable,
             availableRooms: availableCount,
+            allocationPreview: allocationPreview.map(room => ({
+                id: room.id,
+                name: room.name,
+                capacity: room.capacity,
+                roomType: room.roomType.name
+            }))
         };
     }
 
