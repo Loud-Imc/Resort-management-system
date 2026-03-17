@@ -60,13 +60,19 @@ export class RolesService {
             } else if (user.roles.includes('PropertyOwner')) {
                 // Property owner sees SYSTEM roles (templates) only if they are PROPERTY or EVENT categories
                 // and their own custom property roles
+                const ownedProperties = await this.prisma.property.findMany({
+                    where: { ownerId: user.id },
+                    select: { id: true }
+                });
+                const ownedPropertyIds = ownedProperties.map(p => p.id);
+
                 where = {
                     OR: [
                         {
                             isSystem: true,
                             category: { in: ['PROPERTY', 'EVENT'] }
                         },
-                        { propertyId: user.propertyId }
+                        { propertyId: { in: ownedPropertyIds } }
                     ]
                 };
                 if (query?.category) where.category = query.category;

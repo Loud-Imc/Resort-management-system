@@ -2,7 +2,7 @@ import api from './api';
 
 export interface PropertyStaff {
     id: string;
-    role: string;
+    role: { name: string } | string;
     propertyId: string;
     userId: string;
     user: {
@@ -18,8 +18,8 @@ const staffService = {
         const { data } = await api.get<PropertyStaff[]>(`/properties/${propertyId}/staff`);
         return data;
     },
-    addStaff: async (propertyId: string, userId: string, role: string): Promise<PropertyStaff> => {
-        const { data } = await api.post<PropertyStaff>(`/properties/${propertyId}/staff`, { userId, role });
+    addStaff: async (propertyId: string, userId: string, roleId: string): Promise<PropertyStaff> => {
+        const { data } = await api.post<PropertyStaff>(`/properties/${propertyId}/staff`, { userId, roleId });
         return data;
     },
     removeStaff: async (propertyId: string, userId: string): Promise<void> => {

@@ -32,8 +32,6 @@ export class RoomTypesController {
     }
 
     @Get(':id')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
     @ApiOperation({ summary: 'Get room type by ID' })
     findOne(@Param('id') id: string, @Req() req: any) {
         return this.roomTypesService.findOne(id, req?.user);

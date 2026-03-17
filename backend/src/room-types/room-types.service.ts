@@ -110,12 +110,23 @@ export class RoomTypesService {
             throw new NotFoundException('Room type not found');
         }
 
-        if (requestUser) {
+        // Access Control Logic
+        if (!requestUser) {
+            // Guest access: only publicly visible room types
+            if (!roomType.isPubliclyVisible) {
+                throw new NotFoundException('Room type not found'); // Hide existence of private types
+            }
+        } else {
+            // Authenticated user: Check roles/ownership
             const roles: string[] = requestUser.roles || [];
-            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
             const isOwner = roomType.property.ownerId === requestUser.id;
             const isStaff = roomType.property.staff.some((s) => s.userId === requestUser.id);
-            if (!isAdmin && !isOwner && !isStaff) {
+
+            // Allow access if:
+            // 1. User is Admin/Owner/Staff
+            // 2. Room type is publicly visible
+            if (!isAdmin && !isOwner && !isStaff && !roomType.isPubliclyVisible) {
                 throw new ForbiddenException('You do not have permission to access this room type');
             }
         }

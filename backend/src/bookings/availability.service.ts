@@ -313,7 +313,8 @@ export class AvailabilityService {
                 include: {
                     roomTypes: {
                         where: { isAvailableForGroupBooking: true },
-                    }
+                    },
+                    _count: { select: { rooms: true } }
                 }
             });
 
@@ -328,7 +329,7 @@ export class AvailabilityService {
                 }
 
                 if (totalPoolCapacity >= (groupSize || 0)) {
-                    // Use the first room type as a delegate for pricing (it uses property-level group price anyway)
+                    // Use the first room type as a delegate for pricing
                     const delegateType = property.roomTypes[0];
                     try {
                         const pricing = await this.pricingService.calculatePrice(
@@ -345,10 +346,26 @@ export class AvailabilityService {
                         );
 
                         results.push({
-                            ...delegateType,
+                            id: delegateType.id,
                             name: 'Group Stay Package',
                             description: `Whole property access for your group of ${groupSize} guests.`,
-                            property,
+                            basePrice: delegateType.basePrice,
+                            propertyId: delegateType.propertyId,
+                            property: {
+                                id: property.id,
+                                name: property.name,
+                                slug: property.slug,
+                                type: property.type,
+                                city: property.city,
+                                state: property.state,
+                                coverImage: property.coverImage,
+                                isVerified: property.isVerified,
+                                rating: property.rating,
+                                reviewCount: property.reviewCount,
+                                groupPriceAdult: property.groupPriceAdult,
+                                groupPricePerHead: property.groupPricePerHead,
+                                _count: property._count,
+                            },
                             availableCount: 1,
                             totalPrice: pricing.convertedTotal,
                             baseAmount: pricing.baseAmount,
@@ -360,16 +377,30 @@ export class AvailabilityService {
                             isGroupPackage: true
                         });
                     } catch (err) {
-                        console.error(`[AvailabilityService] Error calculating group price for property ${property.id}:`, err.message);
-                        // If pricing fails (e.g. missing price-per-head), we skip this property for now
                         continue;
                     }
                 } else if (includeSoldOut) {
                     const delegateType = property.roomTypes[0];
                     results.push({
-                        ...delegateType,
+                        id: delegateType.id,
                         name: 'Group Stay Package',
-                        property,
+                        basePrice: delegateType.basePrice,
+                        propertyId: delegateType.propertyId,
+                        property: {
+                            id: property.id,
+                            name: property.name,
+                            slug: property.slug,
+                            type: property.type,
+                            city: property.city,
+                            state: property.state,
+                            coverImage: property.coverImage,
+                            isVerified: property.isVerified,
+                            rating: property.rating,
+                            reviewCount: property.reviewCount,
+                            groupPriceAdult: property.groupPriceAdult,
+                            groupPricePerHead: property.groupPricePerHead,
+                            _count: property._count,
+                        },
                         availableCount: 0,
                         totalPrice: 0,
                         isSoldOut: true,
@@ -381,7 +412,6 @@ export class AvailabilityService {
         }
 
         // Standard Search logic
-        // 1. Get all room types that fit the guest capacity
         const suitableTypes = await this.prisma.roomType.findMany({
             where: {
                 maxAdults: { gte: minAdultsPerRoom },
@@ -405,29 +435,14 @@ export class AvailabilityService {
                 }
             },
             include: {
-                rooms: true,
                 property: {
                     include: {
-                        _count: {
-                            select: {
-                                rooms: true,
-                                bookings: true
-                            }
-                        }
+                        _count: { select: { rooms: true } }
                     }
-                },
-                offers: {
-                    where: {
-                        isActive: true,
-                        startDate: { lte: checkOutDate },
-                        endDate: { gte: checkInDate },
-                    },
-                    take: 1,
-                },
+                }
             },
         });
 
-        // 2. For each type, check availability
         for (const type of suitableTypes) {
             const availableCount = await this.getAvailableRoomCount(
                 type.id,
@@ -436,9 +451,6 @@ export class AvailabilityService {
             );
 
             if (availableCount >= rooms || includeSoldOut) {
-                const { rooms: _rooms, offers, ...typeData }: any = type;
-                const activeOffer = offers[0] || null;
-
                 const pricing = await this.pricingService.calculatePrice(
                     type.id,
                     checkInDate,
@@ -453,9 +465,29 @@ export class AvailabilityService {
                 );
 
                 results.push({
-                    ...typeData,
+                    id: type.id,
+                    name: type.name,
+                    basePrice: type.basePrice,
+                    images: (type as any).images,
+                    maxAdults: type.maxAdults,
+                    maxChildren: type.maxChildren,
+                    propertyId: type.propertyId,
+                    property: {
+                        id: type.property.id,
+                        name: type.property.name,
+                        slug: type.property.slug,
+                        type: type.property.type,
+                        city: type.property.city,
+                        state: type.property.state,
+                        coverImage: type.property.coverImage,
+                        isVerified: type.property.isVerified,
+                        rating: type.property.rating,
+                        reviewCount: type.property.reviewCount,
+                        groupPriceAdult: type.property.groupPriceAdult,
+                        groupPricePerHead: type.property.groupPricePerHead,
+                        _count: type.property._count,
+                    },
                     availableCount,
-                    activeOffer,
                     totalPrice: pricing.convertedTotal,
                     baseAmount: pricing.baseAmount,
                     taxAmount: pricing.taxAmount,

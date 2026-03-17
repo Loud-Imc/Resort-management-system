@@ -120,7 +120,7 @@ export class UsersService {
 
     private getManageableRoles(userRoles: string[]): string[] {
         if (userRoles.includes('PropertyOwner')) {
-            return ['Manager', 'Staff'];
+            return ['Manager', 'Staff', 'Receptionist', 'Housekeeping', 'Kitchen', 'Security', 'Other'];
         }
         if (userRoles.includes('EventOrganizer')) {
             return ['VerificationStaff'];
@@ -218,12 +218,12 @@ export class UsersService {
     async findAll(user: any, params?: { propertyId?: string, isStaffOnly?: string }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+        const isPropertyOwner = roles.includes('PropertyOwner');
 
         const where: any = {};
 
         if (params?.isStaffOnly === 'true') {
             // Filter users who have at least one role in PROPERTY category
-            // AND exclude those who only have CUSTOMER role
             where.roles = {
                 some: {
                     role: {
@@ -231,6 +231,21 @@ export class UsersService {
                     }
                 }
             };
+
+            // If it's a staff search, we relax the scope for Property Owners
+            // to allow them to find users created by Admins or other Owners
+            if (isPropertyOwner && !isGlobalAdmin) {
+                return this.prisma.user.findMany({
+                    where,
+                    include: {
+                        roles: {
+                            include: {
+                                role: true,
+                            },
+                        },
+                    },
+                });
+            }
         }
 
         if (isGlobalAdmin) {

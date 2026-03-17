@@ -141,11 +141,14 @@ export default function SearchResults() {
 
     // Group available room types by property
     const groupedProperties = useMemo(() => {
-        if (!data?.availableRoomTypes) return [];
+        if (!data) return [];
 
+        // Handle both old array response and any potential object wrapped response for safety
+        const roomTypes = Array.isArray(data) ? data : (data as any).availableRoomTypes || [];
+        
         const propertyMap = new Map<string, any>();
 
-        data.availableRoomTypes.forEach((roomType: any) => {
+        roomTypes.forEach((roomType: any) => {
             if (roomType.property) {
                 const propId = roomType.property.id;
                 if (!propertyMap.has(propId)) {
