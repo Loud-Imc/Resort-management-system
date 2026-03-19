@@ -225,9 +225,11 @@ model Booking {
   channelPartnerId        String?
   cpCommission            Decimal?             @db.Decimal(10, 2)
   cpDiscount              Decimal?             @db.Decimal(10, 2)
+  commissionableAmount    Decimal              @default(0) @db.Decimal(10, 2)
   propertyId              String?
   couponDiscountAmount    Decimal              @default(0) @db.Decimal(10, 2)
-  offerDiscountAmount     Decimal              @default(0) @db.Decimal(10, 2)
+  offerDiscountAmount     Decimal               @default(0) @db.Decimal(10, 2)
+  paymentMethod           BookingPaymentMethod?
   whatsappNumber          String?
   amountInBookingCurrency Decimal              @default(0) @db.Decimal(10, 2)
   bookingCurrency         String               @default("INR")
@@ -604,10 +606,14 @@ model CPTransaction {
   description      String?
   channelPartnerId String
   bookingId        String?
+  referenceId      String?
   createdAt        DateTime            @default(now())
   status           CPTransactionStatus @default(FINALIZED)
+  isPrepaid        Boolean             @default(false)
   channelPartner   ChannelPartner      @relation(fields: [channelPartnerId], references: [id])
 
+  @@unique([bookingId, type])
+  @@unique([referenceId, type])
   @@map("cp_transactions")
 }
 
@@ -741,6 +747,13 @@ enum RoomStatus {
   BLOCKED
 }
 
+enum BookingPaymentMethod {
+  WALLET
+  ONLINE
+  CASH
+  UPI
+}
+
 enum BookingStatus {
   PENDING_PAYMENT
   RESERVED
@@ -834,6 +847,7 @@ enum CPTransactionType {
   PAYOUT
   WALLET_TOPUP
   WALLET_PAYMENT
+  REFUND
 }
 
 enum CPTransactionStatus {

@@ -431,15 +431,6 @@ export class PaymentsService {
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
             }
-
-            if (payment.booking.channelPartnerId) {
-                await this.channelPartnersService.processReferralCommission(
-                    payment.bookingId,
-                    payment.booking.channelPartnerId,
-                    Number(payment.booking.totalAmount),
-                    true
-                );
-            }
         }
 
         return {
@@ -636,16 +627,6 @@ export class PaymentsService {
 
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
-            }
-
-            // Process Channel Partner Reward (Pending)
-            if (payment.booking?.channelPartnerId) {
-                await this.channelPartnersService.processReferralCommission(
-                    payment.bookingId,
-                    payment.booking.channelPartnerId,
-                    Number(payment.booking.totalAmount),
-                    true // isPending = true
-                );
             }
         }
     }

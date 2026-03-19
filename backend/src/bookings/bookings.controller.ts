@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, Request, Ip } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { BookingsService } from './bookings.service';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
+import { ReferralAbuseService } from '../common/services/referral-abuse.service';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { CalculatePriceDto } from './dto/calculate-price.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -11,7 +12,6 @@ import { SearchRoomsDto } from './dto/search-rooms.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
-
 import { CheckInDto } from './dto/check-in.dto';
 
 @ApiTags('Bookings')
@@ -21,6 +21,7 @@ export class BookingsController {
         private readonly bookingsService: BookingsService,
         private readonly availabilityService: AvailabilityService,
         private readonly pricingService: PricingService,
+        private readonly referralAbuseService: ReferralAbuseService,
     ) { }
 
     @Post('check-availability')
@@ -42,6 +43,8 @@ export class BookingsController {
         );
 
         let allocationPreview: any[] = [];
+        let groupUnavailableReason: string | undefined;
+
         if (dto.isGroupBooking && dto.groupSize && dto.propertyId) {
             allocationPreview = await this.availabilityService.allocateRoomsForGroup(
                 dto.propertyId,
@@ -49,6 +52,11 @@ export class BookingsController {
                 new Date(dto.checkOutDate),
                 dto.groupSize
             );
+
+            if (!isAvailable) {
+                const hasPool = await this.availabilityService.hasGroupPool(dto.propertyId);
+                groupUnavailableReason = hasPool ? 'CAPACITY_EXCEEDED' : 'NO_POOL_CONFIGURED';
+            }
         }
 
         return {
@@ -58,10 +66,13 @@ export class BookingsController {
                 id: room.id,
                 name: room.name,
                 capacity: room.capacity,
-                roomType: room.roomType.name
-            }))
+                roomType: room.roomType.name,
+                roomTypeId: room.roomType.id,
+            })),
+            ...(groupUnavailableReason ? { groupUnavailableReason } : {}),
         };
     }
+
 
     @Post('search')
     @ApiOperation({ summary: 'Search available room types (Public)' })
@@ -91,9 +102,11 @@ export class BookingsController {
     }
 
     @Post('calculate-price')
-    @ApiOperation({ summary: 'Calculate booking price (Public)' })
-    async calculatePrice(@Body() dto: CalculatePriceDto) {
-        return this.pricingService.calculatePrice(
+    @ApiOperation({ summary: 'Calculate booking price (Public). Invalid referral codes are rate-limited per IP.' })
+    async calculatePrice(@Body() dto: CalculatePriceDto, @Ip() ip: string) {
+        // If referral code provided but invalid, count it as a failure for brute-force protection.
+        // Valid codes: no penalty. No referral code: no tracking.
+        const result = await this.pricingService.calculatePrice(
             dto.roomTypeId,
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
@@ -105,11 +118,26 @@ export class BookingsController {
             dto.isGroupBooking,
             dto.groupSize,
         );
+        // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
+        if (dto.referralCode && !result.referralDiscountAmount) {
+            await this.referralAbuseService.recordFailure(ip);
+        } else if (dto.referralCode && result.referralDiscountAmount) {
+            await this.referralAbuseService.resetFailures(ip);
+        }
+        return result;
     }
 
     @Post('public')
-    @ApiOperation({ summary: 'Create public booking (No Auth)' })
-    async createPublic(@Body() createBookingDto: CreateBookingDto) {
+    @ApiOperation({ summary: 'Create public booking (No Auth). Invalid referral codes are rate-limited per IP.' })
+    async createPublic(@Body() createBookingDto: CreateBookingDto, @Ip() ip: string) {
+        // Track invalid referral codes submitted during booking creation
+        if (createBookingDto.referralCode) {
+            const isBlocked = await this.referralAbuseService.isBlocked(ip);
+            if (isBlocked) {
+                // Blocked IPs are pre-checked here to prevent them from reaching the service
+                await this.referralAbuseService.recordFailure(ip); // will throw TooManyRequestsException
+            }
+        }
         return this.bookingsService.create(createBookingDto, null);
     }
 

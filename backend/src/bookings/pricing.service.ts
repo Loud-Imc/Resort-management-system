@@ -29,6 +29,9 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 @Injectable()
 export class PricingService {
     private readonly DEFAULT_TAX_RATE = 0.12; // 12% default
+    // MAX_DISCOUNT_PCT is now stored in GlobalSettings (key: 'MAX_DISCOUNT_PCT').
+    // Use SystemSettingsService.getSetting() — no hardcoded value here.
+    private readonly FALLBACK_MAX_DISCOUNT_PCT = 0.30; // used only if DB value missing
 
     constructor(
         private prisma: PrismaService,
@@ -217,6 +220,43 @@ export class PricingService {
             subtotal -= couponDiscountAmount;
         }
 
+        // 9a. Global discount cap — applied AFTER all individual discounts, BEFORE tax
+        // Cap value is loaded from GlobalSettings (MAX_DISCOUNT_PCT, fallback 30%).
+        // Trims coupon first, then referral if still over cap. Offer is never reduced.
+        const maxDiscountPctSetting = await this.systemSettingsService.getSetting('MAX_DISCOUNT_PCT');
+        const maxDiscountFraction = (typeof maxDiscountPctSetting === 'number' ? maxDiscountPctSetting : (this.FALLBACK_MAX_DISCOUNT_PCT * 100)) / 100;
+
+        const grossPreDiscount = baseAmount + extraAdultAmount + extraChildAmount +
+            (pricingRule ? (pricingRule.adjustmentType === 'PERCENTAGE'
+                ? (baseAmount + extraAdultAmount + extraChildAmount) * Number(pricingRule.adjustmentValue) / 100
+                : Number(pricingRule.adjustmentValue)) : 0);
+        const maxAllowedDiscount = grossPreDiscount * maxDiscountFraction;
+        let totalDiscount = offerDiscountAmount + referralDiscountAmount + couponDiscountAmount;
+        let capApplied = false;
+
+        if (totalDiscount > maxAllowedDiscount) {
+            capApplied = true;
+            const overageAmount = totalDiscount - maxAllowedDiscount;
+
+            // Trim coupon first
+            const couponTrim = Math.min(couponDiscountAmount, overageAmount);
+            couponDiscountAmount -= couponTrim;
+            subtotal += couponTrim; // restore trimmed amount to subtotal
+            let remainingOverage = overageAmount - couponTrim;
+
+            // Trim referral next if still over cap
+            if (remainingOverage > 0) {
+                const referralTrim = Math.min(referralDiscountAmount, remainingOverage);
+                referralDiscountAmount -= referralTrim;
+                subtotal += referralTrim;
+            }
+
+            totalDiscount = offerDiscountAmount + referralDiscountAmount + couponDiscountAmount;
+        }
+
+        // Ensure no negative pricing (safety guard)
+        subtotal = Math.max(0, subtotal);
+
         // 10. Calculate GST based on dynamic GST tiers (Applied per room per night)
         // GST is calculated on the fully-discounted subtotal (transaction value)
         const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
@@ -280,6 +320,8 @@ export class PricingService {
             exchangeRate,
             convertedTotal: totalAmount * exchangeRate,
             roomCount,
+            // Transparency: inform the consumer whether the cap was enforced
+            ...(capApplied && { discountCapApplied: true, discountCapPct: maxDiscountFraction * 100 }),
         };
     }
 

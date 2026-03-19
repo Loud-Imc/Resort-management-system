@@ -60,6 +60,10 @@ export class AvailabilityService {
             }
         });
 
+        // If no room types are in the pool, allocation fails.
+        // The caller can use hasGroupPool() to distinguish this from a capacity issue.
+        if (groupPoolTypes.length === 0) return [];
+
         // Find all available rooms across these types
         let allAvailableRooms: any[] = [];
         for (const type of groupPoolTypes) {
@@ -88,6 +92,18 @@ export class AvailabilityService {
 
         return allocatedRooms;
     }
+    /**
+     * Returns true if the property has at least one room type
+     * configured for the group booking pool.
+     */
+    async hasGroupPool(propertyId: string): Promise<boolean> {
+        const count = await this.prisma.roomType.count({
+            where: { propertyId, isAvailableForGroupBooking: true },
+        });
+        return count > 0;
+    }
+
+
 
     async getAvailableRooms(
         roomTypeId: string,

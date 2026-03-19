@@ -49,10 +49,15 @@ export class GuestInfoDto {
 }
 
 export class CreateBookingDto {
-    @ApiProperty({ example: 'room-type-uuid' })
+    @ApiProperty({ example: 'room-type-uuid', required: false })
     @IsString()
-    @IsNotEmpty()
-    roomTypeId: string;
+    @IsOptional()
+    roomTypeId?: string;
+
+    @ApiProperty({ example: 'property-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    propertyId?: string;
 
     @ApiProperty({ example: 'room-uuid', required: false })
     @IsString()
@@ -148,10 +153,10 @@ export class CreateBookingDto {
     @IsOptional()
     referralCode?: string;
 
-    @ApiProperty({ example: 'ONLINE', required: false, enum: ['ONLINE', 'WALLET'] })
+    @ApiProperty({ example: 'CASH', required: false, enum: ['ONLINE', 'WALLET', 'CASH', 'UPI'] })
     @IsString()
     @IsOptional()
-    paymentMethod?: 'ONLINE' | 'WALLET';
+    paymentMethod?: 'ONLINE' | 'WALLET' | 'CASH' | 'UPI';
 
     @ApiProperty({ example: 'FULL', required: false, enum: ['FULL', 'PARTIAL'] })
     @IsString()

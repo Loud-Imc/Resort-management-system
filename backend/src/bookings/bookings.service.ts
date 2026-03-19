@@ -28,25 +28,24 @@ export class BookingsService {
      * Create a new booking (manual or online)
      */
     async create(createBookingDto: CreateBookingDto, user: any) {
-        let {
-            roomTypeId,
-            checkInDate,
-            checkOutDate,
-            adultsCount,
-            childrenCount,
-            guests,
-            roomId,
-            specialRequests,
-            couponCode,
-            referralCode,
-            bookingSourceId: rawBookingSourceId,
-            isManualBooking = false,
-            overrideTotal,
-            overrideReason,
-            whatsappNumber,
-            isGroupBooking = false,
-            groupSize,
-        } = createBookingDto;
+        let roomTypeId = createBookingDto.roomTypeId as string,
+            checkInDate = createBookingDto.checkInDate,
+            checkOutDate = createBookingDto.checkOutDate,
+            adultsCount = createBookingDto.adultsCount,
+            childrenCount = createBookingDto.childrenCount,
+            guests = createBookingDto.guests,
+            roomId = createBookingDto.roomId,
+            specialRequests = createBookingDto.specialRequests,
+            couponCode = createBookingDto.couponCode,
+            referralCode = createBookingDto.referralCode,
+            bookingSourceId_raw = createBookingDto.bookingSourceId,
+            isManualBooking = createBookingDto.isManualBooking ?? false,
+            overrideTotal = createBookingDto.overrideTotal,
+            overrideReason = createBookingDto.overrideReason,
+            whatsappNumber = createBookingDto.whatsappNumber,
+            isGroupBooking = createBookingDto.isGroupBooking ?? false,
+            groupSize = createBookingDto.groupSize;
+        const rawBookingSourceId = bookingSourceId_raw;
 
         let isAuthorizedStaff = false;
         const userId = user?.id || 'GUEST_USER';
@@ -56,14 +55,27 @@ export class BookingsService {
             if (roles.includes('SuperAdmin') || roles.includes('Admin')) {
                 isAuthorizedStaff = true;
             } else {
-                const roomType = await this.prisma.roomType.findUnique({
-                    where: { id: roomTypeId },
-                    select: { property: { select: { ownerId: true, staff: true } } }
-                });
+                // Resolve the property to check if the user is owner or staff
+                let propertyForAuth: { ownerId: string; staff: { userId: string }[] } | null = null;
 
-                if (roomType && roomType.property) {
-                    const isOwner = roomType.property.ownerId === user.id;
-                    const isStaff = roomType.property.staff.some(s => s.userId === user.id);
+                if (isGroupBooking && (createBookingDto as any).propertyId) {
+                    // Group booking — look up property directly
+                    propertyForAuth = await this.prisma.property.findUnique({
+                        where: { id: (createBookingDto as any).propertyId },
+                        select: { ownerId: true, staff: { select: { userId: true } } }
+                    });
+                } else if (roomTypeId) {
+                    // Standard booking — look up property via room type
+                    const roomType = await this.prisma.roomType.findUnique({
+                        where: { id: roomTypeId },
+                        select: { property: { select: { ownerId: true, staff: { select: { userId: true } } } } }
+                    });
+                    propertyForAuth = roomType?.property ?? null;
+                }
+
+                if (propertyForAuth) {
+                    const isOwner = propertyForAuth.ownerId === user.id;
+                    const isStaff = propertyForAuth.staff.some(s => s.userId === user.id);
                     if (isOwner || isStaff) {
                         isAuthorizedStaff = true;
                     }
@@ -111,60 +123,71 @@ export class BookingsService {
             console.log(`[BookingsService] Self-block deleted successfully.`);
         }
 
-        // 2. Check availability
-        const isAvailable = await this.availabilityService.checkAvailability(roomTypeId, checkIn, checkOut);
-        if (!isAvailable) {
-            throw new BadRequestException('No rooms available for the selected dates');
+        // 2. Check availability (standard booking only — group bookings validate via allocateRoomsForGroup below)
+        if (!isGroupBooking) {
+            const isAvailable = await this.availabilityService.checkAvailability(roomTypeId, checkIn, checkOut);
+            if (!isAvailable) {
+                throw new BadRequestException('No rooms available for the selected dates');
+            }
         }
 
         // 2.1 Validate Group Capacity (Property Level)
         if (isGroupBooking && groupSize) {
-            const roomType = await this.prisma.roomType.findUnique({
-                where: { id: roomTypeId },
-                select: { property: { select: { allowsGroupBooking: true, maxGroupCapacity: true } } }
+            const activePropertyId = (createBookingDto as any).propertyId;
+            if (!activePropertyId) {
+                throw new BadRequestException('Property ID is required for group bookings');
+            }
+            const property = await this.prisma.property.findUnique({
+                where: { id: activePropertyId },
+                select: { allowsGroupBooking: true, maxGroupCapacity: true }
             });
 
-            if (!roomType?.property.allowsGroupBooking) {
+            if (!property?.allowsGroupBooking) {
                 throw new BadRequestException('This property does not support group bookings');
             }
 
-            if (roomType.property.maxGroupCapacity && groupSize > roomType.property.maxGroupCapacity) {
-                throw new BadRequestException(`Group size exceeds property's maximum capacity of ${roomType.property.maxGroupCapacity}`);
+            if (property.maxGroupCapacity && groupSize > property.maxGroupCapacity) {
+                throw new BadRequestException(`Group size exceeds property's maximum capacity of ${property.maxGroupCapacity}`);
             }
         }
 
-        // 3. Calculate pricing
-        let pricing = await this.pricingService.calculatePrice(
-            roomTypeId,
-            checkIn,
-            checkOut,
-            adultsCount,
-            childrenCount,
-            couponCode,
-            referralCode,
-            createBookingDto.currency || 'INR',
-            isGroupBooking,
-            groupSize,
-        );
+        // 3. Calculate pricing (standard bookings only — group bookings price after room allocation)
+        let pricing: any;
+        if (!isGroupBooking) {
+            pricing = await this.pricingService.calculatePrice(
+                roomTypeId,
+                checkIn,
+                checkOut,
+                adultsCount,
+                childrenCount,
+                couponCode,
+                referralCode,
+                createBookingDto.currency || 'INR',
+                isGroupBooking,
+                groupSize,
+            );
+        }
 
-        let finalTotal = pricing.totalAmount;
+        let finalTotal = pricing?.totalAmount ?? 0;
 
         // 3.1 Handle Group Room Allocation across Multiple Rooms
         let allocatedRooms: any[] = [];
         if (isGroupBooking && groupSize) {
             let activePropertyId: string;
-            
-            if (roomTypeId) {
+
+            // For group bookings: always prefer the explicit propertyId sent by the frontend.
+            // Do NOT use roomTypeId here — it may be a stale standard room type not in the group pool.
+            if ((createBookingDto as any).propertyId) {
+                activePropertyId = (createBookingDto as any).propertyId;
+            } else if (roomTypeId) {
                 const baseRoomType = await this.prisma.roomType.findUnique({
                     where: { id: roomTypeId },
                     select: { propertyId: true }
                 });
                 if (!baseRoomType) throw new NotFoundException('Room type not found');
                 activePropertyId = baseRoomType.propertyId;
-            } else if ((createBookingDto as any).propertyId) {
-                activePropertyId = (createBookingDto as any).propertyId;
             } else {
-                throw new BadRequestException('Property ID or Room Type ID is required for group booking');
+                throw new BadRequestException('Property ID is required for group booking');
             }
 
             allocatedRooms = await this.availabilityService.allocateRoomsForGroup(
@@ -178,24 +201,21 @@ export class BookingsService {
                 throw new BadRequestException(`Not enough capacity in the group pool for ${groupSize} guests.`);
             }
 
-            // If roomTypeId was not provided, use the first allocated room's type as the delegate
-            if (!roomTypeId) {
-                roomTypeId = allocatedRooms[0].roomTypeId;
-                // Re-calculate pricing with the newly discovered roomTypeId
-                pricing = await this.pricingService.calculatePrice(
-                    roomTypeId,
-                    checkIn,
-                    checkOut,
-                    adultsCount,
-                    childrenCount,
-                    couponCode,
-                    referralCode,
-                    createBookingDto.currency || 'INR',
-                    isGroupBooking,
-                    groupSize,
-                );
-                finalTotal = pricing.totalAmount;
-            }
+            // Use the first allocated room's type as the delegate room type for pricing
+            roomTypeId = allocatedRooms[0].roomTypeId;
+            pricing = await this.pricingService.calculatePrice(
+                roomTypeId,
+                checkIn,
+                checkOut,
+                adultsCount,
+                childrenCount,
+                couponCode,
+                referralCode,
+                createBookingDto.currency || 'INR',
+                isGroupBooking,
+                groupSize,
+            );
+            finalTotal = pricing.totalAmount;
         }
 
         let isPriceOverridden = false;
@@ -266,7 +286,8 @@ export class BookingsService {
                     });
                     if (level) rate = Number(level.commissionRate);
                 }
-                cpCommission = (finalTotal * rate) / 100;
+                const commissionableAmount = pricing.totalAmount - pricing.taxAmount;
+                cpCommission = (commissionableAmount * rate) / 100;
             } else {
                 throw new BadRequestException('Invalid referral code');
             }
@@ -314,9 +335,10 @@ export class BookingsService {
             }
 
             // 7.2 Deduct from wallet if applicable
+            let walletTxId: string | undefined;
             if (createBookingDto.paymentMethod === 'WALLET' && channelPartnerId) {
                 const totalToCollect = finalTotal - cpCommission;
-                await this.channelPartnersService.deductWalletBalance(
+                walletTxId = await this.channelPartnersService.deductWalletBalance(
                     channelPartnerId,
                     totalToCollect,
                     `Inline booking ${bookingNumber}`,
@@ -410,11 +432,13 @@ export class BookingsService {
                     channelPartnerId,
                     cpCommission,
                     cpDiscount: pricing.referralDiscountAmount,
+                    commissionableAmount: pricing.totalAmount - pricing.taxAmount,
                     couponId,
                     couponCode: couponId ? couponCode : null, // Store the code string
                     paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? finalTotal : 0,
                     paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'FULL' : 'UNPAID',
                     confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
+                    paymentMethod: createBookingDto.paymentMethod as any,
                     guests: {
                         create: (isGroupBooking && guests.length === 0) ? [] : guests.map(g => ({
                             firstName: g.firstName,
@@ -474,16 +498,11 @@ export class BookingsService {
 
             // 7.6 Finalize details (Income, Payments, CP Rewards)
             if (isManualBooking || createBookingDto.paymentMethod === 'WALLET') {
-                // CP Rewards processing
+                // CP Rewards processing (MOVED TO CHECK-IN STAGE)
                 if (channelPartnerId) {
                     const isWalletPayment = createBookingDto.paymentMethod === 'WALLET';
-                    await this.channelPartnersService.processReferralCommission(
-                        newBooking.id,
-                        channelPartnerId,
-                        finalTotal,
-                        !isWalletPayment,
-                        tx
-                    );
+                    // NO AUTOMATIC COMMISSION CREATION HERE
+                    // ONLY LINK WALLET TRANSACTION IF NEEDED
 
                     if (isWalletPayment) {
                         // Link Wallet Transaction
@@ -498,7 +517,7 @@ export class BookingsService {
                         });
 
                         // Create payment record
-                        await tx.payment.create({
+                        const paymentRecord = await tx.payment.create({
                             data: {
                                 amount: finalTotal - cpCommission,
                                 status: 'PAID',
@@ -508,6 +527,14 @@ export class BookingsService {
                                 currency: 'INR',
                             },
                         });
+
+                        // Link CP Transaction to Payment ID for strict refund tracking
+                        if (walletTxId) {
+                            await tx.cPTransaction.update({
+                                where: { id: walletTxId },
+                                data: { referenceId: paymentRecord.id }
+                            });
+                        }
                     }
                 }
 
@@ -818,43 +845,52 @@ export class BookingsService {
             }
         }
 
-        const updated = await this.prisma.booking.update({
-            where: { id },
-            data: {
-                status: 'CHECKED_IN',
-                checkedInAt: new Date(),
-            },
-            include: {
-                room: true,
-                roomType: true,
-                guests: true,
-                property: true,
-            },
+        return await this.prisma.$transaction(async (tx) => {
+            const updated = await tx.booking.update({
+                where: { id },
+                data: {
+                    status: 'CHECKED_IN',
+                    checkedInAt: new Date(),
+                },
+                include: {
+                    room: true,
+                    roomType: true,
+                    guests: true,
+                    property: true,
+                },
+            });
+
+            // Update room status
+            await tx.room.update({
+                where: { id: booking.roomId },
+                data: { status: 'OCCUPIED' },
+            });
+
+            // Trigger referral commission (Single trigger stage)
+            if (booking.channelPartnerId) {
+                await this.channelPartnersService.processReferralCommission(
+                    booking.id,
+                    booking.channelPartnerId,
+                    Number(booking.totalAmount),
+                    tx
+                );
+            }
+
+            await this.auditService.createLog({
+                action: 'CHECK_IN',
+                entity: 'Booking',
+                entityId: id,
+                userId: user.id,
+                oldValue: { status: booking.status },
+                newValue: { status: 'CHECK_IN' },
+                bookingId: id,
+            }, tx);
+
+            // Notify guest of check-in
+            await this.notificationsService.notifyCheckIn(updated);
+
+            return updated;
         });
-
-        // Update room status
-        await this.prisma.room.update({
-            where: { id: booking.roomId },
-            data: { status: 'OCCUPIED' },
-        });
-
-        await this.auditService.createLog({
-            action: 'CHECK_IN',
-            entity: 'Booking',
-            entityId: id,
-            userId: user.id,
-            oldValue: { status: booking.status },
-            newValue: { status: 'CHECK_IN' },
-            bookingId: id,
-        });
-
-        // Finalize Channel Partner Commission
-        await this.channelPartnersService.finalizeReferralCommission(id);
-
-        // Notify guest of check-in
-        await this.notificationsService.notifyCheckIn(updated);
-
-        return updated;
     }
 
     /**
@@ -1011,7 +1047,7 @@ export class BookingsService {
                         booking.agentId || (booking as any).channelPartnerId!,
                         actualRefundAmount,
                         `Refund (${refundPercentage}%) for cancelled booking ${booking.bookingNumber}`,
-                        booking.id
+                        payment.id // Use Payment ID as referenceId (idempotency key)
                     );
 
                     await this.prisma.payment.update({

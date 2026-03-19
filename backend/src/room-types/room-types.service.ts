@@ -9,6 +9,23 @@ export class RoomTypesService {
 
     constructor(private prisma: PrismaService) { }
 
+    /**
+     * Recompute and persist property.maxGroupCapacity as the SUM of
+     * groupMaxOccupancy from all room types with isAvailableForGroupBooking=true.
+     * Called automatically after create/update/delete of any room type.
+     */
+    private async syncPropertyGroupCapacity(propertyId: string): Promise<void> {
+        const result = await this.prisma.roomType.aggregate({
+            where: { propertyId, isAvailableForGroupBooking: true },
+            _sum: { groupMaxOccupancy: true },
+        });
+        const total = result._sum.groupMaxOccupancy ?? 0;
+        await this.prisma.property.update({
+            where: { id: propertyId },
+            data: { maxGroupCapacity: total > 0 ? total : null },
+        });
+    }
+
     async create(createRoomTypeDto: CreateRoomTypeDto, requestUser?: any) {
         if (requestUser) {
             const property = await this.prisma.property.findUnique({
@@ -31,18 +48,22 @@ export class RoomTypesService {
             const data: any = {
                 ...rest,
                 cancellationPolicyText: cancellationPolicy,
-                // Clean up empty strings for foreign keys
                 cancellationPolicyId: (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null,
             };
 
-            return await this.prisma.roomType.create({ data });
+            const roomType = await this.prisma.roomType.create({ data });
+
+            // Sync property group capacity if this room type is in the pool
+            if (roomType.isAvailableForGroupBooking) {
+                await this.syncPropertyGroupCapacity(roomType.propertyId);
+            }
+
+            return roomType;
         } catch (error) {
             this.logger.error(`Error creating room type: ${error.message}`, error.stack);
-
             if (error.code === 'P2002') {
                 throw new ConflictException('A room type with this name already exists for this property.');
             }
-
             throw new InternalServerErrorException('Failed to create room type. Please check the logs.');
         }
     }
@@ -54,7 +75,6 @@ export class RoomTypesService {
                 ...(propertyId ? { propertyId } : {}),
             },
             include: {
-                // Include property name for context
                 property: { select: { name: true, city: true, defaultCancellationPolicyId: true } },
                 rooms: {
                     where: { isEnabled: true },
@@ -110,22 +130,16 @@ export class RoomTypesService {
             throw new NotFoundException('Room type not found');
         }
 
-        // Access Control Logic
         if (!requestUser) {
-            // Guest access: only publicly visible room types
             if (!roomType.isPubliclyVisible) {
-                throw new NotFoundException('Room type not found'); // Hide existence of private types
+                throw new NotFoundException('Room type not found');
             }
         } else {
-            // Authenticated user: Check roles/ownership
             const roles: string[] = requestUser.roles || [];
             const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
             const isOwner = roomType.property.ownerId === requestUser.id;
             const isStaff = roomType.property.staff.some((s) => s.userId === requestUser.id);
 
-            // Allow access if:
-            // 1. User is Admin/Owner/Staff
-            // 2. Room type is publicly visible
             if (!isAdmin && !isOwner && !isStaff && !roomType.isPubliclyVisible) {
                 throw new ForbiddenException('You do not have permission to access this room type');
             }
@@ -136,7 +150,7 @@ export class RoomTypesService {
 
     async update(id: string, updateRoomTypeDto: UpdateRoomTypeDto, requestUser?: any) {
         try {
-            await this.findOne(id, requestUser);
+            const existing = await this.findOne(id, requestUser);
             const { cancellationPolicy, cancellationPolicyId, ...rest } = updateRoomTypeDto;
 
             const data: any = {
@@ -144,35 +158,48 @@ export class RoomTypesService {
                 cancellationPolicyText: cancellationPolicy,
             };
 
-            // Clean up empty strings for foreign keys
             if (cancellationPolicyId !== undefined) {
                 data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null;
             }
 
-            return await this.prisma.roomType.update({
+            const updated = await this.prisma.roomType.update({
                 where: { id },
                 data,
             });
+
+            // Sync whenever pool membership or capacity changes
+            const poolChanged =
+                updateRoomTypeDto.isAvailableForGroupBooking !== undefined ||
+                updateRoomTypeDto.groupMaxOccupancy !== undefined;
+            if (poolChanged || existing.isAvailableForGroupBooking || updated.isAvailableForGroupBooking) {
+                await this.syncPropertyGroupCapacity(updated.propertyId);
+            }
+
+            return updated;
         } catch (error) {
             this.logger.error(`Error updating room type ${id}: ${error.message}`, error.stack);
-
             if (error.code === 'P2002') {
                 throw new ConflictException('A room type with this name already exists for this property.');
             }
-
             if (error instanceof NotFoundException) throw error;
-
             throw new InternalServerErrorException('Failed to update room type. Please check the logs.');
         }
     }
 
     async remove(id: string, requestUser?: any) {
-        await this.findOne(id, requestUser);
+        const existing = await this.findOne(id, requestUser);
 
         try {
-            return await this.prisma.roomType.delete({
+            const deleted = await this.prisma.roomType.delete({
                 where: { id },
             });
+
+            // Recalculate capacity if this room type was in the pool
+            if (existing.isAvailableForGroupBooking) {
+                await this.syncPropertyGroupCapacity(existing.propertyId);
+            }
+
+            return deleted;
         } catch (error) {
             if (error.code === 'P2003') {
                 throw new BadRequestException('Cannot delete room type because physical rooms or bookings depend on it');

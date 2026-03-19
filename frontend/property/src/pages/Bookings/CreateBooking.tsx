@@ -57,7 +57,7 @@ export default function CreateBooking() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { selectedProperty } = useProperty();
-    const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; allocationPreview?: any[] } | null>(null);
+    const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
 
@@ -176,6 +176,7 @@ export default function CreateBooking() {
 
         const sanitizedData = {
             ...rest,
+            roomTypeId: data.isGroupBooking ? undefined : rest.roomTypeId,  // clear stale roomTypeId for group bookings
             propertyId: data.isGroupBooking ? propertyId : undefined,
             paymentOption,
             bookingSourceId: data.bookingSourceId || undefined,
@@ -218,7 +219,6 @@ export default function CreateBooking() {
                                             value={watch('roomTypeId') || ''}
                                             onChange={(val: string) => {
                                                 setValue('roomTypeId', val);
-                                                handleCheckAvailability();
                                             }}
                                             required
                                         />
@@ -243,7 +243,6 @@ export default function CreateBooking() {
                                                 type="button"
                                                 onClick={() => {
                                                     setValue('isGroupBooking', false);
-                                                    handleCheckAvailability();
                                                 }}
                                                 className={clsx('px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', !isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
                                             >
@@ -254,7 +253,6 @@ export default function CreateBooking() {
                                                 onClick={() => {
                                                     setValue('isGroupBooking', true);
                                                     setValue('groupSize', getValues('adultsCount') + getValues('childrenCount'));
-                                                    handleCheckAvailability();
                                                 }}
                                                 className={clsx('px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
                                             >
@@ -274,7 +272,6 @@ export default function CreateBooking() {
                                                         valueAsNumber: true,
                                                         onChange: (e) => {
                                                             if (isGroupMode) setValue('groupSize', (parseInt(e.target.value) || 1) + watch('childrenCount'));
-                                                            handleCheckAvailability();
                                                         }
                                                     })}
                                                     className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 font-bold"
@@ -289,7 +286,6 @@ export default function CreateBooking() {
                                                         valueAsNumber: true,
                                                         onChange: (e) => {
                                                             if (isGroupMode) setValue('groupSize', watch('adultsCount') + (parseInt(e.target.value) || 0));
-                                                            handleCheckAvailability();
                                                         }
                                                     })}
                                                     className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 font-bold"
@@ -350,7 +346,12 @@ export default function CreateBooking() {
                                                         ? isGroupMode
                                                             ? `Aggregate capacity verified for ${watch('groupSize')} guests.`
                                                             : `${availability.availableRooms} rooms left for these dates.`
-                                                        : 'Please choose different dates, room type or reduce group size.'}</p>
+                                                        : isGroupMode && availability.groupUnavailableReason === 'NO_POOL_CONFIGURED'
+                                                            ? 'No room types are added to the group booking pool. Go to Room Types → Edit a room type and enable "Enable Group Bookings" with a Max Group Occupancy.'
+                                                            : isGroupMode && availability.groupUnavailableReason === 'CAPACITY_EXCEEDED'
+                                                                ? `The group pool capacity is not enough for ${watch('groupSize')} guests. Reduce group size or increase Max Group Occupancy on room types.`
+                                                                : 'Please choose different dates, room type or reduce group size.'}
+                                                    </p>
                                                 </div>
                                             </div>
 
@@ -390,7 +391,7 @@ export default function CreateBooking() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Override Total Price (₹)</label>
-                                    <input type="number" {...register('overrideTotal', { valueAsNumber: true })} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" placeholder="Optional" />
+                                    <input type="number" {...register('overrideTotal', { setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v) })} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" placeholder="Optional" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for Override</label>

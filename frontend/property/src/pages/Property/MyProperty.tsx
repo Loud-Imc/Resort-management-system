@@ -112,7 +112,7 @@ export default function MyProperty() {
                 name, description, address, city, state, country, pincode,
                 phone, email, whatsappNumber, amenities, images, coverImage,
                 allowsGroupBooking,
-                maxGroupCapacity: maxGroupCapacity === '' ? null : Number(maxGroupCapacity),
+                // maxGroupCapacity is auto-calculated from room type groupMaxOccupancy sums — do not send
                 groupPricePerHead: groupPricePerHead === '' ? null : Number(groupPricePerHead),
                 groupPriceAdult: groupPriceAdult === '' ? null : Number(groupPriceAdult),
                 groupPriceChild: groupPriceChild === '' ? null : Number(groupPriceChild),
@@ -359,19 +359,18 @@ export default function MyProperty() {
                 {allowsGroupBooking && (
                     <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
                         <div className="space-y-2">
-                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Maximum Group Capacity</label>
+                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Total Group Capacity</label>
                             <div className="flex items-center gap-3">
                                 <Users className="h-4 w-4 text-gray-400" />
-                                <input
-                                    type="number"
-                                    value={maxGroupCapacity}
-                                    onChange={(e) => setMaxGroupCapacity(e.target.value === '' ? '' : parseInt(e.target.value))}
-                                    disabled={!editMode}
-                                    placeholder="e.g. 40"
-                                    className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
-                                />
-                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total people allowed in a single group booking across all rooms.</span>
+                                <span className="text-lg font-black text-gray-900 dark:text-white">
+                                    {maxGroupCapacity || 0} guests
+                                </span>
                             </div>
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic leading-relaxed">
+                                Auto-calculated from the <span className="font-bold text-blue-500">Max Group Occupancy</span> set on each room type in the group pool.
+                                To change this number, go to <span className="font-bold">Room Types → Edit</span> a room type, enable
+                                <span className="font-bold"> "Enable Group Bookings"</span> and set its Max Group Occupancy.
+                            </p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
