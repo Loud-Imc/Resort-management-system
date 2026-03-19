@@ -1,7 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
@@ -47,13 +46,6 @@ import { SystemSettingsModule } from './system-settings/system-settings.module';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60000, // 60 seconds window
-        limit: 5,   // max 5 requests per window per IP
-      },
-    ]),
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
@@ -88,11 +80,7 @@ import { SystemSettingsModule } from './system-settings/system-settings.module';
     IcalModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    // Apply global throttle guard — decorators on specific endpoints can override this
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

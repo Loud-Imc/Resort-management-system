@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { SkipThrottle } from '@nestjs/throttler';
 import { ChannelPartnersService } from './channel-partners.service';
 import { ApplyReferralCodeDto, UpdateCommissionRateDto, UpdateReferralDiscountRateDto } from './dto/channel-partner.dto';
 import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
@@ -22,7 +21,6 @@ import { UpdateCPProfileDto } from './dto/update-cp-profile.dto';
 
 @ApiTags('Channel Partners')
 @Controller('channel-partners')
-@SkipThrottle() // Not needed here — abuse is tracked at application layer (ReferralAbuseService)
 export class ChannelPartnersController {
     constructor(private readonly cpService: ChannelPartnersService) { }
 
