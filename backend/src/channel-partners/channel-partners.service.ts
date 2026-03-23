@@ -694,21 +694,21 @@ export class ChannelPartnersService {
             return { rate: Number(cp.overrideCommissionRate), source: 'CP override' };
         }
 
-        // Priority 2: Property Commission
-        if (context.propertyId) {
-            const property = await this.prisma.property.findUnique({
-                where: { id: context.propertyId }
-            });
-            if (property?.commissionRate !== null) {
-                return { rate: Number(property!.commissionRate), source: 'Property' };
-            }
-        }
-
-        // Priority 3: Active Partner Level (Tier)
+        // Priority 2: Active Partner Level (Tier)
         // Resolves tier based on rolling 12-month performance
         const level = await this.getCurrentLevel(cp.id);
         if (level) {
             return { rate: Number(level.commissionRate), source: `Tier (${level.name})` };
+        }
+
+        // Priority 3: Property Standard Rate
+        if (context.propertyId) {
+            const property = await this.prisma.property.findUnique({
+                where: { id: context.propertyId }
+            });
+            if (property) {
+                return { rate: Number(property.platformCommission), source: 'Property (Standard)' };
+            }
         }
 
         // Priority 4: Global Default
