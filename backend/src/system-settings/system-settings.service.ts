@@ -6,7 +6,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class SystemSettingsService implements OnModuleInit {
-    constructor(private prisma: PrismaService) {}
+    constructor(private prisma: PrismaService) { }
 
     // Simple in-process cache: key → { value, expiresAt }
     private readonly cache = new Map<string, { value: any; expiresAt: number }>();
@@ -27,14 +27,24 @@ export class SystemSettingsService implements OnModuleInit {
                 description: 'GST tax tiers based on room tariff per night'
             },
             {
-                key: 'LOYALTY_POINTS_PER_INR',
+                key: 'LOYALTY_POINTS_PER_UNIT',
                 value: 1,
-                description: 'Number of loyalty points earned per 1 INR spent'
+                description: 'Number of loyalty points earned per unit amount spent (based on unitAmount).'
+            },
+            {
+                key: 'LOYALTY_UNIT_AMOUNT',
+                value: 100,
+                description: 'The unit amount (in INR) used for point calculation. e.g., if set to 100, and pointsPerUnit is 1, then ₹100 = 1 point.'
             },
             {
                 key: 'MAX_DISCOUNT_PCT',
                 value: 30,
                 description: 'Global maximum combined discount percentage allowed on any booking (offer + referral + coupon). Changeable from admin panel.'
+            },
+            {
+                key: 'DEFAULT_COMMISSION_RATE',
+                value: 10.0,
+                description: 'Global default commission rate for Channel Partners if no tier, property, or partner-specific overrides exist.'
             }
         ];
 

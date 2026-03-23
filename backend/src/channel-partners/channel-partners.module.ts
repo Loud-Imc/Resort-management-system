@@ -6,9 +6,11 @@ import { ConfigModule } from '@nestjs/config';
 import { ReferralAbuseService } from '../common/services/referral-abuse.service';
 import { InMemoryReferralAbuseStore } from '../common/services/in-memory-referral-abuse.store';
 import { REFERRAL_ABUSE_STORE } from '../common/services/referral-abuse-store.interface';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { SystemSettingsModule } from '../system-settings/system-settings.module';
 
 @Module({
-    imports: [PrismaModule, ConfigModule],
+    imports: [PrismaModule, ConfigModule, NotificationsModule, SystemSettingsModule],
     controllers: [ChannelPartnersController],
     providers: [
         ChannelPartnersService,

@@ -2,9 +2,10 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { ConfigService } from '@nestjs/config';
 import { ReferralAbuseService } from '../common/services/referral-abuse.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, ChannelPartnerStatus, RedemptionStatus } from '@prisma/client';
+import { Prisma, ChannelPartnerStatus, RedemptionStatus, PartnerType } from '@prisma/client';
 import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 import * as bcrypt from 'bcrypt';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
@@ -14,11 +15,14 @@ import { normalizePhone } from '../common/utils/phone';
 export class ChannelPartnersService {
     private readonly logger = new Logger(ChannelPartnersService.name);
 
+    private readonly activePointsCache = new Map<string, { points: number, expiresAt: number }>();
+
     constructor(
         private prisma: PrismaService,
         private readonly configService: ConfigService,
         private readonly notificationsService: NotificationsService,
         private readonly referralAbuseService: ReferralAbuseService,
+        private readonly systemSettingsService: SystemSettingsService,
     ) { }
 
     // Generate unique referral code
@@ -85,7 +89,6 @@ export class ChannelPartnersService {
                     authorizedPersonName: dto?.authorizedPersonName,
                     aadhaarImage: dto?.aadhaarImage,
                     licenceImage: dto?.licenceImage,
-                    commissionRate: 10.0,
                 },
                 update: {
                     partnerType: dto?.partnerType,
@@ -203,7 +206,6 @@ export class ChannelPartnersService {
                         authorizedPersonName: dto.authorizedPersonName,
                         aadhaarImage: dto.aadhaarImage,
                         licenceImage: dto.licenceImage,
-                        commissionRate: 10.0,
                     },
                     update: {
                         partnerType: dto.partnerType,
@@ -353,11 +355,14 @@ export class ChannelPartnersService {
             }),
         ]);
 
+        const activePoints = await this.getActivePoints(cp.id);
+
         return {
             id: cp.id,
             referralCode: cp.referralCode,
-            commissionRate: cp.commissionRate,
+            overrideCommissionRate: cp.overrideCommissionRate,
             totalPoints: cp.totalPoints,
+            activePoints,
             availablePoints: cp.availablePoints,
             pendingPoints: cp.pendingPoints,
             totalEarnings: cp.totalEarnings,
@@ -375,7 +380,7 @@ export class ChannelPartnersService {
     }
 
     // Process referral commission (initially as PENDING on payment)
-    async processReferralCommission(bookingId: string, channelPartnerId: string, bookingAmount: number, tx?: Prisma.TransactionClient) {
+    async processReferralCommission(bookingId: string, channelPartnerId: string, bookingAmount: number, tx?: Prisma.TransactionClient, triggerSource?: 'MANUAL_CHECKIN' | 'AUTO_FINALIZATION' | 'DELAYED_PAYMENT') {
         const client = tx || this.prisma;
 
         // 1. Check for ANY existing COMMISSION transaction (Idempotency + Option A Strict Guard)
@@ -389,7 +394,7 @@ export class ChannelPartnersService {
         });
 
         if (existingTransaction) {
-            this.logger.log(`Commission already exists (status: ${existingTransaction.status}) for booking ${bookingId}. Skipping.`);
+            this.logger.log(`Commission already exists(status: ${existingTransaction.status}) for booking ${bookingId}.Skipping.`);
             return null;
         }
 
@@ -406,7 +411,19 @@ export class ChannelPartnersService {
         if (!booking) return null;
 
         const commission = Number(booking.cpCommission) || 0;
-        const points = Math.floor(Number(booking.commissionableAmount) / 100);
+        const pointsPerUnit = await this.systemSettingsService.getSetting('LOYALTY_POINTS_PER_UNIT') || 1;
+        const unitAmount = await this.systemSettingsService.getSetting('LOYALTY_UNIT_AMOUNT') || 100;
+
+        // Validation & Safety
+        if (unitAmount <= 0) {
+            this.logger.error(`Invalid LOYALTY_UNIT_AMOUNT: ${unitAmount}. Falling back to 100.`);
+        }
+        const safeUnitAmount = unitAmount > 0 ? unitAmount : 100;
+        const safePointsPerUnit = pointsPerUnit >= 0 ? pointsPerUnit : 0;
+
+        const points = Math.floor(Number(booking.commissionableAmount) / safeUnitAmount) * safePointsPerUnit;
+
+        this.logger.log(`[Commission][${triggerSource || 'UNKNOWN'}] Points calculated: ${points} (based on unitAmount ${safeUnitAmount}, pointsPerUnit ${safePointsPerUnit}, and commissionableAmount ${booking.commissionableAmount}) for booking ${booking.bookingNumber}`);
 
         const isPrepaid = booking.paymentMethod === ('WALLET' as any);
 
@@ -424,21 +441,24 @@ export class ChannelPartnersService {
                 data: {
                     type: 'COMMISSION',
                     status: 'FINALIZED',
-                    amount: commission,
+                    amount: commission || 0,
                     points,
                     description: isPrepaid
-                        ? `Commission for booking ${booking.bookingNumber} (Prepaid via upfront discount)`
-                        : `Commission for booking ${booking.bookingNumber}`,
+                        ? `Commission for booking ${booking.bookingNumber}(Prepaid via upfront discount) [${triggerSource || 'LEGACY'}]`
+                        : `Commission for booking ${booking.bookingNumber} [${triggerSource || 'LEGACY'}]`,
                     channelPartnerId,
                     bookingId,
                     isPrepaid,
                 },
             });
 
+            // Invalidate active points cache on new commission
+            this.activePointsCache.delete(channelPartnerId);
+
             return transaction;
         } catch (error) {
             if (error.code === 'P2002') {
-                this.logger.warn(`Simultaneous commission creation detected for booking ${bookingId}. Conflict handled.`);
+                this.logger.warn(`Simultaneous commission creation detected for booking ${bookingId}.Conflict handled.`);
                 return null;
             }
             throw error;
@@ -470,7 +490,7 @@ export class ChannelPartnersService {
             });
 
             if (!transactions.length) {
-                this.logger.log(`No active commission transactions found for booking ${bookingId}. Nothing to revert.`);
+                this.logger.log(`No active commission transactions found for booking ${bookingId}.Nothing to revert.`);
                 return;
             }
 
@@ -508,7 +528,7 @@ export class ChannelPartnersService {
 
                 this.logger.log(
                     `Reverted COMMISSION tx ${transaction.id} for booking ${bookingId}. ` +
-                    `Prepaid: ${isPrepaid}. Earnings reversed: ${!isPrepaid}. ` +
+                    `Prepaid: ${isPrepaid}. Earnings reversed: ${!isPrepaid}.` +
                     `Points reversed: ${transaction.points}.`
                 );
             }
@@ -604,14 +624,18 @@ export class ChannelPartnersService {
             }),
         ]);
 
+        const activePoints = await this.getActivePoints(cp.id);
+
         return {
-            ...cp,
-            pendingBalance: Number(cp.totalEarnings) - Number(cp.paidOut),
-            totalReferrals,
-            confirmedReferrals,
-            thisMonthReferrals,
-            referralBookings,
-            referralDiscountRate: cp.referralDiscountRate,
+            data: {
+                ...cp,
+                activePoints,
+                pendingBalance: Number(cp.totalEarnings) - Number(cp.paidOut),
+                totalReferrals,
+                confirmedReferrals,
+                thisMonthReferrals,
+                referralBookings,
+            }
         };
     }
 
@@ -622,17 +646,6 @@ export class ChannelPartnersService {
         });
     }
 
-    // Get current level based on points
-    private async getCurrentLevel(points: number) {
-        return this.prisma.partnerLevel.findFirst({
-            where: {
-                minPoints: { lte: points },
-            },
-            orderBy: {
-                minPoints: 'desc',
-            },
-        });
-    }
 
     // Admin: Approve/Reject/Deactivate CP
     async updateStatus(id: string, status: ChannelPartnerStatus) {
@@ -658,16 +671,104 @@ export class ChannelPartnersService {
     }
 
     // Admin: Override commission rate
-    async updateCommissionRate(id: string, commissionRate: number, isRateOverridden = true) {
+    async updateCommissionRate(id: string, overrideCommissionRate: number | null) {
         return this.prisma.channelPartner.update({
             where: { id },
-            data: {
-                commissionRate,
-                isRateOverridden
-            },
+            data: { overrideCommissionRate },
         });
     }
 
+    /**
+     * Helper: Resolve dynamic commission rate priorities
+     * Note: This determines the rate at BOOKING CREATION time.
+     */
+    async getCommissionRate(context: { channelPartnerId: string, propertyId?: string }): Promise<{ rate: number, source: string }> {
+        const cp = await this.prisma.channelPartner.findUnique({
+            where: { id: context.channelPartnerId }
+        });
+
+        if (!cp) throw new NotFoundException('Channel Partner not found');
+
+        // Priority 1: CP Override
+        if (cp.overrideCommissionRate !== null) {
+            return { rate: Number(cp.overrideCommissionRate), source: 'CP override' };
+        }
+
+        // Priority 2: Property Commission
+        if (context.propertyId) {
+            const property = await this.prisma.property.findUnique({
+                where: { id: context.propertyId }
+            });
+            if (property?.commissionRate !== null) {
+                return { rate: Number(property!.commissionRate), source: 'Property' };
+            }
+        }
+
+        // Priority 3: Active Partner Level (Tier)
+        // Resolves tier based on rolling 12-month performance
+        const level = await this.getCurrentLevel(cp.id);
+        if (level) {
+            return { rate: Number(level.commissionRate), source: `Tier (${level.name})` };
+        }
+
+        // Priority 4: Global Default
+        const defaultRate = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE') || 10;
+        return { rate: Number(defaultRate), source: 'Global' };
+    }
+
+    /**
+     * Calculate active points earned in the sliding 12-month window.
+     * Uses in-memory cache with 5-min TTL.
+     */
+    async getActivePoints(channelPartnerId: string): Promise<number> {
+        const now = Date.now();
+        const cached = this.activePointsCache.get(channelPartnerId);
+        if (cached && now < cached.expiresAt) {
+            return cached.points;
+        }
+
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
+        const result = await this.prisma.cPTransaction.aggregate({
+            where: {
+                channelPartnerId,
+                type: 'COMMISSION',
+                status: 'FINALIZED',
+                createdAt: { gte: twelveMonthsAgo }
+            },
+            _sum: { points: true }
+        });
+
+        const activePoints = result._sum.points || 0;
+
+        // Cache for 5 minutes
+        this.activePointsCache.set(channelPartnerId, {
+            points: activePoints,
+            expiresAt: now + (5 * 60 * 1000)
+        });
+
+        return activePoints;
+    }
+
+    /**
+     * Helper: Determine current tier level from sliding 12-month performance.
+     * Tier selection strategy: Highest matching level (minPoints <= activePoints).
+     */
+    async getCurrentLevel(channelPartnerId: string) {
+        const activePoints = await this.getActivePoints(channelPartnerId);
+
+        const level = await this.prisma.partnerLevel.findFirst({
+            where: { minPoints: { lte: activePoints } },
+            orderBy: { minPoints: 'desc' },
+        });
+
+        if (level) {
+            this.logger.log(`[Tier Resolution] CP ${channelPartnerId} activePoints: ${activePoints} -> Level: ${level.name}`);
+        }
+
+        return level;
+    }
     // Admin: Update referral discount rate
     async updateReferralDiscountRate(id: string, referralDiscountRate: number) {
         return this.prisma.channelPartner.update({
@@ -853,7 +954,7 @@ export class ChannelPartnersService {
                     type: 'WALLET_TOPUP',
                     status: 'FINALIZED',
                     amount,
-                    description: description || `Wallet top-up of ₹${amount}`,
+                    description: description || `Wallet top - up of ₹${amount} `,
                     channelPartnerId,
                     bookingId: referenceId, // Using bookingId field as a general reference for now
                 }
@@ -891,7 +992,7 @@ export class ChannelPartnersService {
                 type: 'WALLET_PAYMENT' as any,
                 status: 'FINALIZED',
                 amount: -amount,
-                description: description || `Wallet payment of ₹${amount}`,
+                description: description || `Wallet payment of ₹${amount} `,
                 channelPartnerId,
                 bookingId: referenceId, // Keeping this for backward compatibility if referenceId is a bookingId
                 referenceId: referenceId, // Also storing it as referenceId
@@ -918,7 +1019,7 @@ export class ChannelPartnersService {
         const order = await razorpay.orders.create({
             amount: Math.round(amount * 100), // paise
             currency: 'INR',
-            receipt: `cp_reg_${cp.id.substring(0, 8)}_${Date.now()}`,
+            receipt: `cp_reg_${cp.id.substring(0, 8)}_${Date.now()} `,
             notes: {
                 channelPartnerId: cp.id,
                 type: 'CP_REGISTRATION_FEE',
@@ -942,7 +1043,7 @@ export class ChannelPartnersService {
     ) {
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET') || '';
 
-        const body = `${razorpayOrderId}|${razorpayPaymentId}`;
+        const body = `${razorpayOrderId}| ${razorpayPaymentId} `;
         const expectedSignature = crypto
             .createHmac('sha256', keySecret)
             .update(body)
@@ -967,7 +1068,7 @@ export class ChannelPartnersService {
                 data: {
                     amount: 1000,
                     source: 'CP_REGISTRATION_FEE' as any,
-                    description: `Channel Partner registration fee for CP ID: ${channelPartnerId}`,
+                    description: `Channel Partner registration fee for CP ID: ${channelPartnerId} `,
                 },
             });
 
@@ -995,7 +1096,7 @@ export class ChannelPartnersService {
         const order = await razorpay.orders.create({
             amount: Math.round(amount * 100), // paise
             currency: 'INR',
-            receipt: `wallet_topup_${cp.id}_${Date.now()}`,
+            receipt: `wallet_topup_${cp.id}_${Date.now()} `,
             notes: {
                 channelPartnerId: cp.id,
                 type: 'CP_WALLET_TOPUP',
@@ -1022,7 +1123,7 @@ export class ChannelPartnersService {
 
         const expectedSignature = crypto
             .createHmac('sha256', keySecret)
-            .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+            .update(`${razorpayOrderId}| ${razorpayPaymentId} `)
             .digest('hex');
 
         if (expectedSignature !== razorpaySignature) {
@@ -1032,7 +1133,7 @@ export class ChannelPartnersService {
         const cp = await this.prisma.channelPartner.findUnique({ where: { userId } });
         if (!cp) throw new NotFoundException('Channel partner not found');
 
-        return this.addWalletBalance(cp.id, amount, `Wallet top-up via Razorpay (${razorpayPaymentId})`, razorpayPaymentId);
+        return this.addWalletBalance(cp.id, amount, `Wallet top - up via Razorpay(${razorpayPaymentId})`, razorpayPaymentId);
     }
 
     async refundWalletPayment(channelPartnerId: string, amount: number, description: string, referenceId: string) {
@@ -1048,7 +1149,7 @@ export class ChannelPartnersService {
             });
 
             if (existingRefund) {
-                console.log(`[ChannelPartnerService] Refund already processed for reference: ${referenceId}`);
+                console.log(`[ChannelPartnerService] Refund already processed for reference: ${referenceId} `);
                 return tx.channelPartner.findUnique({ where: { id: channelPartnerId } });
             }
 
@@ -1061,16 +1162,16 @@ export class ChannelPartnersService {
             });
 
             if (!originalPayment) {
-                throw new BadRequestException(`Invalid reference ID for refund. No wallet payment found for ${referenceId}`);
+                throw new BadRequestException(`Invalid reference ID for refund.No wallet payment found for ${referenceId}`);
             }
 
             // Cross-account validation
             if (originalPayment.channelPartnerId !== channelPartnerId) {
-                throw new BadRequestException(`Security alert: Transaction ${referenceId} does not belong to partner ${channelPartnerId}`);
+                throw new BadRequestException(`Security alert: Transaction ${referenceId} does not belong to partner ${channelPartnerId} `);
             }
 
             if (Number(amount) > Number(originalPayment.amount) + 0.01) {
-                throw new BadRequestException(`Refund amount (₹${amount}) exceeds original payment (₹${originalPayment.amount})`);
+                throw new BadRequestException(`Refund amount(₹${amount}) exceeds original payment(₹${originalPayment.amount})`);
             }
 
             // 3. Perform Refund
@@ -1086,7 +1187,7 @@ export class ChannelPartnersService {
                     type: 'REFUND' as any,
                     status: 'FINALIZED',
                     amount,
-                    description: description || `Refund for original transaction ${referenceId}`,
+                    description: description || `Refund for original transaction ${referenceId} `,
                     channelPartnerId,
                     bookingId: originalPayment.bookingId,
                     referenceId,

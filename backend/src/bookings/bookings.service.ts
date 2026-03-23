@@ -83,11 +83,14 @@ export class BookingsService {
             }
         }
 
+        const isCP = user?.roles?.includes('ChannelPartner');
+
         if (!isAuthorizedStaff) {
             isManualBooking = false;
             overrideTotal = undefined;
             overrideReason = undefined;
-            if (createBookingDto.paymentMethod === 'WALLET') {
+            // Allow ChannelPartners to use WALLET, but guests/other roles are forced to ONLINE
+            if (createBookingDto.paymentMethod === 'WALLET' && !isCP) {
                 createBookingDto.paymentMethod = 'ONLINE';
             }
         }
@@ -278,14 +281,19 @@ export class BookingsService {
 
             if (cp) {
                 channelPartnerId = cp.id;
-                let rate = Number(cp.commissionRate);
-                if (!cp.isRateOverridden) {
-                    const level = await this.prisma.partnerLevel.findFirst({
-                        where: { minPoints: { lte: cp.totalPoints } },
-                        orderBy: { minPoints: 'desc' },
-                    });
-                    if (level) rate = Number(level.commissionRate);
-                }
+
+                // Get propertyId to resolve priority
+                const baseRoomType = await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId as string },
+                    select: { propertyId: true }
+                });
+                const propertyId = baseRoomType?.propertyId || (createBookingDto as any).propertyId;
+
+                const { rate } = await this.channelPartnersService.getCommissionRate({
+                    channelPartnerId: cp.id,
+                    propertyId
+                });
+
                 const commissionableAmount = pricing.totalAmount - pricing.taxAmount;
                 cpCommission = (commissionableAmount * rate) / 100;
             } else {
@@ -867,13 +875,19 @@ export class BookingsService {
             });
 
             // Trigger referral commission (Single trigger stage)
+            // Refined Rule: Must be BOTH CHECKED_IN and FULLY_PAID
             if (booking.channelPartnerId) {
-                await this.channelPartnersService.processReferralCommission(
-                    booking.id,
-                    booking.channelPartnerId,
-                    Number(booking.totalAmount),
-                    tx
-                );
+                if (updated.paymentStatus === 'FULL') {
+                    await this.channelPartnersService.processReferralCommission(
+                        booking.id,
+                        booking.channelPartnerId,
+                        Number(booking.totalAmount),
+                        tx,
+                        'MANUAL_CHECKIN'
+                    );
+                } else {
+                    this.logger.log(`[Commission][MANUAL_CHECKIN] Booking ${booking.bookingNumber} checked in but paymentStatus is ${updated.paymentStatus}. Payout will trigger upon full payment.`);
+                }
             }
 
             await this.auditService.createLog({
@@ -1338,6 +1352,46 @@ export class BookingsService {
                 this.logger.log(`[ExpiryCron] Expired booking ${booking.bookingNumber} (${booking.id})`);
             } catch (error) {
                 this.logger.error(`[ExpiryCron] Failed to expire booking ${booking.bookingNumber}: ${error.message}`);
+            }
+        }
+    }
+
+    /**
+     * Auto-finalization fallback for commissions.
+     * Processes bookings that are CHECKED_IN and FULL but missed the initial trigger.
+     */
+    @Cron('0 */30 * * * *') // Every 30 minutes
+    async finalizePendingCommissions() {
+        this.logger.log('[Commission][Cron] Checking for finalized bookings pending commission...');
+
+        const pendingBookings = await this.prisma.booking.findMany({
+            where: {
+                status: 'CHECKED_IN',
+                paymentStatus: 'FULL',
+                channelPartnerId: { not: null },
+                cpTransactions: {
+                    none: { type: 'COMMISSION' }
+                }
+            } as any,
+            include: { channelPartner: true }
+        });
+
+        if (pendingBookings.length === 0) return;
+
+        this.logger.log(`[Commission][Cron] Found ${pendingBookings.length} bookings to finalize.`);
+
+        for (const booking of pendingBookings) {
+            try {
+                await this.channelPartnersService.processReferralCommission(
+                    booking.id,
+                    booking.channelPartnerId as string,
+                    Number(booking.totalAmount),
+                    undefined,
+                    'AUTO_FINALIZATION'
+                );
+                this.logger.log(`[Commission][AUTO_FINALIZATION] Finalized commission for ${booking.bookingNumber}`);
+            } catch (error) {
+                this.logger.error(`[Commission][AUTO_FINALIZATION] Failed for ${booking.bookingNumber}: ${error.message}`);
             }
         }
     }

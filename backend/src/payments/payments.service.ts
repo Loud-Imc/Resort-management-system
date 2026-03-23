@@ -430,6 +430,20 @@ export class PaymentsService {
 
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
+
+                // Delayed Commission Trigger
+                // If already checked in and now fully paid, trigger payout
+                if (refreshedBooking.channelPartnerId &&
+                    refreshedBooking.status === 'CHECKED_IN' &&
+                    refreshedBooking.paymentStatus === 'FULL') {
+                    await this.channelPartnersService.processReferralCommission(
+                        refreshedBooking.id,
+                        refreshedBooking.channelPartnerId,
+                        Number(refreshedBooking.totalAmount),
+                        undefined,
+                        'DELAYED_PAYMENT'
+                    );
+                }
             }
         }
 
@@ -1044,6 +1058,19 @@ export class PaymentsService {
                 paymentId: payment.id,
             },
         });
+
+        // Delayed Commission Trigger (Manual Payment)
+        if (booking.channelPartnerId &&
+            booking.status === 'CHECKED_IN' &&
+            isFullyPaid) {
+            await this.channelPartnersService.processReferralCommission(
+                booking.id,
+                booking.channelPartnerId,
+                Number(booking.totalAmount),
+                undefined,
+                'DELAYED_PAYMENT'
+            );
+        }
 
         return {
             success: true,

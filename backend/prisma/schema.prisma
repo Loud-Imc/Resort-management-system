@@ -254,6 +254,7 @@ model Booking {
   income                  Income[]
   payments                Payment[]
   review                  Review?
+  cpTransactions          CPTransaction[]
 
   @@index([propertyId])
   @@index([status])
@@ -562,7 +563,7 @@ model PropertyStaff {
 model ChannelPartner {
   id                   String               @id @default(uuid())
   referralCode         String               @unique
-  commissionRate       Decimal              @default(10.00) @db.Decimal(5, 2)
+  overrideCommissionRate Decimal?           @db.Decimal(5, 2)
   totalPoints          Int                  @default(0)
   availablePoints      Int                  @default(0)
   totalEarnings        Decimal              @default(0) @db.Decimal(12, 2)
@@ -572,7 +573,6 @@ model ChannelPartner {
   updatedAt            DateTime             @updatedAt
   authorizedPersonName String?
   businessAddress      String?
-  isRateOverridden     Boolean              @default(false)
   organizationName     String?
   partnerType          PartnerType          @default(INDIVIDUAL)
   status               ChannelPartnerStatus @default(PENDING)
@@ -611,6 +611,7 @@ model CPTransaction {
   status           CPTransactionStatus @default(FINALIZED)
   isPrepaid        Boolean             @default(false)
   channelPartner   ChannelPartner      @relation(fields: [channelPartnerId], references: [id])
+  booking          Booking?           @relation(fields: [bookingId], references: [id])
 
   @@unique([bookingId, type])
   @@unique([referenceId, type])

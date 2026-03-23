@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsBoolean, Min, Max } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterAsChannelPartnerDto {
@@ -12,9 +12,12 @@ export class ApplyReferralCodeDto {
 }
 
 export class UpdateCommissionRateDto {
-    @ApiProperty({ example: 5.0 })
+    @ApiProperty({ description: 'New override commission rate percentage (nullable)', required: false })
+    @IsOptional()
     @IsNumber()
-    commissionRate: number;
+    @Min(0)
+    @Max(50)
+    overrideCommissionRate?: number | null;
 }
 
 export class CPPayoutRequestDto {

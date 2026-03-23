@@ -163,15 +163,15 @@ export class ChannelPartnersController {
         return this.cpService.updateStatus(id, status);
     }
 
-    @Put(':id/commission-rate')
+    @Patch(':id/commission-rate')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update CP commission rate (Admin)' })
-    updateCommissionRate(
+    async updateCommissionRate(
         @Param('id') id: string,
         @Body() data: UpdateCommissionRateDto,
     ) {
-        return this.cpService.updateCommissionRate(id, data.commissionRate);
+        return this.cpService.updateCommissionRate(id, data.overrideCommissionRate ?? null);
     }
 
     @Put(':id/referral-discount-rate')
