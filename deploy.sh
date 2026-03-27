@@ -22,20 +22,6 @@ cd backend
 npm install
 
 npx prisma generate
-
-# Clear any failed migration records directly in the DB so deploy can proceed
-echo "🔧 Clearing failed migration record from _prisma_migrations..."
-node -e "
-const { Client } = require('pg');
-require('dotenv').config();
-const client = new Client({ connectionString: process.env.DATABASE_URL });
-client.connect()
-  .then(() => client.query(\"DELETE FROM _prisma_migrations WHERE migration_name = '20260326134500_sync_schema_and_payouts' AND finished_at IS NULL\"))
-  .then(r => { console.log('Deleted ' + r.rowCount + ' failed migration record(s)'); })
-  .catch(e => console.error('Could not clear migration record:', e.message))
-  .finally(() => client.end());
-"
-
 npx prisma migrate deploy
 npm run build
 echo "🔄 Restarting Backend Service..."
