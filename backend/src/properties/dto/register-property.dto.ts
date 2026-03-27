@@ -104,4 +104,9 @@ export class RegisterPropertyDto {
     @IsOptional()
     @IsNumber()
     maxGroupCapacity?: number;
+
+    // Marketing System (Optional)
+    @IsOptional()
+    @IsString()
+    referredById?: string;
 }

@@ -61,7 +61,9 @@ export default function DashboardLayout() {
 
     const navItems = [
         // PILLAR 1: INTELLIGENCE
-        { icon: LayoutDashboard, label: 'Executive Dashboard', path: '/' },
+        ...(hasPermission('reports.viewDashboard') ? [
+            { icon: LayoutDashboard, label: 'Executive Dashboard', path: '/' }
+        ] : []),
         ...(hasPermission('reports.viewFinancial') ? [
             { icon: PieChart, label: 'Platform Reports', path: '/reports' }
         ] : []),
@@ -73,7 +75,7 @@ export default function DashboardLayout() {
         ...(hasPermission('properties.create') ? [
             { icon: Shield, label: 'Property Requests', path: '/properties/requests' },
         ] : []),
-        ...(hasPermission('marketing.read') ? [
+        ...(hasPermission('channelPartners.read') ? [
             { icon: Users, label: 'CP Onboarding', path: '/channel-partners' },
         ] : []),
 
@@ -89,14 +91,22 @@ export default function DashboardLayout() {
         // PILLAR 4: GROWTH & MARKETING
         ...(hasPermission('marketing.read') ? [
             { icon: Megaphone, label: 'Growth Dashboard', path: '/marketing' },
+        ] : []),
+        ...(hasPermission('marketing.manageCoupons') ? [
             { icon: Ticket, label: 'Coupons', path: '/marketing/coupons' },
+        ] : []),
+        ...(hasPermission('marketing.manageBroadcasts') ? [
             { icon: Bell, label: 'Broadcast Alerts', path: '/marketing/notifications' },
+        ] : []),
+        ...(hasPermission('marketing.manageLoyalty') ? [
             { icon: Settings, label: 'Loyalty / Tiers', path: '/loyalty-management' }
         ] : []),
 
         // PILLAR 5: PLATFORM INTEGRITY
         ...(hasPermission('users.read') ? [
             { icon: Users, label: 'Platform Users', path: '/users' },
+        ] : []),
+        ...(hasPermission('roles.read') ? [
             { icon: Shield, label: 'System Roles', path: '/roles' },
         ] : []),
         ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [

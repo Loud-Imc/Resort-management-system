@@ -7,7 +7,7 @@ interface Reward {
     name: string;
     pointCost: number;
     description: string;
-    image: string;
+    imageUrl: string;
 }
 
 const Rewards: React.FC = () => {
@@ -91,7 +91,7 @@ const Rewards: React.FC = () => {
                         <div key={reward.id} className="glass-pane glass-pane-hover" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ height: '200px', overflow: 'hidden', position: 'relative' }}>
                                 <img
-                                    src={reward.image || 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=400'}
+                                    src={reward.imageUrl || 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=400'}
                                     alt={reward.name}
                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 />

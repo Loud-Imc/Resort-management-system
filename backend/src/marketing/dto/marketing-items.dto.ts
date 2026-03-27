@@ -54,6 +54,10 @@ export class CreateRewardDto {
     @IsString()
     @IsOptional()
     imageUrl?: string;
+
+    @IsBoolean()
+    @IsOptional()
+    isActive?: boolean;
 }
 
 export class UpdateRewardDto {

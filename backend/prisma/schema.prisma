@@ -55,6 +55,7 @@ model User {
   propertyRequests        PropertyRequest[]        @relation("PropertyRequester")
   approvedPropertyRequests PropertyRequest[]       @relation("PropertyApprover")
   rejectedPropertyRequests PropertyRequest[]       @relation("PropertyRejecter")
+  referredPropertyRequests PropertyRequest[]       @relation("PropertyReferrer")
   requestedRefunds     RefundRequest[]            @relation("RefundRequester")
   approvedRefunds      RefundRequest[]            @relation("RefundApprover")
 
@@ -1102,6 +1103,7 @@ model PropertyRequest {
   status           RequestStatus @default(PENDING)
   reason           String?       @db.Text // Rejection reason
   requestedById    String
+  referredById     String?
   approvedById     String?
   rejectedById     String?
   rejectedAt       DateTime?
@@ -1110,6 +1112,7 @@ model PropertyRequest {
   updatedAt        DateTime      @updatedAt
 
   requestedBy      User          @relation("PropertyRequester", fields: [requestedById], references: [id])
+  referredBy       User?         @relation("PropertyReferrer", fields: [referredById], references: [id])
   approvedBy       User?         @relation("PropertyApprover", fields: [approvedById], references: [id])
   rejectedBy       User?         @relation("PropertyRejecter", fields: [rejectedById], references: [id])
   property         Property?     @relation(fields: [propertyId], references: [id])

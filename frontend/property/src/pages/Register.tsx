@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,6 +13,10 @@ export default function Register() {
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
     const [showPassword, setShowPassword] = useState(false);
+
+    // Marketing Referral
+    const [searchParams] = useSearchParams();
+    const referredById = searchParams.get('ref');
 
     // OTP related states
     const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
@@ -200,7 +204,8 @@ export default function Register() {
             const formattedData = {
                 ...formData,
                 ownerPhone: normalizePhoneNumber(formData.ownerPhone),
-                propertyPhone: normalizePhoneNumber(formData.propertyPhone)
+                propertyPhone: normalizePhoneNumber(formData.propertyPhone),
+                referredById: referredById || undefined
             };
 
             await registerProperty(formattedData);

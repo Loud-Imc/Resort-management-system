@@ -3,15 +3,37 @@ import { useProperty } from '../context/PropertyContext';
 import { reportsService, DashboardStats } from '../services/reports';
 import { Building2, Shield, Users, DollarSign, LayoutGrid, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
     const navigate = useNavigate();
+    const { user } = useAuth();
+
+    const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+    const hasDashboardAccess = user?.permissions?.includes('reports.viewDashboard') || isSuperAdmin;
 
     const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<DashboardStats>({
         queryKey: ['dashboardStats', selectedProperty?.id],
         queryFn: () => reportsService.getDashboardStats(selectedProperty?.id),
+        enabled: hasDashboardAccess, // Only fetch stats if the user has permission
     });
+
+    if (!hasDashboardAccess) {
+        return (
+            <div className="bg-card p-12 rounded-xl border border-border text-center mt-12 max-w-2xl mx-auto shadow-sm">
+                <LayoutGrid className="h-16 w-16 text-primary/40 mx-auto mb-6" />
+                <h2 className="text-2xl font-bold mb-3 text-foreground">Welcome to the Platform</h2>
+                <p className="text-muted-foreground mb-8 text-lg">Your account has been verified. Please select a module from the sidebar to begin your work.</p>
+                <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 inline-block text-sm text-left align-middle mx-auto">
+                    <p className="flex items-center gap-2 font-medium text-primary">
+                        <Shield className="h-4 w-4" /> Secure Session Active
+                    </p>
+                    <p className="text-muted-foreground mt-1">Logged in as {user?.firstName} {user?.lastName}</p>
+                </div>
+            </div>
+        );
+    }
 
     if (statsLoading) {
         return (

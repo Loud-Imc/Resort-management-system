@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { marketingService, MarketingStats } from '../../services/marketing';
 import { Property } from '../../types/property';
-import { Loader2, Building2, CheckCircle, Clock } from 'lucide-react';
+import { Loader2, Building2, CheckCircle, Clock, Link as LinkIcon, Copy } from 'lucide-react';
 import { format } from 'date-fns';
-
+import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-hot-toast';
 export default function MarketingDashboard() {
     const [stats, setStats] = useState<MarketingStats | null>(null);
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
+    const { user } = useAuth();
 
     useEffect(() => {
         loadDashboard();
@@ -39,6 +41,34 @@ export default function MarketingDashboard() {
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold text-foreground">Marketing Dashboard</h1>
+
+            {/* Referral Link Card */}
+            <div className="bg-primary/5 border border-primary/20 p-6 rounded-xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-primary/10 rounded-xl">
+                        <LinkIcon className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-foreground">Your Referral Link</h2>
+                        <p className="text-sm text-muted-foreground">Share this link with property owners. Any property that registers using this link will be automatically assigned to you for commission tracking.</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 bg-background border border-border rounded-lg p-1.5 pl-4 w-full md:w-auto">
+                    <code className="text-sm text-foreground truncate max-w-[200px] md:max-w-xs select-all">
+                        {`${(import.meta.env.VITE_PROPERTY_URL || 'http://localhost:5175').replace('/login', '')}/register?ref=${user?.id}`}
+                    </code>
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(`${(import.meta.env.VITE_PROPERTY_URL || 'http://localhost:5175').replace('/login', '')}/register?ref=${user?.id}`);
+                            toast.success('Referral link copied to clipboard!');
+                        }}
+                        className="p-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex-shrink-0"
+                        title="Copy to clipboard"
+                    >
+                        <Copy className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -129,6 +129,8 @@ export const PERMISSIONS = {
         MANAGE_COUPONS: 'marketing.manageCoupons',
         APPROVE_COUPON: 'marketing.approveCoupon', // Secondary approval for high-value coupons
         MANAGE_OFFERS: 'marketing.manageOffers',
+        MANAGE_BROADCASTS: 'marketing.manageBroadcasts',
+        MANAGE_LOYALTY: 'marketing.manageLoyalty',
     },
 
     // Configuration / Settings

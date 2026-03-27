@@ -146,6 +146,7 @@ export class PropertiesService {
                     email: details.propertyEmail || request.ownerEmail,
                     phone: details.propertyPhone || request.ownerPhone,
                     ownerId: owner.id,
+                    addedById: request.referredById || null,
                     status: PropertyStatus.APPROVED,
                     isVerified: true,
                     description: details.description || '',
@@ -432,6 +433,7 @@ export class PropertiesService {
                 ownerPhone: normalizePhone(dto.ownerPhone),
                 status: RequestStatus.PENDING,
                 requestedById: owner.id, // Linked to the real owner
+                referredById: dto.referredById || null, // Capture referrer
                 details: {
                     ...dto,
                     ownerPassword: undefined // Never store raw password

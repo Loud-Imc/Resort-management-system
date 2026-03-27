@@ -42,7 +42,7 @@ export class MarketingController {
 
     @Post('levels')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.MARKETING.READ)
+    @Permissions(PERMISSIONS.MARKETING.MANAGE_LOYALTY)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create a partner level (Admin)' })
     createLevel(@Body() dto: CreatePartnerLevelDto) {
@@ -51,7 +51,7 @@ export class MarketingController {
 
     @Put('levels/:id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.MARKETING.READ)
+    @Permissions(PERMISSIONS.MARKETING.MANAGE_LOYALTY)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update a partner level (Admin)' })
     updateLevel(@Param('id') id: string, @Body() dto: UpdatePartnerLevelDto) {
@@ -60,7 +60,7 @@ export class MarketingController {
 
     @Delete('levels/:id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.MARKETING.READ)
+    @Permissions(PERMISSIONS.MARKETING.MANAGE_LOYALTY)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Delete a partner level (Admin)' })
     deleteLevel(@Param('id') id: string) {
@@ -72,14 +72,23 @@ export class MarketingController {
     // ============================================
 
     @Get('rewards')
-    @ApiOperation({ summary: 'List all active rewards' })
+    @ApiOperation({ summary: 'List all active rewards (Public/CP)' })
     findAllActiveRewards() {
         return this.marketingService.findAllRewards(true);
     }
 
+    @Get('rewards/admin')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.MARKETING.MANAGE_COUPONS)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'List ALL rewards including inactive (Admin)' })
+    findAllAdminRewards() {
+        return this.marketingService.findAllRewards(false);
+    }
+
     @Post('rewards')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.MARKETING.READ)
+    @Permissions(PERMISSIONS.MARKETING.MANAGE_COUPONS)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create a reward (Admin)' })
     createReward(@Body() dto: CreateRewardDto) {
@@ -88,7 +97,7 @@ export class MarketingController {
 
     @Put('rewards/:id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.MARKETING.READ)
+    @Permissions(PERMISSIONS.MARKETING.MANAGE_COUPONS)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update a reward (Admin)' })
     updateReward(@Param('id') id: string, @Body() dto: UpdateRewardDto) {
@@ -97,7 +106,7 @@ export class MarketingController {
 
     @Delete('rewards/:id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.MARKETING.READ)
+    @Permissions(PERMISSIONS.MARKETING.MANAGE_COUPONS)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Delete a reward (Admin)' })
     deleteReward(@Param('id') id: string) {
