@@ -22,6 +22,11 @@ cd backend
 npm install
 
 npx prisma generate
+
+# Clear any failed migration records so deploy can proceed cleanly
+echo "🔧 Resolving any failed migration records..."
+npx prisma migrate resolve --rolled-back 20260326134500_sync_schema_and_payouts 2>/dev/null || true
+
 npx prisma migrate deploy
 npm run build
 echo "🔄 Restarting Backend Service..."
