@@ -128,15 +128,15 @@ export default function DashboardLayout() {
                 { icon: Shield, label: 'Roles', path: '/roles' },
             ] : []),
 
-            // Reports
             ...(hasPermission('reports.viewDashboard') ? [
                 { icon: PieChart, label: 'Reports', path: '/reports' }
             ] : []),
+
+            { icon: RefreshCw, label: 'Calendar Sync', path: '/calendar-sync' },
         ] : []),
 
         // My Property is always accessible
         { icon: Building2, label: 'My Property', path: '/my-property' },
-        { icon: RefreshCw, label: 'Calendar Sync', path: '/calendar-sync' },
     ];
 
     return (

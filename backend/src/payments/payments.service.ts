@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
@@ -7,6 +7,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
 import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
+import { RequestStatus } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class PaymentsService {
@@ -18,6 +20,7 @@ export class PaymentsService {
         private mailService: MailService,
         private channelPartnersService: ChannelPartnersService,
         private notificationsService: NotificationsService,
+        private audit: AuditService,
     ) {
         const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -667,55 +670,112 @@ export class PaymentsService {
     }
 
     /**
-     * Process refund
+     * Request a refund (Maker)
      */
-    async processRefund(paymentId: string, amount?: number, reason?: string) {
+    async requestRefund(user: any, paymentId: string, amount?: number, reason?: string) {
         const payment = await this.prisma.payment.findUnique({
             where: { id: paymentId },
-            include: {
-                booking: true,
-                eventBooking: true
-            },
+            include: { booking: true }
         });
 
-        if (!payment) {
-            throw new NotFoundException('Payment not found');
-        }
-
+        if (!payment) throw new NotFoundException('Payment not found');
         if (payment.status !== 'PAID' && payment.status !== 'PARTIALLY_REFUNDED') {
             throw new BadRequestException('Payment is not in a refundable status');
         }
 
-        if (!payment.razorpayPaymentId) {
-            throw new BadRequestException('Razorpay payment ID not found');
-        }
-
         const refundAmount = amount || Number(payment.amount);
-        const bookingIdentifier = payment.booking?.bookingNumber || payment.eventBooking?.ticketId || 'Unknown';
-
-        // Prevent refunding more than was paid
         const currentRefundAmount = Number(payment.refundAmount || 0);
+
         if (currentRefundAmount + refundAmount > Number(payment.amount)) {
             throw new BadRequestException(`Cannot refund ${refundAmount}. Maximum refundable amount is ${Number(payment.amount) - currentRefundAmount}`);
         }
 
-        // Create refund in Razorpay
-        const refund = await this.razorpay.payments.refund(payment.razorpayPaymentId, {
-            amount: Math.round(refundAmount * 100), // Convert to paise
+        // Check for existing pending request
+        const existing = await this.prisma.refundRequest.findFirst({
+            where: { paymentId, status: RequestStatus.PENDING }
+        });
+        if (existing) throw new BadRequestException('A pending refund request already exists for this payment');
+
+        return this.prisma.refundRequest.create({
+            data: {
+                paymentId,
+                amount: refundAmount,
+                reason,
+                requestedById: user.id,
+                status: RequestStatus.PENDING,
+            }
+        });
+    }
+
+    /**
+     * Approve and Process refund (Checker)
+     */
+    async approveRefund(user: any, requestId: string) {
+        const request = await this.prisma.refundRequest.findUnique({
+            where: { id: requestId },
+            include: {
+                payment: {
+                    include: {
+                        booking: true,
+                        eventBooking: true
+                    }
+                }
+            }
+        });
+
+        if (!request) throw new NotFoundException('Refund request not found');
+        if (request.status !== RequestStatus.PENDING) throw new BadRequestException('Request already processed');
+        if (request.requestedById === user.id) {
+            throw new ForbiddenException('Maker-Checker Violation: You cannot approve a refund you requested yourself.');
+        }
+
+        const { payment, amount: refundAmount, reason } = request;
+        const bookingIdentifier = payment.booking?.bookingNumber || payment.eventBooking?.ticketId || 'Unknown';
+
+        // ============================================
+        // FINANCIAL SAFETY GUARDS (PHASE 1)
+        // ============================================
+        if (payment.bookingId) {
+            const settlement = await this.prisma.propertySettlement.findUnique({
+                where: { bookingId: payment.bookingId }
+            });
+
+            if (settlement && (settlement.status === 'PAID' || settlement.status === 'PROCESSING' || settlement.status === 'APPROVED')) {
+                throw new BadRequestException(
+                    `Cannot refund. Property Settlement is already ${settlement.status}. ` +
+                    'Admin must initiate a recovery/reversal flow from the property owner first.'
+                );
+            }
+        }
+
+        // Execute Razorpay Refund
+        const refund = await this.razorpay.payments.refund(payment.razorpayPaymentId as string, {
+            amount: Math.round(Number(refundAmount) * 100),
             notes: {
                 reason: reason || 'Booking cancellation',
                 bookingIdentifier: bookingIdentifier,
+                requestId: request.id
             },
         });
 
-        const isFullRefund = (currentRefundAmount + refundAmount) >= Number(payment.amount);
+        const currentRefundTotal = Number(payment.refundAmount || 0) + Number(refundAmount);
+        const isFullRefund = currentRefundTotal >= Number(payment.amount);
 
-        // Wrap database state updates in a transaction for atomicity
-        await this.prisma.$transaction(async (tx) => {
-            // Update payment record
+        const result = await this.prisma.$transaction(async (tx) => {
+            // 1. Update Request
+            await tx.refundRequest.update({
+                where: { id: requestId },
+                data: {
+                    status: RequestStatus.APPROVED,
+                    approvedById: user.id,
+                    razorpayRefundId: refund.id
+                }
+            });
+
+            // 2. Update Payment
             const commissionRate = Number(payment.commissionRate ?? 10);
-            const refundPlatformFee = (refundAmount * commissionRate) / 100;
-            const refundNetAmount = refundAmount - refundPlatformFee;
+            const refundPlatformFee = (Number(refundAmount) * commissionRate) / 100;
+            const refundNetAmount = Number(refundAmount) - refundPlatformFee;
 
             await tx.payment.update({
                 where: { id: payment.id },
@@ -729,46 +789,38 @@ export class PaymentsService {
                 },
             });
 
-            // Update booking status
+            // 3. Update Booking
             if (payment.bookingId) {
                 await tx.booking.update({
                     where: { id: payment.bookingId },
                     data: {
-                        // Only mark the booking as fully REFUNDED if the payment is fully refunded
                         ...(isFullRefund && { status: 'REFUNDED', paymentStatus: 'UNPAID' }),
                         paidAmount: { decrement: refundAmount },
                     },
                 });
 
-                // Create negative income record for reporting
                 await tx.income.create({
                     data: {
-                        amount: -refundAmount,
+                        amount: -Number(refundAmount),
                         source: 'REFUND' as any,
-                        description: `Refund for booking ${payment.booking?.bookingNumber}. Reason: ${reason || 'N/A'}`,
+                        description: `Approved Refund for booking ${payment.booking?.bookingNumber}. Reason: ${reason || 'N/A'}`,
                         bookingId: payment.bookingId,
                         paymentId: payment.id,
                         propertyId: payment.booking?.propertyId,
                     }
                 });
-            } else if (payment.eventBookingId && isFullRefund) {
-                await tx.eventBooking.update({
-                    where: { id: payment.eventBookingId },
-                    data: { status: 'REFUNDED' },
-                });
-
-                // Create negative income record for event refund
-                await tx.income.create({
-                    data: {
-                        amount: -refundAmount,
-                        source: 'REFUND' as any,
-                        description: `Refund for event booking ${payment.eventBooking?.ticketId}. Reason: ${reason || 'N/A'}`,
-                        eventBookingId: payment.eventBookingId,
-                        paymentId: payment.id,
-                        propertyId: (payment.eventBooking as any)?.event?.propertyId,
-                    }
-                });
             }
+
+            return true;
+        });
+
+        await this.audit.createLog({
+            userId: user.id,
+            action: 'REFUND_APPROVED',
+            entity: 'refundRequest',
+            entityId: requestId,
+            oldValue: { status: 'PENDING' },
+            newValue: { status: 'APPROVED', amount: refundAmount, razorpayRefundId: refund.id }
         });
 
         // Send refund receipt notifications (after transaction commits)
@@ -781,36 +833,29 @@ export class PaymentsService {
                 if (bookingWithDetails) {
                     // Email receipt
                     try {
-                        await this.mailService.sendRefundReceipt(bookingWithDetails, refundAmount);
+                        await this.mailService.sendRefundReceipt(bookingWithDetails, Number(refundAmount));
                     } catch (err) {
-                        console.error('[processRefund] Refund receipt email failed:', err);
+                        console.error('[approveRefund] Refund receipt email failed:', err);
                     }
                     // Inbox + Push notification
                     try {
                         await this.notificationsService.createNotification({
                             userId: bookingWithDetails.userId,
                             title: 'Refund Initiated ✅',
-                            message: `A refund of ₹${refundAmount.toLocaleString('en-IN')} for booking ${bookingWithDetails.bookingNumber} has been processed. Please allow 5–7 business days.`,
+                            message: `A refund of ₹${Number(refundAmount).toLocaleString('en-IN')} for booking ${bookingWithDetails.bookingNumber} has been processed. Please allow 5–7 business days.`,
                             type: 'REFUND_PROCESSED',
-                            data: { bookingId: bookingWithDetails.id, refundAmount },
+                            data: { bookingId: bookingWithDetails.id, refundAmount: Number(refundAmount) },
                         });
                     } catch (err) {
-                        console.error('[processRefund] Inbox notification failed:', err);
+                        console.error('[approveRefund] Inbox notification failed:', err);
                     }
                 }
             } catch (err) {
-                console.error('[processRefund] Failed to send refund notifications:', err);
+                console.error('[approveRefund] Failed to send refund notifications:', err);
             }
         }
 
-        return {
-            success: true,
-            refund: {
-                id: refund.id,
-                amount: refundAmount,
-                status: refund.status,
-            },
-        };
+        return { success: true, refundId: refund.id };
     }
 
     /**
@@ -996,87 +1041,146 @@ export class PaymentsService {
     }
 
     /**
-     * Record a manual payment (Cash, UPI, etc.)
+     * Request a manual payment (Maker)
      */
-    async recordManualPayment(dto: RecordManualPaymentDto, userId: string) {
+    async requestManualPayment(user: any, dto: RecordManualPaymentDto) {
         const booking = await this.prisma.booking.findUnique({
             where: { id: dto.bookingId },
             include: { user: true, property: true }
         });
 
-        if (!booking) {
-            throw new NotFoundException('Booking not found');
+        if (!booking) throw new NotFoundException('Booking not found');
+
+        // Prevent Overpayment Request
+        const currentPaid = Number(booking.paidAmount);
+        const total = Number(booking.totalAmount);
+        if (currentPaid + Number(dto.amount) > total + 0.01) {
+            throw new BadRequestException(`Amount exceeds balance. Remaining: ${total - currentPaid}`);
         }
 
-        const newPaidAmount = Number(booking.paidAmount) + Number(dto.amount);
-        const totalAmount = Number(booking.totalAmount);
-
-        // Prevent Overpayment
-        if (newPaidAmount > totalAmount + 0.01) { // 0.01 buffer for rounding
-            throw new BadRequestException(`Payment exceeds booking total. Remaining balance: ${totalAmount - Number(booking.paidAmount)}`);
-        }
-
-        const commissionRate = Number(booking.property?.platformCommission ?? 10);
-        const platformFee = (Number(dto.amount) * commissionRate) / 100;
-        const netAmount = Number(dto.amount) - platformFee;
-
-        // Create payment record
-        const payment = await this.prisma.payment.create({
+        const request = await this.prisma.manualPaymentRequest.create({
             data: {
-                amount: dto.amount,
-                currency: 'INR',
-                status: 'PAID',
-                paymentMethod: dto.method,
-                paymentDate: new Date(),
                 bookingId: dto.bookingId,
+                amount: dto.amount,
+                method: dto.method,
                 notes: dto.notes,
-                platformFee: platformFee,
-                netAmount: netAmount,
-                commissionRate: commissionRate,
-            },
+                requestedById: user.id
+            }
         });
 
-        // Update booking paid amount
-        const isFullyPaid = newPaidAmount >= totalAmount - 0.01;
-
-        await this.prisma.booking.update({
-            where: { id: dto.bookingId },
-            data: {
-                paidAmount: newPaidAmount,
-                paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
-                ...(booking.status === 'PENDING_PAYMENT' && { status: 'CONFIRMED', confirmedAt: new Date() })
-            },
+        await this.audit.createLog({
+            userId: user.id,
+            action: 'MANUAL_PAYMENT_REQUESTED',
+            entity: 'manualPaymentRequest',
+            entityId: request.id,
+            newValue: { amount: dto.amount, method: dto.method }
         });
 
-        // Create income record
-        await this.prisma.income.create({
-            data: {
-                amount: dto.amount,
-                source: 'MANUAL_PAYMENT',
-                description: `Manual payment (${dto.method}) for ${booking.bookingNumber}. ${dto.notes || ''}`,
-                bookingId: dto.bookingId,
-                paymentId: payment.id,
-            },
+        return { success: true, requestId: request.id, message: 'Manual payment request created' };
+    }
+
+    /**
+     * Approve a manual payment (Checker)
+     */
+    async approveManualPayment(user: any, requestId: string) {
+        const request = await this.prisma.manualPaymentRequest.findUnique({
+            where: { id: requestId },
+            include: {
+                booking: { include: { property: true } }
+            }
         });
 
-        // Delayed Commission Trigger (Manual Payment)
-        if (booking.channelPartnerId &&
-            booking.status === 'CHECKED_IN' &&
-            isFullyPaid) {
-            await this.channelPartnersService.processReferralCommission(
-                booking.id,
-                booking.channelPartnerId,
-                Number(booking.totalAmount),
-                undefined,
-                'DELAYED_PAYMENT'
-            );
+        if (!request) throw new NotFoundException('Request not found');
+        if (request.status !== 'PENDING') throw new BadRequestException('Request already processed');
+        if (request.requestedById === user.id) {
+            throw new ForbiddenException('Maker-Checker Violation: You cannot approve a request you created.');
         }
 
-        return {
-            success: true,
-            payment,
-            message: 'Manual payment recorded successfully',
-        };
+        const { booking, amount, method, notes } = request;
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            // 1. Update Request
+            await tx.manualPaymentRequest.update({
+                where: { id: requestId },
+                data: { status: 'APPROVED' as any, approvedById: user.id }
+            });
+
+            const newPaidAmount = Number(booking.paidAmount) + Number(amount);
+            const totalAmount = Number(booking.totalAmount);
+            const commissionRate = Number(booking.property?.platformCommission ?? 10);
+            const platformFee = (Number(amount) * commissionRate) / 100;
+            const netAmount = Number(amount) - platformFee;
+
+            // 2. Create payment record
+            const payment = await tx.payment.create({
+                data: {
+                    amount: amount,
+                    currency: 'INR',
+                    status: 'PAID',
+                    paymentMethod: method,
+                    paymentDate: new Date(),
+                    bookingId: request.bookingId,
+                    notes: `Approved Manual Payment: ${notes || ''}`,
+                    platformFee: platformFee,
+                    netAmount: netAmount,
+                    commissionRate: commissionRate,
+                },
+            });
+
+            // 3. Update booking paid amount
+            const isFullyPaid = newPaidAmount >= totalAmount - 0.01;
+            await tx.booking.update({
+                where: { id: request.bookingId },
+                data: {
+                    paidAmount: newPaidAmount,
+                    paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
+                    ...(booking.status === 'PENDING_PAYMENT' && { status: 'CONFIRMED', confirmedAt: new Date() })
+                },
+            });
+
+            // 4. Create income record
+            await tx.income.create({
+                data: {
+                    amount: amount,
+                    source: 'MANUAL_PAYMENT',
+                    description: `Approved Manual payment (${method}) for ${booking.bookingNumber}`,
+                    bookingId: request.bookingId,
+                    paymentId: payment.id,
+                },
+            });
+
+            return payment;
+        });
+
+        await this.audit.createLog({
+            userId: user.id,
+            action: 'MANUAL_PAYMENT_APPROVED',
+            entity: 'manualPaymentRequest',
+            entityId: requestId,
+            oldValue: { status: 'PENDING' },
+            newValue: { status: 'APPROVED', paymentId: result.id }
+        });
+
+        return { success: true, payment: result };
+    }
+
+    async findAllRefundRequests(status?: RequestStatus) {
+        return this.prisma.refundRequest.findMany({
+            where: {
+                ...(status && { status }),
+            },
+            include: {
+                payment: {
+                    include: {
+                        booking: { select: { id: true, bookingNumber: true, totalAmount: true } },
+                        eventBooking: { select: { id: true, ticketId: true, amountPaid: true } },
+                    },
+                },
+                requestedBy: { select: { id: true, firstName: true, lastName: true } },
+                approvedBy: { select: { id: true, firstName: true, lastName: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
     }
 
     /**

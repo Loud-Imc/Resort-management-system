@@ -180,7 +180,7 @@ export default function SearchDesktop({
                                     )}
                                 </div>
                                 <span className={`text-[13px] font-black uppercase tracking-[0.15em]`}>
-                                    {isGroupBooking ? 'Group Stay Active' : 'Book for Group?'}
+                                    {isGroupBooking ? 'Group' : 'Group'}
                                 </span>
                             </button>
 
@@ -214,7 +214,7 @@ export default function SearchDesktop({
                                             setCategoryId(cat.id);
                                             setIsGroupBooking(false);
                                         }}
-                                        className={`flex items-center gap-3 px-8 py-4 rounded-3xl transition-all duration-500 group/btn whitespace-nowrap ${categoryId === cat.id && !isGroupBooking
+                                        className={`flex items-center gap-3 px-7 py-4 rounded-3xl transition-all duration-500 group/btn whitespace-nowrap ${categoryId === cat.id && !isGroupBooking
                                             ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30 scale-[1.02]'
                                             : isDark
                                                 ? 'text-white/60 hover:text-white hover:bg-white/10'

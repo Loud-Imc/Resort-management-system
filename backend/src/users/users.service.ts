@@ -56,19 +56,27 @@ export class UsersService {
 
         // Security: Validate role assignment
         const currentUserRoles = currentUser.roles || [];
-        const isGlobalAdmin = currentUserRoles.includes('SuperAdmin') || currentUserRoles.includes('Admin');
+        const isSuperAdmin = currentUserRoles.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || currentUserRoles.includes('Admin');
 
-        if (!isGlobalAdmin && roleIds && roleIds.length > 0) {
-            const manageableRoleNames = this.getManageableRoles(currentUserRoles);
-
+        if (roleIds && roleIds.length > 0) {
             const requestedRoles = await this.prisma.role.findMany({
                 where: { id: { in: roleIds } }
             });
             const requestedRoleNames = requestedRoles.map(r => r.name);
 
-            const isAuthorized = requestedRoleNames.every(name => manageableRoleNames.includes(name));
-            if (!isAuthorized) {
-                throw new ForbiddenException('You are not authorized to assign one or more of these roles');
+            // 1. Only SuperAdmin can assign SuperAdmin role
+            if (requestedRoleNames.includes('SuperAdmin') && !isSuperAdmin) {
+                throw new ForbiddenException('Only SuperAdmins can assign the SuperAdmin role');
+            }
+
+            // 2. Authorization check for non-global admins
+            if (!isGlobalAdmin) {
+                const manageableRoleNames = this.getManageableRoles(currentUserRoles);
+                const isAuthorized = requestedRoleNames.every(name => manageableRoleNames.includes(name));
+                if (!isAuthorized) {
+                    throw new ForbiddenException('You are not authorized to assign one or more of these roles');
+                }
             }
         }
 
@@ -170,6 +178,38 @@ export class UsersService {
         }
 
         const { roleIds, password, ...userData } = updateUserDto;
+
+        // Security: Validate role assignment
+        if (roleIds && roleIds.length > 0 && requestUser) {
+            const currentUserRoles = requestUser.roles || [];
+            const isSuperAdmin = currentUserRoles.includes('SuperAdmin');
+            const isGlobalAdmin = isSuperAdmin || currentUserRoles.includes('Admin');
+
+            // 1. Block self-promotion (Restricted users cannot change their own roles)
+            if (id === requestUser.id && !isSuperAdmin) {
+                throw new ForbiddenException('You cannot change your own roles. Please contact another Admin.');
+            }
+
+            const requestedRoles = await this.prisma.role.findMany({
+                where: { id: { in: roleIds } }
+            });
+            const requestedRoleNames = requestedRoles.map(r => r.name);
+
+            // 2. Only SuperAdmin can assign SuperAdmin role
+            if (requestedRoleNames.includes('SuperAdmin') && !isSuperAdmin) {
+                throw new ForbiddenException('Only SuperAdmins can assign the SuperAdmin role');
+            }
+
+            // 3. Authorization check for non-global admins
+            if (!isGlobalAdmin) {
+                const manageableRoleNames = this.getManageableRoles(currentUserRoles);
+                const isAuthorized = requestedRoleNames.every(name => manageableRoleNames.includes(name));
+                if (!isAuthorized) {
+                    throw new ForbiddenException('You are not authorized to assign one or more of these roles');
+                }
+            }
+        }
+
         const updateData: any = { ...userData };
 
         // Check if email is being changed and if it already exists

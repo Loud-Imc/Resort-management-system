@@ -56,12 +56,14 @@ export default function MyProperty() {
     useEffect(() => {
         if (selectedProperty?.id) {
             loadProperty();
-            loadPolicies();
+            if (!selectedProperty.isRequest) {
+                loadPolicies();
+            }
         }
-    }, [selectedProperty?.id]);
+    }, [selectedProperty?.id, selectedProperty?.isRequest]);
 
     const loadPolicies = async () => {
-        if (!selectedProperty?.id) return;
+        if (!selectedProperty?.id || selectedProperty.isRequest) return;
         try {
             const data = await cancellationPoliciesService.getAll(selectedProperty.id);
             setPolicies(data);
@@ -73,9 +75,38 @@ export default function MyProperty() {
     const loadProperty = async () => {
         try {
             setLoading(true);
-            const data = await propertiesService.getById(selectedProperty!.id);
-            setProperty(data);
-            populateFields(data);
+            if (selectedProperty?.isRequest) {
+                // It's a pending request — no backend fetch needed, details are in context
+                const reqDetails = (selectedProperty as any).details || {};
+                const reqProperty: Partial<Property> = {
+                    ...selectedProperty,
+                    name: selectedProperty.name || '',
+                    description: reqDetails.description || '',
+                    address: reqDetails.address || selectedProperty.location || '',
+                    city: reqDetails.city || '',
+                    state: reqDetails.state || '',
+                    country: reqDetails.country || '',
+                    pincode: reqDetails.pincode || '',
+                    phone: reqDetails.propertyPhone || (selectedProperty as any).ownerPhone || '',
+                    email: reqDetails.propertyEmail || (selectedProperty as any).ownerEmail || '',
+                    whatsappNumber: reqDetails.whatsappNumber || '',
+                    amenities: reqDetails.amenities || [],
+                    images: reqDetails.images || [],
+                    coverImage: reqDetails.coverImage || '',
+                    allowsGroupBooking: reqDetails.allowsGroupBooking || false,
+                    maxGroupCapacity: reqDetails.maxGroupCapacity || '',
+                    groupPricePerHead: reqDetails.groupPricePerHead || '',
+                    groupPriceAdult: reqDetails.groupPriceAdult || '',
+                    groupPriceChild: reqDetails.groupPriceChild || '',
+                };
+                setProperty(reqProperty as Property);
+                populateFields(reqProperty as Property);
+            } else {
+                // It's an approved Property
+                const data = await propertiesService.getById(selectedProperty!.id);
+                setProperty(data);
+                populateFields(data);
+            }
         } catch (err: any) {
             toast.error('Failed to load property details');
         } finally {
@@ -108,20 +139,31 @@ export default function MyProperty() {
         if (!property) return;
         try {
             setSaving(true);
-            const updated = await propertiesService.update(property.id, {
+
+            const payload = {
                 name, description, address, city, state, country, pincode,
                 phone, email, whatsappNumber, amenities, images, coverImage,
                 allowsGroupBooking,
-                // maxGroupCapacity is auto-calculated from room type groupMaxOccupancy sums — do not send
                 groupPricePerHead: groupPricePerHead === '' ? null : Number(groupPricePerHead),
                 groupPriceAdult: groupPriceAdult === '' ? null : Number(groupPriceAdult),
                 groupPriceChild: groupPriceChild === '' ? null : Number(groupPriceChild),
-            });
-            setProperty(updated);
-            populateFields(updated);
-            setEditMode(false);
-            toast.success('Property updated successfully!');
-            await refreshProperties();
+            };
+
+            if ((selectedProperty as any)?.isRequest) {
+                // Update the PropertyRequest instead
+                await propertiesService.updateRequest(selectedProperty!.id, payload);
+                toast.success('Registration details updated successfully!');
+                await refreshProperties(); // This will re-fetch the request context
+                setEditMode(false);
+            } else {
+                // Standard Property update
+                const updated = await propertiesService.update(property.id, payload);
+                setProperty(updated);
+                populateFields(updated);
+                setEditMode(false);
+                toast.success('Property updated successfully!');
+                await refreshProperties();
+            }
         } catch (err: any) {
             toast.error(err.response?.data?.message || 'Failed to update property');
         } finally {
@@ -130,7 +172,7 @@ export default function MyProperty() {
     };
 
     const handleToggleActive = async () => {
-        if (!property) return;
+        if (!property || (selectedProperty as any)?.isRequest) return;
         const action = property.isActive ? 'disable' : 'enable';
         if (!window.confirm(`Are you sure you want to ${action} this property?`)) return;
         try {

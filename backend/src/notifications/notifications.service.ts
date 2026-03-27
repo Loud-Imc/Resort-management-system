@@ -344,6 +344,18 @@ export class NotificationsService {
   }
 
   /**
+   * Notify admins when a new property onboarding request is initiated
+   */
+  async notifyPropertyRequest(request: any) {
+    await this.notifyAdmins({
+      title: 'New Property Onboarding Request 🏨',
+      message: `A marketing-led request for "${request.name}" is pending review.`,
+      type: 'PROPERTY_REQUEST',
+      data: { requestId: request.id }
+    });
+  }
+
+  /**
    * Notify admins when a new property registers
    */
   async notifyPropertyRegistration(property: any) {

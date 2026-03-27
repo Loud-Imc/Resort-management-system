@@ -10,24 +10,58 @@ export class DiscountsService {
     // COUPON MANAGEMENT (Admin Only)
     // ============================================
 
-    async createCoupon(data: CreateCouponDto) {
+    async createCoupon(user: any, data: CreateCouponDto) {
         return this.prisma.coupon.create({
             data: {
                 ...data,
                 validFrom: new Date(data.validFrom),
                 validUntil: new Date(data.validUntil),
+                createdById: user.id,
+                isApproved: false,
+                isActive: false, // Default to inactive until approved
+            }
+        });
+    }
+
+    async approveCoupon(id: string, user: any) {
+        const coupon = await this.findOneCoupon(id);
+
+        // Maker-Checker Violation check
+        if (coupon.createdById === user.id) {
+            throw new ForbiddenException(
+                'Maker-Checker Violation: You cannot approve a coupon that you created yourself. ' +
+                'Please request another Admin to approve.'
+            );
+        }
+
+        return this.prisma.coupon.update({
+            where: { id },
+            data: {
+                isApproved: true,
+                approvedById: user.id,
+                isActive: true, // Auto-activate upon approval
             }
         });
     }
 
     async findAllCoupons() {
         return this.prisma.coupon.findMany({
+            include: {
+                createdBy: { select: { id: true, firstName: true, email: true } },
+                approvedBy: { select: { id: true, firstName: true, email: true } },
+            },
             orderBy: { createdAt: 'desc' }
         });
     }
 
     async findOneCoupon(id: string) {
-        const coupon = await this.prisma.coupon.findUnique({ where: { id } });
+        const coupon = await this.prisma.coupon.findUnique({
+            where: { id },
+            include: {
+                createdBy: { select: { id: true, firstName: true, email: true } },
+                approvedBy: { select: { id: true, firstName: true, email: true } },
+            }
+        });
         if (!coupon) throw new NotFoundException('Coupon not found');
         return coupon;
     }

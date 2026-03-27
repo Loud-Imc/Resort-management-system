@@ -44,12 +44,12 @@ export const channelPartnerService = {
     // Admin: Get partner details with referral bookings
     async getPartnerDetails(id: string): Promise<CPPartnerDetails> {
         const response = await api.get(`/channel-partners/${id}`);
-        return response.data;
+        return response.data.data;
     },
 
     // Admin: Update commission rate
     async updateCommissionRate(id: string, commissionRate: number): Promise<ChannelPartner> {
-        const response = await api.put(`/channel-partners/${id}/commission-rate`, { commissionRate });
+        const response = await api.patch(`/channel-partners/${id}/commission-rate`, { overrideCommissionRate: commissionRate });
         return response.data;
     },
 
@@ -68,12 +68,6 @@ export const channelPartnerService = {
     // Admin: Get partner's transaction history
     async getTransactions(id: string): Promise<any[]> {
         const response = await api.get(`/channel-partners/${id}/transactions`);
-        return response.data;
-    },
-
-    // Admin: Adjust partner's wallet balance
-    async adjustWallet(id: string, amount: number, description: string): Promise<ChannelPartner> {
-        const response = await api.post(`/channel-partners/${id}/adjust-wallet`, { amount, description });
         return response.data;
     },
 };

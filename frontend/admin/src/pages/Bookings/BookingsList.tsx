@@ -128,16 +128,16 @@ export default function BookingsList() {
     });
 
     const recordPaymentMutation = useMutation({
-        mutationFn: paymentsService.recordManual,
+        mutationFn: (data: any) => paymentsService.requestManualPayment(data),
         onSuccess: () => {
-            toast.success('Payment recorded successfully');
+            toast.success('Manual payment request recorded successfully');
             setPaymentAmount('');
             setPaymentNotes('');
             setIsRecordingPayment(false);
             queryClient.invalidateQueries({ queryKey: ['bookings'] });
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to record payment');
+            toast.error(error.response?.data?.message || 'Failed to record payment request');
         },
     });
 
@@ -521,6 +521,7 @@ export default function BookingsList() {
                                                         type="button"
                                                         disabled={recordPaymentMutation.isPending || !paymentAmount}
                                                         onClick={() => {
+                                                            if (!checkInBooking) return;
                                                             recordPaymentMutation.mutate({
                                                                 bookingId: checkInBooking.id,
                                                                 amount: Number(paymentAmount),
@@ -530,7 +531,7 @@ export default function BookingsList() {
                                                         }}
                                                         className="w-full py-2 bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-all disabled:opacity-50"
                                                     >
-                                                        {recordPaymentMutation.isPending ? 'Processing...' : 'Save Payment'}
+                                                        {recordPaymentMutation.isPending ? 'Processing...' : 'Request Payment Save'}
                                                     </button>
                                                 </div>
                                                 <div className="md:col-span-3 space-y-1.5">

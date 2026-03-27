@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService, DashboardStats } from '../services/reports';
-import { roomsService } from '../services/rooms';
-import { Loader2, DollarSign, Users, BedDouble, Plus, Info, LayoutGrid, Clock } from 'lucide-react';
+import { Building2, Shield, Users, DollarSign, LayoutGrid, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function DashboardHome() {
@@ -14,12 +13,7 @@ export default function DashboardHome() {
         queryFn: () => reportsService.getDashboardStats(selectedProperty?.id),
     });
 
-    const { data: rooms, isLoading: roomsLoading } = useQuery({
-        queryKey: ['rooms', selectedProperty?.id],
-        queryFn: () => roomsService.getAll({ propertyId: selectedProperty?.id }),
-    });
-
-    if (statsLoading || roomsLoading) {
+    if (statsLoading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -35,240 +29,147 @@ export default function DashboardHome() {
         );
     }
 
-    const statCards = [
-        {
-            label: 'Today Revenue',
-            value: `₹${stats?.revenue?.toLocaleString() ?? '0'}`,
-            icon: DollarSign,
-            color: 'text-green-600',
-            bg: 'bg-green-100',
-        },
-        {
-            label: 'Available Rooms',
-            value: stats?.roomStatusSummary?.AVAILABLE ?? 0,
-            icon: LayoutGrid,
-            color: 'text-emerald-600',
-            bg: 'bg-emerald-100',
-            subtext: 'Ready for check-in'
-        },
-        {
-            label: 'Reserved Rooms',
-            value: stats?.roomStatusSummary?.RESERVED ?? 0,
-            icon: Clock,
-            color: 'text-amber-600',
-            bg: 'bg-amber-100',
-            subtext: 'Check-in expected'
-        },
-        {
-            label: "Today's Check-ins",
-            value: stats?.checkIns ?? 0,
-            icon: Users,
-            color: 'text-purple-600',
-            bg: 'bg-purple-100',
-        },
-        {
-            label: 'Occupancy Rate',
-            value: `${stats?.occupancy?.percentage ?? 0}%`,
-            icon: BedDouble,
-            color: 'text-orange-600',
-            bg: 'bg-orange-100',
-            subtext: `${stats?.occupancy?.occupied ?? 0} / ${stats?.occupancy?.total ?? 0} rooms`,
-        },
-    ];
-
-    const getStatusColor = (status: string, isReserved: boolean = false) => {
-        if (isReserved && status === 'AVAILABLE') {
-            return 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100';
-        }
-        switch (status) {
-            case 'AVAILABLE': return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20';
-            case 'OCCUPIED': return 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400';
-            case 'MAINTENANCE': return 'bg-destructive/10 border-destructive/20 text-destructive';
-            case 'BLOCKED': return 'bg-muted border-border text-muted-foreground';
-            default: return 'bg-muted border-border text-muted-foreground';
-        }
-    };
-
     return (
         <div className="space-y-8">
-            {/* Header & Quick Actions */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Dashboard Overview</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        {new Date().toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                        })}
-                    </p>
-                </div>
-                <div className="flex gap-3">
-                    <button
-                        onClick={() => navigate('/bookings/create')}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <Plus size={18} />
-                        New Walk-in Booking
-                    </button>
-                </div>
+            {/* Header */}
+            <div>
+                <h1 className="text-2xl font-bold text-foreground">Executive Dashboard</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    Platform-level intelligence and financial overview as of {new Date().toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                    })}
+                </p>
             </div>
 
-            {/* Super Admin Overview */}
-            {stats?.superAdmin && (
-                <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl p-6 text-white mb-8">
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <Users className="h-5 w-5 text-primary-400" />
-                        Platform Overview
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div>
-                            <p className="text-gray-400 text-sm">Platform Volume</p>
-                            <p className="text-2xl font-bold mt-1 text-white">₹{stats.superAdmin.platformStats?.totalVolume.toLocaleString()}</p>
-                            <p className="text-xs text-primary-400 mt-1">{stats.superAdmin.platformStats?.count || 0} Paid Transactions</p>
+            {/* Platform Overview (Main Pillar) */}
+            {stats?.superAdmin ? (
+                <div className="space-y-8">
+                    <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl p-8 text-white shadow-xl">
+                        <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b border-gray-700 pb-4">
+                            <Users className="h-5 w-5 text-primary-400" />
+                            Global Platform Health
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                            <div className="space-y-1">
+                                <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">Total Revenue Volume</p>
+                                <p className="text-3xl font-bold text-white">₹{stats.superAdmin.platformStats?.totalVolume.toLocaleString()}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="bg-primary/20 text-primary-400 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                        {stats.superAdmin.platformStats?.count || 0} Successful Bookings
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">Platform Commission</p>
+                                <p className="text-3xl font-bold text-rose-400">₹{stats.superAdmin.platformStats?.totalFees.toLocaleString()}</p>
+                                <p className="text-[10px] text-gray-500 mt-1 italic">Calculated from net paid volume</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">Net Platform Earnings</p>
+                                <p className="text-3xl font-bold text-emerald-400">₹{stats.superAdmin.platformStats?.netEarnings.toLocaleString()}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold">Current Activity (24h)</p>
+                                <p className="text-3xl font-bold text-primary-400">₹{stats.revenue.toLocaleString()}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-gray-400 text-sm">Platform Fees</p>
-                            <p className="text-2xl font-bold mt-1 text-rose-400">₹{stats.superAdmin.platformStats?.totalFees.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-400 text-sm">Total Earnings</p>
-                            <p className="text-2xl font-bold mt-1 text-emerald-400">₹{stats.superAdmin.platformStats?.netEarnings.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-400 text-sm">Today's Revenue</p>
-                            <p className="text-2xl font-bold mt-1 text-primary-400">₹{stats.revenue.toLocaleString()}</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-10 pt-8 border-t border-gray-700">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
+                                    <Building2 className="h-6 w-6 text-primary-400" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-400 text-xs uppercase tracking-wider">Managed Properties</p>
+                                    <p className="text-xl font-bold">{stats.superAdmin.totalProperties}</p>
+                                    <p className="text-[10px] text-green-400 font-medium">{stats.superAdmin.activeProperties} Verified & Active</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
+                                    <Users className="h-6 w-6 text-purple-400" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-400 text-xs uppercase tracking-wider">Channel Partners</p>
+                                    <p className="text-xl font-bold">{stats.superAdmin.totalChannelPartners}</p>
+                                    <p className="text-[10px] text-green-400 font-medium">{stats.superAdmin.activeChannelPartners} Active Resellers</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
+                                    <DollarSign className="h-6 w-6 text-amber-400" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-400 text-xs uppercase tracking-wider">Unsettled Commissions</p>
+                                    <p className="text-xl font-bold">₹{stats.superAdmin.pendingCPCommissions.toLocaleString()}</p>
+                                    <p className="text-[10px] text-amber-400 font-medium">Awaiting Redemption Approval</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8 pt-6 border-t border-gray-700">
-                        <div>
-                            <p className="text-gray-400 text-sm">Total Properties</p>
-                            <p className="text-xl font-bold mt-1">{stats.superAdmin.totalProperties}</p>
-                            <p className="text-xs text-green-400 mt-1">{stats.superAdmin.activeProperties} Active</p>
+
+                    {/* Operational Guardrail Note */}
+                    <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl p-6 flex items-start gap-4">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg shrink-0">
+                            <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
-                            <p className="text-gray-400 text-sm">Channel Partners</p>
-                            <p className="text-xl font-bold mt-1">{stats.superAdmin.totalChannelPartners}</p>
-                            <p className="text-xs text-green-400 mt-1">{stats.superAdmin.activeChannelPartners} Active</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-400 text-sm">Pending CP Payouts</p>
-                            <p className="text-xl font-bold mt-1">₹{stats.superAdmin.pendingCPCommissions.toLocaleString()}</p>
+                            <h3 className="text-sm font-bold text-blue-900 dark:text-blue-100 mb-1">Vetting & Oversight Mode Active</h3>
+                            <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+                                Operational controls (room status, manual booking) are restricted to Property Owners.
+                                Use the <strong>Vetting</strong> pillar to manage onboarding requests and the <strong>Finance</strong> pillar
+                                for reconciliation and payout approvals.
+                            </p>
                         </div>
                     </div>
+                </div>
+            ) : (
+                <div className="bg-card p-12 rounded-xl border border-border text-center">
+                    <LayoutGrid className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                    <p className="text-muted-foreground">Select a property or view platform overview</p>
                 </div>
             )}
 
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {statCards.map((stat, index) => (
-                    <div
-                        key={index}
-                        className="bg-card p-6 rounded-xl shadow-sm border border-border flex items-start justify-between transition-all hover:shadow-md"
-                    >
-                        <div>
-                            <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
-                            <p className="text-2xl font-bold text-card-foreground mt-2">{stat.value}</p>
-                            {stat.subtext && (
-                                <p className="text-xs text-muted-foreground mt-1">{stat.subtext}</p>
-                            )}
+            {/* Platform Quick Links */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div
+                    onClick={() => navigate('/properties/requests')}
+                    className="p-6 bg-card rounded-xl border border-border hover:border-primary transition-all cursor-pointer group"
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-muted rounded-lg group-hover:bg-primary/10 transition-colors">
+                            <Shield className="h-5 w-5 text-primary" />
                         </div>
-                        <div className={`p-4 rounded-xl ${stat.bg} bg-opacity-10 dark:bg-opacity-20`}>
-                            <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                        <h3 className="font-bold">Pending Vetting</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Review and approve new property onboarding requests.</p>
+                </div>
+                <div
+                    onClick={() => navigate('/financials/reconciliation')}
+                    className="p-6 bg-card rounded-xl border border-border hover:border-emerald-500 transition-all cursor-pointer group"
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-muted rounded-lg group-hover:bg-emerald-500/10 transition-colors">
+                            <DollarSign className="h-5 w-5 text-emerald-500" />
                         </div>
+                        <h3 className="font-bold">Financial Integrity</h3>
                     </div>
-                ))}
-            </div>
-
-            {/* Live Room Status Grid */}
-            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden lg:col-span-1">
-                <div className="p-6 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h2 className="text-lg font-bold text-card-foreground">Live Room Status</h2>
-                        <p className="text-sm text-muted-foreground">Real-time room occupancy and maintenance status</p>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs">
-                        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500"></span> Available</div>
-                        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500"></span> Reserved</div>
-                        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500"></span> Occupied</div>
-                        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500"></span> Maintenance</div>
-                        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-400"></span> Blocked</div>
-                    </div>
+                    <p className="text-sm text-muted-foreground">Verify payment gateway sync and identify discrepancies.</p>
                 </div>
-                <div className="p-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                        {rooms?.map((room: any) => {
-                            const isReserved = room.status === 'AVAILABLE' && room.bookings && room.bookings.length > 0;
-                            return (
-                                <div
-                                    key={room.id}
-                                    onClick={() => {
-                                        if (isReserved) {
-                                            navigate(`/bookings/${room.bookings[0].id}`);
-                                        } else if (room.status === 'AVAILABLE') {
-                                            navigate(`/bookings/create?roomId=${room.id}&roomTypeId=${room.roomTypeId}`);
-                                        } else {
-                                            navigate(`/rooms/${room.id}`);
-                                        }
-                                    }}
-                                    className={`
-                                        cursor-pointer p-4 rounded-lg border-2 transition-all 
-                                        flex flex-col items-center justify-center gap-1 relative group
-                                        ${getStatusColor(room.status, !!isReserved)}
-                                    `}
-                                >
-                                    <span className="text-lg font-bold">#{room.roomNumber}</span>
-                                    <span className="text-[10px] uppercase tracking-wider font-semibold opacity-80">
-                                        {room.roomType?.name}
-                                    </span>
-
-                                    {room.status === 'AVAILABLE' && !isReserved && (
-                                        <div className="absolute inset-0 bg-emerald-600 text-white rounded-md opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all pointer-events-none">
-                                            <Plus size={20} />
-                                        </div>
-                                    )}
-
-                                    {isReserved && (
-                                        <div className="absolute inset-0 bg-amber-600 text-white rounded-md opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all pointer-events-none">
-                                            <Info size={20} />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                <div
+                    onClick={() => navigate('/channel-partners')}
+                    className="p-6 bg-card rounded-xl border border-border hover:border-purple-500 transition-all cursor-pointer group"
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-muted rounded-lg group-hover:bg-purple-500/10 transition-colors">
+                            <Users className="h-5 w-5 text-purple-500" />
+                        </div>
+                        <h3 className="font-bold">CP Oversight</h3>
                     </div>
-                </div>
-                <div className="bg-muted px-6 py-4 border-t border-border flex items-center gap-2 text-xs text-muted-foreground">
-                    <Info size={14} className="text-primary" />
-                    <span>Click on an <strong className="text-foreground">Available</strong> room to start a new walk-in booking for that unit.</span>
-                </div>
-            </div>
-
-            {/* Room Summary by Category */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 bg-card p-6 rounded-xl shadow-sm border border-border">
-                    <h3 className="text-card-foreground font-bold mb-4">Manual Booking Tip</h3>
-                    <div className="space-y-3 text-sm text-muted-foreground">
-                        <p>1. Check the <strong className="text-foreground">Live Room Status</strong> grid above.</p>
-                        <p>2. Identify green colored rooms (Available).</p>
-                        <p>3. Hover over the room and click the <strong className="text-foreground">+</strong> icon to instantly start the registration process.</p>
-                        <p>4. The system will pre-fill the room details to speed up the checkout.</p>
-                    </div>
-                </div>
-                <div className="bg-primary-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
-                    <div className="relative z-10">
-                        <h3 className="font-bold text-lg mb-2">Need Help?</h3>
-                        <p className="text-primary-100 text-sm mb-4">If you are facing issues with room status sync, try refreshing the dashboard stats.</p>
-                        <button
-                            onClick={() => window.location.reload()}
-                            className="bg-white text-primary-900 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-50 transition-colors"
-                        >
-                            Refresh Live Data
-                        </button>
-                    </div>
-                    {/* Decorative element */}
-                    <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-primary-800 rounded-full opacity-50 blur-2xl"></div>
+                    <p className="text-sm text-muted-foreground">Manage reseller tiers and approve wallet adjustments.</p>
                 </div>
             </div>
         </div>

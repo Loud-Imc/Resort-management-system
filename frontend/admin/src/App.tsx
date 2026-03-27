@@ -42,13 +42,20 @@ import PaymentsList from './pages/Payments/PaymentsList';
 import BookingSourcesList from './pages/BookingSources/BookingSourcesList';
 
 // Financials
-import Financials from './pages/Financials/Financials';
+import {
+  Financials,
+  SettlementsList,
+  RedemptionsList,
+  AdjustmentRequestsList,
+  RefundRequestsList,
+  ReconciliationPage
+} from './pages/Financials';
 
 // Reports
 import Reports from './pages/Reports/Reports';
 
 // Properties
-import { PropertiesList, PropertyForm } from './pages/Properties';
+import { PropertiesList, PropertyForm, PropertyRequestsList } from './pages/Properties';
 import StaffList from './pages/Properties/StaffList';
 
 // Channel Partners
@@ -119,11 +126,17 @@ function App() {
 
                     {/* Financials & Reports */}
                     <Route path="financials" element={<Financials />} />
+                    <Route path="financials/settlements" element={<SettlementsList />} />
+                    <Route path="financials/redemptions" element={<RedemptionsList />} />
+                    <Route path="financials/adjustments" element={<AdjustmentRequestsList />} />
+                    <Route path="financials/refunds" element={<RefundRequestsList />} />
+                    <Route path="financials/reconciliation" element={<ReconciliationPage />} />
                     <Route path="payments" element={<PaymentsList />} />
                     <Route path="reports" element={<Reports />} />
 
                     {/* Property Management */}
                     <Route path="properties" element={<PropertiesList />} />
+                    <Route path="properties/requests" element={<PropertyRequestsList />} />
                     <Route path="properties/new" element={<PropertyForm />} />
                     <Route path="properties/:id" element={<PropertyForm />} />
                     <Route path="properties/:id/edit" element={<PropertyForm />} />
@@ -147,7 +160,7 @@ function App() {
 
                     {/* Notifications */}
                     <Route path="notifications" element={<Notifications />} />
-                    
+
                     {/* System Settings */}
                     <Route path="loyalty-management" element={<LoyaltyManagement />} />
                   </Route>

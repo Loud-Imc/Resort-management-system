@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Building2, Plus, MapPin, Star, CheckCircle, XCircle, Loader2, Edit, Users, LayoutDashboard } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { categoryService } from '../../services/category';
@@ -27,7 +26,7 @@ import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
 export default function PropertiesList() {
-    const navigate = useNavigate();
+
     const { user } = useAuth();
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,7 +53,8 @@ export default function PropertiesList() {
             const params: PropertyQueryParams = {
                 search,
                 type: typeFilter || undefined,
-                categoryId: categoryId || undefined
+                categoryId: categoryId || undefined,
+                status: 'APPROVED' // Default to approved only for this list
             };
 
             const response = isManageable
@@ -93,18 +93,6 @@ export default function PropertiesList() {
         }
     };
 
-    const handleUpdateStatus = async (id: string, status: 'APPROVED' | 'REJECTED' | 'INACTIVE') => {
-        try {
-            await propertyService.updateStatus(id, status);
-            setProperties(properties.map(p =>
-                p.id === id ? { ...p, status } : p
-            ));
-            toast.success(`Property ${status.toLowerCase()} successfully`);
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to update property status');
-        }
-    };
-
     const handleOpenDashboard = (propertyId: string) => {
         const token = localStorage.getItem('token');
         const userData = localStorage.getItem('user');
@@ -138,19 +126,11 @@ export default function PropertiesList() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Properties</h1>
-                    <p className="text-muted-foreground">Manage all properties on the platform</p>
+                    <h1 className="text-2xl font-bold text-foreground">All Properties</h1>
+                    <p className="text-muted-foreground">Platform-wide overview of active and inactive properties</p>
                 </div>
-                <Link
-                    to="/properties/new"
-                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 transition-colors"
-                >
-                    <Plus className="h-4 w-4" />
-                    Add Property
-                </Link>
             </div>
 
             {/* Filters */}
@@ -199,19 +179,11 @@ export default function PropertiesList() {
                 <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20">{error}</div>
             )}
 
-            {/* Properties Grid */}
             {properties.length === 0 ? (
                 <div className="bg-card rounded-xl shadow-sm border border-border p-12 text-center">
                     <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
                     <h3 className="text-lg font-medium text-card-foreground">No properties found</h3>
-                    <p className="text-muted-foreground mt-1">Get started by adding your first property.</p>
-                    <Link
-                        to="/properties/new"
-                        className="mt-4 inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Add Property
-                    </Link>
+                    <p className="text-muted-foreground mt-1">Properties will appear here once approved through the Vetting process.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -282,79 +254,40 @@ export default function PropertiesList() {
                                     )}
                                 </div>
 
-                                {/* Actions */}
                                 <div className="flex flex-col gap-3 mt-5 pt-4 border-t border-border">
-                                    {property.status === 'PENDING' ? (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleUpdateStatus(property.id, 'APPROVED')}
-                                                className="flex-1 bg-green-600 text-white px-3 py-2.5 rounded-xl text-sm font-bold hover:bg-green-700 transition-colors shadow-sm shadow-green-200"
-                                            >
-                                                Approve
-                                            </button>
-                                            <button
-                                                onClick={() => handleUpdateStatus(property.id, 'REJECTED')}
-                                                className="flex-1 bg-red-600 text-white px-3 py-2.5 rounded-xl text-sm font-bold hover:bg-red-700 transition-colors shadow-sm shadow-red-200"
-                                            >
-                                                Reject
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {/* Primary Action */}
-                                            <button
-                                                onClick={() => handleOpenDashboard(property.id)}
-                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl transition-all shadow-sm group/btn"
-                                            >
-                                                <LayoutDashboard className="h-4 w-4 transition-transform group-hover/btn:scale-110" />
-                                                Open Property Dashboard
-                                            </button>
+                                    <div className="space-y-3">
+                                        {/* Primary Action: Oversight Impersonation */}
+                                        <button
+                                            onClick={() => handleOpenDashboard(property.id)}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl transition-all shadow-sm group/btn"
+                                        >
+                                            <LayoutDashboard className="h-4 w-4 transition-transform group-hover/btn:scale-110" />
+                                            Impersonate Property Dashboard
+                                        </button>
 
-                                            {/* Secondary Actions Grid */}
-                                            <div className="grid grid-cols-5 gap-2">
-                                                <button
-                                                    onClick={() => navigate(`/rooms?propertyId=${property.id}`)}
-                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all border border-border/50"
-                                                    title="Manage Rooms"
-                                                >
-                                                    <Plus className="h-4.5 w-4.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => navigate(`/room-types?propertyId=${property.id}`)}
-                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all border border-border/50"
-                                                    title="Manage Room Types"
-                                                >
-                                                    <Building2 className="h-4.5 w-4.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => navigate(`/properties/${property.id}/edit`)}
-                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-border/50"
-                                                    title="Edit Property"
-                                                >
-                                                    <Edit className="h-4.5 w-4.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => navigate(`/properties/${property.id}/staff`)}
-                                                    className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-border/50"
-                                                    title="Manage Staff"
-                                                >
-                                                    <Users className="h-4.5 w-4.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleToggleActive(property.id, property.isActive)}
-                                                    className={clsx(
-                                                        "flex items-center justify-center p-2.5 rounded-xl transition-all border border-border/50",
-                                                        property.isActive
-                                                            ? "text-amber-500 hover:bg-amber-50 hover:border-amber-100"
-                                                            : "text-emerald-500 hover:bg-emerald-50 hover:border-emerald-100"
-                                                    )}
-                                                    title={property.isActive ? 'Disable Property' : 'Enable Property'}
-                                                >
-                                                    {property.isActive ? <XCircle className="h-4.5 w-4.5" /> : <CheckCircle className="h-4.5 w-4.5" />}
-                                                </button>
-                                            </div>
+                                        {/* Tertiary Actions */}
+                                        <div className="flex gap-2">
+                                            {/* <button
+                                                onClick={() => navigate(`/properties/${property.id}/staff`)}
+                                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all border border-border/50"
+                                            >
+                                                <Users className="h-3.5 w-3.5" />
+                                                Staff
+                                            </button> */}
+                                            <button
+                                                onClick={() => handleToggleActive(property.id, property.isActive)}
+                                                className={clsx(
+                                                    "flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border border-border/50",
+                                                    property.isActive
+                                                        ? "text-amber-600 hover:bg-amber-50 hover:border-amber-100"
+                                                        : "text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100"
+                                                )}
+                                            >
+                                                {property.isActive ? <XCircle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
+                                                {property.isActive ? 'Disable' : 'Enable'}
+                                            </button>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

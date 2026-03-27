@@ -67,6 +67,40 @@ export const propertyService = {
         const response = await api.patch(`/properties/${id}/status`, { status });
         return response.data;
     },
+
+    // ============================================
+    // VETTING & OVERSIGHT (ONBOARDING REQUESTS)
+    // ============================================
+
+    // Create Property Request (Marketing/Admin - Maker)
+    async createRequest(data: any): Promise<any> {
+        const response = await api.post('/properties/requests', data);
+        return response.data;
+    },
+
+    // Get all property requests (Admin - Checker)
+    async getAllRequests(): Promise<any[]> {
+        const response = await api.get('/properties/requests');
+        return response.data;
+    },
+
+    // Approve property request (Admin - Checker)
+    async approveRequest(requestId: string): Promise<Property> {
+        const response = await api.patch(`/properties/requests/${requestId}/approve`);
+        return response.data;
+    },
+
+    // Reject property request (Admin - Checker)
+    async rejectRequest(requestId: string, reason: string): Promise<any> {
+        const response = await api.patch(`/properties/requests/${requestId}/reject`, { reason });
+        return response.data;
+    },
+
+    // Super Admin: Impersonate property
+    async impersonate(propertyId: string): Promise<any> {
+        const response = await api.post(`/properties/${propertyId}/impersonate`);
+        return response.data;
+    }
 };
 
 export default propertyService;

@@ -6,9 +6,9 @@ const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
 // Handle case sensitivity: Linux has 'Printer.js', Windows has 'printer.js'
 let PdfPrinter: any;
 try {
-  PdfPrinter = require(path.join(pdfmakeDir, 'js', 'Printer'));
+    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'Printer'));
 } catch {
-  PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer'));
+    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer'));
 }
 
 // Casting status values to any to bypass transitory prisma client sync issues in this specific service
@@ -171,16 +171,16 @@ export class ReportsService {
                     totalChannelPartners: await this.prisma.channelPartner.count(),
                     activeChannelPartners: await this.prisma.channelPartner.count({ where: { status: APPROVED } }),
                     pendingCPCommissions: await this.prisma.cPTransaction.aggregate({
-                        where: { type: 'COMMISSION' },
+                        where: { type: 'COMMISSION', status: 'FINALIZED' },
                         _sum: { amount: true }
                     }).then(res => Number(res._sum?.amount || 0)),
                     platformStats: await this.prisma.payment.aggregate({
-                        where: { status: 'PAID' },
+                        where: { status: { in: ['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'] } },
                         _sum: {
                             amount: true,
                             platformFee: true,
                             netAmount: true,
-                        } as any // Use any to bypass transitory type sync issues if they persist
+                        }
                     }).then((res: any) => ({
                         totalVolume: Number(res._sum?.amount || 0),
                         totalFees: Number(res._sum?.platformFee || 0),
@@ -290,16 +290,25 @@ export class ReportsService {
         if (isGlobalAdmin && !propertyId) {
             const paidPayments = await this.prisma.payment.findMany({
                 where: {
-                    status: 'PAID',
+                    status: { in: ['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'] },
                     paymentDate: { gte: startDate, lte: endDate }
                 },
                 include: {
-                    booking: true
+                    booking: {
+                        include: {
+                            cpTransactions: {
+                                where: { type: 'COMMISSION', status: 'FINALIZED' }
+                            }
+                        }
+                    }
                 }
             });
 
             const grossPlatformFees = paidPayments.reduce((sum, p: any) => sum + Number(p.platformFee || 0), 0);
-            const totalCPCommission = paidPayments.reduce((sum, p: any) => sum + Number(p.booking?.cpCommission || 0), 0);
+            const totalCPCommission = paidPayments.reduce((sum, p: any) => {
+                const commission = p.booking?.cpTransactions?.reduce((cSum, ctx) => cSum + Number(ctx.amount), 0) || 0;
+                return sum + commission;
+            }, 0);
             const totalVolume = paidPayments.reduce((sum, p: any) => sum + Number(p.amount || 0), 0);
             const estimatedGatewayFees = (totalVolume * 2.5) / 100;
 
@@ -313,7 +322,7 @@ export class ReportsService {
             });
 
             const operationalCost = Number(platformExpensesTotal._sum.amount || 0);
-            
+
             // CP Registration Fees
             const cpRegistrationFeesTotal = await this.prisma.income.aggregate({
                 where: {
@@ -540,17 +549,21 @@ export class ReportsService {
         });
 
         const report = await Promise.all(partners.map(async (cp) => {
-            const bookings = await this.prisma.booking.findMany({
+            const transactions = await this.prisma.cPTransaction.findMany({
                 where: {
                     channelPartnerId: cp.id,
-                    status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
+                    type: 'COMMISSION',
+                    status: 'FINALIZED',
                     createdAt: { gte: startDate, lte: endDate }
+                },
+                include: {
+                    booking: true
                 }
             });
 
-            const totalBookings = bookings.length;
-            const totalCPCommission = bookings.reduce((sum, b) => sum + Number(b.cpCommission || 0), 0);
-            const totalVolume = bookings.reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+            const totalBookings = new Set(transactions.map(t => t.bookingId)).size;
+            const totalCPCommission = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+            const totalVolume = transactions.reduce((sum, t) => sum + Number(t.booking?.totalAmount || 0), 0);
 
             return {
                 id: cp.id,
@@ -607,7 +620,7 @@ export class ReportsService {
 
                 ws.getRow(5).font = { bold: true, color: { argb: 'FFFFFFFF' } };
                 ws.getRow(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryColor } };
-                
+
                 ws.getRow(1).height = 40;
                 ws.getRow(2).height = 25;
             };
@@ -835,8 +848,8 @@ export class ReportsService {
                         }
                     },
 
-                    { 
-                        text: 'Disclaimer: This report is generated automatically by Route Guide Analytics. Data might have slight variations based on real-time processing.', 
+                    {
+                        text: 'Disclaimer: This report is generated automatically by Route Guide Analytics. Data might have slight variations based on real-time processing.',
                         style: 'disclaimer',
                         margin: [0, 40, 0, 0]
                     }

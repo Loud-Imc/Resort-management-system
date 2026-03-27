@@ -68,6 +68,9 @@ export interface Property {
     groupPricePerHead?: number;
     groupPriceAdult?: number;
     groupPriceChild?: number;
+    isRequest?: boolean;
+    location?: string;
+    details?: any;
 }
 
 export interface PropertyListResponse {

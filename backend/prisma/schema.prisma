@@ -39,6 +39,24 @@ model User {
   createdUsers         User[]          @relation("UserCreator")
   notifications        Notification[]
   fcmToken             String?
+  approvedSettlements  PropertySettlement[]          @relation("SettlementApprover")
+  createdSettlements   PropertySettlement[]          @relation("SettlementCreator")
+  payoutSettlements    PropertySettlement[]          @relation("SettlementPayoutProcessor")
+  redemptionApprovals  CPRedemptionRequest[]        @relation("RedemptionApprover")
+  redemptionPayouts    CPRedemptionRequest[]        @relation("RedemptionPayoutProcessor")
+  adjustmentRequests   FinancialAdjustmentRequest[] @relation("AdjustmentRequester")
+  adjustmentApprovals  FinancialAdjustmentRequest[] @relation("AdjustmentApprover")
+  createdCoupons       Coupon[]                   @relation("CouponCreatedBy")
+  approvedCoupons      Coupon[]                   @relation("CouponApprovedBy")
+  reconciliationRequests PaymentReconciliation[] @relation("ReconciliationMaker")
+  reconciliationResolutions PaymentReconciliation[] @relation("ReconciliationChecker")
+  requestedManualPayments ManualPaymentRequest[]   @relation("RequestedManualPayments")
+  approvedManualPayments  ManualPaymentRequest[]   @relation("ApprovedManualPayments")
+  propertyRequests        PropertyRequest[]        @relation("PropertyRequester")
+  approvedPropertyRequests PropertyRequest[]       @relation("PropertyApprover")
+  rejectedPropertyRequests PropertyRequest[]       @relation("PropertyRejecter")
+  requestedRefunds     RefundRequest[]            @relation("RefundRequester")
+  approvedRefunds      RefundRequest[]            @relation("RefundApprover")
 
   @@map("users")
 }
@@ -253,8 +271,10 @@ model Booking {
   user                    User                 @relation(fields: [userId], references: [id])
   income                  Income[]
   payments                Payment[]
-  review                  Review?
   cpTransactions          CPTransaction[]
+  propertySettlement      PropertySettlement?
+  manualPaymentRequests   ManualPaymentRequest[]
+  review                  Review?
 
   @@index([propertyId])
   @@index([status])
@@ -324,9 +344,14 @@ model Coupon {
   usedCount        Int          @default(0)
   minBookingAmount Decimal?     @db.Decimal(10, 2)
   isActive         Boolean      @default(true)
+  isApproved       Boolean      @default(false)
+  createdById      String?
+  approvedById     String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   bookings         Booking[]
+  createdBy        User?        @relation("CouponCreatedBy", fields: [createdById], references: [id])
+  approvedBy       User?        @relation("CouponApprovedBy", fields: [approvedById], references: [id])
 
   @@index([isActive])
   @@map("coupons")
@@ -357,6 +382,8 @@ model Payment {
   booking           Booking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   eventBooking      EventBooking? @relation(fields: [eventBookingId], references: [id], onDelete: Restrict)
   income            Income?
+  reconciliation    PaymentReconciliation?
+  refundRequests    RefundRequest[]
 
   @@index([bookingId])
   @@index([status])
@@ -453,6 +480,7 @@ model Property {
   reviewCount         Int               @default(0)
   isActive            Boolean           @default(true)
   isVerified          Boolean           @default(false)
+  propertyRequest     PropertyRequest?
   ownerId             String
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
@@ -483,6 +511,7 @@ model Property {
   roomTypes           RoomType[]
   rooms               Room[]
   cancellationPolicies CancellationPolicy[] @relation("PropertyPolicies")
+  settlements         PropertySettlement[]
   defaultCancellationPolicyId String?
   defaultCancellationPolicy   CancellationPolicy? @relation("PropertyDefaultPolicy", fields: [defaultCancellationPolicyId], references: [id])
   allowsGroupBooking   Boolean           @default(false)
@@ -594,6 +623,7 @@ model ChannelPartner {
   user                 User                 @relation(fields: [userId], references: [id])
   redemptions          CPRewardRedemption[]
   transactions         CPTransaction[]
+  redemptionRequests   CPRedemptionRequest[]
 
   @@map("channel_partners")
 }
@@ -857,13 +887,6 @@ enum CPTransactionStatus {
   VOID
 }
 
-enum RedemptionStatus {
-  PENDING
-  SHIPPED
-  DELIVERED
-  CANCELLED
-}
-
 enum CommissionStatus {
   PENDING
   PAID
@@ -914,4 +937,182 @@ model GlobalSetting {
   createdAt   DateTime @default(now())
 
   @@map("global_settings")
+}
+
+model PropertySettlement {
+  id              String           @id @default(uuid())
+  propertyId      String
+  bookingId       String           @unique
+  grossAmount     Decimal          @db.Decimal(10, 2)
+  platformFee     Decimal          @db.Decimal(10, 2)
+  cpCommission    Decimal          @db.Decimal(10, 2)
+  netPayout       Decimal          @db.Decimal(10, 2)
+  status          SettlementStatus @default(CALCULATED)
+  createdById     String?
+  approvedById    String?
+  payoutById      String?
+  processedAt     DateTime?
+  referenceId     String?
+  method          String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  property        Property         @relation(fields: [propertyId], references: [id])
+  booking         Booking          @relation(fields: [bookingId], references: [id])
+  createdBy       User?            @relation("SettlementCreator", fields: [createdById], references: [id])
+  approvedBy      User?            @relation("SettlementApprover", fields: [approvedById], references: [id])
+  payoutBy        User?            @relation("SettlementPayoutProcessor", fields: [payoutById], references: [id])
+
+  @@map("property_settlements")
+}
+
+model CPRedemptionRequest {
+  id              String           @id @default(uuid())
+  cpId            String
+  amount          Decimal          @db.Decimal(12, 2)
+  status          RedemptionStatus @default(REQUESTED)
+  referenceId     String?
+  method          String?
+  approverId      String?
+  payoutById      String?
+  reason          String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  channelPartner  ChannelPartner   @relation(fields: [cpId], references: [id])
+  approver        User?            @relation("RedemptionApprover", fields: [approverId], references: [id])
+  payoutBy        User?            @relation("RedemptionPayoutProcessor", fields: [payoutById], references: [id])
+
+  @@map("cp_redemption_requests")
+}
+
+model FinancialAdjustmentRequest {
+  id              String           @id @default(uuid())
+  amount          Decimal          @db.Decimal(12, 2)
+  type            AdjustmentType
+  targetId        String           // CP or Guest userId
+  reason          String
+  requestedById   String
+  approvedById    String?
+  status          RequestStatus    @default(PENDING)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  requestedBy     User             @relation("AdjustmentRequester", fields: [requestedById], references: [id])
+  approvedBy      User?            @relation("AdjustmentApprover", fields: [approvedById], references: [id])
+
+  @@map("financial_adjustment_requests")
+}
+
+model PaymentReconciliation {
+  id              String           @id @default(uuid())
+  paymentId       String           @unique
+  gatewayStatus   String
+  dbStatus        String
+  status          RequestStatus    @default(PENDING)
+  reconciledById  String?
+  resolvedById    String?
+  notes           String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  payment         Payment          @relation(fields: [paymentId], references: [id])
+  reconciledBy    User?            @relation("ReconciliationMaker", fields: [reconciledById], references: [id])
+  resolvedBy      User?            @relation("ReconciliationChecker", fields: [resolvedById], references: [id])
+
+  @@map("payment_reconciliations")
+}
+
+model RefundRequest {
+  id              String        @id @default(uuid())
+  paymentId       String
+  amount          Decimal       @db.Decimal(10, 2)
+  reason          String?       @db.Text
+  status          RequestStatus @default(PENDING)
+  requestedById   String
+  approvedById    String?
+  razorpayRefundId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  payment         Payment       @relation(fields: [paymentId], references: [id])
+  requestedBy     User          @relation("RefundRequester", fields: [requestedById], references: [id])
+  approvedBy      User?         @relation("RefundApprover", fields: [approvedById], references: [id])
+
+  @@map("refund_requests")
+}
+
+enum SettlementStatus {
+  CALCULATED
+  APPROVED
+  PROCESSING
+  PAID
+  FAILED
+  REVERSED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AdjustmentType {
+  WALLET
+  POINTS
+}
+
+enum RedemptionStatus {
+  PENDING
+  REQUESTED
+  APPROVED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  PAID
+  FAILED
+  CANCELLED
+}
+model ManualPaymentRequest {
+  id               String        @id @default(uuid())
+  bookingId        String
+  amount           Decimal       @db.Decimal(10, 2)
+  method           String        // Cash, UPI, Bank Transfer
+  notes            String?
+  status           RequestStatus @default(PENDING)
+  requestedById    String
+  approvedById     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  booking          Booking       @relation(fields: [bookingId], references: [id])
+  requestedBy      User          @relation("RequestedManualPayments", fields: [requestedById], references: [id])
+  approvedBy       User?         @relation("ApprovedManualPayments", fields: [approvedById], references: [id])
+
+  @@map("manual_payment_requests")
+}
+
+model PropertyRequest {
+  id               String        @id @default(uuid())
+  name             String
+  location         String
+  ownerEmail       String
+  ownerPhone       String
+  details          Json?
+  status           RequestStatus @default(PENDING)
+  reason           String?       @db.Text // Rejection reason
+  requestedById    String
+  approvedById     String?
+  rejectedById     String?
+  rejectedAt       DateTime?
+  propertyId       String?       @unique // Link to created property after approval
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  requestedBy      User          @relation("PropertyRequester", fields: [requestedById], references: [id])
+  approvedBy       User?         @relation("PropertyApprover", fields: [approvedById], references: [id])
+  rejectedBy       User?         @relation("PropertyRejecter", fields: [rejectedById], references: [id])
+  property         Property?     @relation(fields: [propertyId], references: [id])
+
+  @@map("property_requests")
 }

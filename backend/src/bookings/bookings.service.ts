@@ -1082,8 +1082,8 @@ export class BookingsService {
                         }
                     });
                 } else if (payment.razorpayPaymentId) {
-                    // Refund via Razorpay — call processRefund but handle booking status ourselves
-                    await this.paymentsService.processRefund(payment.id, actualRefundAmount, reason || `Booking cancellation (${refundPercentage}% refund)`);
+                    // Refund via Razorpay — call requestRefund (Maker-Checker enforced)
+                    await this.paymentsService.requestRefund(user, payment.id, actualRefundAmount, reason || `Booking cancellation (${refundPercentage}% refund)`);
                 } else {
                     // Manual payment (CASH, UPI, bank transfer) — record refund for accounting
                     await this.prisma.payment.update({
@@ -1109,7 +1109,7 @@ export class BookingsService {
             }
         }
 
-        // Re-assert CANCELLED status after all refunds to prevent processRefund from overwriting it
+        // Re-assert CANCELLED status after all refunds to prevent requestRefund from overwriting it
         await this.prisma.booking.update({
             where: { id },
             data: { status: 'CANCELLED' },
@@ -1132,18 +1132,8 @@ export class BookingsService {
             },
         });
 
-        // Create income record when booking is confirmed
-        if (status === 'CONFIRMED' && booking.status !== 'CONFIRMED') {
-            await this.prisma.income.create({
-                data: {
-                    amount: booking.totalAmount,
-                    source: booking.isManualBooking ? 'ROOM_BOOKING' : 'ONLINE_BOOKING',
-                    description: `Booking ${booking.bookingNumber}`,
-                    bookingId: booking.id,
-                    propertyId: booking.propertyId,
-                },
-            });
-        }
+        // Income record creation is now handled exclusively by PaymentsService (on successful transaction)
+        // or through manual Income records, to avoid double-counting.
 
         await this.auditService.createLog({
             action: 'STATUS_CHANGE',

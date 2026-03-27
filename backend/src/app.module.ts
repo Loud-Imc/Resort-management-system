@@ -37,9 +37,14 @@ import { RemindersModule } from './reminders/reminders.module';
 import { IcalModule } from './ical/ical.module';
 import { PdfModule } from './pdf/pdf.module';
 import { SystemSettingsModule } from './system-settings/system-settings.module';
+import { FinancialsModule } from './financials/financials.module';
+
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
+    FinancialsModule,
     PdfModule,
     SystemSettingsModule,
     ConfigModule.forRoot({
@@ -80,7 +85,13 @@ import { SystemSettingsModule } from './system-settings/system-settings.module';
     IcalModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -1,3 +1,26 @@
+export type AdjustmentType = 'WALLET' | 'POINTS';
+
+export type SettlementStatus =
+    | 'CALCULATED'
+    | 'APPROVED'
+    | 'PROCESSING'
+    | 'PAID'
+    | 'FAILED'
+    | 'REVERSED';
+
+export type RedemptionStatus =
+    | 'PENDING'
+    | 'REQUESTED'
+    | 'APPROVED'
+    | 'PROCESSING'
+    | 'SHIPPED'
+    | 'DELIVERED'
+    | 'PAID'
+    | 'FAILED'
+    | 'CANCELLED';
+
+export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export const IncomeSources = {
     ROOM_BOOKING: 'Room Booking',
     EXTRA_GUEST_CHARGES: 'Extra Guest Charges',

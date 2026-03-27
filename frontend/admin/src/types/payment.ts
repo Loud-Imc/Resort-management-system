@@ -53,3 +53,30 @@ export interface RecordManualPaymentDto {
     method: 'CASH' | 'UPI' | 'CARD' | 'OTHER';
     notes?: string;
 }
+
+export interface ManualPaymentRequest {
+    id: string;
+    bookingId: string;
+    amount: number;
+    method: string;
+    notes?: string;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    requestedById: string;
+    approvedById?: string;
+    createdAt: string;
+    booking?: {
+        bookingNumber: string;
+    };
+}
+
+export interface RefundRequest {
+    id: string;
+    paymentId: string;
+    amount: number;
+    reason?: string;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    requestedById: string;
+    approvedById?: string;
+    createdAt: string;
+    payment?: Payment;
+}

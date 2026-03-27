@@ -315,7 +315,9 @@ async function main() {
             where: { slug: pData.slug },
             update: {
                 categoryId: category?.id,
-                baseCurrency: 'INR'
+                baseCurrency: 'INR',
+                status: 'APPROVED',
+                isVerified: true,
             },
             create: {
                 name: pData.name,
@@ -333,9 +335,12 @@ async function main() {
                 phone: '+910000000000',
                 ownerId: ownerUser.id,
                 images: ['https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200'],
-                amenities: ['WiFi', 'Parking', 'Room Service']
+                amenities: ['WiFi', 'Parking', 'Room Service'],
+                status: 'APPROVED',
+                isVerified: true,
             }
         });
+
 
         console.log(`🏠 Property Upserted: ${property.name}`);
 

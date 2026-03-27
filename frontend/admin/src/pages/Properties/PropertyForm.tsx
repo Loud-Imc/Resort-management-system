@@ -12,6 +12,7 @@ import { PropertyCategory } from '../../types/category';
 import SearchableSelect from '../../components/SearchableSelect';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import toast from 'react-hot-toast';
 
 const propertyTypes: { value: PropertyType; label: string }[] = [
     { value: 'RESORT', label: 'Resort' },
@@ -186,8 +187,16 @@ export default function PropertyForm() {
 
             if (isEdit && id) {
                 await propertyService.update(id, submissionData);
+                toast.success('Property updated successfully');
+            } else if (isAdmin || isMarketing) {
+                // Admin/Marketing must use PropertyRequest flow
+                await propertyService.createRequest(submissionData);
+                toast.success('Property onboarding request submitted for vetting');
+                navigate('/properties/requests');
+                return;
             } else {
                 await propertyService.create(submissionData);
+                toast.success('Property created successfully');
             }
             navigate('/properties');
         } catch (err: any) {
@@ -232,10 +241,10 @@ export default function PropertyForm() {
                 </button>
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">
-                        {isEdit ? 'Edit Property' : 'Add New Property'}
+                        {isEdit ? 'Edit Property' : (isAdmin || isMarketing ? 'New Onboarding Request' : 'Add New Property')}
                     </h1>
                     <p className="text-muted-foreground">
-                        {isEdit ? 'Update property details' : 'Create a new property listing'}
+                        {isEdit ? 'Update property details' : (isAdmin || isMarketing ? 'Initiate property vetting & onboarding' : 'Create a new property listing')}
                     </p>
                 </div>
             </div>
@@ -797,7 +806,7 @@ export default function PropertyForm() {
                         ) : (
                             <Save className="h-4 w-4" />
                         )}
-                        {saving ? 'Saving...' : 'Save Property'}
+                        {saving ? 'Saving...' : (isEdit ? 'Save Property' : (isAdmin || isMarketing ? 'Submit For Vetting' : 'Save Property'))}
                     </button>
                 </div>
             </form>

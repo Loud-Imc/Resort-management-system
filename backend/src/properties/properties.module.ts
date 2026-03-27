@@ -4,9 +4,10 @@ import { PropertiesService } from './properties.service';
 import { PropertyStaffController } from './property-staff.controller';
 import { PropertyStaffService } from './property-staff.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-    imports: [PrismaModule],
+    imports: [PrismaModule, AuditModule],
     controllers: [PropertiesController, PropertyStaffController],
     providers: [PropertiesService, PropertyStaffService],
     exports: [PropertiesService, PropertyStaffService],

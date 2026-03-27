@@ -11,8 +11,21 @@ export class RolesService {
         const { permissions, propertyId, ...roleData } = createRoleDto;
 
         // Determination of system status
-        const isGlobalAdmin = user?.roles?.includes('SuperAdmin') || user?.roles?.includes('Admin');
+        const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || user?.roles?.includes('Admin');
         const isSystem = isGlobalAdmin && !propertyId;
+
+        // Security: Validate assigned permissions
+        if (permissions && permissions.length > 0 && user) {
+            if (!isSuperAdmin) {
+                const userPermissions = user.permissions || [];
+                const unauthorized = permissions.filter(p => !userPermissions.includes(p));
+
+                if (unauthorized.length > 0) {
+                    throw new ForbiddenException(`You are not authorized to assign these permissions: ${unauthorized.join(', ')}`);
+                }
+            }
+        }
 
         // Resolve permission names to IDs
         let permissionConnect: { permission: { connect: { id: string } } }[] = [];
@@ -150,10 +163,22 @@ export class RolesService {
         const role = await this.prisma.role.findUnique({ where: { id } });
         if (!role) throw new NotFoundException(`Role with ID ${id} not found`);
 
-        // Check permissions: Owners cannot edit System roles
-        const isGlobalAdmin = user?.roles?.includes('SuperAdmin') || user?.roles?.includes('Admin');
+        const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || user?.roles?.includes('Admin');
         if (!isGlobalAdmin && role.isSystem) {
             throw new ForbiddenException('Cannot modify system roles');
+        }
+
+        // Security: Validate assigned permissions
+        if (permissions && permissions.length > 0 && user) {
+            if (!isSuperAdmin) {
+                const userPermissions = user.permissions || [];
+                const unauthorized = permissions.filter(p => !userPermissions.includes(p));
+
+                if (unauthorized.length > 0) {
+                    throw new ForbiddenException(`You are not authorized to assign these permissions: ${unauthorized.join(', ')}`);
+                }
+            }
         }
 
         const updateData: any = { ...roleData };

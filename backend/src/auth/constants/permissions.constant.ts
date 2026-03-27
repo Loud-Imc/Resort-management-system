@@ -58,6 +58,7 @@ export const PERMISSIONS = {
         READ: 'properties.read',
         UPDATE: 'properties.update',
         DELETE: 'properties.delete',
+        APPROVE: 'properties.approve', // High-level status flow (PENDING -> VERIFIED)
     },
 
     // Property Staff Integration
@@ -71,6 +72,7 @@ export const PERMISSIONS = {
         CREATE: 'payments.create',
         UPDATE: 'payments.update',
         REFUND: 'payments.refund',
+        MANAGE_MANUAL: 'payments.manageManual',
     },
 
     // Expenses
@@ -125,12 +127,30 @@ export const PERMISSIONS = {
     MARKETING: {
         READ: 'marketing.read',
         MANAGE_COUPONS: 'marketing.manageCoupons',
+        APPROVE_COUPON: 'marketing.approveCoupon', // Secondary approval for high-value coupons
         MANAGE_OFFERS: 'marketing.manageOffers',
     },
 
     // Configuration / Settings
     SETTINGS: {
         MANAGE: 'settings.manage',
+    },
+
+    // Finance Operations
+    FINANCE: {
+        APPROVE_SETTLEMENT: 'finance.approveSettlement',
+        PROCESS_PAYOUT: 'finance.processPayout',
+        APPROVE_ADJUSTMENT: 'finance.approveAdjustment',
+        RECONCILE_PAYMENT: 'finance.reconcilePayment',
+        APPROVE_REFUND: 'finance.approveRefund',
+        APPROVE_MANUAL_PAYMENT: 'finance.approveManualPayment',
+    },
+
+    // Admin Operations
+    ADMIN: {
+        MANAGE_FINANCE: 'admin.manageFinance', // Calculate settlements, create adjustment requests
+        MANAGE_SYSTEM_ROLES: 'admin.manageSystemRoles', // Only for SuperAdmin/System Management
+        IMPERSONATE_PROPERTY: 'admin.impersonateProperty',
     }
 };
 

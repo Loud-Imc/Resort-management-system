@@ -3,6 +3,7 @@ import {
     Get,
     Post,
     Put,
+    Patch,
     Delete,
     Body,
     Param,
@@ -30,9 +31,16 @@ export class DiscountsController {
 
     @Post('coupons')
     @Permissions(PERMISSIONS.MARKETING.MANAGE_COUPONS)
-    @ApiOperation({ summary: 'Create a new global coupon (Admin)' })
-    createCoupon(@Body() dto: CreateCouponDto) {
-        return this.discountsService.createCoupon(dto);
+    @ApiOperation({ summary: 'Create a new global coupon (Draft - Admin)' })
+    createCoupon(@Request() req, @Body() dto: CreateCouponDto) {
+        return this.discountsService.createCoupon(req.user, dto);
+    }
+
+    @Patch('coupons/:id/approve')
+    @Permissions(PERMISSIONS.MARKETING.APPROVE_COUPON)
+    @ApiOperation({ summary: 'Approve a coupon (Maker-Checker enforced)' })
+    approveCoupon(@Param('id') id: string, @Request() req) {
+        return this.discountsService.approveCoupon(id, req.user);
     }
 
     @Get('coupons')

@@ -6,9 +6,10 @@ import { ChannelPartnersModule } from '../channel-partners/channel-partners.modu
 import { PrismaModule } from '../prisma/prisma.module';
 import { MailModule } from '../mail/mail.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-    imports: [ConfigModule, ChannelPartnersModule, PrismaModule, MailModule, NotificationsModule],
+    imports: [ConfigModule, ChannelPartnersModule, PrismaModule, MailModule, NotificationsModule, AuditModule],
     controllers: [PaymentsController],
     providers: [PaymentsService],
     exports: [PaymentsService],

@@ -1,26 +1,303 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 import { RegisterPropertyDto } from './dto/register-property.dto';
-import { Prisma, PropertyStatus } from '@prisma/client';
+import { Prisma, PropertyStatus, RequestStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { normalizePhone } from '../common/utils/phone';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class PropertiesService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly notificationsService: NotificationsService,
+        private readonly audit: AuditService,
     ) { }
 
     // Generate URL-friendly slug from name
-    private generateSlug(name: string): string {
-        return name
+    private async generateUniqueSlug(name: string): Promise<string> {
+        const baseSlug = name
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '')
-            + '-' + Date.now().toString(36);
+            .replace(/^-|-$/g, '');
+
+        let slug = baseSlug;
+        let count = 0;
+        let exists = true;
+
+        while (exists) {
+            const check = await this.prisma.property.findUnique({ where: { slug } });
+            if (!check) {
+                exists = false;
+            } else {
+                count++;
+                slug = `${baseSlug}-${count}`;
+            }
+        }
+        return slug;
+    }
+
+    /**
+     * Create a Property Request (Maker - Marketing/Admin)
+     */
+    async createRequest(user: any, dto: any) {
+        const request = await this.prisma.propertyRequest.create({
+            data: {
+                name: dto.name,
+                location: dto.location,
+                ownerEmail: dto.ownerEmail,
+                ownerPhone: dto.ownerPhone,
+                details: dto.details || {},
+                requestedById: user.id,
+            }
+        });
+
+        await this.notificationsService.notifyPropertyRequest(request);
+
+        await this.audit.createLog({
+            action: 'PROPERTY_REQUEST_CREATED',
+            entity: 'PropertyRequest',
+            entityId: request.id,
+            userId: user.id,
+            newValue: {
+                name: request.name,
+                ownerEmail: request.ownerEmail
+            }
+        });
+
+        return request;
+    }
+
+    /**
+     * Approve a Property Request (Checker - Admin)
+     */
+    async approveRequest(user: any, requestId: string) {
+        const request = await this.prisma.propertyRequest.findUnique({
+            where: { id: requestId }
+        });
+
+        if (!request) throw new NotFoundException('Request not found');
+        if (request.status !== RequestStatus.PENDING) throw new BadRequestException('Request already processed');
+
+        const details = request.details as any || {};
+
+        // // Validation Before Approval
+        // if (!details.images || !Array.isArray(details.images) || details.images.length === 0) {
+        //     throw new BadRequestException('Cannot approve: Property must have at least one image.');
+        // }
+        // if (!details.amenities || !Array.isArray(details.amenities) || details.amenities.length === 0) {
+        //     throw new BadRequestException('Cannot approve: Property must have at least one amenity.');
+        // }
+        if (!request.ownerEmail || !request.ownerPhone) {
+            throw new BadRequestException('Cannot approve: Missing owner contact details.');
+        }
+
+        // Finalize the creation
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Find Owner — use the user who submitted the request first,
+            //    then fall back to email/phone lookup for manually created requests.
+            let owner = await tx.user.findUnique({
+                where: { id: request.requestedById }
+            });
+
+            // Validate the found user is the actual owner (not a system admin for legacy requests)
+            if (!owner || owner.email !== request.ownerEmail) {
+                owner = await tx.user.findFirst({
+                    where: {
+                        OR: [
+                            { email: request.ownerEmail },
+                            { phone: normalizePhone(request.ownerPhone) }
+                        ]
+                    }
+                });
+            }
+
+            if (!owner) {
+                // Last resort: create user with a secure random temp password
+                const ownerRole = await tx.role.findFirst({ where: { name: 'PropertyOwner', propertyId: null } });
+                if (!ownerRole) throw new NotFoundException('PropertyOwner role not found in system');
+                const tempPassword = await bcrypt.hash(`resort@${Date.now()}`, 10);
+                owner = await tx.user.create({
+                    data: {
+                        email: request.ownerEmail,
+                        phone: normalizePhone(request.ownerPhone),
+                        password: tempPassword,
+                        firstName: request.name.split(' ')[0],
+                        lastName: 'Owner',
+                        roles: { create: { roleId: ownerRole.id } }
+                    }
+                });
+            }
+
+            // 2. Create Property
+            const slug = await this.generateUniqueSlug(request.name);
+            const property = await tx.property.create({
+                data: {
+                    name: request.name,
+                    slug,
+                    address: details.address || request.location,
+                    city: details.city || 'TBD',
+                    state: details.state || 'TBD',
+                    country: details.country || 'India',
+                    pincode: details.pincode || '',
+                    type: details.type || 'RESORT',
+                    email: details.propertyEmail || request.ownerEmail,
+                    phone: details.propertyPhone || request.ownerPhone,
+                    ownerId: owner.id,
+                    status: PropertyStatus.APPROVED,
+                    isVerified: true,
+                    description: details.description || '',
+                    images: details.images || [],
+                    amenities: details.amenities || [],
+                    licenceImage: details.licenceImage || null,
+                    gstNumber: details.gstNumber || null,
+                    ownerAadhaarNumber: details.ownerAadhaarNumber || null,
+                    ownerAadhaarImage: details.ownerAadhaarImage || null,
+                    allowsGroupBooking: details.allowsGroupBooking || false,
+                    maxGroupCapacity: details.maxGroupCapacity || null,
+                }
+            });
+
+            // 3. Update Request
+            await tx.propertyRequest.update({
+                where: { id: requestId },
+                data: {
+                    status: RequestStatus.APPROVED,
+                    approvedById: user.id,
+                    propertyId: property.id
+                }
+            });
+
+            await this.audit.createLog({
+                action: 'PROPERTY_REQUEST_APPROVED',
+                entity: 'Property',
+                entityId: property.id,
+                userId: user.id,
+                newValue: {
+                    requestId,
+                    propertyName: property.name,
+                    ownerId: owner.id
+                }
+            });
+
+            return property;
+        });
+    }
+
+    /**
+     * Reject a Property Request (Checker - Admin)
+     */
+    async rejectRequest(user: any, requestId: string, reason: string) {
+        if (!reason) throw new BadRequestException('Rejection reason is mandatory');
+
+        const request = await this.prisma.propertyRequest.findUnique({
+            where: { id: requestId }
+        });
+
+        if (!request) throw new NotFoundException('Request not found');
+        if (request.status !== RequestStatus.PENDING) throw new BadRequestException('Request already processed');
+
+        const updated = await this.prisma.propertyRequest.update({
+            where: { id: requestId },
+            data: {
+                status: RequestStatus.REJECTED,
+                reason,
+                rejectedById: user.id,
+                rejectedAt: new Date()
+            }
+        });
+
+        await this.audit.createLog({
+            action: 'PROPERTY_REQUEST_REJECTED',
+            entity: 'PropertyRequest',
+            entityId: requestId,
+            userId: user.id,
+            newValue: { reason }
+        });
+
+        return updated;
+    }
+
+    /**
+     * Get Property Requests for current user (Owner)
+     */
+    async findMyRequests(userId: string) {
+        return this.prisma.propertyRequest.findMany({
+            where: { requestedById: userId },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    /**
+     * Update Property Request details (Owner)
+     */
+    async updateRequest(userId: string, requestId: string, payload: any) {
+        const request = await this.prisma.propertyRequest.findUnique({
+            where: { id: requestId }
+        });
+
+        if (!request) throw new NotFoundException('Request not found');
+        if (request.requestedById !== userId) throw new ForbiddenException('You can only update your own requests');
+        if (request.status !== RequestStatus.PENDING) throw new BadRequestException('Cannot update a processed request');
+
+        const details = (request.details as any) || {};
+        const newDetails = { ...details, ...payload };
+
+        let name = request.name;
+        if (payload.name) {
+            name = payload.name;
+            delete newDetails.name;
+        }
+
+        return this.prisma.propertyRequest.update({
+            where: { id: requestId },
+            data: {
+                name,
+                details: newDetails
+            }
+        });
+    }
+
+    async findAllRequests(status?: RequestStatus) {
+        return this.prisma.propertyRequest.findMany({
+            where: status ? { status } : {},
+            include: {
+                requestedBy: { select: { id: true, firstName: true, email: true } },
+                approvedBy: { select: { id: true, firstName: true, email: true } },
+                rejectedBy: { select: { id: true, firstName: true, email: true } },
+                property: { select: { id: true, name: true, slug: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    async impersonate(user: any, propertyId: string) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            include: { owner: { select: { id: true, firstName: true, email: true } } }
+        });
+        if (!property) throw new NotFoundException('Property not found');
+
+        // Log the impersonation action
+        await this.prisma.auditLog.create({
+            data: {
+                userId: user.id,
+                action: 'PROPERTY_IMPERSONATION',
+                entity: 'Property',
+                entityId: propertyId,
+                newValue: { propertyName: property.name, ownerId: property.ownerId }
+            }
+        });
+
+        // Return the owner context for the frontend to use
+        return {
+            propertyId: property.id,
+            ownerId: property.ownerId,
+            ownerName: property.owner?.firstName,
+            propertyName: property.name
+        };
     }
 
     async create(user: any, data: CreatePropertyDto) {
@@ -30,6 +307,10 @@ export class PropertiesService {
         const roles = user.roles || []; // Safety check
         const isMarketing = roles.includes('Marketing');
         const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        if (isAdmin) {
+            throw new ForbiddenException('Admins must use the Property Request flow for vetting purposes.');
+        }
 
         let addedById: string | null = null;
         let commission = new Prisma.Decimal(0);
@@ -75,133 +356,98 @@ export class PropertiesService {
     }
 
     async publicRegister(dto: RegisterPropertyDto) {
-        // Check if user with email or phone already exists
+        // 1. Check for duplicate PENDING requests for same property name
+        const existingRequest = await this.prisma.propertyRequest.findFirst({
+            where: {
+                status: RequestStatus.PENDING,
+                name: dto.propertyName,
+            }
+        });
+
+        if (existingRequest) {
+            throw new ConflictException('A pending registration request already exists for a property with this name. Please wait for admin approval.');
+        }
+
+        // 2. Check if a live property with the same name already exists
+        const existingProperty = await this.prisma.property.findFirst({
+            where: { name: dto.propertyName }
+        });
+
+        if (existingProperty) {
+            throw new ConflictException('A property with this name already exists on the platform.');
+        }
+
+        // 3. Create or find the owner's User account immediately
+        //    so they can log in and track their request status.
+        const ownerRole = await this.prisma.role.findFirst({
+            where: { name: 'PropertyOwner', propertyId: null }
+        });
+        if (!ownerRole) throw new NotFoundException('PropertyOwner role not found in system');
+
         const existingUser = await this.prisma.user.findFirst({
             where: {
                 OR: [
                     { email: dto.ownerEmail },
-                    { phone: normalizePhone(dto.ownerPhone) },
-                ],
+                    { phone: normalizePhone(dto.ownerPhone) }
+                ]
             },
-            include: {
-                roles: {
-                    include: { role: true }
-                }
-            }
+            include: { roles: { include: { role: true } } }
         });
 
-        // Find PropertyOwner role
-        const ownerRole = await this.prisma.role.findFirst({
-            where: { name: 'PropertyOwner', propertyId: null },
-        });
-
-        if (!ownerRole) {
-            throw new NotFoundException('Property Owner role not found in system');
-        }
-
-        let user: any = existingUser;
+        let owner: any = existingUser;
 
         if (existingUser) {
-            // 1. Verify password
+            // Verify the provided password matches their existing account
             const isPasswordValid = await bcrypt.compare(dto.ownerPassword, existingUser.password);
             if (!isPasswordValid) {
-                throw new ConflictException('A user with this email or phone already exists. Please enter the correct password to link your account.');
+                throw new ConflictException('An account with this email or phone already exists. Please provide the correct password to link it.');
             }
-            user = existingUser;
-        }
-
-        const slug = await this.generateUniqueSlug(dto.propertyName);
-        const hashedPassword = await bcrypt.hash(dto.ownerPassword, 10);
-
-        try {
-            const result = await this.prisma.$transaction(async (tx) => {
-                // 1. Create or Update User
-                if (!user) {
-                    user = await tx.user.create({
-                        data: {
-                            email: dto.ownerEmail,
-                            password: hashedPassword,
-                            firstName: dto.ownerFirstName,
-                            lastName: dto.ownerLastName,
-                            phone: normalizePhone(dto.ownerPhone),
-                            isActive: true,
-                            roles: {
-                                create: {
-                                    roleId: ownerRole.id,
-                                },
-                            },
-                        },
-                    });
-                } else {
-                    // Check if we need to add the role
-                    const hasRole = user.roles.some((ur: any) => ur.role.name === 'PropertyOwner');
-                    if (!hasRole) {
-                        await tx.userRole.create({
-                            data: {
-                                userId: user.id,
-                                roleId: ownerRole.id,
-                            },
-                        });
-                    }
+            // Ensure PropertyOwner role is assigned
+            const hasRole = existingUser.roles.some((ur: any) => ur.role.name === 'PropertyOwner');
+            if (!hasRole) {
+                await this.prisma.userRole.create({ data: { userId: existingUser.id, roleId: ownerRole.id } });
+            }
+        } else {
+            // Create new owner account with the password they chose
+            const hashedPassword = await bcrypt.hash(dto.ownerPassword, 10);
+            owner = await this.prisma.user.create({
+                data: {
+                    email: dto.ownerEmail,
+                    phone: normalizePhone(dto.ownerPhone),
+                    password: hashedPassword,
+                    firstName: dto.ownerFirstName,
+                    lastName: dto.ownerLastName,
+                    isActive: true,
+                    roles: { create: { roleId: ownerRole.id } }
                 }
-
-                // 2. Create Property
-                const property = await tx.property.create({
-                    data: {
-                        name: dto.propertyName,
-                        slug,
-                        description: dto.propertyDescription,
-                        type: dto.propertyType,
-                        categoryId: dto.categoryId || null,
-                        address: dto.address,
-                        city: dto.city,
-                        state: dto.state,
-                        country: dto.country,
-                        pincode: dto.pincode,
-                        phone: normalizePhone(dto.propertyPhone),
-                        email: dto.propertyEmail,
-                        ownerId: user.id,
-                        images: dto.images || [],
-                        amenities: dto.amenities || [],
-                        licenceImage: dto.licenceImage,
-                        gstNumber: dto.gstNumber,
-                        ownerAadhaarNumber: dto.ownerAadhaarNumber,
-                        ownerAadhaarImage: dto.ownerAadhaarImage,
-                        allowsGroupBooking: dto.allowsGroupBooking || false,
-                        status: PropertyStatus.PENDING,
-                    },
-                });
-
-                return {
-                    id: property.id,
-                    slug: property.slug,
-                    status: property.status,
-                    owner: {
-                        id: user.id,
-                        email: user.email,
-                    },
-                };
             });
-            // Notify admins of new registration
-            await this.notificationsService.notifyPropertyRegistration(result);
+        }
 
-            return result;
-        } catch (error) {
-            if (error.code === 'P2002') {
-                throw new ConflictException('A user with this email or phone already exists. Please login with your existing credentials.');
+        // 4. Create Property Request linked to the owner
+        const request = await this.prisma.propertyRequest.create({
+            data: {
+                name: dto.propertyName,
+                location: `${dto.city}, ${dto.state}, ${dto.country}`,
+                ownerEmail: dto.ownerEmail,
+                ownerPhone: normalizePhone(dto.ownerPhone),
+                status: RequestStatus.PENDING,
+                requestedById: owner.id, // Linked to the real owner
+                details: {
+                    ...dto,
+                    ownerPassword: undefined // Never store raw password
+                }
             }
-            throw error;
-        }
-    }
+        });
 
-    private async generateUniqueSlug(name: string): Promise<string> {
-        let slug = this.generateSlug(name);
-        let exists = await this.prisma.property.findUnique({ where: { slug } });
-        while (exists) {
-            slug = this.generateSlug(name);
-            exists = await this.prisma.property.findUnique({ where: { slug } });
-        }
-        return slug;
+        // Notify admins of new registration request
+        await this.notificationsService.notifyPropertyRequest(request);
+
+        return {
+            id: request.id,
+            status: request.status,
+            ownerId: owner.id,
+            message: 'Registration submitted! Your account is ready — you can log in now. Your property will be visible after admin approval.'
+        };
     }
 
     async findAll(query: PropertyQueryDto) {
@@ -280,14 +526,17 @@ export class PropertiesService {
         };
     }
 
-    async findAllAdmin(user: any, query: PropertyQueryDto) {
-        const { city, state, type, search, page = 1, limit = 10 } = query;
+    async findAllAdmin(user: any, query: any) {
+        const { city, state, type, search, page = 1, limit = 10, status } = query;
         const skip = (page - 1) * limit;
 
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
 
         const where: Prisma.PropertyWhereInput = {
+            // Default to APPROVED for "All Properties" separation, unless explicitly filtering
+            status: status || PropertyStatus.APPROVED,
+
             // If not global admin, restrict to assigned properties
             ...(!isGlobalAdmin && {
                 OR: [
@@ -530,8 +779,22 @@ export class PropertiesService {
     }
 
     // Admin: Update status (Approve/Reject)
-    async updateStatus(id: string, status: PropertyStatus) {
-        const property = await this.prisma.property.update({
+    async updateStatus(id: string, user: any, status: PropertyStatus) {
+        const property = await this.prisma.property.findUnique({ where: { id } });
+        if (!property) throw new NotFoundException('Property not found');
+
+        if (status === PropertyStatus.APPROVED) {
+            // Maker-Checker: Approver cannot be the one who added/created the property
+            // This applies if it was added by an Admin or Marketing staff.
+            if (property.addedById === user.id) {
+                throw new ForbiddenException(
+                    'Maker-Checker Violation: You cannot approve a property that you added yourself. ' +
+                    'Please request another Admin to verify.'
+                );
+            }
+        }
+
+        const updated = await this.prisma.property.update({
             where: { id },
             data: {
                 status,
@@ -540,9 +803,9 @@ export class PropertiesService {
         });
 
         // Notify owner of status update
-        await this.notificationsService.notifyPropertyStatusUpdate(property, status);
+        await this.notificationsService.notifyPropertyStatusUpdate(updated, status);
 
-        return property;
+        return updated;
     }
 
     // Admin: Toggle active status

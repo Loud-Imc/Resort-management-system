@@ -69,7 +69,7 @@ const Home: React.FC = () => {
                             razorpayPaymentId: paymentRes.razorpay_payment_id,
                             razorpaySignature: paymentRes.razorpay_signature,
                         });
-                        alert('Payment successful! Your account is now active.');
+                        alert('Payment successful! Your KYC documents have been sent to administration for review.');
                         fetchStats();
                     } catch (err: any) {
                         console.error('Payment verification error:', err);
@@ -159,6 +159,14 @@ const Home: React.FC = () => {
                             >
                                 {isProcessingPayment ? 'Processing...' : 'Pay Verification Fee (₹1,000)'}
                             </button>
+                        </div>
+                    )}
+
+                    {stats.status === 'PENDING' && stats.registrationFeePaid && (
+                        <div style={{ marginTop: '1.5rem', padding: '1.5rem', background: 'rgba(16, 185, 129, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid #10b981' }}>
+                            <p style={{ fontSize: '0.9rem', color: '#059669', fontWeight: 600 }}>
+                                Payment successful! Your KYC documents are currently under review by our administration team. You will be notified once activated.
+                            </p>
                         </div>
                     )}
 

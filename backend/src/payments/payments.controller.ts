@@ -1,8 +1,9 @@
-import { Controller, Post, Get, Body, Param, Headers, UseGuards, RawBodyRequest, Req, Query } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Headers, UseGuards, RawBodyRequest, Req, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PaymentsService } from './payments.service';
 import { InitiatePaymentDto, VerifyPaymentDto, ProcessRefundDto } from './dto/payment.dto';
+import { BookingStatus, PaymentStatus, RequestStatus } from '@prisma/client';
 import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -21,13 +22,22 @@ export class PaymentsController {
         return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId);
     }
 
-    @Post('manual')
+    @Post('manual/request')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.PAYMENTS.UPDATE)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Record manual payment (Cash, UPI, etc.)' })
-    recordManualPayment(@Body() dto: RecordManualPaymentDto, @Req() req: any) {
-        return this.paymentsService.recordManualPayment(dto, req.user.id);
+    @ApiOperation({ summary: 'Request to record manual payment (Maker)' })
+    requestManualPayment(@Body() dto: RecordManualPaymentDto, @Req() req: any) {
+        return this.paymentsService.requestManualPayment(req.user, dto);
+    }
+
+    @Patch('manual/approve/:requestId')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.FINANCE.APPROVE_MANUAL_PAYMENT)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Approve manual payment request (Checker)' })
+    approveManualPayment(@Param('requestId') requestId: string, @Req() req: any) {
+        return this.paymentsService.approveManualPayment(req.user, requestId);
     }
 
     @Post('public/initiate-qr')
@@ -61,16 +71,29 @@ export class PaymentsController {
         return this.paymentsService.handleWebhook(req.body, signature);
     }
 
-    @Post(':paymentId/refund')
+    @Post(':paymentId/refund/request')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.PAYMENTS.REFUND)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Process refund' })
-    processRefund(
+    @ApiOperation({ summary: 'Request a refund (Maker)' })
+    requestRefund(
+        @Req() req,
         @Param('paymentId') paymentId: string,
         @Body() dto: ProcessRefundDto,
     ) {
-        return this.paymentsService.processRefund(paymentId, dto.amount, dto.reason);
+        return this.paymentsService.requestRefund(req.user, paymentId, dto.amount, dto.reason);
+    }
+
+    @Post('refund/requests/:requestId/approve')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.FINANCE.APPROVE_REFUND)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Approve and execute refund (Checker)' })
+    approveRefund(
+        @Req() req,
+        @Param('requestId') requestId: string,
+    ) {
+        return this.paymentsService.approveRefund(req.user, requestId);
     }
 
     @Post(':paymentId/payout/confirm')
@@ -105,5 +128,14 @@ export class PaymentsController {
     @ApiOperation({ summary: 'Get all payments' })
     findAll(@Req() req, @Query('propertyId') propertyId?: string) {
         return this.paymentsService.findAll(req.user, propertyId);
+    }
+
+    @Get('refund/requests')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.FINANCE.APPROVE_REFUND)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'List all refund requests' })
+    findAllRefundRequests(@Query('status') status?: RequestStatus) {
+        return this.paymentsService.findAllRefundRequests(status);
     }
 }

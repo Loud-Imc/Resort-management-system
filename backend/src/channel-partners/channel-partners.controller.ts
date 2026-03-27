@@ -193,20 +193,7 @@ export class ChannelPartnersController {
         return this.cpService.adminGetTransactions(id);
     }
 
-    @Post(':id/adjust-wallet')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Adjust CP wallet balance (Admin)' })
-    adjustWallet(
-        @Param('id') id: string,
-        @Body() data: { amount: number, description: string }
-    ) {
-        if (data.amount > 0) {
-            return this.cpService.addWalletBalance(id, data.amount, data.description || 'Admin Adjustment');
-        } else {
-            return this.cpService.deductWalletBalance(id, Math.abs(data.amount), data.description || 'Admin Adjustment');
-        }
-    }
+    // Financial actions (adjustWallet, updateRedemptionStatus) have been moved to FinancialsController
 
     // ============================================
     // REWARDS REDEMPTION
@@ -236,17 +223,7 @@ export class ChannelPartnersController {
         return this.cpService.findAllRedemptions(status);
     }
 
-    @Patch('redemptions/:id/status')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Update redemption status (Admin)' })
-    updateRedemptionStatus(
-        @Param('id') id: string,
-        @Body('status') status: RedemptionStatus,
-        @Body('notes') notes?: string,
-    ) {
-        return this.cpService.updateRedemptionStatus(id, status, notes);
-    }
+    // Financial actions moved to FinancialsController
 
     @Patch('me')
     @UseGuards(AuthGuard('jwt'))

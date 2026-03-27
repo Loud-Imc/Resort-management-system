@@ -1043,7 +1043,7 @@ export class ChannelPartnersService {
     ) {
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET') || '';
 
-        const body = `${razorpayOrderId}| ${razorpayPaymentId} `;
+        const body = `${razorpayOrderId}|${razorpayPaymentId}`;
         const expectedSignature = crypto
             .createHmac('sha256', keySecret)
             .update(body)
@@ -1053,12 +1053,11 @@ export class ChannelPartnersService {
             throw new BadRequestException('Invalid payment signature');
         }
 
-        // Auto-approve and mark as paid
+        // Only mark as paid, DO NOT AUTO-APPROVE. Requires manual admin vetting.
         return this.prisma.$transaction(async (tx) => {
             const updatedCp = await tx.channelPartner.update({
                 where: { id: channelPartnerId },
                 data: {
-                    status: ChannelPartnerStatus.APPROVED,
                     registrationFeePaid: true,
                 },
             });
@@ -1123,7 +1122,7 @@ export class ChannelPartnersService {
 
         const expectedSignature = crypto
             .createHmac('sha256', keySecret)
-            .update(`${razorpayOrderId}| ${razorpayPaymentId} `)
+            .update(`${razorpayOrderId}|${razorpayPaymentId}`)
             .digest('hex');
 
         if (expectedSignature !== razorpaySignature) {

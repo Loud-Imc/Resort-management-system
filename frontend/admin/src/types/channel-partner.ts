@@ -23,6 +23,9 @@ export interface ChannelPartner {
     };
     createdAt: string;
     updatedAt: string;
+    aadhaarImage?: string;
+    licenceImage?: string;
+    registrationFeePaid?: boolean;
     _count?: {
         referrals: number;
     };

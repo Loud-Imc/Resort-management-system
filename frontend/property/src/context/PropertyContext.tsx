@@ -24,21 +24,46 @@ export const PropertyProvider = ({ children }: { children: ReactNode }) => {
 
         try {
             setIsLoading(true);
+
+            // 1. Try to fetch approved properties
             const response = await api.get<any>('/properties/admin/all');
-            const propertiesList = response.data.data || [];
+            let propertiesList = response.data.data || [];
+
+            // 2. If no approved properties, check for pending/rejected requests
+            if (propertiesList.length === 0) {
+                try {
+                    const reqRes = await api.get<any>('/properties/requests/my');
+                    const requests = reqRes.data || [];
+                    if (requests.length > 0) {
+                        // Map requests to look like Property objects for the UI
+                        propertiesList = requests.map((req: any) => ({
+                            id: req.id,
+                            name: req.name,
+                            slug: 'pending-request-' + req.id,
+                            status: req.status,
+                            isActive: false,
+                            isVerified: false,
+                            isRequest: true, // Custom UI flag
+                            details: req.details || {}
+                        }));
+                    }
+                } catch (reqErr) {
+                    console.error('Failed to fetch requests:', reqErr);
+                }
+            }
 
             setProperties(propertiesList);
 
             if (propertiesList.length > 0) {
                 const storedId = localStorage.getItem('property_selectedPropertyId');
                 const found = storedId
-                    ? propertiesList.find((p: Property) => p.id === storedId)
+                    ? propertiesList.find((p: any) => p.id === storedId)
                     : null;
 
                 if (found) {
                     setSelectedProperty(found);
                 } else {
-                    // Auto-lock to first property
+                    // Auto-lock to first property/request
                     setSelectedProperty(propertiesList[0]);
                 }
             } else {

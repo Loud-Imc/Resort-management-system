@@ -16,4 +16,9 @@ export const propertiesService = {
         const { data } = await api.put<Property>(`/properties/${id}/toggle-active`, { isActive });
         return data;
     },
+
+    updateRequest: async (id: string, payload: any): Promise<any> => {
+        const { data } = await api.patch(`/properties/requests/${id}/my`, payload);
+        return data;
+    },
 };

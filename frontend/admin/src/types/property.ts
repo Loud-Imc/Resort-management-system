@@ -112,6 +112,7 @@ export interface PropertyQueryParams {
     longitude?: number;
     radius?: number;
     allowsGroupBooking?: boolean;
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
 }
 
 export interface PropertyListResponse {

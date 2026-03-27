@@ -60,73 +60,47 @@ export default function DashboardLayout() {
     const isSuperAdmin = user?.roles?.includes('SuperAdmin');
 
     const navItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-
-        // Properties & Management
+        // PILLAR 1: INTELLIGENCE
+        { icon: LayoutDashboard, label: 'Executive Dashboard', path: '/' },
+        ...(hasPermission('reports.viewFinancial') ? [
+            { icon: PieChart, label: 'Platform Reports', path: '/reports' }
+        ] : []),
         ...(hasPermission('properties.read') ? [
-            { icon: Building2, label: isSuperAdmin ? 'All Properties' : 'Properties', path: '/properties' },
+            { icon: Building2, label: 'All Properties', path: '/properties' },
+        ] : []),
+
+        // PILLAR 2: VETTING & OVERSIGHT
+        ...(hasPermission('properties.create') ? [
+            { icon: Shield, label: 'Property Requests', path: '/properties/requests' },
+        ] : []),
+        ...(hasPermission('marketing.read') ? [
+            { icon: Users, label: 'CP Onboarding', path: '/channel-partners' },
+        ] : []),
+
+        // PILLAR 3: FINANCIAL OPERATIONS
+        ...(hasPermission('payments.read') ? [
+            { icon: CreditCard, label: 'Settlements', path: '/financials/settlements' },
+            { icon: DollarSign, label: 'CP Redemptions', path: '/financials/redemptions' },
+            { icon: DollarSign, label: 'Wallet Adjustments', path: '/financials/adjustments' },
+            { icon: CreditCard, label: 'Refund Requests', path: '/financials/refunds' },
+            { icon: Shield, label: 'Reconciliation', path: '/financials/reconciliation' },
+        ] : []),
+
+        // PILLAR 4: GROWTH & MARKETING
+        ...(hasPermission('marketing.read') ? [
+            { icon: Megaphone, label: 'Growth Dashboard', path: '/marketing' },
+            { icon: Ticket, label: 'Coupons', path: '/marketing/coupons' },
+            { icon: Bell, label: 'Broadcast Alerts', path: '/marketing/notifications' },
+            { icon: Settings, label: 'Loyalty / Tiers', path: '/loyalty-management' }
+        ] : []),
+
+        // PILLAR 5: PLATFORM INTEGRITY
+        ...(hasPermission('users.read') ? [
+            { icon: Users, label: 'Platform Users', path: '/users' },
+            { icon: Shield, label: 'System Roles', path: '/roles' },
         ] : []),
         ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [
-            { icon: LayoutDashboard, label: 'Categories', path: '/property-categories' },
-        ] : []),
-
-        // Bookings & Rooms
-        // ...(hasPermission('bookings.read') ? [
-        //     { icon: Calendar, label: 'Bookings', path: '/bookings' },
-        //     { icon: Users, label: 'Guests', path: '/guests' },
-        // ] : []),
-
-        // ...(hasPermission('roomTypes.read') ? [
-        //     { icon: BedDouble, label: 'Room Types', path: '/room-types' },
-        // ] : []),
-
-        // ...(hasPermission('rooms.read') ? [
-        //     { icon: BedDouble, label: 'Rooms', path: '/rooms' },
-        // ] : []),
-
-
-
-        // Events
-        // ...(hasPermission('events.read') ? [
-        //     { icon: Calendar, label: 'Events', path: '/events' },
-        //     { icon: Users, label: 'Attendees', path: '/events/bookings' },
-        //     { icon: Shield, label: 'Check-In', path: '/events/check-in' }
-        // ] : []),
-
-        // Marketing
-        ...(hasPermission('marketing.read') ? [
-            { icon: DollarSign, label: 'Marketing', path: '/marketing' },
-            { icon: Ticket, label: 'Coupons', path: '/marketing/coupons' },
-            { icon: Megaphone, label: 'Broadcast Alerts', path: '/marketing/notifications' },
-            { icon: Users, label: 'Channel Partners', path: '/channel-partners' },
-            { icon: Settings, label: 'Loyalty Management', path: '/loyalty-management' }
-        ] : []),
-
-        // Financials
-        ...(hasPermission('payments.read') ? [
-            { icon: CreditCard, label: 'Payments', path: '/payments' },
-        ] : []),
-
-        ...(hasPermission('reports.viewFinancial') ? [
-            { icon: DollarSign, label: 'Financials', path: '/financials' },
-        ] : []),
-
-        // ...(hasPermission('bookingSources.read') ? [
-        //     { icon: Briefcase, label: 'Sources', path: '/booking-sources' },
-        // ] : []),
-
-        // User Management
-        ...(hasPermission('users.read') ? [
-            { icon: Users, label: isSuperAdmin ? 'Platform Users' : 'Team Accounts', path: '/users' },
-        ] : []),
-
-        ...(hasPermission('roles.read') ? [
-            { icon: Shield, label: isSuperAdmin ? 'System Roles' : 'Team Roles', path: '/roles' },
-        ] : []),
-
-        // Reports
-        ...(hasPermission('reports.viewDashboard') ? [
-            { icon: PieChart, label: 'Reports', path: '/reports' }
+            { icon: LayoutDashboard, label: 'Property Categories', path: '/property-categories' },
         ] : []),
     ];
 
