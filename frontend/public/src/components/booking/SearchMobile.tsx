@@ -308,7 +308,7 @@ export default function SearchMobile({
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">
-                                        {isGroupBooking ? 'Group Adults' : 'Adults'}
+                                        {isGroupBooking ? 'Adults' : 'Adults'}
                                     </h4>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 13+</p>
                                 </div>
@@ -347,9 +347,9 @@ export default function SearchMobile({
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">
-                                        {isGroupBooking ? 'Group Children' : 'Children'}
+                                        {isGroupBooking ? 'Children' : 'Children'}
                                     </h4>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 2–12</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 6–12</p>
                                 </div>
                                 <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-2xl border border-gray-100">
                                     <button

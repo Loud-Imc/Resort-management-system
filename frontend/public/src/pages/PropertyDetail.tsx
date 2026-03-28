@@ -448,11 +448,20 @@ export default function PropertyDetail() {
                                         })()
                                     ) : (
                                         // Standard Booking View: Room Types
-                                        property.roomTypes.map((roomType) => {
+                                        // When dates are selected and availability is loaded, only show room types
+                                        // that satisfy the guest count (returned by the availability API).
+                                        (checkIn && checkOut && availability
+                                            ? property.roomTypes.filter(rt => availability.some(a => a.id === rt.id))
+                                            : property.roomTypes
+                                        ).map((roomType) => {
                                             const availabilityInfo = availability?.find(a => a.id === roomType.id);
                                             const isFundamentallySoldOut = roomType.rooms && roomType.rooms.length > 0 &&
                                                 roomType.rooms.every((r: any) => r.status !== 'AVAILABLE');
-                                            const isSoldOut = (checkIn && checkOut) ? availabilityInfo?.isSoldOut : isFundamentallySoldOut;
+                                            // If dates are selected and the room is NOT in availability results,
+                                            // it means the room doesn't meet the capacity or is sold out — treat as unavailable.
+                                            const isSoldOut = (checkIn && checkOut)
+                                                ? (availability ? (availabilityInfo ? availabilityInfo.isSoldOut : true) : false)
+                                                : isFundamentallySoldOut;
                                             const availableCount = (checkIn && checkOut) ? availabilityInfo?.availableCount : roomType.rooms?.filter((r: any) => r.status === 'AVAILABLE').length;
 
                                             return (
@@ -619,7 +628,7 @@ export default function PropertyDetail() {
                                                                             {formatPrice(availabilityInfo.totalPrice, selectedCurrency, rates)}
                                                                         </div>
                                                                         <div className="text-[10px] text-gray-500 font-medium">
-                                                                            incl. {formatPrice(availabilityInfo.taxAmount || 0, selectedCurrency, rates)} taxes ({Math.round((availabilityInfo.taxRate || 0) * 100)}% GST)
+                                                                            incl. {formatPrice(availabilityInfo.taxAmount || 0, selectedCurrency, rates)} taxes ({Math.round((availabilityInfo.taxRate || 0) / 100)}% GST)
                                                                         </div>
                                                                         <div className="text-[10px] text-gray-400 font-medium">
                                                                             {formatPrice(availabilityInfo.pricePerNight, selectedCurrency, rates)} / night × {availabilityInfo.numberOfNights || 0} night{(availabilityInfo.numberOfNights || 0) > 1 ? 's' : ''}
@@ -974,7 +983,7 @@ export default function PropertyDetail() {
                                                 </div>
                                             </div>
                                             <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Children (2-12)</label>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Children (6-12)</label>
                                                 <div className="relative">
                                                     <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                                                     <input

@@ -1080,6 +1080,94 @@ export class PaymentsService {
     }
 
     /**
+     * Instantly record a manual payment (Property Flow - No Maker/Checker)
+     */
+    async recordPropertyManualPayment(user: any, dto: RecordManualPaymentDto) {
+        const booking = await this.prisma.booking.findUnique({
+            where: { id: dto.bookingId },
+            include: {
+                user: true,
+                property: { include: { staff: true } }
+            }
+        });
+
+        if (!booking) throw new NotFoundException('Booking not found');
+
+        // Security check: Make sure user owns or is staff at this property
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        if (!isGlobalAdmin && booking.property?.ownerId !== user.id && !booking.property?.staff?.some(s => s.userId === user.id)) {
+            throw new ForbiddenException('You do not have permission to record payments for this property.');
+        }
+
+        // Prevent Overpayment Request
+        const currentPaid = Number(booking.paidAmount);
+        const total = Number(booking.totalAmount);
+        if (currentPaid + Number(dto.amount) > total + 0.01) {
+            throw new BadRequestException(`Amount exceeds balance. Remaining: ${total - currentPaid}`);
+        }
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            const newPaidAmount = Number(booking.paidAmount) + Number(dto.amount);
+            const totalAmount = Number(booking.totalAmount);
+            const commissionRate = Number(booking.property?.platformCommission ?? 10);
+            const platformFee = (Number(dto.amount) * commissionRate) / 100;
+            const netAmount = Number(dto.amount) - platformFee;
+
+            // 1. Create payment record
+            const payment = await tx.payment.create({
+                data: {
+                    amount: dto.amount,
+                    currency: booking.bookingCurrency || 'INR',
+                    status: 'PAID',
+                    paymentMethod: dto.method,
+                    paymentDate: new Date(),
+                    bookingId: dto.bookingId,
+                    notes: `Property Desk Payment: ${dto.notes || ''}`,
+                    platformFee: platformFee,
+                    netAmount: netAmount,
+                    commissionRate: commissionRate,
+                },
+            });
+
+            // 2. Update booking paid amount
+            const isFullyPaid = newPaidAmount >= totalAmount - 0.01;
+            await tx.booking.update({
+                where: { id: dto.bookingId },
+                data: {
+                    paidAmount: newPaidAmount,
+                    paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
+                    ...(booking.status === 'PENDING_PAYMENT' && { status: 'CONFIRMED', confirmedAt: new Date() })
+                },
+            });
+
+            // 3. Create income record
+            await tx.income.create({
+                data: {
+                    amount: dto.amount,
+                    source: 'MANUAL_PAYMENT',
+                    description: `Property desk payment (${dto.method}) for booking ${booking.bookingNumber}`,
+                    bookingId: dto.bookingId,
+                    paymentId: payment.id,
+                },
+            });
+
+            return payment;
+        });
+
+        await this.audit.createLog({
+            userId: user.id,
+            action: 'PROPERTY_MANUAL_PAYMENT_RECORDED',
+            entity: 'booking',
+            entityId: dto.bookingId,
+            newValue: { amount: dto.amount, method: dto.method, paymentId: result.id }
+        });
+
+        return { success: true, payment: result };
+    }
+
+    /**
      * Approve a manual payment (Checker)
      */
     async approveManualPayment(user: any, requestId: string) {

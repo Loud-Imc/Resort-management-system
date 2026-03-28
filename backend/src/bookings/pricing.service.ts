@@ -56,6 +56,8 @@ export class PricingService {
         groupSize?: number,
     ): Promise<PricingBreakdown> {
         // 1. Get room type pricing configuration
+        console.log("adultcount", adultsCount);
+        console.log("childrenCount", childrenCount);
         const roomType = await this.prisma.roomType.findUnique({
             where: { id: roomTypeId },
             include: { property: true },
@@ -84,20 +86,9 @@ export class PricingService {
             throw new BadRequestException('Check-out date must be after check-in date');
         }
 
-        // Validate guest counts (Skip for group bookings as they use groupSize and per-head pricing)
-        if (!isGroupBooking) {
-            if (adultsCount > roomType.maxAdults) {
-                throw new BadRequestException(
-                    `Maximum ${roomType.maxAdults} adults allowed for this room type`,
-                );
-            }
-
-            if (childrenCount > roomType.maxChildren) {
-                throw new BadRequestException(
-                    `Maximum ${roomType.maxChildren} children allowed for this room type`,
-                );
-            }
-        } else if (isGroupBooking && groupSize) {
+        // For standard bookings: guests beyond maxAdults/maxChildren are permitted
+        // but incur extra charges (calculated below). Group bookings use groupSize capacity.
+        if (isGroupBooking && groupSize) {
             // Validate against property capacity if global group booking is enabled, otherwise room capacity
             const maxGroupCap = (roomType.property as any).allowsGroupBooking
                 ? (roomType.property as any).maxGroupCapacity || 999
@@ -151,11 +142,13 @@ export class PricingService {
             baseAmount = basePricePerNight * numberOfNights;
 
             // 4. Calculate extra adult charges
-            const extraAdults = Math.max(0, adultsCount - 1); // First adult included in base
+            // Extra adults are only charged when guest count exceeds the room's maxAdults capacity
+            const extraAdults = Math.max(0, adultsCount - roomType.maxAdults);
             extraAdultAmount = extraAdults * Number(roomType.extraAdultPrice) * numberOfNights;
 
             // 5. Calculate extra child charges
-            const extraChildren = Math.max(0, childrenCount - roomType.freeChildrenCount);
+            // Extra children are only charged when guest count exceeds the room's maxChildren capacity
+            const extraChildren = Math.max(0, childrenCount - roomType.maxChildren);
             extraChildAmount = extraChildren * Number(roomType.extraChildPrice) * numberOfNights;
         }
 
@@ -167,7 +160,10 @@ export class PricingService {
         );
 
         let subtotal = baseAmount + extraAdultAmount + extraChildAmount;
-
+        console.log("baseAmount", baseAmount);
+        console.log("extraAdultAmount", extraAdultAmount);
+        console.log("extraChildAmount", extraChildAmount);
+        console.log("subtotal *****123", subtotal);
         if (pricingRule) {
             if (pricingRule.adjustmentType === 'PERCENTAGE') {
                 const adjustment = (subtotal * Number(pricingRule.adjustmentValue)) / 100;
@@ -287,8 +283,10 @@ export class PricingService {
         const taxRate = subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 0;
 
         // 11. Calculate final total (subtotal already has all discounts applied)
+        console.log("subtotal *****", subtotal);
+        console.log("taxAmount *****", taxAmount);
         const totalAmount = subtotal + taxAmount;
-
+        console.log("totalAmount *****", totalAmount);
         // 12. Handle Currency Conversion
         let exchangeRate = 1.0;
         if (targetCurrency !== baseCurrency) {

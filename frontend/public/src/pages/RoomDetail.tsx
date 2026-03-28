@@ -417,7 +417,7 @@ export default function RoomDetail() {
                                                 <span className="text-gray-900">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
                                             </div>
                                             <div className="flex justify-between text-gray-500 text-sm font-medium">
-                                                <span>Taxes & Fees (12%)</span>
+                                                <span>Taxes (12%)</span>
                                                 <span className="text-gray-900">{formatPrice(Math.round(roomType.basePrice * 0.12), selectedCurrency, rates)}</span>
                                             </div>
                                             <div className="flex justify-between text-gray-900 font-black text-lg pt-2">

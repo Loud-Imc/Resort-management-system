@@ -21,7 +21,7 @@ export const paymentsService = {
     },
 
     recordManual: async (data: RecordManualPaymentDto) => {
-        const { data: response } = await api.post('/payments/manual', data);
+        const { data: response } = await api.post('/payments/property/manual', data);
         return response;
     }
 };

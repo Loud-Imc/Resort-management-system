@@ -178,7 +178,10 @@ export default function Confirmation() {
             const imgWidth = 210;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
             pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-            pdf.save(`RouteGuide_Invoice_${booking.bookingNumber}.pdf`);
+            const fileName = balanceDue > 0
+                ? `RouteGuide_Performa_Invoice_${booking.bookingNumber}.pdf`
+                : `RouteGuide_Invoice_${booking.bookingNumber}.pdf`;
+            pdf.save(fileName);
         } catch (error) {
             console.error('Error generating PDF:', error);
         } finally {
@@ -266,7 +269,9 @@ export default function Confirmation() {
                                 <div className="h-10 w-[1px] bg-gray-200 mx-2 hidden sm:block"></div>
                                 <div>
                                     <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-widest leading-none">Route Guide</h1>
-                                    <p className="text-[10px] text-gray-600 font-medium uppercase tracking-tighter mt-1">Official Booking Confirmation & Invoice</p>
+                                    <p className="text-[10px] text-gray-600 font-medium uppercase tracking-tighter mt-1">
+                                        {balanceDue > 0 ? 'Official Booking Confirmation & Performa Invoice' : 'Official Booking Confirmation & Invoice'}
+                                    </p>
                                 </div>
                             </div>
                             <div className="space-y-0.5 border-l-2 border-primary-500 pl-4 mt-2">
@@ -337,7 +342,7 @@ export default function Confirmation() {
                                                 <User className="h-4 w-4 text-primary-500" />
                                                 <span className="font-bold">
                                                     {booking.isGroupBooking
-                                                        ? `${booking.groupSize} Guests (${booking.roomCount || Math.ceil(booking.groupSize / (property?.groupMaxOccupancy || 1))} Rooms)`
+                                                        ? `${booking.groupSize} Guests`
                                                         : `${booking.adultsCount} Adults, ${booking.childrenCount} Child`
                                                     }
                                                 </span>
@@ -366,7 +371,7 @@ export default function Confirmation() {
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <div className="flex items-center gap-1.5 text-gray-500">
-                                            <span>Taxes & Fees</span>
+                                            <span>Taxes</span>
                                             <div className="group/info relative print:hidden [.pdf-capture-mode_&]:hidden">
                                                 <Info className="h-3 w-3 text-gray-400 cursor-help" />
                                                 <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[9px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
@@ -441,7 +446,7 @@ export default function Confirmation() {
                                                     className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                 >
                                                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                                                    Invoice (PDF)
+                                                    {balanceDue > 0 ? 'Performa invoice (PDF)' : 'Invoice (PDF)'}
                                                 </button>
                                                 <button
                                                     onClick={() => window.print()}

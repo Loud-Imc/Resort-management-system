@@ -278,7 +278,7 @@ export default function CreateBooking() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Children (2-12)</label>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Children (6-12)</label>
                                                 <input
                                                     type="number"
                                                     min="0"

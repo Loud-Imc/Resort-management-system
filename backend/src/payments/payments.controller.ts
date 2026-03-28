@@ -31,6 +31,14 @@ export class PaymentsController {
         return this.paymentsService.requestManualPayment(req.user, dto);
     }
 
+    @Post('property/manual')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Instantly record a manual payment for a property booking (No Maker-Checker)' })
+    recordPropertyManualPayment(@Body() dto: RecordManualPaymentDto, @Req() req: any) {
+        return this.paymentsService.recordPropertyManualPayment(req.user, dto);
+    }
+
     @Patch('manual/approve/:requestId')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.FINANCE.APPROVE_MANUAL_PAYMENT)

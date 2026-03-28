@@ -55,6 +55,7 @@ export class ChannelPartnersService {
 
         // Generate unique referral code if new
         const referralCode = existing?.referralCode || await this.getUniqueReferralCode();
+        const defaultCommissionRate = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE') || 10;
 
         // Get CP role
         const cpRole = await this.prisma.role.findFirst({
@@ -81,6 +82,7 @@ export class ChannelPartnersService {
                 create: {
                     userId,
                     referralCode,
+                    overrideCommissionRate: Number(defaultCommissionRate),
                     partnerType: dto?.partnerType || 'INDIVIDUAL',
                     status: ChannelPartnerStatus.PENDING,
                     organizationName: dto?.organizationName,
@@ -158,6 +160,7 @@ export class ChannelPartnersService {
 
         const referralCode = await this.getUniqueReferralCode();
         const hashedPassword = await bcrypt.hash(dto.password, 10);
+        const defaultCommissionRate = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE') || 10;
 
         let result: any;
         try {
@@ -198,6 +201,7 @@ export class ChannelPartnersService {
                     create: {
                         userId: user.id,
                         referralCode,
+                        overrideCommissionRate: Number(defaultCommissionRate),
                         partnerType: dto.partnerType,
                         status: ChannelPartnerStatus.PENDING,
                         organizationName: dto.organizationName,

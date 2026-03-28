@@ -175,7 +175,7 @@ export default function SearchInline({
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
-                                                    {isGroupBooking ? 'Group Adults' : 'Adults'}
+                                                    {isGroupBooking ? 'Adults' : 'Adults'}
                                                 </p>
                                                 <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 13+</p>
                                             </div>
@@ -220,9 +220,9 @@ export default function SearchInline({
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
-                                                    {isGroupBooking ? 'Group Children' : 'Children'}
+                                                    {isGroupBooking ? 'Children' : 'Children'}
                                                 </p>
-                                                <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 2-12</p>
+                                                <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 6-12</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">

@@ -128,7 +128,9 @@ export default function ProcessRole() {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                             <div className="grid grid-cols-2 gap-2">
-                                {[{ id: 'PROPERTY', label: 'Property' }, { id: 'EVENT', label: 'Event' }].map((cat) => (
+                                {[{ id: 'PROPERTY', label: 'Property' }
+                                    // , { id: 'EVENT', label: 'Event' }
+                                ].map((cat) => (
                                     <button key={cat.id} type="button" onClick={() => setValue('category', cat.id as any)}
                                         className={clsx("flex items-center gap-2 p-3 rounded-lg border transition-all text-xs font-bold",
                                             currentCategory === cat.id ? "bg-blue-600 border-blue-600 text-white shadow-sm" : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600")}>

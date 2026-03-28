@@ -227,6 +227,7 @@ export default function Checkout() {
             // 1. Create the booking (Status: PENDING_PAYMENT)
             const bookingData = {
                 roomTypeId: selectedRoom.id,
+                propertyId: selectedRoom.propertyId || selectedRoom.property?.id,
                 checkInDate: checkIn,
                 checkOutDate: checkOut,
                 adultsCount: adults,
@@ -539,42 +540,48 @@ export default function Checkout() {
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Apply Coupon or Partner Code</label>
-                                        {(appliedCoupon || appliedReferralCode) && (
+                                    </div>
+                                    <div>
+                                        <div className="flex items-start gap-2">
+                                            <div className="flex-1">
+                                                <input
+                                                    type="text"
+                                                    value={couponCode}
+                                                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            handleApplyCoupon();
+                                                        }
+                                                    }}
+                                                    placeholder="GUEST10 or CP... (10 chars)"
+                                                    className="w-full p-3 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
+                                                />
+                                                {(appliedCoupon || appliedReferralCode) && (
+                                                    <div className="flex justify-end mt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setAppliedCoupon(null);
+                                                                setAppliedReferralCode(null);
+                                                                setCouponCode('');
+                                                            }}
+                                                            className="text-[10px] text-red-500 font-bold hover:underline"
+                                                        >
+                                                            REMOVE
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setAppliedCoupon(null);
-                                                    setAppliedReferralCode(null);
-                                                    setCouponCode('');
-                                                }}
-                                                className="text-[10px] text-red-500 font-bold hover:underline"
+                                                onClick={() => handleApplyCoupon()}
+                                                disabled={pricingLoading}
+                                                className="px-6 py-3 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors disabled:opacity-50 whitespace-nowrap"
                                             >
-                                                REMOVE
+                                                {pricingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
                                             </button>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={couponCode}
-                                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    handleApplyCoupon();
-                                                }
-                                            }}
-                                            placeholder="GUEST10 or CP... (10 chars)"
-                                            className="flex-1 p-3 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => handleApplyCoupon()}
-                                            disabled={pricingLoading}
-                                            className="px-6 py-3 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors disabled:opacity-50"
-                                        >
-                                            {pricingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
-                                        </button>
+                                        </div>
                                     </div>
 
                                     {(appliedCoupon || appliedReferralCode) && !pricingLoading && !isPricingError && (
@@ -690,7 +697,7 @@ export default function Checkout() {
                                     <Loader2 className="animate-spin h-5 w-5" /> Processing...
                                 </>
                             ) : (
-                                `Pay & Reserve ${formatPrice(
+                                `${paymentOption === 'FULL' ? 'Book Now with' : 'Pay & Reserve'} ${formatPrice(
                                     paymentMethod === 'WALLET'
                                         ? ((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0))
                                         : (paymentOption === 'PARTIAL' ? Math.round((effectivePricing?.totalAmount || 0) / 3) : (effectivePricing?.totalAmount || 0)),
@@ -739,8 +746,6 @@ export default function Checkout() {
 
                                 <div className="border-t border-dashed border-gray-200 my-4"></div>
 
-                                {/* Coupon form removed from here and moved to main area */}
-
                                 <div className="border-t border-gray-100 pt-4 space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-600">Base Room Charges</span>
@@ -766,7 +771,7 @@ export default function Checkout() {
                                     )}
                                     <div className="flex justify-between text-sm group relative">
                                         <div className="flex items-center gap-1.5 text-gray-600">
-                                            <span>Taxes & Fees</span>
+                                            <span>Taxes</span>
                                             <div className="group/info relative">
                                                 <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
                                                 <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">

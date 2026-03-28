@@ -439,7 +439,7 @@ const InlineBookingPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Children (2-12)</label>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Children (6-12)</label>
                                     <input
                                         type="number"
                                         min={0}
