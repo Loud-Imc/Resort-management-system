@@ -184,7 +184,7 @@ export default function Checkout() {
         const code = couponCode.trim().toUpperCase();
         if (!code) return;
 
-        if (code.startsWith('CP-')) {
+        if (code.startsWith('CP')) {
             setAppliedReferralCode(code);
             setAppliedCoupon(null);
             // If the code matches current user's code, allow wallet payment
@@ -564,7 +564,7 @@ export default function Checkout() {
                                                     handleApplyCoupon();
                                                 }
                                             }}
-                                            placeholder="GUEST10 or CP-XXXXXX"
+                                            placeholder="GUEST10 or CP... (10 chars)"
                                             className="flex-1 p-3 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
                                         />
                                         <button
