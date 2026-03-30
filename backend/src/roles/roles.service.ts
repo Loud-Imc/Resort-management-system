@@ -67,35 +67,44 @@ export class RolesService {
             const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
             if (isGlobalAdmin) {
-                // Admin sees everything by default, but can filter
-                if (query?.propertyId) where.propertyId = query.propertyId;
-                if (query?.category) where.category = query.category;
-            } else if (user.roles.includes('PropertyOwner')) {
-                // Property owner sees SYSTEM roles (templates) only if they are PROPERTY or EVENT categories
-                // and their own custom property roles
-                const ownedProperties = await this.prisma.property.findMany({
-                    where: { ownerId: user.id },
-                    select: { id: true }
-                });
-                const ownedPropertyIds = ownedProperties.map(p => p.id);
+                // Admin sees following by default:
+                // 1. If propertyId requested, show that property's roles ONLY (no system templates unless they are for that property)
+                // 2. If NO propertyId requested, show SYSTEM roles only (the global templates)
+                if (query?.propertyId) {
+                    where.propertyId = query.propertyId;
+                    where.isSystem = false; // Usually admins want to see custom roles for a property
+                } else {
+                    where.isSystem = true;
+                    where.propertyId = null;
+                }
+            } else {
+                // Property Owner / Staff / Others
+                const ownedPropertyIds: string[] = [];
+                if (roles.includes('PropertyOwner')) {
+                    const ownedProperties = await this.prisma.property.findMany({
+                        where: { ownerId: user.id },
+                        select: { id: true }
+                    });
+                    ownedPropertyIds.push(...ownedProperties.map(p => p.id));
+                }
+
+                // Relevant property context (from query or session)
+                const currentPropertyId = query?.propertyId || user.propertyId;
 
                 where = {
                     OR: [
                         {
                             isSystem: true,
-                            category: { in: ['PROPERTY', 'EVENT'] }
+                            category: { in: ['PROPERTY', 'EVENT'] } // System templates
                         },
-                        { propertyId: { in: ownedPropertyIds } }
+                        {
+                            propertyId: currentPropertyId || { in: ownedPropertyIds }
+                        }
                     ]
                 };
-                if (query?.category) where.category = query.category;
-            } else {
-                // Others see limited
-                const manageableRoleNames = this.getManageableRoleNames(roles);
-                where = {
-                    name: { in: manageableRoleNames }
-                };
             }
+
+            if (query?.category) where.category = query.category;
         }
 
         return this.prisma.role.findMany({
@@ -251,8 +260,14 @@ export class RolesService {
         });
     }
 
-    async findAllPermissions() {
+    async findAllPermissions(user?: any) {
+        const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || user?.roles?.includes('Admin');
+
         return this.prisma.permission.findMany({
+            where: isGlobalAdmin ? {} : {
+                name: { in: user?.permissions || [] }
+            },
             orderBy: [
                 { module: 'asc' },
                 { name: 'asc' },

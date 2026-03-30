@@ -249,9 +249,21 @@ const Register: React.FC = () => {
                                 />
                             </div>
 
-                            <div>
+                            <div style={{ gridColumn: 'span 2' }}>
                                 <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Password</label>
                                 <input name="password" type="password" placeholder="••••••••" value={formData.password} onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
+                                <div style={{
+                                    marginTop: '0.8rem',
+                                    fontSize: '0.75rem',
+                                    color: '#0c6a75',
+                                    background: 'rgba(8, 71, 78, 0.05)',
+                                    padding: '0.8rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid rgba(8, 71, 78, 0.1)',
+                                    lineHeight: '1.4'
+                                }}>
+                                    <strong>Unified Account:</strong> If you already have an account (e.g., as a Guest or Property Owner), please use your <strong>existing password</strong> to link this new role to your profile.
+                                </div>
                             </div>
                         </>
                     )}

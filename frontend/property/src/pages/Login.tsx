@@ -5,7 +5,7 @@ import { Loader2, Building2, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, logout } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -24,16 +24,16 @@ export default function Login() {
                 const userData = atob(encodedUser);
                 localStorage.setItem('property_token', token);
                 localStorage.setItem('property_user', userData);
-                
+
                 if (propertyId) {
                     localStorage.setItem('property_selectedPropertyId', propertyId);
                 }
 
                 toast.success('Admin impersonation successful');
-                
+
                 // Clear URL and redirect
                 navigate('/', { replace: true });
-                
+
                 // Reload to ensure all context providers pick up the new localStorage items
                 window.location.reload();
             } catch (e) {
@@ -48,10 +48,23 @@ export default function Login() {
         setIsLoading(true);
         try {
             await login({ email, password });
+
+            // Post-login check for portal access (Property Owner role)
+            const storedUser = localStorage.getItem('property_user');
+            if (storedUser) {
+                const user = JSON.parse(storedUser);
+                const roles = user.roles || [user.role];
+                if (!roles.includes('PropertyOwner') && !roles.includes('SuperAdmin')) {
+                    logout();
+                    throw new Error('Account not registered for this portal. Please register your property first.');
+                }
+            }
+
             toast.success('Welcome back!');
             navigate('/');
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Invalid credentials');
+            const message = error?.message || error?.response?.data?.message || 'Invalid credentials';
+            toast.error(message);
         } finally {
             setIsLoading(false);
         }
@@ -72,14 +85,14 @@ export default function Login() {
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1.5 font-bold">
-                                Email Address
+                                Email or Phone Number
                             </label>
                             <input
-                                type="email"
+                                type="text"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                placeholder="you@example.com"
+                                placeholder="Email or Phone Number"
                                 required
                             />
                         </div>

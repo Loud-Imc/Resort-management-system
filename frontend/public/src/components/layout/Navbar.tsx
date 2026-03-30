@@ -89,7 +89,7 @@ export default function Navbar() {
                                 <div className="flex items-center gap-4 border-r border-gray-200 pr-6">
                                     <NotificationBell />
                                     <span className={clsx("font-medium", textColor)}>
-                                        Hi, {user.firstName}
+                                        {/* Hi, {user.firstName} */}
                                     </span>
                                     <button
                                         onClick={handleLogout}
@@ -120,6 +120,12 @@ export default function Navbar() {
                             </div>
                         ) : (
                             <div className="flex items-center gap-6">
+                                <Link
+                                    to="/track-booking"
+                                    className={clsx("font-semibold hover:text-primary-600 transition-colors", textColor)}
+                                >
+                                    Track Booking
+                                </Link>
                                 <Link
                                     to="/login"
                                     className={clsx("flex items-center gap-2 font-semibold hover:text-primary-600 transition-colors", textColor)}
@@ -185,7 +191,7 @@ export default function Navbar() {
                         {user ? (
                             <>
                                 <div className="px-3 py-2 text-primary-600 font-bold border-t border-gray-50 mt-2 flex justify-between items-center">
-                                    <span>Hi, {user.firstName}</span>
+                                    {/* <span>Hi, {user.firstName}</span> */}
                                     <NotificationBell />
                                 </div>
                                 <Link
@@ -207,6 +213,13 @@ export default function Navbar() {
                             </>
                         ) : (
                             <>
+                                <Link
+                                    to="/track-booking"
+                                    className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
+                                    onClick={() => setIsOpen(false)}
+                                >
+                                    Track Booking
+                                </Link>
                                 <Link
                                     to="/login"
                                     className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"

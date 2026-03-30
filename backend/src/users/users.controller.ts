@@ -36,9 +36,10 @@ export class UsersController {
     findAll(
         @Request() req,
         @Query('propertyId') propertyId?: string,
-        @Query('isStaffOnly') isStaffOnly?: string
+        @Query('isStaffOnly') isStaffOnly?: string,
+        @Query('search') search?: string
     ) {
-        return this.usersService.findAll(req.user, { propertyId, isStaffOnly });
+        return this.usersService.findAll(req.user, { propertyId, isStaffOnly, search });
     }
 
     @Post()

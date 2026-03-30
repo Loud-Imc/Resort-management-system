@@ -75,6 +75,7 @@ export class NotificationsService {
     title: string;
     message: string;
     type: string;
+    targetRole?: string;
     data?: any;
   }) {
     try {
@@ -84,6 +85,7 @@ export class NotificationsService {
           title: payload.title,
           message: payload.message,
           type: payload.type,
+          targetRole: payload.targetRole,
           data: payload.data || {},
         },
       });
@@ -195,6 +197,7 @@ export class NotificationsService {
           title: 'New Booking Received 🚀',
           message: summary,
           type: 'BOOKING_CREATED',
+          targetRole: 'PropertyOwner',
           data: { bookingId: booking.id, propertyId: booking.propertyId }
         });
       } catch (err) {
@@ -245,6 +248,7 @@ export class NotificationsService {
           title: 'Booking Confirmed! 🏨',
           message: `Your stay at ${booking.property?.name} is confirmed. Booking #: ${booking.bookingNumber}`,
           type: 'BOOKING_CONFIRMED',
+          targetRole: 'Customer',
           data: { bookingId: booking.id, propertyId: booking.propertyId }
         });
       } catch (err) {
@@ -286,6 +290,7 @@ export class NotificationsService {
           title: 'New Referral Booking! 💰',
           message: `A booking was made using your referral code at ${booking.property?.name}`,
           type: 'CP_REFERRAL_BOOKING',
+          targetRole: 'ChannelPartner',
           data: { bookingId: booking.id, commission: booking.cpCommission }
         });
       } catch (err) {
@@ -391,6 +396,7 @@ export class NotificationsService {
         ? `Your property "${property.name}" has been approved and is now live.`
         : `There is an update regarding your property "${property.name}".`,
       type: 'PROPERTY_STATUS_UPDATE',
+      targetRole: 'PropertyOwner',
       data: { propertyId: property.id, status }
     });
   }
@@ -470,6 +476,7 @@ export class NotificationsService {
         title: 'Welcome! 🏨',
         message: `You have successfully checked in at ${booking.property?.name}. Enjoy your stay!`,
         type: 'CHECKIN_SUCCESS',
+        targetRole: 'Customer',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
 
@@ -492,6 +499,7 @@ export class NotificationsService {
         title: 'Thank You! 😊',
         message: `Thank you for staying at ${booking.property?.name}. We hope to see you again soon!`,
         type: 'CHECKOUT_SUCCESS',
+        targetRole: 'Customer',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
 
@@ -515,6 +523,7 @@ export class NotificationsService {
           title: 'Booking Cancelled 🚫',
           message: `Your booking ${booking.bookingNumber} at ${booking.property?.name} has been cancelled.`,
           type: 'BOOKING_CANCELLED',
+          targetRole: 'Customer',
           data: { bookingId: booking.id, propertyId: booking.propertyId }
         });
       } catch (err) {
@@ -554,6 +563,7 @@ export class NotificationsService {
         title: 'Payout Confirmed 💸',
         message: `Payout for booking ${payment.booking?.bookingNumber || payment.eventBooking?.ticketId} has been processed.`,
         type: 'PAYOUT_CONFIRMED',
+        targetRole: 'PropertyOwner',
         data: { paymentId: payment.id, amount: payment.netAmount }
       });
     }
@@ -569,6 +579,7 @@ export class NotificationsService {
         title: 'Complete Your Booking! ✨',
         message: `Your stay at ${booking.property?.name} is waiting. Complete your payment to secure your room.`,
         type: 'ABANDONED_CART',
+        targetRole: 'Customer',
         data: { bookingId: booking.id, propertyId: booking.propertyId }
       });
 
@@ -594,6 +605,7 @@ export class NotificationsService {
           title: 'How was your stay? ⭐',
           message: `We hope you enjoyed your stay at ${booking.property?.name}. Please leave us a review!`,
           type: 'REVIEW_REQUEST',
+          targetRole: 'Customer',
           data: { bookingId: booking.id, propertyId: booking.propertyId, reviewLink }
         });
       } catch (err) {
@@ -679,6 +691,7 @@ export class NotificationsService {
       title: 'Payment Reminder: Balance Due 💳',
       message: `Your stay at ${booking.property?.name} is tomorrow. Please complete the remaining balance of ₹${balance.toLocaleString('en-IN')} to ensure a smooth check-in.`,
       type: 'BALANCE_REMINDER',
+      targetRole: 'Customer',
       data: { bookingId: booking.id, balance, paymentLink }
     });
 

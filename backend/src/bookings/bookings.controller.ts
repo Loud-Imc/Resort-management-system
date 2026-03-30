@@ -13,6 +13,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
 import { CheckInDto } from './dto/check-in.dto';
+import { TrackBookingDto } from './dto/track-booking.dto';
 
 @ApiTags('Bookings')
 @Controller('bookings')
@@ -125,6 +126,12 @@ export class BookingsController {
             await this.referralAbuseService.resetFailures(ip);
         }
         return result;
+    }
+
+    @Post('track')
+    @ApiOperation({ summary: 'Track booking (Guest Access)' })
+    async track(@Body() dto: TrackBookingDto) {
+        return this.bookingsService.trackBooking(dto);
     }
 
     @Post('public')

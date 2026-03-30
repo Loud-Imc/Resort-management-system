@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rolesService } from '../../services/roles';
 import { Plus, Edit2, Trash2, Shield, Loader2, Building2 } from 'lucide-react';
 import clsx from 'clsx';
+import { useProperty } from '../../context/PropertyContext';
 
 interface Role {
     id: string;
@@ -16,10 +17,11 @@ interface Role {
 export default function RolesList() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { selectedProperty } = useProperty();
 
     const { data: roles, isLoading } = useQuery<Role[]>({
-        queryKey: ['roles'],
-        queryFn: rolesService.getAll,
+        queryKey: ['roles', selectedProperty?.id],
+        queryFn: () => rolesService.getRoles({ propertyId: selectedProperty?.id }),
     });
 
     const deleteMutation = useMutation({

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addDays } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { propertyApi } from '../../services/properties';
+import { useSearch } from '../../context/SearchContext';
 import SearchDesktop from './SearchDesktop';
 import SearchMobile from './SearchMobile';
 import SearchInline from './SearchInline';
@@ -17,21 +17,22 @@ export default function SearchForm({
     variant?: 'hero' | 'inline'
 }) {
     const navigate = useNavigate();
-    const [location, setLocation] = useState('');
-    const [categoryId, setCategoryId] = useState('');
-    const [checkIn, setCheckIn] = useState<Date | null>(new Date());
-    const [checkOut, setCheckOut] = useState<Date | null>(addDays(new Date(), 1));
-    const [adults, setAdults] = useState(2);
-    const [children, setChildren] = useState(0);
-    const [rooms, setRooms] = useState(1);
-    const [isGroupBooking, setIsGroupBooking] = useState(false);
-    const [groupSize, setGroupSize] = useState(10);
-    const [isExpanded, setIsExpanded] = useState(false);
+    const {
+        location, setLocation,
+        categoryId, setCategoryId,
+        checkIn, setCheckIn,
+        checkOut, setCheckOut,
+        adults, setAdults,
+        children, setChildren,
+        rooms, setRooms,
+        isGroupBooking, setIsGroupBooking,
+        groupSize, setGroupSize,
+        latitude, setLatitude,
+        longitude, setLongitude,
+        radius, setRadius
+    } = useSearch();
 
-    // Geo-location state
-    const [latitude, setLatitude] = useState<number | null>(null);
-    const [longitude, setLongitude] = useState<number | null>(null);
-    const [radius, setRadius] = useState<number>(50); // Default 50km
+    const [isExpanded, setIsExpanded] = useState(false);
 
     const { data: categories } = useQuery({
         queryKey: ['property-categories'],

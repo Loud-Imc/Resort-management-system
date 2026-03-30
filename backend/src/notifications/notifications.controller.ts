@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, Delete, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,9 +18,12 @@ export class NotificationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all notifications for current user' })
-  async findAll(@Req() req) {
+  async findAll(@Req() req, @Query('role') role?: string) {
     return this.prisma.notification.findMany({
-      where: { userId: req.user.id },
+      where: {
+        userId: req.user.id,
+        targetRole: role || undefined,
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -28,9 +31,13 @@ export class NotificationsController {
 
   @Get('unread-count')
   @ApiOperation({ summary: 'Get unread notification count' })
-  async getUnreadCount(@Req() req) {
+  async getUnreadCount(@Req() req, @Query('role') role?: string) {
     const count = await this.prisma.notification.count({
-      where: { userId: req.user.id, isRead: false },
+      where: {
+        userId: req.user.id,
+        isRead: false,
+        targetRole: role || undefined,
+      },
     });
     return { count };
   }

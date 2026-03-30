@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
     MapPin, Star, Phone, Mail, CheckCircle, ArrowLeft,
@@ -13,6 +13,7 @@ import { bookingService } from '../services/booking';
 import { reviewService, Review, ReviewStats } from '../services/reviews';
 import { Property, RoomType } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
+import { useSearch } from '../context/SearchContext';
 import { formatPrice } from '../utils/currency';
 import DatePicker from 'react-datepicker';
 import { format, addDays } from 'date-fns';
@@ -49,32 +50,26 @@ const toTitleCase = (str: string) => {
 
 export default function PropertyDetail() {
     const { slug } = useParams();
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { selectedCurrency, rates } = useCurrency();
     const pickerRef = useRef<HTMLDivElement>(null);
 
-    // Booking state
-    const [checkIn, setCheckIn] = useState<Date | null>(() => {
-        const param = searchParams.get('checkIn');
-        return param ? new Date(param) : null;
-    });
-    const [checkOut, setCheckOut] = useState<Date | null>(() => {
-        const param = searchParams.get('checkOut');
-        return param ? new Date(param) : null;
-    });
-    const [adults, setAdults] = useState(Number(searchParams.get('adults')) || 2);
-    const [children, setChildren] = useState(Number(searchParams.get('children')) || 0);
-    const [rooms, _setRooms] = useState(Number(searchParams.get('rooms')) || 1);
-    const [isGroupBooking, setIsGroupBooking] = useState(searchParams.get('isGroupBooking') === 'true');
-    const [groupSize, setGroupSize] = useState(Number(searchParams.get('groupSize')) || 10);
+    const {
+        checkIn, setCheckIn,
+        checkOut, setCheckOut,
+        adults, setAdults,
+        children, setChildren,
+        rooms,
+        isGroupBooking, setIsGroupBooking,
+        groupSize, setGroupSize
+    } = useSearch();
 
     // Auto-sync groupSize when adults or children change in group mode
     useEffect(() => {
         if (isGroupBooking) {
             setGroupSize(adults + children);
         }
-    }, [adults, children, isGroupBooking]);
+    }, [adults, children, isGroupBooking, setGroupSize]);
 
     const [property, setProperty] = useState<Property | null>(null);
     const [availability, setAvailability] = useState<RoomType[] | null>(null);

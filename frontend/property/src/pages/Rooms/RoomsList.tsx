@@ -25,6 +25,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import GuestDetailsModal from '../../components/Rooms/GuestDetailsModal';
 
 export default function RoomsList() {
     const { selectedProperty } = useProperty();
@@ -34,6 +35,8 @@ export default function RoomsList() {
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [blockingRoom, setBlockingRoom] = useState<Room | null>(null);
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+    const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+    const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
     // const [viewingBlocksRoom, setViewingBlocksRoom] = useState<Room | null>(null);
 
     const queryClient = useQueryClient();
@@ -171,8 +174,15 @@ export default function RoomsList() {
                     {rooms?.map((room) => (
                         <div
                             key={room.id}
+                            onClick={() => {
+                                if (room.status === RoomStatus.OCCUPIED) {
+                                    setSelectedRoomId(room.id);
+                                    setIsGuestModalOpen(true);
+                                }
+                            }}
                             className={clsx(
                                 "border rounded-xl p-4 transition-all hover:shadow-md group",
+                                room.status === RoomStatus.OCCUPIED && "cursor-pointer hover:border-blue-500/50",
                                 room.status === RoomStatus.AVAILABLE ? "border-border bg-card" :
                                     room.status === RoomStatus.OCCUPIED ? "border-blue-500/20 bg-blue-500/5" :
                                         room.status === RoomStatus.MAINTENANCE ? "border-amber-500/20 bg-amber-500/5" :
@@ -198,12 +208,12 @@ export default function RoomsList() {
                                 {room.blocks && room.blocks.length > 0 && (() => {
                                     const block = room.blocks[0];
                                     const isExternal = block.reason.startsWith('External Booking');
-                                    
+
                                     return (
                                         <div className={clsx(
                                             "mt-3 text-[11px] p-3 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-300",
-                                            isExternal 
-                                                ? "bg-indigo-500/5 border-indigo-500/20 text-indigo-700 dark:text-indigo-400" 
+                                            isExternal
+                                                ? "bg-indigo-500/5 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
                                                 : "bg-amber-500/5 border-amber-500/20 text-amber-700 dark:text-amber-400"
                                         )}>
                                             <div className="flex items-center justify-between mb-2">
@@ -222,7 +232,7 @@ export default function RoomsList() {
                                                     Active
                                                 </span>
                                             </div>
-                                            
+
                                             <div className="flex items-center gap-1.5 mb-1.5 opacity-80 text-foreground">
                                                 <CalendarDays className="h-3 w-3 shrink-0" />
                                                 <span className="font-medium">
@@ -241,8 +251,8 @@ export default function RoomsList() {
                                                 }}
                                                 className={clsx(
                                                     "w-full py-1.5 rounded-lg text-[10px] font-bold transition-all border flex items-center justify-center gap-1.5",
-                                                    isExternal 
-                                                        ? "bg-indigo-500/10 border-indigo-500/10 hover:bg-indigo-500 text-indigo-700 dark:text-indigo-400 hover:text-white" 
+                                                    isExternal
+                                                        ? "bg-indigo-500/10 border-indigo-500/10 hover:bg-indigo-500 text-indigo-700 dark:text-indigo-400 hover:text-white"
                                                         : "bg-amber-500/10 border-amber-500/10 hover:bg-amber-500 text-amber-700 dark:text-amber-400 hover:text-white"
                                                 )}
                                             >
@@ -260,14 +270,20 @@ export default function RoomsList() {
                                 </span>
                                 <div className="relative">
                                     <button
-                                        onClick={() => setActiveMenuId(activeMenuId === room.id ? null : room.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuId(activeMenuId === room.id ? null : room.id);
+                                        }}
                                         className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors opacity-70 group-hover:opacity-100"
                                     >
                                         <MoreVertical className="h-5 w-5" />
                                     </button>
 
                                     {activeMenuId === room.id && (
-                                        <div className="absolute right-0 bottom-full mb-2 w-32 bg-card rounded-xl shadow-xl border border-border z-10 m-1 overflow-hidden">
+                                        <div
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="absolute right-0 bottom-full mb-2 w-32 bg-card rounded-xl shadow-xl border border-border z-10 m-1 overflow-hidden"
+                                        >
                                             <button
                                                 onClick={() => navigate(`/rooms/edit/${room.id}`)}
                                                 className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted flex items-center gap-2 font-medium transition-colors"
@@ -329,6 +345,13 @@ export default function RoomsList() {
                     </div>
                 )}
             </div>
+
+            {/* Guest Details Modal */}
+            <GuestDetailsModal
+                roomId={selectedRoomId || ''}
+                isOpen={isGuestModalOpen}
+                onClose={() => setIsGuestModalOpen(false)}
+            />
         </div>
     );
 }

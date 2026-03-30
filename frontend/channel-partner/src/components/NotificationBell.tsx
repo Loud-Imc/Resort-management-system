@@ -6,8 +6,8 @@ import { notificationsService } from '../services/notifications';
 export default function NotificationBell() {
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ['notifications', 'unread-count'],
-    queryFn: () => notificationsService.getUnreadCount(),
-    refetchInterval: 60000, 
+    queryFn: () => notificationsService.getUnreadCount('ChannelPartner'),
+    refetchInterval: 60000,
   });
 
   const count = unreadData?.count || 0;

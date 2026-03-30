@@ -8,7 +8,7 @@ export default function Notifications() {
   const queryClient = useQueryClient();
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ['notifications'],
-    queryFn: () => notificationsService.getAll(),
+    queryFn: () => notificationsService.getAll('ChannelPartner'),
   });
 
   const markAsReadMutation = useMutation({
@@ -106,7 +106,7 @@ export default function Notifications() {
               }}>
                 {notification.type === 'CP_REFERRAL_BOOKING' ? <CheckCircle size={20} /> : <Info size={20} />}
               </div>
-              
+
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '1rem' }}>
                   <h3 style={{

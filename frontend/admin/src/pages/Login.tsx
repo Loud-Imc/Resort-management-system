@@ -8,7 +8,7 @@ import { Loader2, Eye, EyeOff } from 'lucide-react';
 import logo from '../assets/routeguide.svg';
 
 const loginSchema = z.object({
-    email: z.string().email('Invalid email address'),
+    email: z.string().min(1, 'Email or Phone Number is required'),
     password: z.string().min(1, 'Password is required'),
 });
 
@@ -17,7 +17,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function Login() {
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
-    const { login, isAuthenticated, isLoading } = useAuth();
+    const { login, logout, isAuthenticated, isLoading } = useAuth();
     const navigate = useNavigate();
 
     const {
@@ -50,6 +50,19 @@ export default function Login() {
         try {
             setError(null);
             await login(data);
+
+            // Post-login check for Admin role
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                const user = JSON.parse(storedUser);
+                const roles = user.roles || [user.role];
+                if (!roles.includes('Admin') && !roles.includes('SuperAdmin')) {
+                    logout();
+                    setError('Account not registered for this portal. Administrative access required.');
+                    return;
+                }
+            }
+
             navigate('/');
         } catch (err: any) {
             setError('Invalid email or password');
@@ -74,13 +87,13 @@ export default function Login() {
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                     <div>
                         <label className="block text-sm font-semibold text-muted-foreground mb-2">
-                            Email address
+                            Email or Phone Number
                         </label>
                         <input
                             {...register('email')}
-                            type="email"
+                            type="text"
                             className="w-full px-4 py-3 border border-border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                            placeholder="admin@example.com"
+                            placeholder="Email or Phone Number"
                         />
                         {errors.email && (
                             <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>

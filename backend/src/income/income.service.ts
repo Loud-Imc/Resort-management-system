@@ -16,6 +16,16 @@ export class IncomeService {
     async create(createIncomeDto: CreateIncomeDto, userId: string) {
         const { amount, description, source, date, bookingId } = createIncomeDto;
 
+        let propertyId = (createIncomeDto as any).propertyId;
+
+        if (!propertyId && bookingId) {
+            const booking = await this.prisma.booking.findUnique({
+                where: { id: bookingId },
+                select: { propertyId: true }
+            });
+            propertyId = booking?.propertyId;
+        }
+
         const income = await this.prisma.income.create({
             data: {
                 amount,
@@ -23,6 +33,7 @@ export class IncomeService {
                 source: source as any,
                 date: date ? new Date(date) : new Date(),
                 bookingId,
+                propertyId,
             },
             include: {
                 booking: {

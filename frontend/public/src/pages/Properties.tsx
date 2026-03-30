@@ -4,21 +4,34 @@ import { Loader2, Building2 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
 import { propertyApi } from '../services/properties';
 import { Property } from '../types';
+import { useSearch } from '../context/SearchContext';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyFilters from '../components/PropertyFilters';
 
 export default function PropertiesPage() {
     const [searchParams, setSearchParams] = useSearchParams();
+    const {
+        location, setLocation,
+        categoryId: globalCategoryId, setCategoryId: setGlobalCategoryId
+    } = useSearch();
+
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // Filter state from URL params
-    const [search, setSearch] = useState(searchParams.get('search') || '');
-    const [categoryId, setCategoryId] = useState<string>(
-        searchParams.get('categoryId') || ''
-    );
     const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+
+    // Local filter state for refinements (initialized from global)
+    const [search, setSearch] = useState(location);
+    const [categoryId, setCategoryId] = useState<string>(globalCategoryId);
+
+    // Sync local state with global when it changes (e.g. from SearchForm)
+    useEffect(() => {
+        setSearch(location);
+    }, [location]);
+
+    useEffect(() => {
+        setCategoryId(globalCategoryId);
+    }, [globalCategoryId]);
 
     useEffect(() => {
         loadProperties();
@@ -29,7 +42,7 @@ export default function PropertiesPage() {
             setLoading(true);
             setError(null);
             const response = await propertyApi.getAll({
-                search: searchParams.get('search') || undefined,
+                search: searchParams.get('location') || searchParams.get('search') || undefined,
                 categoryId: searchParams.get('categoryId') || undefined,
             });
             setProperties(response.data);
@@ -41,15 +54,25 @@ export default function PropertiesPage() {
     };
 
     const handleApplyFilters = () => {
-        const params = new URLSearchParams();
-        if (search) params.set('search', search);
+        // Update global context
+        setLocation(search);
+        setGlobalCategoryId(categoryId);
+
+        const params = new URLSearchParams(searchParams);
+        if (search) params.set('location', search);
+        else params.delete('location');
+
         if (categoryId) params.set('categoryId', categoryId);
+        else params.delete('categoryId');
+
         setSearchParams(params);
     };
 
     const clearFilters = () => {
         setSearch('');
         setCategoryId('');
+        setLocation('');
+        setGlobalCategoryId('');
         setSelectedAmenities([]);
         setSearchParams({});
     };

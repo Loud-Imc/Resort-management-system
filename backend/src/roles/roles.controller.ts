@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesService } from './roles.service';
@@ -25,15 +25,15 @@ export class RolesController {
     @Get('permissions')
     @Permissions(PERMISSIONS.ROLES.READ)
     @ApiOperation({ summary: 'Get all system permissions' })
-    findAllPermissions() {
-        return this.rolesService.findAllPermissions();
+    findAllPermissions(@Req() req) {
+        return this.rolesService.findAllPermissions(req.user);
     }
 
     @Get()
     @Permissions(PERMISSIONS.ROLES.READ)
     @ApiOperation({ summary: 'Get all roles' })
-    findAll(@Req() req) {
-        return this.rolesService.findAll(req.user);
+    findAll(@Req() req, @Query('propertyId') propertyId?: string) {
+        return this.rolesService.findAll(req.user, { propertyId });
     }
 
     @Get(':id')

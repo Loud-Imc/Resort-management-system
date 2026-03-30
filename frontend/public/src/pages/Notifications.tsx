@@ -11,7 +11,7 @@ export default function Notifications() {
 
     const { data: notifications = [], isLoading } = useQuery({
         queryKey: ['guest-notifications'],
-        queryFn: () => notificationsService.getAll(),
+        queryFn: () => notificationsService.getAll('Customer'),
     });
 
     const markAsReadMutation = useMutation({

@@ -136,12 +136,22 @@ export class ChannelPartnersService {
         }
 
         let user: any = existingUser;
+        let shouldUpdatePassword = false;
 
         if (existingUser) {
-            // 1. Verify password
+            // 1. Verify password (or check if it's a Guest-only account being upgraded)
             const isPasswordValid = await bcrypt.compare(dto.password, existingUser.password);
-            if (!isPasswordValid) {
+
+            // A user is "claimable" if they only have the 'Customer' role
+            const isGuestOnly = existingUser.roles.every((ur: any) => ur.role.name === 'Customer');
+
+            if (!isPasswordValid && !isGuestOnly) {
                 throw new ConflictException('A user with this email or phone already exists. Please enter the correct password to link your account.');
+            }
+
+            // If it was a guest-only account and password didn't match, we update to the new password
+            if (isGuestOnly && !isPasswordValid) {
+                shouldUpdatePassword = true;
             }
 
             // 2. Check if already has the CP record
@@ -185,12 +195,30 @@ export class ChannelPartnersService {
                 } else {
                     // Check if we need to add the role
                     const hasRole = user.roles.some((ur: any) => ur.role.name === 'ChannelPartner');
+
+                    // Sync Profile (Email, Names) and Update password if it was a placeholder
+                    const dataToUpdate: any = {};
+                    if (shouldUpdatePassword) {
+                        dataToUpdate.password = hashedPassword;
+                    }
+
+                    // Only update email/names if they are missing or different
+                    if (dto.email && user.email !== dto.email) dataToUpdate.email = dto.email;
+                    if (dto.firstName && user.firstName !== dto.firstName) dataToUpdate.firstName = dto.firstName;
+                    if (dto.lastName && user.lastName !== dto.lastName) dataToUpdate.lastName = dto.lastName;
+
                     if (!hasRole) {
-                        await tx.userRole.create({
-                            data: {
-                                userId: user.id,
+                        dataToUpdate.roles = {
+                            create: {
                                 roleId: cpRole.id,
                             },
+                        };
+                    }
+
+                    if (Object.keys(dataToUpdate).length > 0) {
+                        await tx.user.update({
+                            where: { id: user.id },
+                            data: dataToUpdate,
                         });
                     }
                 }
@@ -668,6 +696,7 @@ export class ChannelPartnersService {
                 ? 'Your Channel Partner account has been approved. You can now start referring bookings!'
                 : `Your account status has been updated to ${status}.`,
             type: 'CP_STATUS_UPDATE',
+            targetRole: 'ChannelPartner',
             data: { status }
         });
 

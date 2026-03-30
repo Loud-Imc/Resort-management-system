@@ -37,6 +37,7 @@ const userSchema = z.object({
     specialRequests: z.string().optional(),
     idType: z.string().optional(),
     idNumber: z.string().optional(),
+    gstNumber: z.string().optional(),
 }).refine((data) => {
     if (data.idType && !data.idNumber) return false;
     if (!data.idType) return true;
@@ -236,6 +237,7 @@ export default function Checkout() {
                 guestEmail: userData.email,
                 guestPhone: userData.phone,
                 whatsappNumber: userData.whatsappNumber,
+                gstNumber: userData.gstNumber,
                 specialRequests: userData.specialRequests,
                 couponCode: appliedCoupon || undefined,
                 referralCode: appliedReferralCode || undefined,
@@ -432,6 +434,15 @@ export default function Checkout() {
                                     placeholder="+91 9876543210"
                                 />
                                 {errors.whatsappNumber && <span className="text-xs text-red-500">{errors.whatsappNumber.message}</span>}
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">GST Number (Optional)</label>
+                                <input
+                                    {...register('gstNumber')}
+                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                                    placeholder="27AAAAA0000A1Z5"
+                                />
+                                {errors.gstNumber && <span className="text-xs text-red-500">{errors.gstNumber.message}</span>}
                             </div>
                         </div>
 

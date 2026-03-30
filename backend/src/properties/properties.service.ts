@@ -158,6 +158,7 @@ export class PropertiesService {
                     ownerAadhaarImage: details.ownerAadhaarImage || null,
                     allowsGroupBooking: details.allowsGroupBooking || false,
                     maxGroupCapacity: details.maxGroupCapacity || null,
+                    platformCommission: details.platformCommission ? new Prisma.Decimal(details.platformCommission) : new Prisma.Decimal(10.00),
                 }
             });
 
@@ -396,17 +397,47 @@ export class PropertiesService {
         });
 
         let owner: any = existingUser;
+        let shouldUpdatePassword = false;
 
         if (existingUser) {
-            // Verify the provided password matches their existing account
+            // Verify the provided password matches their existing account (or check if it's a Guest-only account being upgraded)
             const isPasswordValid = await bcrypt.compare(dto.ownerPassword, existingUser.password);
-            if (!isPasswordValid) {
+
+            // A user is "claimable" if they only have the 'Customer' role
+            const isGuestOnly = existingUser.roles.every((ur: any) => ur.role.name === 'Customer');
+
+            if (!isPasswordValid && !isGuestOnly) {
                 throw new ConflictException('An account with this email or phone already exists. Please provide the correct password to link it.');
+            }
+
+            // If it was a guest-only account and password didn't match, we update to the new password provided
+            if (isGuestOnly && !isPasswordValid) {
+                shouldUpdatePassword = true;
             }
             // Ensure PropertyOwner role is assigned
             const hasRole = existingUser.roles.some((ur: any) => ur.role.name === 'PropertyOwner');
+            const dataToUpdate: any = {};
+
+            if (shouldUpdatePassword) {
+                dataToUpdate.password = await bcrypt.hash(dto.ownerPassword, 10);
+            }
+
+            // Sync email and names from the new registration
+            if (dto.ownerEmail && existingUser.email !== dto.ownerEmail) dataToUpdate.email = dto.ownerEmail;
+            if (dto.ownerFirstName && existingUser.firstName !== dto.ownerFirstName) dataToUpdate.firstName = dto.ownerFirstName;
+            if (dto.ownerLastName && existingUser.lastName !== dto.ownerLastName) dataToUpdate.lastName = dto.ownerLastName;
+
             if (!hasRole) {
-                await this.prisma.userRole.create({ data: { userId: existingUser.id, roleId: ownerRole.id } });
+                dataToUpdate.roles = {
+                    create: { roleId: ownerRole.id }
+                };
+            }
+
+            if (Object.keys(dataToUpdate).length > 0) {
+                owner = await this.prisma.user.update({
+                    where: { id: existingUser.id },
+                    data: dataToUpdate
+                });
             }
         } else {
             // Create new owner account with the password they chose

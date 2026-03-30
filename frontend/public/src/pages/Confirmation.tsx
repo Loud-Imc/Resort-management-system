@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link, Navigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User, CreditCard, Info } from 'lucide-react';
+import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User, CreditCard, Info, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
@@ -348,6 +348,15 @@ export default function Confirmation() {
                                                 </span>
                                             </div>
                                         </div>
+                                        {booking.gstNumber && (
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">GST Number</span>
+                                                <div className="flex items-center gap-2 text-gray-800">
+                                                    <ShieldCheck className="h-4 w-4 text-primary-500" />
+                                                    <span className="font-bold">{booking.gstNumber}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="space-y-1">
                                             <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Status</span>
                                             <div className="flex items-center gap-2">

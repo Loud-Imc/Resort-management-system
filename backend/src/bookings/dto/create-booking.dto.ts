@@ -179,4 +179,9 @@ export class CreateBookingDto {
     @IsOptional()
     @Type(() => Number)
     groupSize?: number;
+
+    @ApiProperty({ example: '27AAAAA0000A1Z5', required: false })
+    @IsString()
+    @IsOptional()
+    gstNumber?: string;
 }

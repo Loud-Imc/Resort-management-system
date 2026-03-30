@@ -109,4 +109,8 @@ export class RegisterPropertyDto {
     @IsOptional()
     @IsString()
     referredById?: string;
+
+    @IsOptional()
+    @IsNumber()
+    platformCommission?: number;
 }

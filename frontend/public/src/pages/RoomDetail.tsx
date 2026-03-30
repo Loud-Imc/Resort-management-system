@@ -12,6 +12,7 @@ import { roomTypeApi } from '../services/roomTypes';
 import { propertyApi } from '../services/properties';
 import { reviewService } from '../services/reviews';
 import { useCurrency } from '../context/CurrencyContext';
+import { useSearch } from '../context/SearchContext';
 import { formatPrice } from '../utils/currency';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -20,6 +21,7 @@ export default function RoomDetail() {
     const { slug, roomTypeId } = useParams();
     const navigate = useNavigate();
     const { selectedCurrency, rates } = useCurrency();
+    const { checkIn, checkOut, adults, children, isGroupBooking } = useSearch();
     const [activeImage, setActiveImage] = useState(0);
 
     const { data: roomType, isLoading: loadingRoom } = useQuery({
@@ -455,10 +457,13 @@ export default function RoomDetail() {
                                         )}
 
                                         <Link
-                                            to={`/book?roomId=${roomType.id}&property=${property.slug}`}
+                                            to={checkIn && checkOut
+                                                ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=${isGroupBooking}`
+                                                : `/properties/${property.slug}#stay-selection`
+                                            }
                                             className="block w-full py-5 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-2xl shadow-xl shadow-primary-500/30 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-sm"
                                         >
-                                            Complete Booking
+                                            {(!checkIn || !checkOut) ? 'Select Dates First' : 'Complete Booking'}
                                         </Link>
                                     </div>
 

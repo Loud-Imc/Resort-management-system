@@ -12,7 +12,7 @@ export default function Notifications() {
   const queryClient = useQueryClient();
   const { data: notifications, isLoading } = useQuery({
     queryKey: ['notifications'],
-    queryFn: () => notificationsService.getAll(),
+    queryFn: () => notificationsService.getAll('PropertyOwner'),
   });
 
   const markAsReadMutation = useMutation({

@@ -2,11 +2,13 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
+import { normalizePhone } from '../common/utils/phone';
 import { AuditService } from '../audit/audit.service';
 import { ChannelPartnersService } from '../channel-partners/channel-partners.service';
 import { PaymentsService } from '../payments/payments.service';
 import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { TrackBookingDto } from './dto/track-booking.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Cron } from '@nestjs/schedule';
@@ -314,8 +316,14 @@ export class BookingsService {
             // 7.1 For guest users, the user creation must be inside the transaction
             let finalBookingUserId = bookingUserId;
             if (userId === 'GUEST_USER') {
-                let user = await tx.user.findUnique({
-                    where: { email: lowercaseEmail },
+                const normalizedPhone = normalizePhone(createBookingDto.guestPhone);
+                let user = await tx.user.findFirst({
+                    where: {
+                        OR: [
+                            { email: lowercaseEmail },
+                            { phone: normalizedPhone }
+                        ],
+                    },
                 });
 
                 if (!user) {
@@ -328,7 +336,7 @@ export class BookingsService {
                             email: lowercaseEmail,
                             firstName: createBookingDto.guestName?.split(' ')[0] || 'Guest',
                             lastName: createBookingDto.guestName?.split(' ').slice(1).join(' ') || 'User',
-                            phone: createBookingDto.guestPhone,
+                            phone: normalizedPhone,
                             whatsappNumber: createBookingDto.whatsappNumber,
                             password: await bcrypt.hash('GUEST_PASSWORD_PLACEHOLDER', 10),
                             roles: roleId ? {
@@ -427,6 +435,7 @@ export class BookingsService {
                     overrideReason,
                     specialRequests,
                     whatsappNumber,
+                    gstNumber: createBookingDto.gstNumber,
                     isManualBooking,
                     paymentOption: createBookingDto.paymentOption || 'FULL',
                     status: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
@@ -664,6 +673,7 @@ export class BookingsService {
                 },
                 bookingSource: true,
                 guests: true,
+                property: true,
             },
             orderBy: {
                 createdAt: 'desc',
@@ -717,6 +727,52 @@ export class BookingsService {
 
         if (!booking) {
             throw new NotFoundException('Booking not found');
+        }
+
+        return booking;
+    }
+
+    async trackBooking(dto: TrackBookingDto) {
+        const bookingNumber = dto.bookingNumber.trim().replace(/^#/, '');
+        const input = dto.emailOrPhone.trim();
+        const isEmail = input.includes('@');
+        const normalizedEmail = input.toLowerCase();
+        const normalizedPhoneInput = isEmail ? '' : normalizePhone(input);
+
+        const booking = await this.prisma.booking.findFirst({
+            where: { bookingNumber },
+            include: {
+                room: { include: { roomType: true } },
+                roomType: { include: { cancellationPolicy: true } },
+                guests: true,
+                property: { include: { defaultCancellationPolicy: true } },
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        phone: true,
+                        firstName: true,
+                        lastName: true,
+                    },
+                },
+                payments: {
+                    orderBy: { createdAt: 'desc' }
+                }
+            },
+        });
+
+        if (!booking) {
+            throw new NotFoundException('Booking not found with this number');
+        }
+
+        // Security check: verify email or phone
+        const matchesUserEmail = booking.user?.email.toLowerCase() === normalizedEmail;
+        const matchesUserPhone = !!(normalizedPhoneInput && booking.user?.phone === normalizedPhoneInput);
+        const matchesGuestEmail = booking.guests.some(g => g.email?.toLowerCase() === normalizedEmail);
+        const matchesGuestPhone = !!(normalizedPhoneInput && booking.guests.some(g => g.phone === normalizedPhoneInput));
+
+        if (!matchesUserEmail && !matchesUserPhone && !matchesGuestEmail && !matchesGuestPhone) {
+            throw new BadRequestException('Security verification failed. Please check the email or phone number associated with this booking.');
         }
 
         return booking;

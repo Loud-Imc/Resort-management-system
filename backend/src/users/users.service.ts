@@ -4,6 +4,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
+import { normalizePhone } from '../common/utils/phone';
 
 @Injectable()
 export class UsersService {
@@ -25,6 +26,7 @@ export class UsersService {
         const user = await this.prisma.user.create({
             data: {
                 ...createUserDto,
+                phone: createUserDto.phone ? normalizePhone(createUserDto.phone) : undefined,
                 roles: customerRole ? {
                     create: {
                         role: { connect: { id: customerRole.id } }
@@ -80,21 +82,38 @@ export class UsersService {
             }
         }
 
-        const existingUser = await this.prisma.user.findUnique({
-            where: { email: createUserDto.email },
+        const normalizedPhone = createUserDto.phone ? normalizePhone(createUserDto.phone) : undefined;
+        const existingUser = await this.prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email: createUserDto.email },
+                    ...(normalizedPhone ? [{ phone: normalizedPhone }] : [])
+                ]
+            },
+            include: { roles: true }
         });
 
         if (existingUser) {
-            throw new ConflictException('Email already exists');
-        }
+            // If user exists, we only need to add missing roles
+            const currentRoleIds = existingUser.roles.map(r => r.roleId);
+            const rolesToAdd = roleIds?.filter(rid => !currentRoleIds.includes(rid)) || [];
 
-        if (createUserDto.phone) {
-            const existingPhone = await this.prisma.user.findUnique({
-                where: { phone: createUserDto.phone },
-            });
-            if (existingPhone) {
-                throw new ConflictException('Phone number already exists');
+            if (rolesToAdd.length === 0) {
+                const { password: _, ...result } = existingUser as any;
+                return result;
             }
+
+            return this.prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                    roles: {
+                        create: rolesToAdd.map(roleId => ({
+                            role: { connect: { id: roleId } }
+                        }))
+                    }
+                },
+                include: { roles: { include: { role: true } } }
+            });
         }
 
         try {
@@ -102,6 +121,7 @@ export class UsersService {
             const user = await this.prisma.user.create({
                 data: {
                     ...userData,
+                    phone: normalizedPhone,
                     password: hashedPassword,
                     createdById: currentUser.id,
                     roles: roleIds && roleIds.length > 0 ? {
@@ -223,13 +243,17 @@ export class UsersService {
         }
 
         // Check if phone is being changed and if it already exists
-        if (userData.phone && userData.phone !== user.phone) {
-            const existingPhone = await this.prisma.user.findUnique({
-                where: { phone: userData.phone },
-            });
-            if (existingPhone) {
-                throw new ConflictException('Phone number already exists');
+        if (userData.phone) {
+            const normalizedPhone = normalizePhone(userData.phone);
+            if (normalizedPhone !== user.phone) {
+                const existingPhone = await this.prisma.user.findUnique({
+                    where: { phone: normalizedPhone },
+                });
+                if (existingPhone) {
+                    throw new ConflictException('Phone number already exists');
+                }
             }
+            updateData.phone = normalizedPhone;
         }
 
         if (password) {
@@ -255,26 +279,56 @@ export class UsersService {
         });
     }
 
-    async findAll(user: any, params?: { propertyId?: string, isStaffOnly?: string }) {
+    async findAll(user: any, params?: { propertyId?: string, isStaffOnly?: string, search?: string }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
         const isPropertyOwner = roles.includes('PropertyOwner');
 
         const where: any = {};
 
+        if (params?.search) {
+            where.OR = [
+                { email: { contains: params.search, mode: 'insensitive' } },
+                { firstName: { contains: params.search, mode: 'insensitive' } },
+                { lastName: { contains: params.search, mode: 'insensitive' } },
+                { phone: { contains: params.search, mode: 'insensitive' } },
+            ];
+        }
+
         if (params?.isStaffOnly === 'true') {
-            // Filter users who have at least one role in PROPERTY category
+            // For onboarding staff, we want to find users who are NOT yet admins
+            // (or maybe any user depending on business rules).
+            // Let's exclude users with SuperAdmin/Admin roles to prevent accidental onboarding of global admins
             where.roles = {
-                some: {
+                none: {
                     role: {
-                        category: 'PROPERTY'
+                        name: { in: ['SuperAdmin', 'Admin'] }
                     }
                 }
             };
 
-            // If it's a staff search, we relax the scope for Property Owners
-            // to allow them to find users created by Admins or other Owners
-            if (isPropertyOwner && !isGlobalAdmin) {
+            // If it's a staff search, we relax the scope to allow finding users
+            // but we MUST isolate it to the current owner's properties to prevent seeing users from other orgs.
+            if (isPropertyOwner || roles.includes('Manager')) {
+                const ownedPropertyIds = (user.ownedProperties || []).map((p: any) => p.id);
+                // Also get IDs from properties where user is staff
+                const staffPropertyIds = (user.propertyStaff || []).map((s: any) => s.propertyId);
+                const allManagedPropertyIds = [...new Set([...ownedPropertyIds, ...staffPropertyIds])];
+
+                // Add restriction: Only users who are ALREADY staff or owner of my properties
+                // OR users who I created myself.
+                where.OR = [
+                    ...(where.OR || []),
+                    {
+                        propertyStaff: {
+                            some: {
+                                propertyId: { in: allManagedPropertyIds }
+                            }
+                        }
+                    },
+                    { createdById: user.id }
+                ];
+
                 return this.prisma.user.findMany({
                     where,
                     include: {
@@ -392,6 +446,8 @@ export class UsersService {
                         createdAt: 'desc',
                     }
                 },
+                ownedProperties: true,
+                propertyStaff: true,
             },
         });
 
@@ -403,7 +459,8 @@ export class UsersService {
     }
 
     async findByEmail(email: string) {
-        return this.prisma.user.findUnique({
+        console.log(`[UsersService] Searching for user by email: ${email}`);
+        const user = await this.prisma.user.findUnique({
             where: { email },
             include: {
                 roles: {
@@ -421,11 +478,15 @@ export class UsersService {
                 },
             },
         });
+        console.log(`[UsersService] findByEmail result for ${email}: ${user ? 'FOUND' : 'NOT FOUND'}`);
+        return user;
     }
 
     async findByPhone(phone: string) {
-        return this.prisma.user.findUnique({
-            where: { phone },
+        console.log(`[UsersService] Searching for user by phone: ${phone}`);
+        const normalizedPhone = normalizePhone(phone);
+        const user = await this.prisma.user.findFirst({
+            where: { phone: normalizedPhone },
             include: {
                 roles: {
                     include: {
@@ -442,12 +503,16 @@ export class UsersService {
                 },
             },
         });
+        console.log(`[UsersService] findByPhone result for ${phone}: ${user ? 'FOUND' : 'NOT FOUND'}`);
+        return user;
     }
 
     async createWithPhone(phone: string) {
         const customerRole = await this.prisma.role.findFirst({
             where: { name: 'Customer' },
         });
+
+        const normalizedPhone = normalizePhone(phone);
 
         // For phone-only registration, we generate a placeholder email
         // and a random password or just rely on OTP for future logins.
@@ -457,7 +522,7 @@ export class UsersService {
 
         return this.prisma.user.create({
             data: {
-                phone,
+                phone: normalizedPhone,
                 email: placeholderEmail,
                 password: hashedPassword,
                 firstName: 'Phone',

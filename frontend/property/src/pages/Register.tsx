@@ -48,7 +48,8 @@ export default function Register() {
         country: 'India',
         pincode: '',
         propertyPhone: '',
-        propertyEmail: ''
+        propertyEmail: '',
+        platformCommission: 10
     });
 
     useEffect(() => {
@@ -205,6 +206,7 @@ export default function Register() {
                 ...formData,
                 ownerPhone: normalizePhoneNumber(formData.ownerPhone),
                 propertyPhone: normalizePhoneNumber(formData.propertyPhone),
+                platformCommission: Number(formData.platformCommission),
                 referredById: referredById || undefined
             };
 
@@ -421,6 +423,12 @@ export default function Register() {
                                         </button>
                                     </div>
                                 </div>
+                                <div className="mt-2 flex items-start gap-2 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+                                    <Shield className="h-4 w-4 text-blue-600 mt-0.5" />
+                                    <p className="text-xs text-blue-700 leading-relaxed font-medium">
+                                        <strong>Unified Account:</strong> If you already have an account (e.g., as a Guest or Channel Partner), please use your <strong>existing password</strong> to link this new role to your profile.
+                                    </p>
+                                </div>
 
                                 <div className="pt-4">
                                     <button
@@ -578,6 +586,30 @@ export default function Register() {
                                             className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
                                             placeholder="9876543210"
                                         />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="col-span-2 md:col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Platform Commission (%)</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <Shield className="h-4 w-4 text-gray-400" />
+                                            </div>
+                                            <input
+                                                name="platformCommission"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                max="100"
+                                                required
+                                                value={formData.platformCommission}
+                                                onChange={handleChange}
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                placeholder="10.00"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 mt-1">The percentage paid to the platform for each booking.</p>
                                     </div>
                                 </div>
 

@@ -27,10 +27,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         return {
             id: user.id,
             email: user.email,
+            propertyId: (user as any).propertyId, // Adjust if propertyId is nested or differently named
             roles: user.roles.map(ur => ur.role.name),
             permissions: user.roles.flatMap(ur =>
                 ur.role.permissions.map(rp => rp.permission.name)
             ),
+            ownedProperties: (user as any).ownedProperties || [],
+            propertyStaff: (user as any).propertyStaff || [],
         };
     }
 }

@@ -11,13 +11,13 @@ export interface Notification {
 }
 
 export const notificationsService = {
-  getAll: async () => {
-    const { data } = await api.get<Notification[]>('/notifications');
+  getAll: async (role?: string) => {
+    const { data } = await api.get<Notification[]>('/notifications', { params: { role } });
     return data;
   },
 
-  getUnreadCount: async () => {
-    const { data } = await api.get<{ count: number }>('/notifications/unread-count');
+  getUnreadCount: async (role?: string) => {
+    const { data } = await api.get<{ count: number }>('/notifications/unread-count', { params: { role } });
     return data;
   },
 

@@ -55,6 +55,7 @@ export class RemindersService {
                         title,
                         message,
                         type: 'CHECKIN_REMINDER',
+                        targetRole: 'Customer',
                         data: { bookingId: booking.id, propertyId: booking.propertyId },
                     });
                 } catch (err) {

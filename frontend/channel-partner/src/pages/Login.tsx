@@ -22,7 +22,9 @@ const Login: React.FC = () => {
 
         try {
             const response: any = await api.post('/auth/login', { email, password });
-            if (response.user.role !== 'ChannelPartner' && response.user.role !== 'SuperAdmin') {
+            const userRoles = response.user.roles || [response.user.role];
+
+            if (!userRoles.includes('ChannelPartner') && !userRoles.includes('SuperAdmin')) {
                 throw new Error('Access denied. This dashboard is for Channel Partners only.');
             }
 
@@ -78,14 +80,14 @@ const Login: React.FC = () => {
                     )}
 
                     <div style={{ position: 'relative', textAlign: 'left' }}>
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem', marginLeft: '0.5rem' }}>Email Address</label>
+                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem', marginLeft: '0.5rem' }}>Email or Phone Number</label>
                         <div style={{ position: 'relative' }}>
                             <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
                             <input
-                                type="email"
+                                type="text"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="partner@example.com"
+                                placeholder="Email or Phone Number"
                                 required
                                 style={{
                                     width: '100%',

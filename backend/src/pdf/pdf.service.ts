@@ -85,6 +85,7 @@ export class PdfService {
                 { text: `${user.firstName} ${user.lastName || ''}`, style: 'guestName' },
                 { text: user.email, style: 'guestInfo' },
                 { text: user.phone || 'N/A', style: 'guestInfo' },
+                ...(booking.gstNumber ? [{ text: `GST: ${booking.gstNumber}`, style: 'guestInfo' }] : []),
                 { text: '\n' },
                 { text: 'PROPERTY', style: 'sectionHeader' },
                 { text: property.name, style: 'propertyName' },

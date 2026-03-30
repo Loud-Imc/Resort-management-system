@@ -7,7 +7,7 @@ export default function NotificationBell() {
     const navigate = useNavigate();
     const { data: { count } = { count: 0 } } = useQuery({
         queryKey: ['guest-unread-notifications-count'],
-        queryFn: () => notificationsService.getUnreadCount(),
+        queryFn: () => notificationsService.getUnreadCount('Customer'),
         refetchInterval: 30000,
     });
 

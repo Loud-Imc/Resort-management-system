@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { normalizePhone } from '../common/utils/phone';
 
 import { FirebaseService } from './firebase.service';
 
@@ -28,29 +29,50 @@ export class AuthService {
     }
 
     async login(loginDto: LoginDto) {
-        const user = await this.usersService.findByEmail(loginDto.email);
+        const identifier = loginDto.email.trim();
+        console.log(`[AuthService] Login attempt for identifier: ${identifier}`);
+
+        let user = await this.usersService.findByEmail(identifier);
+        if (user) {
+            console.log(`[AuthService] User found by email: ${identifier}`);
+        } else {
+            const normalizedPhone = normalizePhone(identifier);
+            console.log(`[AuthService] User NOT found by email. Trying phone normalization: ${normalizedPhone}`);
+            if (normalizedPhone && normalizedPhone.length >= 10) {
+                user = await this.usersService.findByPhone(normalizedPhone);
+                if (user) {
+                    console.log(`[AuthService] User found by phone: ${normalizedPhone}`);
+                } else {
+                    console.log(`[AuthService] User NOT found by phone: ${normalizedPhone}`);
+                }
+            }
+        }
 
         if (!user) {
+            console.warn(`[AuthService] Login failed: User not found for identifier: ${identifier}`);
             throw new UnauthorizedException('Invalid credentials');
         }
 
         const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+        console.log(`[AuthService] Password validation result for user ${user.id}: ${isPasswordValid}`);
 
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid credentials');
         }
 
         if (!user.isActive) {
+            console.warn(`[AuthService] Login failed: User ${user.id} is inactive`);
             throw new UnauthorizedException('Account is inactive');
         }
 
+        console.log(`[AuthService] Login successful for user: ${user.id}`);
         return this.generateTokens(user);
     }
 
     async loginWithPhone(idToken: string) {
         try {
             const decodedToken = await this.firebaseService.verifyToken(idToken);
-            const phoneNumber = decodedToken.phone_number;
+            const phoneNumber = normalizePhone(decodedToken.phone_number);
 
             if (!phoneNumber) {
                 throw new UnauthorizedException('Phone number not found in token');
@@ -78,11 +100,22 @@ export class AuthService {
         }
     }
 
+    private getPriorityRole(roles: string[]): string {
+        const priority = ['SuperAdmin', 'Admin', 'PropertyOwner', 'ChannelPartner', 'Customer', 'Staff'];
+        for (const roleName of priority) {
+            if (roles.includes(roleName)) return roleName;
+        }
+        return roles[0] || 'Staff';
+    }
+
     private generateTokens(user: any) {
+        const roleNames = user.roles.map(ur => ur.role.name);
+        const primaryRole = this.getPriorityRole(roleNames);
+
         const payload = {
             sub: user.id,
             email: user.email,
-            roles: user.roles.map(ur => ur.role.name),
+            roles: roleNames,
         };
 
         const permissions = Array.from(new Set(
@@ -97,8 +130,8 @@ export class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 phone: user.phone,
-                role: user.roles[0]?.role.name || 'Staff',
-                roles: user.roles.map(ur => ur.role.name),
+                role: primaryRole,
+                roles: roleNames,
                 permissions: permissions,
                 commissionPercentage: Number(user.commissionPercentage),
             },

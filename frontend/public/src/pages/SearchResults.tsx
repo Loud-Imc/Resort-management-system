@@ -2,66 +2,68 @@ import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
-// import { propertyApi } from '../services/properties';
+import { useSearch } from '../context/SearchContext';
 import { useCurrency } from '../context/CurrencyContext';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
 import PropertyFilters from '../components/PropertyFilters';
 import { Loader2, AlertCircle, Search, MapPin } from 'lucide-react';
-import { format, addDays } from 'date-fns';
 
 export default function SearchResults() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { selectedCurrency } = useCurrency();
+    const {
+        location, setLocation,
+        categoryId: globalCategoryId, setCategoryId: setGlobalCategoryId,
+        checkIn: globalCheckIn,
+        checkOut: globalCheckOut,
+        adults,
+        children,
+        rooms,
+        latitude, setLatitude,
+        longitude, setLongitude,
+        radius, setRadius,
+        isGroupBooking,
+        groupSize
+    } = useSearch();
 
-    // Use state to hold stable default dates that don't change on re-renders
-    const [defaults] = useState(() => {
-        const today = new Date();
-        return {
-            checkIn: format(today, 'yyyy-MM-dd'),
-            checkOut: format(addDays(today, 1), 'yyyy-MM-dd')
-        };
-    });
-
-    // URL Param values
-    const checkIn = searchParams.get('checkIn') || defaults.checkIn;
-    const checkOut = searchParams.get('checkOut') || defaults.checkOut;
-    const adults = Number(searchParams.get('adults')) || 2;
-    const children = Number(searchParams.get('children')) || 0;
-    const locationParam = searchParams.get('location') || '';
-    const categoryIdParam = searchParams.get('categoryId') || '';
-    const rooms = Number(searchParams.get('rooms')) || 1;
-    const latitudeParam = searchParams.get('latitude') ? Number(searchParams.get('latitude')) : undefined;
-    const longitudeParam = searchParams.get('longitude') ? Number(searchParams.get('longitude')) : undefined;
-    const radiusParam = searchParams.get('radius') ? Number(searchParams.get('radius')) : 50;
-    const isGroupBooking = searchParams.get('isGroupBooking') === 'true';
-    const groupSize = Number(searchParams.get('groupSize')) || 10;
-
-    // Local filter state
-    const [search, setSearch] = useState(locationParam);
-    const [categoryId, setCategoryId] = useState<string>(categoryIdParam);
+    // Local filter state for refinements (sync with global on mount/change)
+    const [search, setSearch] = useState(location);
+    const [categoryId, setCategoryId] = useState<string>(globalCategoryId);
     const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-    const [radius, setRadius] = useState<number>(radiusParam);
+
+    // Keep local state in sync with global state when global state changes (e.g. from SearchForm)
+    useEffect(() => {
+        setSearch(location);
+    }, [location]);
+
+    useEffect(() => {
+        setCategoryId(globalCategoryId);
+    }, [globalCategoryId]);
+
+    // Format dates for API
+    const checkInStr = globalCheckIn ? globalCheckIn.toISOString().split('T')[0] : '';
+    const checkOutStr = globalCheckOut ? globalCheckOut.toISOString().split('T')[0] : '';
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['availability', checkIn, checkOut, adults, children, rooms, locationParam, categoryIdParam, latitudeParam, longitudeParam, radiusParam, isGroupBooking, groupSize],
+        queryKey: ['availability', checkInStr, checkOutStr, adults, children, rooms, location, globalCategoryId, latitude, longitude, radius, isGroupBooking, groupSize],
         queryFn: () => bookingService.searchRooms({
-            checkInDate: checkIn,
-            checkOutDate: checkOut,
+            checkInDate: checkInStr,
+            checkOutDate: checkOutStr,
             adults,
             children,
-            location: locationParam,
-            categoryId: categoryIdParam || undefined,
+            location: location,
+            categoryId: globalCategoryId || undefined,
             includeSoldOut: false,
             rooms,
-            latitude: latitudeParam,
-            longitude: longitudeParam,
-            radius: radiusParam,
+            latitude: latitude || undefined,
+            longitude: longitude || undefined,
+            radius: radius,
             currency: selectedCurrency,
             isGroupBooking,
             groupSize
         }),
-        enabled: !!checkIn && !!checkOut,
+        enabled: !!checkInStr && !!checkOutStr,
     });
 
     // Nearby fallback state
@@ -69,6 +71,10 @@ export default function SearchResults() {
     const [isLoadingNearby, setIsLoadingNearby] = useState(false);
 
     const handleApplyFilters = () => {
+        // Update global context
+        setLocation(search);
+        setGlobalCategoryId(categoryId);
+
         const params = new URLSearchParams(searchParams);
         if (search) params.set('location', search);
         else params.delete('location');
@@ -76,16 +82,18 @@ export default function SearchResults() {
         if (categoryId) params.set('categoryId', categoryId);
         else params.delete('categoryId');
 
-        if (latitudeParam) params.set('latitude', latitudeParam.toString());
-        if (longitudeParam) params.set('longitude', longitudeParam.toString());
+        if (latitude) params.set('latitude', latitude.toString());
+        if (longitude) params.set('longitude', longitude.toString());
         if (radius) params.set('radius', radius.toString());
 
         setSearchParams(params);
     };
 
     const handleNearMe = () => {
-        if (latitudeParam && longitudeParam) {
+        if (latitude && longitude) {
             // Toggle off
+            setLatitude(null);
+            setLongitude(null);
             const params = new URLSearchParams(searchParams);
             params.delete('latitude');
             params.delete('longitude');
@@ -97,6 +105,8 @@ export default function SearchResults() {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    setLatitude(position.coords.latitude);
+                    setLongitude(position.coords.longitude);
                     const params = new URLSearchParams(searchParams);
                     params.set('latitude', position.coords.latitude.toString());
                     params.set('longitude', position.coords.longitude.toString());
@@ -116,8 +126,13 @@ export default function SearchResults() {
     const clearFilters = () => {
         setSearch('');
         setCategoryId('');
+        setGlobalCategoryId('');
+        setLocation('');
         setSelectedAmenities([]);
         setRadius(50);
+        setLatitude(null);
+        setLongitude(null);
+
         const params = new URLSearchParams(searchParams);
         params.delete('location');
         params.delete('categoryId');
@@ -145,7 +160,7 @@ export default function SearchResults() {
 
         // Handle both old array response and any potential object wrapped response for safety
         const roomTypes = Array.isArray(data) ? data : (data as any).availableRoomTypes || [];
-        
+
         const propertyMap = new Map<string, any>();
 
         roomTypes.forEach((roomType: any) => {
@@ -181,9 +196,9 @@ export default function SearchResults() {
 
     // When primary results are empty and a location was searched, try to find nearby
     useEffect(() => {
-        if (!isLoading && groupedProperties.length === 0 && locationParam) {
+        if (!isLoading && groupedProperties.length === 0 && location) {
             setIsLoadingNearby(true);
-            fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/properties?search=${encodeURIComponent(locationParam)}&limit=6`)
+            fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/properties?search=${encodeURIComponent(location)}&limit=6`)
                 .then(r => r.json())
                 .then((json: any) => setNearbyProperties(json.data || []))
                 .catch(() => setNearbyProperties([]))
@@ -191,7 +206,7 @@ export default function SearchResults() {
         } else {
             setNearbyProperties([]);
         }
-    }, [isLoading, groupedProperties.length, locationParam]);
+    }, [isLoading, groupedProperties.length, location]);
 
     if (error) {
         return (
@@ -202,12 +217,12 @@ export default function SearchResults() {
                         {isGroupBooking ? 'Group Stay Search Unavailable' : 'Search Error'}
                     </h3>
                     <p className="text-red-600 text-sm font-medium leading-relaxed mb-6">
-                        {isGroupBooking 
+                        {isGroupBooking
                             ? "Currently, we're having trouble retrieving group stay options. This may be because no properties have configured group packages yet."
                             : "We encountered an issue while loading availability. Please try again in a few moments."
                         }
                     </p>
-                    <button 
+                    <button
                         onClick={() => window.location.reload()}
                         className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-colors"
                     >
@@ -245,7 +260,7 @@ export default function SearchResults() {
                             radius={radius}
                             onRadiusChange={setRadius}
                             onNearMe={handleNearMe}
-                            isNearMeActive={!!(latitudeParam && longitudeParam)}
+                            isNearMeActive={!!(latitude && longitude)}
                         />
                     </div>
 
@@ -276,7 +291,7 @@ export default function SearchResults() {
                                         {isGroupBooking ? 'No groups available' : 'No matching properties'}
                                     </h2>
                                     <p className="text-gray-500 mb-6 font-medium">
-                                        {isGroupBooking 
+                                        {isGroupBooking
                                             ? `We couldn't find any stays that can accommodate a group of ${groupSize} on these dates. Try a smaller group or different dates.`
                                             : "We couldn't find any stays matching your filters. Try adjusting your search."
                                         }

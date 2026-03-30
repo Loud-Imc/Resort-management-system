@@ -7,7 +7,7 @@ import clsx from 'clsx';
 export default function NotificationBell() {
   const { data: unreadData } = useQuery({
     queryKey: ['notifications', 'unread-count'],
-    queryFn: () => notificationsService.getUnreadCount(),
+    queryFn: () => notificationsService.getUnreadCount('PropertyOwner'),
     refetchInterval: 30000, // Refetch every 30 seconds as fallback
   });
 

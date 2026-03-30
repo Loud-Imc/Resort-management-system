@@ -28,7 +28,7 @@ export default function StaffList() {
     const [selectedRoleId, setSelectedRoleId] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    const [isCreatingNew, setIsCreatingNew] = useState(false);
+    const [isCreatingNew, setIsCreatingNew] = useState(true);
     const [newUser, setNewUser] = useState({
         firstName: '',
         lastName: '',
@@ -36,7 +36,7 @@ export default function StaffList() {
         phone: '',
         password: 'Password@123' // Default password for setup
     });
-    const [createdCredentials, setCreatedCredentials] = useState<{email: string, password: string} | null>(null);
+    const [createdCredentials, setCreatedCredentials] = useState<{ email: string, password: string } | null>(null);
 
     useEffect(() => {
         if (propertyId) loadData();
@@ -45,28 +45,48 @@ export default function StaffList() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const staffData = await staffService.getStaff(propertyId!);
-            setStaff(staffData);
+            const response = await staffService.getStaff(propertyId!);
+            // Handle both wrapped { data: [] } and direct [] responses
+            const staffData = (response as any).data || response;
+            setStaff(Array.isArray(staffData) ? staffData : []);
         } catch (err: any) {
             setError(err.message || 'Failed to load staff data');
+            setStaff([]);
         } finally {
             setLoading(false);
         }
     };
 
-    const loadUsers = async () => {
+    useEffect(() => {
+        if (!isAddModalOpen || isCreatingNew) return;
+
+        const timer = setTimeout(() => {
+            loadUsers(searchQuery);
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery, isAddModalOpen, isCreatingNew]);
+
+    const loadUsers = async (query?: string) => {
         try {
-            const [users, roles] = await Promise.all([
-                usersService.getAll({ isStaffOnly: 'true' }),
-                rolesService.getRoles({ category: 'PROPERTY' })
+            const [usersRes, rolesRes] = await Promise.all([
+                usersService.getAll({ isStaffOnly: 'true', search: query }),
+                rolesService.getRoles({ category: 'PROPERTY', propertyId })
             ]);
-            setAllUsers(users);
-            setDbRoles(roles);
-            if (roles.length > 0 && !selectedRoleId) {
+
+            const users = (usersRes as any).data || usersRes;
+            const roles = (rolesRes as any).data || rolesRes;
+
+            setAllUsers(Array.isArray(users) ? users : []);
+            setDbRoles(Array.isArray(roles) ? roles : []);
+
+            if (Array.isArray(roles) && roles.length > 0 && !selectedRoleId) {
                 setSelectedRoleId(roles[0].id);
             }
         } catch (err) {
             console.error('Failed to load users/roles', err);
+            setAllUsers([]);
+            setDbRoles([]);
         }
     };
 
@@ -95,7 +115,7 @@ export default function StaffList() {
                 const newStaff = await staffService.addStaff(propertyId, userId, selectedRoleId);
                 toast.success('Staff member added successfully');
                 setStaff([newStaff, ...staff]);
-                
+
                 if (isCreatingNew) {
                     setCreatedCredentials({ email: newUser.email, password: newUser.password });
                 } else {
@@ -113,7 +133,7 @@ export default function StaffList() {
     const resetModalState = () => {
         setSelectedUser(null);
         setSearchQuery('');
-        setIsCreatingNew(false);
+        setIsCreatingNew(true);
         setCreatedCredentials(null);
         setNewUser({
             firstName: '',
@@ -135,11 +155,17 @@ export default function StaffList() {
         }
     };
 
-    const filteredUsers = (allUsers || []).filter(u =>
-        (u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())) &&
-        !staff.some(s => s.userId === u.id)
-    );
+    const filteredUsers = (allUsers || []).filter(u => {
+        if (!u) return false;
+        const search = (searchQuery || '').toLowerCase();
+        const matchesSearch =
+            (u.email?.toLowerCase()?.includes(search)) ||
+            (`${u.firstName || ''} ${u.lastName || ''}`.toLowerCase().includes(search));
+
+        const isAlreadyStaff = Array.isArray(staff) && staff.some(s => s.userId === u.id);
+
+        return matchesSearch && !isAlreadyStaff;
+    });
 
     if (loading) return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
 
@@ -169,7 +195,7 @@ export default function StaffList() {
 
             {/* Staff Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {staff.map((member) => (
+                {(Array.isArray(staff) ? staff : []).map((member) => (
                     <div key={member.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden group hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all flex flex-col">
                         <div className="p-6 flex-1">
                             <div className="flex justify-between items-start mb-4">
@@ -181,9 +207,9 @@ export default function StaffList() {
                                     <Trash2 className="h-4 w-4" />
                                 </button>
                             </div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{member.user.firstName} {member.user.lastName}</h3>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{member.user?.firstName} {member.user?.lastName}</h3>
                             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                <Mail className="h-4 w-4" /> {member.user.email}
+                                <Mail className="h-4 w-4" /> {member.user?.email}
                             </div>
                         </div>
                         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700 mt-auto flex items-center justify-between">
@@ -195,7 +221,7 @@ export default function StaffList() {
                     </div>
                 ))}
 
-                {staff.length === 0 && (
+                {(!Array.isArray(staff) || staff.length === 0) && (
                     <div className="col-span-full bg-gray-50 dark:bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-12 text-center">
                         <div className="mx-auto h-20 w-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 mb-6">
                             <Users className="h-10 w-10 opacity-50" />
@@ -216,8 +242,8 @@ export default function StaffList() {
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsAddModalOpen(false)} />
-                    <div className="relative bg-white dark:bg-gray-800 w-full max-w-lg rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="relative bg-white dark:bg-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <Plus className="h-5 w-5 text-blue-600" /> Add Team Member
                             </h2>
@@ -225,7 +251,7 @@ export default function StaffList() {
                                 <X className="h-5 w-5 text-gray-400" />
                             </button>
                         </div>
-                        <div className="p-6 space-y-6">
+                        <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
                             {createdCredentials ? (
                                 <div className="text-center space-y-6 py-4">
                                     <div className="mx-auto h-20 w-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600">
@@ -286,12 +312,12 @@ export default function StaffList() {
                                                         className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
                                                 </div>
                                                 <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
-                                                    {filteredUsers.map(u => (
+                                                    {(Array.isArray(filteredUsers) ? filteredUsers : []).map(u => (
                                                         <button key={u.id} onClick={() => setSelectedUser(u)}
                                                             className="w-full text-left p-3 rounded-xl border border-transparent hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex items-center justify-between group">
                                                             <div className="flex items-center gap-3">
                                                                 <div className="h-10 w-10 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-400 group-hover:text-blue-600 transition-colors font-bold">
-                                                                    {u.firstName[0]}{u.lastName[0]}
+                                                                    {u.firstName?.[0]}{u.lastName?.[0]}
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-sm font-bold text-gray-900 dark:text-white">{u.firstName} {u.lastName}</p>
@@ -303,7 +329,7 @@ export default function StaffList() {
                                                             </div>
                                                         </button>
                                                     ))}
-                                                    {filteredUsers.length === 0 && searchQuery && (
+                                                    {(!Array.isArray(filteredUsers) || filteredUsers.length === 0) && searchQuery && (
                                                         <div className="text-center py-8"><p className="text-sm text-gray-500 dark:text-gray-400">No eligible users found.</p></div>
                                                     )}
                                                 </div>
@@ -327,31 +353,31 @@ export default function StaffList() {
                                             <div className="space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">First Name</label>
                                                 <input type="text" value={newUser.firstName}
-                                                    onChange={(e) => setNewUser({...newUser, firstName: e.target.value})}
+                                                    onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name</label>
                                                 <input type="text" value={newUser.lastName}
-                                                    onChange={(e) => setNewUser({...newUser, lastName: e.target.value})}
+                                                    onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Email Address</label>
                                                 <input type="email" value={newUser.email}
-                                                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                                                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Phone Number</label>
                                                 <input type="tel" value={newUser.phone}
-                                                    onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
+                                                    onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Account Password</label>
                                                 <input type="text" value={newUser.password}
-                                                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                                                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
@@ -368,7 +394,7 @@ export default function StaffList() {
                                             Assign Property Role
                                         </label>
                                         <div className="grid grid-cols-2 gap-3">
-                                            {dbRoles.map(role => (
+                                            {(Array.isArray(dbRoles) ? dbRoles : []).map(role => (
                                                 <button key={role.id} type="button" onClick={() => setSelectedRoleId(role.id)}
                                                     className={clsx("px-4 py-3 rounded-xl text-left border-2 transition-all flex flex-col gap-0.5",
                                                         selectedRoleId === role.id ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-600 hover:border-gray-300 bg-white dark:bg-gray-800")}>
@@ -382,10 +408,10 @@ export default function StaffList() {
                             )}
                         </div>
                         {!createdCredentials && (
-                            <div className="p-6 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                            <div className="p-6 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0">
                                 <button onClick={() => setIsAddModalOpen(false)}
                                     className="px-5 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all">Cancel</button>
-                                <button onClick={handleAddStaff} disabled={( !selectedUser && !isCreatingNew) || submitting}
+                                <button onClick={handleAddStaff} disabled={(!selectedUser && !isCreatingNew) || submitting}
                                     className="px-8 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-sm transition-all">
                                     {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                                     {submitting ? 'Processing...' : 'Add to Team'}

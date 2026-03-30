@@ -28,7 +28,8 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
-import { Banknote } from 'lucide-react';
+import { financialsService } from '../../services/financials';
+import { Banknote, Calculator } from 'lucide-react';
 
 
 
@@ -153,6 +154,17 @@ export default function BookingsList() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] });
         },
+    });
+
+    const calculateSettlementMutation = useMutation({
+        mutationFn: (bookingId: string) => financialsService.calculateSettlement(bookingId),
+        onSuccess: () => {
+            toast.success('Settlement calculated successfully');
+            queryClient.invalidateQueries({ queryKey: ['bookings'] });
+        },
+        onError: (err: any) => {
+            toast.error(err.response?.data?.message || 'Failed to calculate settlement');
+        }
     });
 
     const getStatusColor = (status: BookingStatus) => {
@@ -351,6 +363,25 @@ export default function BookingsList() {
                                                         title="Check Out"
                                                     >
                                                         <LogOut className="h-5 w-5" />
+                                                    </button>
+                                                )}
+
+                                                {booking.status === BookingStatus.CHECKED_OUT && booking.paymentStatus === 'FULL' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            if (confirm('Calculate property settlement for this booking?')) {
+                                                                calculateSettlementMutation.mutate(booking.id);
+                                                            }
+                                                        }}
+                                                        className="text-amber-600 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-xl transition-all"
+                                                        title="Calculate Settlement"
+                                                        disabled={calculateSettlementMutation.isPending}
+                                                    >
+                                                        {calculateSettlementMutation.isPending ? (
+                                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                                        ) : (
+                                                            <Calculator className="h-5 w-5" />
+                                                        )}
                                                     </button>
                                                 )}
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService, type DashboardStats } from '../services/reports';
@@ -6,10 +7,13 @@ import { Loader2, DollarSign, Users, BedDouble, Plus, Clock, Calendar, TrendingU
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
 import clsx from 'clsx';
+import GuestDetailsModal from '../components/Rooms/GuestDetailsModal';
 
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
     const navigate = useNavigate();
+    const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+    const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
 
     const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
         queryKey: ['dashboard-stats', selectedProperty?.id],
@@ -40,6 +44,9 @@ export default function DashboardHome() {
     const handleRoomClick = (room: Room) => {
         if (room.status === 'AVAILABLE') {
             navigate('/bookings/create', { state: { roomId: room.id, roomNumber: room.roomNumber } });
+        } else if (room.status === 'OCCUPIED') {
+            setSelectedRoomId(room.id);
+            setIsGuestModalOpen(true);
         }
     };
 
@@ -216,8 +223,8 @@ export default function DashboardHome() {
                                 className={clsx(
                                     `p-3 rounded-xl border text-center text-xs font-medium transition-all`,
                                     getStatusColor(room.status),
-                                    room.status === 'AVAILABLE' && 'cursor-pointer hover:shadow-md hover:scale-105',
-                                    room.status !== 'AVAILABLE' && 'cursor-default'
+                                    (room.status === 'AVAILABLE' || room.status === 'OCCUPIED') && 'cursor-pointer hover:shadow-md hover:scale-105',
+                                    (room.status !== 'AVAILABLE' && room.status !== 'OCCUPIED') && 'cursor-default'
                                 )}
                             >
                                 <div className="font-bold text-sm">{room.roomNumber}</div>
@@ -251,6 +258,13 @@ export default function DashboardHome() {
                     </button>
                 ))}
             </div>
+
+            {/* Guest Details Modal */}
+            <GuestDetailsModal
+                roomId={selectedRoomId || ''}
+                isOpen={isGuestModalOpen}
+                onClose={() => setIsGuestModalOpen(false)}
+            />
         </div>
     );
 }

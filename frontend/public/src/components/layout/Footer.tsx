@@ -26,6 +26,7 @@ export default function Footer() {
                                 { label: 'Home', href: '/' },
                                 { label: 'Resorts', href: '/properties' },
                                 { label: 'About Us', href: '/about' },
+                                { label: 'Track My Booking', href: '/track-booking' },
                                 { label: 'Contact', href: '/contact' },
                                 { label: 'List Your Property', href: 'http://localhost:5175/register', highlight: true },
                             ].map(link => (

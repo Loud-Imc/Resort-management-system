@@ -7,6 +7,7 @@ import SearchResults from './pages/SearchResults';
 import Checkout from './pages/Checkout';
 import Confirmation from './pages/Confirmation';
 import Contact from './pages/Contact';
+import TrackBooking from './pages/TrackBooking';
 
 import About from './pages/About';
 import Gallery from './pages/Gallery';
@@ -27,6 +28,7 @@ import Notifications from './pages/Notifications';
 import NotificationManager from './components/NotificationManager';
 
 import { CurrencyProvider } from './context/CurrencyContext';
+import { SearchProvider } from './context/SearchContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,37 +44,40 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <CurrencyProvider>
         <BrowserRouter>
-          <Toaster position="top-center" reverseOrder={false} />
-          <NotificationManager />
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/search" element={<SearchResults />} />
-              <Route path="/book" element={<Checkout />} />
-              <Route path="/confirmation" element={<Confirmation />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="/about" element={<About />} />
-              <Route path="/gallery" element={<Gallery />} />
-              <Route path="/terms" element={<Terms />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/my-bookings" element={<Navigate to="/profile?tab=bookings" replace />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/partner/dashboard" element={<PartnerDashboard />} />
-              <Route path="/rooms" element={<Navigate to="/search" replace />} />
+          <SearchProvider>
+            <Toaster position="top-center" reverseOrder={false} />
+            <NotificationManager />
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/search" element={<SearchResults />} />
+                <Route path="/book" element={<Checkout />} />
+                <Route path="/confirmation" element={<Confirmation />} />
+                <Route path="/track-booking" element={<TrackBooking />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/gallery" element={<Gallery />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/my-bookings" element={<Navigate to="/profile?tab=bookings" replace />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+                <Route path="/rooms" element={<Navigate to="/search" replace />} />
 
-              {/* Marketplace Routes */}
-              <Route path="/properties" element={<PropertiesPage />} />
-              <Route path="/properties/:slug" element={<PropertyDetail />} />
-              <Route path="/properties/:slug/rooms/:roomTypeId" element={<RoomDetail />} />
-              <Route path="/events/:id" element={<EventDetail />} />
-              <Route path="/events/:id/book" element={<EventBookingFlow />} />
+                {/* Marketplace Routes */}
+                <Route path="/properties" element={<PropertiesPage />} />
+                <Route path="/properties/:slug" element={<PropertyDetail />} />
+                <Route path="/properties/:slug/rooms/:roomTypeId" element={<RoomDetail />} />
+                <Route path="/events/:id" element={<EventDetail />} />
+                <Route path="/events/:id/book" element={<EventBookingFlow />} />
 
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Layout>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Layout>
+          </SearchProvider>
         </BrowserRouter>
       </CurrencyProvider>
     </QueryClientProvider>

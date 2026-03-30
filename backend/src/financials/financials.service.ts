@@ -33,7 +33,15 @@ export class FinancialsService {
     }
 
     // ============================================
-    // MAKER-CHECKER WALLET/POINTS ADJUSTMENTS
+    // HELPERS
+    // ============================================
+
+    private isSuperAdmin(user: any): boolean {
+        return user.roles?.includes('SuperAdmin') || false;
+    }
+
+    // ============================================
+    // AD-HOC ADJUSTMENTS (MAKER-CHECKER)
     // ============================================
 
     async createAdjustmentRequest(
@@ -59,7 +67,7 @@ export class FinancialsService {
 
         if (!request) throw new BadRequestException('Adjustment request not found');
         if (request.status !== RequestStatus.PENDING) throw new BadRequestException('Request already processed');
-        if (request.requestedById === approver.id) {
+        if (request.requestedById === approver.id && !this.isSuperAdmin(approver)) {
             throw new ForbiddenException('Maker cannot be the checker (Cannot approve own request)');
         }
 
@@ -188,7 +196,7 @@ export class FinancialsService {
 
         // Maker-Checker Guards
         if (status === SettlementStatus.APPROVED) {
-            if (settlement.createdById === user.id) {
+            if (settlement.createdById === user.id && !this.isSuperAdmin(user)) {
                 throw new ForbiddenException('Maker-Checker Violation: You cannot approve a settlement you calculated yourself.');
             }
 
@@ -203,7 +211,7 @@ export class FinancialsService {
         }
 
         if (status === SettlementStatus.PAID) {
-            if (settlement.approvedById === user.id) {
+            if (settlement.approvedById === user.id && !this.isSuperAdmin(user)) {
                 throw new ForbiddenException('Safety Guard: Payout processor must be different from the Approver.');
             }
         }
@@ -285,7 +293,7 @@ export class FinancialsService {
         }
 
         if (status === RedemptionStatus.PAID) {
-            if (request.approverId === user.id) {
+            if (request.approverId === user.id && !this.isSuperAdmin(user)) {
                 throw new ForbiddenException('Safety Guard: Payout processor must be different from the Approver.');
             }
         }
@@ -433,7 +441,7 @@ export class FinancialsService {
         if (!reconciliation) throw new BadRequestException('No pending reconciliation found for this payment. Please flag it first.');
         if (reconciliation.status !== 'PENDING') throw new BadRequestException('Reconciliation already processed.');
 
-        if (reconciliation.reconciledById === user.id) {
+        if (reconciliation.reconciledById === user.id && !this.isSuperAdmin(user)) {
             throw new ForbiddenException('Maker-Checker Violation: The same admin who flagged the discrepancy cannot resolve it.');
         }
 
@@ -479,7 +487,7 @@ export class FinancialsService {
             },
             include: {
                 property: { select: { id: true, name: true } },
-                booking: { select: { id: true, totalAmount: true } },
+                booking: { select: { id: true, totalAmount: true, bookingNumber: true } },
                 createdBy: { select: { id: true, firstName: true } },
                 approvedBy: { select: { id: true, firstName: true } },
                 payoutBy: { select: { id: true, firstName: true } },

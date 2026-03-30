@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, Save, AlertCircle, Shield, Building2 } from 'lucide
 import clsx from 'clsx';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { useProperty } from '../../context/PropertyContext';
 
 interface Role {
     id: string;
@@ -23,6 +24,7 @@ const roleSchema = z.object({
     description: z.string().optional(),
     category: z.enum(['SYSTEM', 'PROPERTY', 'EVENT']),
     permissions: z.array(z.string()),
+    propertyId: z.string().optional().nullable(),
 });
 
 type RoleFormData = z.infer<typeof roleSchema>;
@@ -32,10 +34,17 @@ export default function ProcessRole() {
     const isEditing = !!id;
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { selectedProperty } = useProperty();
 
     const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<RoleFormData>({
         resolver: zodResolver(roleSchema),
-        defaultValues: { name: '', description: '', category: 'PROPERTY', permissions: [] },
+        defaultValues: {
+            name: '',
+            description: '',
+            category: 'PROPERTY',
+            permissions: [],
+            propertyId: selectedProperty?.id || null
+        },
     });
 
     const selectedPermissions = watch('permissions') || [];
@@ -68,7 +77,13 @@ export default function ProcessRole() {
         onError: (error: any) => toast.error(error.response?.data?.message || 'Failed to save role'),
     });
 
-    const onSubmit = (data: RoleFormData) => mutation.mutate(data);
+    const onSubmit = (data: RoleFormData) => {
+        const payload = {
+            ...data,
+            propertyId: data.propertyId || selectedProperty?.id
+        };
+        mutation.mutate(payload);
+    };
 
     const togglePermission = (permName: string) => {
         const current = selectedPermissions || [];

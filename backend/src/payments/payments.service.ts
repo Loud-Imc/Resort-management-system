@@ -389,6 +389,7 @@ export class PaymentsService {
                         description: `Online booking ${payment.booking.bookingNumber} (${payment.amount} ${payment.currency} @ ${payment.booking.exchangeRate})`,
                         bookingId: payment.bookingId,
                         paymentId: payment.id,
+                        propertyId: payment.booking.propertyId,
                     },
                 });
             } else if (payment.eventBookingId && payment.eventBooking) {
@@ -403,6 +404,7 @@ export class PaymentsService {
                         source: 'EVENT_BOOKING',
                         description: `Event booking ${payment.eventBooking.ticketId}`,
                         eventBookingId: payment.eventBookingId,
+                        propertyId: payment.eventBooking.event.propertyId,
                     },
                 });
             }
@@ -546,7 +548,7 @@ export class PaymentsService {
                             property: true,
                         }
                     },
-                    eventBooking: true
+                    eventBooking: { include: { event: true } }
                 }
             }) as any;
         }
@@ -607,6 +609,7 @@ export class PaymentsService {
                         description: `Online booking ${payment.booking?.bookingNumber}`,
                         bookingId: payment.bookingId,
                         paymentId: payment.id,
+                        propertyId: payment.booking?.propertyId,
                     },
                 });
             } else if (payment.eventBookingId) {
@@ -624,6 +627,7 @@ export class PaymentsService {
                         source: 'EVENT_BOOKING',
                         description: `Event booking ${payment.eventBooking?.ticketId}`,
                         eventBookingId: payment.eventBookingId,
+                        propertyId: (payment.eventBooking as any)?.event?.propertyId,
                     },
                 });
             }
@@ -844,6 +848,7 @@ export class PaymentsService {
                             title: 'Refund Initiated ✅',
                             message: `A refund of ₹${Number(refundAmount).toLocaleString('en-IN')} for booking ${bookingWithDetails.bookingNumber} has been processed. Please allow 5–7 business days.`,
                             type: 'REFUND_PROCESSED',
+                            targetRole: 'Customer',
                             data: { bookingId: bookingWithDetails.id, refundAmount: Number(refundAmount) },
                         });
                     } catch (err) {
@@ -1150,6 +1155,7 @@ export class PaymentsService {
                     description: `Property desk payment (${dto.method}) for booking ${booking.bookingNumber}`,
                     bookingId: dto.bookingId,
                     paymentId: payment.id,
+                    propertyId: booking.propertyId,
                 },
             });
 
@@ -1234,6 +1240,7 @@ export class PaymentsService {
                     description: `Approved Manual payment (${method}) for ${booking.bookingNumber}`,
                     bookingId: request.bookingId,
                     paymentId: payment.id,
+                    propertyId: request.booking.propertyId,
                 },
             });
 
