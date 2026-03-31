@@ -432,6 +432,28 @@ async function main() {
     });
 
     console.log('✅ Coupons seeded');
+
+    // --- EXPENSE CATEGORIES ---
+    const expenseCategories = [
+        { name: 'Maintenance', description: 'Property maintenance and repairs' },
+        { name: 'Utilities', description: 'Electricity, water, internet, etc.' },
+        { name: 'Salaries & Wages', description: 'Employee compensation' },
+        { name: 'Marketing', description: 'Advertising and promotions' },
+        { name: 'Housekeeping', description: 'Cleaning supplies and services' },
+        { name: 'Food & Beverage', description: 'Kitchen and restaurant expenses' },
+        { name: 'Taxes & Licenses', description: 'Government fees and taxes' },
+        { name: 'Miscellaneous', description: 'Other operational costs' },
+    ];
+
+    for (const cat of expenseCategories) {
+        await prisma.expenseCategory.upsert({
+            where: { name: cat.name },
+            update: { description: cat.description },
+            create: cat,
+        });
+    }
+    console.log('✅ Expense categories seeded');
+
     console.log('\n🎉 Database re-seeded with 4 properties and rooms!');
 }
 
