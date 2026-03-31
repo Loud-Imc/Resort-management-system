@@ -8,9 +8,10 @@ import { InMemoryReferralAbuseStore } from '../common/services/in-memory-referra
 import { REFERRAL_ABUSE_STORE } from '../common/services/referral-abuse-store.interface';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SystemSettingsModule } from '../system-settings/system-settings.module';
+import { FinancialsModule } from '../financials/financials.module';
 
 @Module({
-    imports: [PrismaModule, ConfigModule, NotificationsModule, SystemSettingsModule],
+    imports: [PrismaModule, ConfigModule, NotificationsModule, SystemSettingsModule, FinancialsModule],
     controllers: [ChannelPartnersController],
     providers: [
         ChannelPartnersService,

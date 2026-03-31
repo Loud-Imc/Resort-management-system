@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { ConfigService } from '@nestjs/config';
 import { Decimal } from '@prisma/client/runtime/library';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 import Razorpay = require('razorpay');
 
 @Injectable()
@@ -25,6 +26,7 @@ export class FinancialsService {
         private notifications: NotificationsService,
         private audit: AuditService,
         private configService: ConfigService,
+        private systemSettings: SystemSettingsService,
     ) {
         this.razorpay = new Razorpay({
             key_id: this.configService.get<string>('RAZORPAY_KEY_ID'),
@@ -200,13 +202,18 @@ export class FinancialsService {
                 throw new ForbiddenException('Maker-Checker Violation: You cannot approve a settlement you calculated yourself.');
             }
 
-            const refundDeadline = new Decimal(24);
-            const checkoutDate = settlement.booking.checkOutDate;
-            const now = new Date();
-            const hoursSinceCheckout = (now.getTime() - checkoutDate.getTime()) / (1000 * 60 * 60);
+            const coolingHoursSetting = await this.systemSettings.getSetting('PAYOUT_COOLING_HOURS');
+            const coolingHours = coolingHoursSetting ?? 24;
 
-            if (hoursSinceCheckout < refundDeadline.toNumber()) {
-                throw new BadRequestException('Settlement cannot be approved within the 24h refund window');
+            if (Number(coolingHours) > 0) {
+                const refundDeadline = new Decimal(coolingHours);
+                const checkoutDate = settlement.booking.checkOutDate;
+                const now = new Date();
+                const hoursSinceCheckout = (now.getTime() - checkoutDate.getTime()) / (1000 * 60 * 60);
+
+                if (hoursSinceCheckout < refundDeadline.toNumber()) {
+                    throw new BadRequestException(`Settlement cannot be approved within the ${coolingHours}h refund window`);
+                }
             }
         }
 
@@ -503,7 +510,16 @@ export class FinancialsService {
                 ...(params.cpId && { cpId: params.cpId }),
             },
             include: {
-                channelPartner: { select: { id: true, authorizedPersonName: true, organizationName: true } },
+                channelPartner: {
+                    include: {
+                        user: {
+                            select: {
+                                firstName: true,
+                                lastName: true,
+                            }
+                        }
+                    }
+                },
                 approver: { select: { id: true, firstName: true } },
                 payoutBy: { select: { id: true, firstName: true } },
             },

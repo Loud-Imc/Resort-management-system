@@ -6,7 +6,7 @@ import {
     Plus,
     Trash2,
     AlertCircle,
-    CheckCircle2,
+    // CheckCircle2,
     Loader2,
     Info,
     Calculator,
@@ -16,7 +16,9 @@ import {
     Edit2,
     X,
     UploadCloud,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Percent,
+    Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
@@ -37,6 +39,8 @@ export default function LoyaltyManagement() {
     // Global Specific State
     const [gstTiers, setGstTiers] = useState<GstTier[]>([]);
     const [loyaltyPoints, setLoyaltyPoints] = useState<number>(0);
+    const [defaultCommission, setDefaultCommission] = useState<number>(10);
+    const [payoutCoolingHours, setPayoutCoolingHours] = useState<number>(24);
 
     // Tiers State
     const [levels, setLevels] = useState<PartnerLevel[]>([]);
@@ -69,6 +73,12 @@ export default function LoyaltyManagement() {
             const loyaltySetting = settingsData.find((s: GlobalSetting) => s.key === 'LOYALTY_POINTS_PER_INR');
             if (loyaltySetting) setLoyaltyPoints(Number(loyaltySetting.value));
 
+            const commissionSetting = settingsData.find((s: GlobalSetting) => s.key === 'DEFAULT_COMMISSION_RATE');
+            if (commissionSetting) setDefaultCommission(Number(commissionSetting.value));
+
+            const coolingSetting = settingsData.find((s: GlobalSetting) => s.key === 'PAYOUT_COOLING_HOURS');
+            if (coolingSetting) setPayoutCoolingHours(Number(coolingSetting.value));
+
             // Map Tiers & Rewards
             setLevels(levelsData.sort((a, b) => a.minPoints - b.minPoints));
             setRewards(rewardsData.sort((a, b) => a.pointCost - b.pointCost));
@@ -96,10 +106,14 @@ export default function LoyaltyManagement() {
     const handleSaveLoyalty = async () => {
         try {
             setIsSaving(true);
-            await settingsService.update('LOYALTY_POINTS_PER_INR', loyaltyPoints, 'Number of loyalty points earned per 1 INR spent');
-            toast.success('Loyalty settings updated successfully');
+            await Promise.all([
+                settingsService.update('LOYALTY_POINTS_PER_INR', loyaltyPoints, 'Number of loyalty points earned per 1 INR spent'),
+                settingsService.update('DEFAULT_COMMISSION_RATE', defaultCommission, 'Global default commission rate for Channel Partners'),
+                settingsService.update('PAYOUT_COOLING_HOURS', payoutCoolingHours, 'Cooling period (hours) before settlement approval'),
+            ]);
+            toast.success('Settings updated successfully');
         } catch (error) {
-            toast.error('Failed to update loyalty settings');
+            toast.error('Failed to update settings');
         } finally {
             setIsSaving(false);
         }
@@ -301,19 +315,40 @@ export default function LoyaltyManagement() {
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-50 flex items-center gap-3 bg-gray-50/50">
                                 <div className="p-2 bg-emerald-100 rounded-lg"><Coins className="h-5 w-5 text-emerald-600" /></div>
-                                <div><h2 className="text-lg font-bold text-gray-900">Platform Points Engine</h2><p className="text-xs text-gray-500">Global conversion rate</p></div>
+                                <div><h2 className="text-lg font-bold text-gray-900">Financial & Points Engine</h2><p className="text-xs text-gray-500">Global commission and conversion rates</p></div>
                             </div>
                             <div className="p-6 space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Points Earned per ₹1 INR Commissionable Amount</label>
-                                    <div className="relative">
-                                        <input type="number" value={loyaltyPoints} onChange={(e) => setLoyaltyPoints(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-lg font-bold" placeholder="1" />
-                                        <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Points per ₹1 Commissionable Amt</label>
+                                        <div className="relative">
+                                            <input type="number" value={loyaltyPoints} onChange={(e) => setLoyaltyPoints(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-lg font-bold" placeholder="1" />
+                                            <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                        </div>
                                     </div>
-                                    <p className="mt-2 text-xs text-gray-500 flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> E.g., a booking with ₹500 discount gives CP 500 * {loyaltyPoints || 1} points.</p>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Default CP Commission (%)</label>
+                                        <div className="relative">
+                                            <input type="number" value={defaultCommission} onChange={(e) => setDefaultCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-lg font-bold" placeholder="10" />
+                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                        </div>
+                                    </div>
                                 </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                                        <Clock className="h-4 w-4 text-gray-400" />
+                                        Payout Cooling Period (Hours)
+                                    </label>
+                                    <div className="relative">
+                                        <input type="number" value={payoutCoolingHours} onChange={(e) => setPayoutCoolingHours(Number(e.target.value))} className="w-full pl-4 pr-12 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-500 text-lg font-bold" placeholder="24" />
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 uppercase">Hours</span>
+                                    </div>
+                                    <p className="mt-2 text-[10px] text-gray-400 font-medium italic">* Settlements can only be approved after this many hours have passed since checkout.</p>
+                                </div>
+
                                 <button onClick={handleSaveLoyalty} disabled={isSaving} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-bold">
-                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Update Point Engine
+                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Financial Settings
                                 </button>
                             </div>
                         </div>

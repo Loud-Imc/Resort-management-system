@@ -45,6 +45,11 @@ export class SystemSettingsService implements OnModuleInit {
                 key: 'DEFAULT_COMMISSION_RATE',
                 value: 10.0,
                 description: 'Global default commission rate for Channel Partners if no tier, property, or partner-specific overrides exist.'
+            },
+            {
+                key: 'PAYOUT_COOLING_HOURS',
+                value: 24,
+                description: 'Cooling period (in hours) after checkout before a property settlement can be approved.'
             }
         ];
 

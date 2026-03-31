@@ -15,6 +15,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { ChannelPartnersService } from './channel-partners.service';
 import { ApplyReferralCodeDto, UpdateCommissionRateDto, UpdateReferralDiscountRateDto } from './dto/channel-partner.dto';
+import { PayoutRequestDto } from './dto/payout-request.dto';
 import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
 import { ChannelPartnerStatus, RedemptionStatus } from '@prisma/client';
 import { UpdateCPProfileDto } from './dto/update-cp-profile.dto';
@@ -224,6 +225,22 @@ export class ChannelPartnersController {
     }
 
     // Financial actions moved to FinancialsController
+
+    @Post('me/claim-earnings')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Claim earned commissions into wallet' })
+    claimEarnings(@Request() req, @Body() dto: PayoutRequestDto) {
+        return this.cpService.claimEarnings(req.user.id, dto.amount);
+    }
+
+    @Post('me/redemption-request')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Request a payout/redemption from wallet balance' })
+    requestRedemption(@Request() req, @Body() dto: PayoutRequestDto) {
+        return this.cpService.requestRedemption(req.user.id, dto.amount);
+    }
 
     @Patch('me')
     @UseGuards(AuthGuard('jwt'))

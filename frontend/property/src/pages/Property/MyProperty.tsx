@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useProperty } from '../../context/PropertyContext';
+import { useAuth } from '../../context/AuthContext';
 import { propertiesService } from '../../services/properties';
 import { uploadService } from '../../services/uploads';
 import type { Property } from '../../types/property';
@@ -14,11 +15,14 @@ import { cancellationPoliciesService, type CancellationPolicy, type Cancellation
 import clsx from 'clsx';
 
 export default function MyProperty() {
+    const { user } = useAuth();
     const { selectedProperty, refreshProperties } = useProperty();
     const [property, setProperty] = useState<Property | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [editMode, setEditMode] = useState(false);
+
+    const isPlatformAdmin = user?.roles?.some(r => ['SuperAdmin', 'Admin', 'Marketing'].includes(r));
 
     // Editable fields
     const [name, setName] = useState('');
@@ -31,6 +35,7 @@ export default function MyProperty() {
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [whatsappNumber, setWhatsappNumber] = useState('');
+    const [platformCommission, setPlatformCommission] = useState<number>(10);
     const [allowsGroupBooking, setAllowsGroupBooking] = useState(false);
     const [maxGroupCapacity, setMaxGroupCapacity] = useState<number | ''>('');
     const [groupPricePerHead, setGroupPricePerHead] = useState<number | ''>('');
@@ -98,6 +103,7 @@ export default function MyProperty() {
                     groupPricePerHead: reqDetails.groupPricePerHead || '',
                     groupPriceAdult: reqDetails.groupPriceAdult || '',
                     groupPriceChild: reqDetails.groupPriceChild || '',
+                    platformCommission: (selectedProperty as any).platformCommission || 10.00
                 };
                 setProperty(reqProperty as Property);
                 populateFields(reqProperty as Property);
@@ -108,7 +114,7 @@ export default function MyProperty() {
                 populateFields(data);
             }
         } catch (err: any) {
-            toast.error('Failed to load property details');
+            toast.error('Failed to load property');
         } finally {
             setLoading(false);
         }
@@ -125,6 +131,7 @@ export default function MyProperty() {
         setPhone(p.phone || '');
         setEmail(p.email || '');
         setWhatsappNumber(p.whatsappNumber || '');
+        setPlatformCommission(Number(p.platformCommission || 10));
         setAmenities(p.amenities || []);
         setImages(p.images || []);
         setCoverImage(p.coverImage || '');
@@ -136,33 +143,34 @@ export default function MyProperty() {
     };
 
     const handleSave = async () => {
-        if (!property) return;
+        if (!selectedProperty?.id) return;
         try {
             setSaving(true);
-
-            const payload = {
+            const payload: any = {
                 name, description, address, city, state, country, pincode,
-                phone, email, whatsappNumber, amenities, images, coverImage,
+                phone, email, whatsappNumber,
+                amenities, images, coverImage,
                 allowsGroupBooking,
                 groupPricePerHead: groupPricePerHead === '' ? null : Number(groupPricePerHead),
                 groupPriceAdult: groupPriceAdult === '' ? null : Number(groupPriceAdult),
                 groupPriceChild: groupPriceChild === '' ? null : Number(groupPriceChild),
             };
 
-            if ((selectedProperty as any)?.isRequest) {
-                // Update the PropertyRequest instead
-                await propertiesService.updateRequest(selectedProperty!.id, payload);
+            // Only include commission if platform admin
+            if (isPlatformAdmin) {
+                payload.platformCommission = platformCommission;
+            }
+
+            if (selectedProperty.isRequest) {
+                // Update the request details
+                await propertiesService.updateRequest(selectedProperty.id, payload);
                 toast.success('Registration details updated successfully!');
-                await refreshProperties(); // This will re-fetch the request context
-                setEditMode(false);
             } else {
                 // Standard Property update
-                const updated = await propertiesService.update(property.id, payload);
+                const updated = await propertiesService.update(selectedProperty.id, payload);
                 setProperty(updated);
                 populateFields(updated);
-                setEditMode(false);
                 toast.success('Property updated successfully!');
-                await refreshProperties();
             }
         } catch (err: any) {
             toast.error(err.response?.data?.message || 'Failed to update property');
@@ -382,6 +390,39 @@ export default function MyProperty() {
                         onChange={setPhone} editMode={editMode} type="tel" />
                     <Field label="WhatsApp" icon={<Phone className="h-4 w-4" />} value={whatsappNumber}
                         onChange={setWhatsappNumber} editMode={editMode} type="tel" />
+                </div>
+
+                <div className={clsx(
+                    "p-4 rounded-xl border flex items-center justify-between transition-all",
+                    isPlatformAdmin ? "bg-amber-50/50 border-amber-200" : "bg-gray-50 border-gray-100"
+                )}>
+                    <div className="flex items-center gap-3">
+                        <div className={clsx("p-2 rounded-lg", isPlatformAdmin ? "bg-amber-100" : "bg-gray-200")}>
+                            <Percent className={clsx("h-5 w-5", isPlatformAdmin ? "text-amber-600" : "text-gray-500")} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Platform Commission (%)</p>
+                            {editMode && isPlatformAdmin ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="number"
+                                        value={platformCommission}
+                                        onChange={(e) => setPlatformCommission(Number(e.target.value))}
+                                        className="w-20 px-2 py-1 border border-amber-300 rounded bg-white text-lg font-black text-amber-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                                    />
+                                    <span className="text-sm font-bold text-amber-600">%</span>
+                                </div>
+                            ) : (
+                                <p className="text-xl font-black text-gray-900 dark:text-white mt-0.5">{platformCommission}%</p>
+                            )}
+                        </div>
+                    </div>
+                    {!isPlatformAdmin && (
+                        <div className="flex items-center gap-1.5 text-gray-400 bg-white/50 px-2 py-1 rounded-md border border-gray-100">
+                            <ShieldAlert className="h-3 w-3" />
+                            <span className="text-[10px] font-bold uppercase">Admin Only</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-2 pt-2">

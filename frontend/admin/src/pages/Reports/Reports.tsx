@@ -19,7 +19,12 @@ import {
     Bed,
     Building2,
     Calendar,
-    ArrowUpRight
+    ArrowUpRight,
+    X,
+    ExternalLink,
+    PieChart as PieChartIcon,
+    BarChart3,
+    CreditCard
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 
@@ -36,6 +41,7 @@ export default function Reports() {
     });
 
     const [rangeType, setRangeType] = useState('month'); // 'week', 'month', 'custom'
+    const [activeDrillDown, setActiveDrillDown] = useState<string | null>(null);
 
     // Fetch Financial Summary
     const { data: financialReport, isLoading: loadingFinancial } = useQuery({
@@ -175,36 +181,54 @@ export default function Reports() {
             </div>
 
             {/* KPI Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <KPICard
                     title="Total Revenue"
                     value={`₹${(financialReport?.summary?.totalIncome || 0).toLocaleString()}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />}
-                    trend="+12.5% vs last period"
+                    trend={financialReport?.summary?.growth?.revenue}
                     color="text-emerald-500"
+                    onClick={() => setActiveDrillDown('REVENUE')}
                 />
                 <KPICard
                     title="Avg. Occupancy"
                     value={`${occupancyReport?.averageOccupancy || 0}%`}
                     icon={<Bed className="h-4 w-4 text-sky-500" />}
-                    trend="Stable performance"
+                    trend={null}
                     color="text-sky-500"
+                    onClick={() => setActiveDrillDown('OCCUPANCY')}
                 />
                 <KPICard
                     title="Total Bookings"
                     value={financialReport?.summary?.bookingsCount || 0}
                     icon={<Users className="h-4 w-4 text-primary" />}
-                    trend="From 4 booking sources"
+                    trend={financialReport?.summary?.growth?.bookings}
                     color="text-primary"
+                    onClick={() => setActiveDrillDown('BOOKINGS')}
                 />
                 <KPICard
-                    title="Platform Net"
-                    value={`₹${(financialReport?.summary?.netProfit || 0).toLocaleString()}`}
+                    title="Platform Profit"
+                    value={`₹${((isGlobalAdmin && !selectedProperty ? financialReport?.platformSummary?.netPlatformProfit : financialReport?.summary?.netProfit) || 0).toLocaleString()}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />}
-                    trend="After operational costs"
+                    trend={financialReport?.summary?.growth?.profit}
                     color="text-amber-500"
+                    onClick={() => setActiveDrillDown('PLATFORM')}
                 />
             </div>
+
+            {/* Drill Down Modal */}
+            {activeDrillDown && (
+                <DrillDownModal
+                    type={activeDrillDown}
+                    data={{
+                        financial: financialReport,
+                        occupancy: occupancyReport,
+                        roomPerf: roomPerformance,
+                        partnerReport: partnerReport
+                    }}
+                    onClose={() => setActiveDrillDown(null)}
+                />
+            )}
 
             {/* Charts Row 1: Trends */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -460,23 +484,401 @@ function PlatformSummaryCard({ summary }: { summary: any }) {
     );
 }
 
-function KPICard({ title, value, icon, trend, color }: any) {
+function KPICard({ title, value, icon, trend, color, description, onClick }: any) {
+    const isPositive = trend > 0;
+    const isNegative = trend < 0;
+
     return (
-        <div className="bg-card p-6 rounded-2xl border border-border shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
-            <div className="flex justify-between items-start mb-4">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</h3>
-                <div className={`p-2 rounded-xl bg-muted/50 group-hover:bg-primary/10 transition-colors`}>
-                    {icon}
+        <button
+            onClick={onClick}
+            className="bg-card p-5 rounded-2xl border border-border shadow-sm hover:shadow-md hover:border-primary/50 transition-all group overflow-hidden relative flex flex-col justify-between text-left w-full"
+        >
+            <div>
+                <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</h3>
+                    <div className={`p-2 rounded-xl bg-muted/50 group-hover:bg-primary/10 transition-colors`}>
+                        {icon}
+                    </div>
                 </div>
+                <div className="flex items-baseline gap-2">
+                    <p className={`text-xl font-black ${color}`}>{value}</p>
+                </div>
+                {description && <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{description}</p>}
             </div>
-            <div className="flex items-baseline gap-2">
-                <p className={`text-2xl font-black ${color}`}>{value}</p>
+
+            <div className="mt-3 flex items-center justify-between gap-2">
+                {trend !== null && trend !== undefined ? (
+                    <div className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black ${isPositive ? 'bg-emerald-500/10 text-emerald-600' :
+                        isNegative ? 'bg-rose-500/10 text-rose-600' :
+                            'bg-muted text-muted-foreground'
+                        }`}>
+                        {isPositive ? '↑' : isNegative ? '↓' : '•'} {Math.abs(trend)}%
+                    </div>
+                ) : (
+                    <span className="text-[10px] font-bold text-muted-foreground opacity-50 italic">Snapshot</span>
+                )}
+                <span className="text-[8px] font-black text-primary opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-tighter flex items-center gap-1">
+                    Details <ExternalLink className="h-2 w-2" />
+                </span>
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground flex items-center gap-1 mt-2">
-                {trend}
-            </p>
+
             <div className="absolute -bottom-2 -right-2 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
                 {icon}
+            </div>
+        </button>
+    );
+}
+
+function DrillDownModal({ type, data, onClose }: { type: string, data: any, onClose: () => void }) {
+    const { financial, occupancy, roomPerf, partnerReport } = data;
+
+    const renderContent = () => {
+        switch (type) {
+            case 'REVENUE':
+                const sources = financial?.incomeBySource || [];
+                const totalFromSources = sources.reduce((sum: number, s: any) => sum + Number(s._sum.amount), 0);
+
+                return (
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 rounded-lg bg-emerald-500/10">
+                                <PieChartIcon className="h-4 w-4 text-emerald-600" />
+                            </div>
+                            <h4 className="text-sm font-black uppercase tracking-tight">Income Breakdown</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-muted/30 p-4 rounded-xl border border-border">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Income Sources</h4>
+                                <div className="space-y-3">
+                                    {sources.map((item: any) => (
+                                        <div key={item.source} className="flex justify-between items-center">
+                                            <span className="text-sm font-bold truncate max-w-[150px] capitalize">{item.source.replace(/_/g, ' ')}</span>
+                                            <span className="text-sm font-black text-emerald-600">₹{Number(item._sum.amount).toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                    <div className="pt-2 border-t border-border flex justify-between items-center">
+                                        <span className="text-xs font-black text-muted-foreground uppercase">Period Gross</span>
+                                        <span className="text-sm font-black text-foreground">₹{totalFromSources.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-muted/30 p-4 rounded-xl border border-border">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Property Breakdown</h4>
+                                <div className="space-y-3 max-h-[150px] overflow-auto pr-2">
+                                    {roomPerf?.reduce((acc: any[], curr: any) => {
+                                        const existing = acc.find(a => a.property === curr.propertyName);
+                                        if (existing) existing.revenue += curr.revenue;
+                                        else acc.push({ property: curr.propertyName, revenue: curr.revenue });
+                                        return acc;
+                                    }, []).map((p: any) => (
+                                        <div key={p.property} className="flex justify-between items-center">
+                                            <span className="text-sm font-bold truncate max-w-[120px]">{p.property}</span>
+                                            <span className="text-sm font-black">₹{p.revenue.toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/20">
+                            <p className="text-xs text-emerald-700 font-medium">Total Gross Revenue includes all confirmed bookings, event incomes, and ancillary services recorded in the selected period.</p>
+                        </div>
+                    </div>
+                );
+            case 'BOOKINGS':
+                return (
+                    <div className="space-y-6">
+                        <div className="space-y-6">
+                            <div className="bg-primary/5 p-6 rounded-[2rem] border border-primary/10 flex justify-between items-center bg-gradient-to-br from-primary/10 to-transparent">
+                                <div>
+                                    <h4 className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Total Bookings Created</h4>
+                                    <div className="text-4xl font-black text-primary leading-none">{financial?.summary?.bookingsCount || 0}</div>
+                                </div>
+                                <div className="text-right opacity-60">
+                                    <div className="text-[10px] font-black uppercase tracking-tighter italic border-b border-primary/20 pb-1 mb-1">Total Network Volume</div>
+                                    <div className="text-[9px] font-medium leading-tight max-w-[150px]">Includes all confirmed and pending bookings across all platforms.</div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Public Website</span>
+                                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    </div>
+                                    <div className="text-2xl font-black text-emerald-900">{financial?.summary?.bookingsBySource?.online || 0}</div>
+                                    <p className="text-[9px] text-emerald-600/70 italic mt-1">* Direct guest bookings</p>
+                                </div>
+                                <div className="p-4 rounded-2xl bg-orange-500/5 border border-orange-500/10">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-black uppercase text-orange-600 tracking-widest">CP Network</span>
+                                    </div>
+                                    <div className="text-2xl font-black text-orange-900">{financial?.summary?.bookingsBySource?.partner || 0}</div>
+                                    <p className="text-[9px] text-orange-600/70 italic mt-1">* Affiliate-driven bookings</p>
+                                </div>
+                                <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Property Dashboard</span>
+                                    </div>
+                                    <div className="text-2xl font-black text-blue-900">{financial?.summary?.bookingsBySource?.property || 0}</div>
+                                    <p className="text-[9px] text-blue-600/70 italic mt-1">* In-house/Manual entries</p>
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-amber-500/10">
+                                        <CreditCard className="h-4 w-4 text-amber-600" />
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-bold text-amber-900">Partial Payment Bookings</span>
+                                        <p className="text-[9px] text-amber-600/70">Bookings with balance amount pending</p>
+                                    </div>
+                                </div>
+                                <div className="text-2xl font-black text-amber-900">{financial?.summary?.bookingsBySource?.partial || 0}</div>
+                            </div>
+                        </div>
+                        <div className="bg-card border border-border rounded-xl p-4">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Partner Performance</h4>
+                            <div className="space-y-2 max-h-[200px] overflow-auto">
+                                {partnerReport?.map((p: any) => (
+                                    <div key={p.id} className="flex justify-between p-2 rounded-lg bg-muted/30">
+                                        <span className="text-xs font-bold">{p.partnerName || 'Unnamed Partner'}</span>
+                                        <span className="text-xs font-black">{p.totalBookings || 0} Bookings</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 'OCCUPANCY':
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-muted/30 p-4 rounded-xl border border-border">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Property-wise Occupancy</h4>
+                            <div className="space-y-4 max-h-[300px] overflow-auto pr-2">
+                                {roomPerf?.reduce((acc: any[], curr: any) => {
+                                    const existing = acc.find(a => a.property === curr.propertyName);
+                                    if (existing) {
+                                        existing.totalRows++;
+                                        existing.totalOcc += curr.occupancyRate;
+                                    } else acc.push({ property: curr.propertyName, totalOcc: curr.occupancyRate, totalRows: 1 });
+                                    return acc;
+                                }, []).map((p: any) => {
+                                    const avgOccValue = p.totalOcc / p.totalRows;
+                                    const displayOcc = avgOccValue < 1 && avgOccValue > 0 ? avgOccValue.toFixed(1) : Math.round(avgOccValue);
+                                    return (
+                                        <div key={p.property} className="space-y-1.5">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span>{p.property}</span>
+                                                <span>{displayOcc}%</span>
+                                            </div>
+                                            <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                                <div className="h-full bg-sky-500" style={{ width: `${avgOccValue}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 'ADR':
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-indigo-500/5 p-6 rounded-2xl border border-indigo-500/20 text-center">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-2">Average Daily Rate (Calculation)</h4>
+                            <p className="text-3xl font-black text-indigo-700">₹{Math.round(financial?.summary?.adr || 0).toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground mt-4 font-medium italic">Total Room Revenue ÷ Number of Rooms Occupied</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-4 bg-muted/30 rounded-xl border border-border">
+                                <h5 className="text-[10px] font-black uppercase mb-3">Gross Revenue</h5>
+                                <p className="text-lg font-black text-foreground">₹{Number(financial?.summary?.totalIncome || 0).toLocaleString()}</p>
+                            </div>
+                            <div className="p-4 bg-muted/30 rounded-xl border border-border">
+                                <h5 className="text-[10px] font-black uppercase mb-3">Occupied Nights</h5>
+                                <p className="text-lg font-black text-foreground">
+                                    {financial?.summary?.adr > 0 ? Math.round(financial?.summary?.totalIncome / financial?.summary?.adr) : 0}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 'REVPAR':
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-purple-500/5 p-6 rounded-2xl border border-purple-500/20 text-center">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-2">Revenue Per Available Room</h4>
+                            <p className="text-3xl font-black text-purple-700">₹{Math.round(financial?.summary?.revPar || 0).toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground mt-4 font-medium italic">Occupancy Percentage × Average Daily Rate (ADR)</p>
+                        </div>
+                        <div className="bg-card border border-border rounded-xl p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-sm font-bold text-muted-foreground">Occupancy Rate</span>
+                                <span className="text-sm font-black">{occupancy?.averageOccupancy || 0}%</span>
+                            </div>
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-sm font-bold text-muted-foreground">Average Daily Rate</span>
+                                <span className="text-sm font-black">₹{Math.round(financial?.summary?.adr || 0).toLocaleString()}</span>
+                            </div>
+                            <div className="pt-4 border-t border-dashed border-border flex items-center justify-between">
+                                <span className="font-black text-purple-600">Calculated RevPAR</span>
+                                <span className="font-black text-purple-600 italic">= ₹{Math.round(financial?.summary?.revPar).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 'PLATFORM':
+                const ps = financial?.platformSummary;
+                if (!ps) return <div className="p-12 text-center text-muted-foreground italic">Platform summary only available in Global context.</div>;
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-200/50">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h4 className="text-[10px] font-black uppercase text-amber-600 tracking-widest mb-1">Net Platform Profit</h4>
+                                    <div className="text-4xl font-black text-amber-900 leading-none">₹{ps.netPlatformProfit.toLocaleString()}</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs font-bold text-amber-600 bg-amber-100/50 px-3 py-1.5 rounded-md inline-block mb-1">
+                                        FORMULA: (A + B) - (C + D + E)
+                                    </div>
+                                    <div className="text-xs text-amber-800/60 font-medium max-w-[250px] leading-tight">
+                                        Net earnings after subtracting all commissions, gateway fees, and operational costs.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 border-t border-amber-200/30 pt-4">
+                                <div className="space-y-2">
+                                    <h5 className="text-xs font-black uppercase text-emerald-600 opacity-60 px-1">A. Platform Fees (Bookings)</h5>
+                                    <div className="p-3 rounded-lg bg-emerald-50 text-xl font-black text-emerald-900">₹{ps.grossPlatformFees.toLocaleString()}</div>
+                                    <p className="text-[10px] text-emerald-600/70 px-1 italic">* Cut taken from every property booking</p>
+                                </div>
+                                <div className="space-y-2 text-right">
+                                    <h5 className="text-xs font-black uppercase text-emerald-600 opacity-60 px-1">B. CP Registration Fees</h5>
+                                    <div className="p-3 rounded-lg bg-emerald-50 text-xl font-black text-emerald-900">₹{ps.cpRegistrationFees.toLocaleString()}</div>
+                                    <p className="text-[10px] text-emerald-600/70 px-1 italic">* Paid by partners to join platform</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="text-xs font-black uppercase text-muted-foreground tracking-widest mb-2 px-1">C, D, E. Deductions & Costs</div>
+                            <div className="p-4 rounded-lg bg-rose-500/5 border border-rose-500/10 flex justify-between items-center">
+                                <span className="text-sm font-bold text-rose-700">C. Partner Commissions Paid</span>
+                                <span className="text-base font-black text-rose-700">- ₹{ps.totalCPCommission.toLocaleString()}</span>
+                            </div>
+                            <div className="p-4 rounded-lg bg-rose-500/5 border border-rose-500/10 flex justify-between items-center">
+                                <span className="text-sm font-bold text-rose-700">D. Est. Payment Gateway Fees (2.5%)</span>
+                                <span className="text-base font-black text-rose-700">- ₹{ps.estimatedGatewayFees.toLocaleString()}</span>
+                            </div>
+                            <div className="p-4 rounded-lg bg-rose-500/5 border border-rose-500/10 flex justify-between items-center">
+                                <span className="text-sm font-bold text-rose-700">E. Platform Operational Costs</span>
+                                <span className="text-base font-black text-rose-700">- ₹{ps.operationalCost.toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        {/* New Detailed Table Breakdown */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6 pt-6 border-t border-border">
+                            <div className="space-y-4">
+                                <h5 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                                    <Users className="h-4 w-4" /> CP Registrations ({ps.cpRegistrationDetails?.length || 0})
+                                </h5>
+                                <div className="max-h-[400px] overflow-auto border border-border rounded-2xl">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="sticky top-0 bg-muted/90 backdrop-blur-sm">
+                                            <tr>
+                                                <th className="p-4 font-black uppercase tracking-tighter text-xs">Partner</th>
+                                                <th className="p-4 font-black uppercase tracking-tighter text-xs text-right">Fee</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {ps.cpRegistrationDetails?.map((reg: any, i: number) => (
+                                                <tr key={i} className="hover:bg-muted/30">
+                                                    <td className="p-4 font-bold truncate max-w-[200px]">{reg.partnerName}</td>
+                                                    <td className="p-4 text-right font-black text-base">₹{reg.amount.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {(!ps.cpRegistrationDetails || ps.cpRegistrationDetails.length === 0) && (
+                                                <tr><td colSpan={2} className="p-8 text-center italic text-muted-foreground">No registrations in this period</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <h5 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                                    <Building2 className="h-4 w-4" /> Platform Fees by Property
+                                </h5>
+                                <div className="max-h-[400px] overflow-auto border border-border rounded-2xl">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="sticky top-0 bg-muted/90 backdrop-blur-sm">
+                                            <tr>
+                                                <th className="p-4 font-black uppercase tracking-tighter text-xs">Property</th>
+                                                <th className="p-4 font-black uppercase tracking-tighter text-xs text-right">Contributed</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {ps.platformFeeBreakdown?.map((item: any, i: number) => (
+                                                <tr key={i} className="hover:bg-muted/30">
+                                                    <td className="p-4 font-bold">
+                                                        <div className="truncate max-w-[200px]">{item.organizationName}</div>
+                                                        <div className="text-xs text-muted-foreground opacity-60 italic">{item.count} bookings</div>
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-base">₹{item.fee.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {(!ps.platformFeeBreakdown || ps.platformFeeBreakdown.length === 0) && (
+                                                <tr><td colSpan={2} className="p-8 text-center italic text-muted-foreground">No fees generated in this period</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-card w-full max-w-[95vw] h-[90vh] rounded-[2.5rem] border border-border shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-border flex justify-between items-center bg-muted/30">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-2xl bg-primary/10">
+                            <BarChart3 className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black uppercase tracking-tight italic">
+                                {type.replace('_', ' ')} <span className="text-primary NOT italic">Analytics</span>
+                            </h2>
+                            <p className="text-xs text-muted-foreground font-black uppercase tracking-widest">In-depth performance audit & transparency</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-3 hover:bg-muted rounded-2xl transition-colors group bg-background border border-border shadow-sm"
+                    >
+                        <X className="h-6 w-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-auto p-10 custom-scrollbar">
+                    {renderContent()}
+                </div>
+
+                <div className="p-8 border-t border-border bg-muted/30 flex justify-end">
+                    <button
+                        onClick={onClose}
+                        className="px-8 py-3 bg-foreground text-background font-black rounded-xl hover:opacity-90 transition-opacity uppercase text-xs tracking-widest"
+                    >
+                        Close Analysis
+                    </button>
+                </div>
             </div>
         </div>
     );

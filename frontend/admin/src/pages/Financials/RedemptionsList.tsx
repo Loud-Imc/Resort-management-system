@@ -15,12 +15,12 @@ import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
 export default function RedemptionsList() {
-    const [statusFilter, setStatusFilter] = useState<string>('PENDING');
+    const [statusFilter, setStatusFilter] = useState<string>('REQUESTED');
     const [processingId, setProcessingId] = useState<string | null>(null);
 
     const { data: redemptions, isLoading, refetch } = useQuery<any[]>({
         queryKey: ['cp-redemptions', statusFilter],
-        queryFn: () => financialsService.getAllRedemptions({ status: statusFilter })
+        queryFn: () => financialsService.getAllRedemptions({ status: statusFilter as any })
     });
 
     const handleApprove = async (id: string) => {
@@ -80,7 +80,7 @@ export default function RedemptionsList() {
 
             {/* Filters */}
             <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
-                {['PENDING', 'APPROVED', 'PAID'].map((status) => (
+                {['REQUESTED', 'APPROVED', 'PAID'].map((status) => (
                     <button
                         key={status}
                         onClick={() => setStatusFilter(status)}
@@ -91,7 +91,7 @@ export default function RedemptionsList() {
                                 : "text-muted-foreground hover:text-foreground"
                         )}
                     >
-                        {status}
+                        {status === 'REQUESTED' ? 'PENDING' : status}
                     </button>
                 ))}
             </div>
@@ -124,8 +124,13 @@ export default function RedemptionsList() {
                                                     <Users className="h-5 w-5 text-primary" />
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-foreground">{r.cp?.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{r.cp?.businessName}</p>
+                                                    <p className="font-bold text-foreground">
+                                                        {r.channelPartner?.authorizedPersonName ||
+                                                            `${r.channelPartner?.user?.firstName} ${r.channelPartner?.user?.lastName}`}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {r.channelPartner?.organizationName || 'Individual Partner'}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
@@ -141,7 +146,7 @@ export default function RedemptionsList() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            {r.status === 'PENDING' && (
+                                            {r.status === 'REQUESTED' && (
                                                 <button
                                                     onClick={() => handleApprove(r.id)}
                                                     disabled={processingId === r.id}

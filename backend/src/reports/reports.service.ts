@@ -19,6 +19,25 @@ export class ReportsService {
     private readonly logger = new Logger(ReportsService.name);
     constructor(private prisma: PrismaService) { }
 
+    private setEndOfDay(date: Date): Date {
+        const d = new Date(date);
+        d.setHours(23, 59, 59, 999);
+        return d;
+    }
+
+    private setStartOfDay(date: Date): Date {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }
+
+    private getPreviousPeriod(start: Date, end: Date): { start: Date, end: Date } {
+        const duration = end.getTime() - start.getTime();
+        const prevEnd = new Date(start.getTime() - 1);
+        const prevStart = new Date(prevEnd.getTime() - duration);
+        return { start: prevStart, end: prevEnd };
+    }
+
     /**
      * Get dashboard statistics (Today's overview)
      */
@@ -195,110 +214,162 @@ export class ReportsService {
      * Get financial report
      */
     async getFinancialReport(user: any, startDate: Date, endDate: Date, propertyId?: string) {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+        const prev = this.getPreviousPeriod(sDate, eDate);
+
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
         const propertyFilter: any = {};
-        if (!isGlobalAdmin) {
+        if (isGlobalAdmin) {
+            if (propertyId) propertyFilter.id = propertyId;
+        } else {
             propertyFilter.OR = [
                 { ownerId: user.id },
                 { staff: { some: { userId: user.id } } }
             ];
+            if (propertyId) propertyFilter.id = propertyId;
         }
 
-        // 1. Total Income
-        const income = await this.prisma.income.aggregate({
-            where: {
-                date: {
-                    gte: startDate,
-                    lte: endDate,
-                },
-                OR: [
-                    { booking: { property: propertyFilter } },
-                    { eventBooking: { event: { property: propertyFilter } } }
-                ]
-            },
-            _sum: {
-                amount: true,
-            },
-        });
+        // Helper to fetch core metrics for a period
+        const fetchMetrics = async (start: Date, end: Date) => {
+            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialCount] = await Promise.all([
+                this.prisma.income.aggregate({
+                    where: {
+                        date: { gte: start, lte: end },
+                        OR: [
+                            { booking: { property: propertyFilter } },
+                            { eventBooking: { event: { property: propertyFilter } } },
+                            // If global (propertyFilter is empty or has all properties), include platform-level income
+                            ...(isGlobalAdmin && !propertyId ? [{ propertyId: null }] : [])
+                        ]
+                    },
+                    _sum: { amount: true }
+                }),
+                this.prisma.expense.aggregate({
+                    where: {
+                        date: { gte: start, lte: end },
+                        property: propertyFilter
+                    },
+                    _sum: { amount: true }
+                }),
+                this.prisma.booking.count({
+                    where: {
+                        createdAt: { gte: start, lte: end },
+                        room: { property: propertyFilter }
+                    }
+                }),
+                // For ADR/RevPAR, we need occupied room nights in this period
+                this.prisma.booking.findMany({
+                    where: {
+                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
+                        checkInDate: { lte: end },
+                        checkOutDate: { gte: start },
+                        room: { property: propertyFilter }
+                    },
+                    select: { checkInDate: true, checkOutDate: true }
+                }).then(bookings => {
+                    return bookings.reduce((sum, b) => {
+                        const bStart = b.checkInDate > start ? b.checkInDate : start;
+                        const bEnd = b.checkOutDate < end ? b.checkOutDate : end;
+                        const nights = Math.ceil(Math.abs(bEnd.getTime() - bStart.getTime()) / (1000 * 60 * 60 * 24));
+                        return sum + (nights > 0 ? nights : 0);
+                    }, 0);
+                }),
+                this.prisma.room.count({
+                    where: { isEnabled: true, property: propertyFilter }
+                }),
+                this.prisma.booking.count({
+                    where: {
+                        createdAt: { gte: start, lte: end },
+                        room: { property: propertyFilter },
+                        isManualBooking: false,
+                        OR: [
+                            { channelPartnerId: null },
+                            { user: { roles: { some: { role: { name: 'Customer' } } } } }
+                        ]
+                    }
+                }), // Public Website (Guest-led)
+                this.prisma.booking.count({
+                    where: {
+                        createdAt: { gte: start, lte: end },
+                        room: { property: propertyFilter },
+                        isManualBooking: false,
+                        channelPartnerId: { not: null },
+                        user: { roles: { some: { role: { name: 'ChannelPartner' } } } }
+                    }
+                }), // CP Dashboard (Partner-led)
+                this.prisma.booking.count({
+                    where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, isManualBooking: true }
+                }), // Property Dashboard
+                this.prisma.booking.count({
+                    where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' }
+                }) // Partial Payments
+            ]);
 
-        // 2. Total Expenses
-        const expense = await this.prisma.expense.aggregate({
-            where: {
-                date: {
-                    gte: startDate,
-                    lte: endDate,
-                },
-                property: propertyFilter
-            },
-            _sum: {
-                amount: true,
-            },
-        });
+            const totalIncome = Number(income._sum?.amount || 0);
+            const totalExpense = Number(expense._sum?.amount || 0);
+            const netProfit = totalIncome - totalExpense;
 
-        // 2.5 Total Bookings
-        const bookingsCount = await this.prisma.booking.count({
-            where: {
-                createdAt: { gte: startDate, lte: endDate },
-                room: { property: propertyFilter }
-            }
-        });
+            const bookingsBySource = {
+                online: publicCount,
+                partner: cpCount,
+                property: propertyCount,
+                partial: partialCount
+            };
 
-        const totalIncome = Number(income._sum?.amount || 0);
-        const totalExpense = Number(expense._sum?.amount || 0);
-        const netProfit = totalIncome - totalExpense;
+            // Duration in days for RevPAR calculation
+            const days = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+            const availableNights = totalRooms * days;
+
+            const adr = occupiedNights > 0 ? totalIncome / occupiedNights : 0;
+            const revPar = availableNights > 0 ? totalIncome / availableNights : 0;
+
+            return { totalIncome, totalExpense, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource }; // totalVolume as alias for totalIncome for legacy compatibility
+        };
+
+        const currentMetrics = await fetchMetrics(sDate, eDate);
+        const prevMetrics = await fetchMetrics(prev.start, prev.end);
+
+        // Calculate Growth Rates
+        const calculateGrowth = (curr: number, prev: number) => {
+            if (prev === 0) return curr > 0 ? 100 : 0;
+            return Math.round(((curr - prev) / prev) * 100);
+        };
+
+        const growth = {
+            revenue: calculateGrowth(currentMetrics.totalIncome, prevMetrics.totalIncome),
+            bookings: calculateGrowth(currentMetrics.bookingsCount, prevMetrics.bookingsCount),
+            profit: calculateGrowth(currentMetrics.netProfit, prevMetrics.netProfit),
+            adr: calculateGrowth(currentMetrics.adr, prevMetrics.adr),
+            revPar: calculateGrowth(currentMetrics.revPar, prevMetrics.revPar),
+        };
 
         // 3. Income by Source
         const incomeBySource = await this.prisma.income.groupBy({
             by: ['source'],
             where: {
-                date: {
-                    gte: startDate,
-                    lte: endDate,
-                },
-                propertyId: propertyFilter.OR ? { in: (await this.prisma.property.findMany({ where: propertyFilter, select: { id: true } })).map(p => p.id) } : undefined
+                date: { gte: sDate, lte: eDate },
+                property: propertyId ? { id: propertyId } : (isGlobalAdmin ? undefined : propertyFilter)
             },
-            _sum: {
-                amount: true,
-            },
+            _sum: { amount: true },
+            _count: { _all: true }
         });
 
-        // 4. Expense by Category
-        const expenses = await this.prisma.expense.findMany({
-            where: {
-                date: {
-                    gte: startDate,
-                    lte: endDate
-                },
-                propertyId: propertyFilter.OR ? { in: (await this.prisma.property.findMany({ where: propertyFilter, select: { id: true } })).map(p => p.id) } : undefined
-            },
-            include: {
-                category: true
-            }
-        })
-
-        const expenseByCategory = expenses.reduce((acc, curr) => {
-            const catName = curr.category.name;
-            if (!acc[catName]) acc[catName] = 0;
-            acc[catName] += Number(curr.amount);
-            return acc;
-        }, {} as Record<string, number>)
-
-
-        // 5. Platform-Specific Financial Logic (Route Guide Business Dashboard)
+        // Platform-Specific Financial Logic
+        let platformSummary: any = null;
         if (isGlobalAdmin && !propertyId) {
             const paidPayments = await this.prisma.payment.findMany({
                 where: {
                     status: { in: ['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'] },
-                    paymentDate: { gte: startDate, lte: endDate }
+                    paymentDate: { gte: sDate, lte: eDate }
                 },
                 include: {
                     booking: {
                         include: {
-                            cpTransactions: {
-                                where: { type: 'COMMISSION', status: 'FINALIZED' }
-                            }
+                            cpTransactions: { where: { type: 'COMMISSION', status: 'FINALIZED' } },
+                            property: true
                         }
                     }
                 }
@@ -312,90 +383,93 @@ export class ReportsService {
             const totalVolume = paidPayments.reduce((sum, p: any) => sum + Number(p.amount || 0), 0);
             const estimatedGatewayFees = (totalVolume * 2.5) / 100;
 
-            // Fetch platform-only operational expenses (where propertyId is null)
+            // Breakdown of fees by property
+            const platformFeeBreakdown = paidPayments.reduce((acc: any[], p: any) => {
+                const propertyName = p.booking?.property?.name || 'Unknown Property';
+                const fee = Number(p.platformFee || 0);
+                if (fee === 0) return acc;
+
+                const existing = acc.find(a => a.organizationName === propertyName);
+                if (existing) {
+                    existing.fee += fee;
+                    existing.count++;
+                } else {
+                    acc.push({ organizationName: propertyName, fee, count: 1 });
+                }
+                return acc;
+            }, []);
+
             const platformExpensesTotal = await this.prisma.expense.aggregate({
-                where: {
-                    propertyId: null,
-                    date: { gte: startDate, lte: endDate }
-                },
+                where: { propertyId: null, date: { gte: sDate, lte: eDate } },
                 _sum: { amount: true }
             });
-
             const operationalCost = Number(platformExpensesTotal._sum.amount || 0);
 
-            // CP Registration Fees
-            const cpRegistrationFeesTotal = await this.prisma.income.aggregate({
-                where: {
-                    source: 'CP_REGISTRATION_FEE' as any,
-                    date: { gte: startDate, lte: endDate }
-                },
-                _sum: { amount: true }
+            // Income Sources Aggregation
+            const incomeBreakdownArray = await this.prisma.income.findMany({
+                where: { date: { gte: sDate, lte: eDate } },
+                include: { property: true }
             });
-            const cpFees = Number(cpRegistrationFeesTotal._sum.amount || 0);
 
-            const finalTotalIncome = grossPlatformFees + cpFees;
-            const finalTotalExpense = operationalCost + totalCPCommission + estimatedGatewayFees;
-            const finalNetProfit = finalTotalIncome - finalTotalExpense;
+            const cpRegistrationIncomes = incomeBreakdownArray.filter(i => i.source === 'CP_REGISTRATION_FEE');
+            const cpFees = cpRegistrationIncomes.reduce((sum, item) => sum + Number(item.amount), 0);
 
-            // Build platform-specific income sources
-            const platformIncomeSources = [
-                { source: 'BOOKING_COMMISSION', _sum: { amount: grossPlatformFees } },
-                { source: 'CP_REGISTRATION_FEE', _sum: { amount: cpFees } }
-            ];
+            // Extract CP IDs and fetch partners
+            const cpRegistrationDetails: any[] = [];
+            if (cpRegistrationIncomes.length > 0) {
+                const cpIds = cpRegistrationIncomes.map(item => {
+                    const match = item.description?.match(/CP ID: ([a-f0-9-]+)/i);
+                    return match ? match[1].trim() : null;
+                }).filter(Boolean) as string[];
 
-            // Build platform-specific expense categories
-            const platformExpenseCategories = [
-                { category: { name: 'Operational Costs' }, _sum: { amount: operationalCost } },
-                { category: { name: 'Partner Payouts' }, _sum: { amount: totalCPCommission } },
-                { category: { name: 'Gateway Fees (Est.)' }, _sum: { amount: estimatedGatewayFees } }
-            ];
+                const partners = await this.prisma.channelPartner.findMany({
+                    where: { id: { in: cpIds } },
+                    include: { user: true }
+                });
 
-            return {
-                period: { start: startDate, end: endDate },
-                summary: {
-                    totalIncome: finalTotalIncome,
-                    totalExpenses: finalTotalExpense,
-                    netProfit: finalNetProfit,
-                    profitMargin: finalTotalIncome > 0 ? Math.round((finalNetProfit / finalTotalIncome) * 100) : 0,
-                    totalVolume, // Reference for volume
-                    bookingsCount
-                },
-                incomeBySource: platformIncomeSources,
-                expensesByCategory: platformExpenseCategories,
-                isGlobal: true,
-                platformSummary: {
-                    grossPlatformFees,
-                    totalCPCommission,
-                    estimatedGatewayFees,
-                    operationalCost,
-                    cpRegistrationFees: cpFees,
-                    netPlatformProfit: finalNetProfit
+                for (const item of cpRegistrationIncomes) {
+                    const match = item.description?.match(/CP ID: ([a-f0-9-]+)/i);
+                    const cpId = match ? match[1].trim() : null;
+                    const partner = partners.find(p => p.id === cpId);
+
+                    const partnerName = partner?.organizationName ||
+                        partner?.authorizedPersonName ||
+                        (partner?.user ? `${partner.user.firstName} ${partner.user.lastName}`.trim() : 'Unknown Partner');
+
+                    cpRegistrationDetails.push({
+                        partnerName,
+                        amount: Number(item.amount),
+                        date: item.date
+                    });
                 }
+            }
+
+            platformSummary = {
+                grossPlatformFees,
+                totalCPCommission,
+                estimatedGatewayFees,
+                operationalCost,
+                cpRegistrationFees: cpFees,
+                cpRegistrationDetails,
+                platformFeeBreakdown: platformFeeBreakdown.sort((a, b) => b.fee - a.fee),
+                netPlatformProfit: (grossPlatformFees + cpFees) - (operationalCost + totalCPCommission + estimatedGatewayFees)
             };
         }
 
         return {
-            period: {
-                start: startDate,
-                end: endDate,
-            },
+            period: { start: sDate, end: eDate },
             summary: {
-                totalIncome,
-                totalExpenses: totalExpense,
-                netProfit,
-                profitMargin: totalIncome > 0 ? Math.round((netProfit / totalIncome) * 100) : 0,
-                bookingsCount
+                ...currentMetrics,
+                profitMargin: currentMetrics.totalIncome > 0 ? Math.round((currentMetrics.netProfit / currentMetrics.totalIncome) * 100) : 0,
+                growth
             },
             incomeBySource: incomeBySource.map(item => ({
                 source: item.source,
-                _sum: { amount: item._sum.amount }
+                _sum: { amount: item._sum.amount },
+                _count: item._count._all
             })),
-            expensesByCategory: Object.entries(expenseByCategory).map(([category, amount]) => ({
-                category: { name: category },
-                _sum: { amount }
-            })),
-            isGlobal: isGlobalAdmin,
-            platformSummary: null,
+            isGlobal: isGlobalAdmin && !propertyId,
+            platformSummary,
         };
     }
 
@@ -403,10 +477,13 @@ export class ReportsService {
      * Get occupancy report
      */
     async getOccupancyReport(user: any, startDate: Date, endDate: Date, propertyId?: string) {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
         // Get all dates in range
         const dates: Date[] = [];
-        let currentDate = new Date(startDate);
-        while (currentDate <= endDate) {
+        let currentDate = new Date(sDate);
+        while (currentDate <= eDate) {
             dates.push(new Date(currentDate));
             currentDate.setDate(currentDate.getDate() + 1);
         }
@@ -467,6 +544,9 @@ export class ReportsService {
      * Get Room Performance Report
      */
     async getRoomPerformanceReport(user: any, startDate: Date, endDate: Date, propertyId?: string) {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
@@ -498,8 +578,8 @@ export class ReportsService {
                 where: {
                     roomTypeId: rt.id,
                     status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
-                    checkInDate: { lte: endDate },
-                    checkOutDate: { gte: startDate }
+                    checkInDate: { lte: eDate },
+                    checkOutDate: { gte: sDate }
                 }
             });
 
@@ -507,15 +587,15 @@ export class ReportsService {
             const totalRooms = rt.rooms.length;
 
             // Calculate total possible room nights
-            const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+            const diffTime = Math.abs(eDate.getTime() - sDate.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
             const possibleNights = totalRooms * diffDays;
 
             // Calculate actual occupied nights in range
             let occupiedNights = 0;
             bookings.forEach(b => {
-                const bStart = b.checkInDate > startDate ? b.checkInDate : startDate;
-                const bEnd = b.checkOutDate < endDate ? b.checkOutDate : endDate;
+                const bStart = b.checkInDate > sDate ? b.checkInDate : sDate;
+                const bEnd = b.checkOutDate < eDate ? b.checkOutDate : eDate;
                 const bDiff = Math.ceil(Math.abs(bEnd.getTime() - bStart.getTime()) / (1000 * 60 * 60 * 24));
                 occupiedNights += bDiff > 0 ? bDiff : 0;
             });
@@ -537,6 +617,9 @@ export class ReportsService {
      * Get Partner Payout/Commission Report (Super Admin only)
      */
     async getPartnerReport(user: any, startDate: Date, endDate: Date) {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
         const roles = user.roles || [];
         if (!roles.includes('SuperAdmin') && !roles.includes('Admin')) {
             throw new Error('Unauthorized');
@@ -554,7 +637,7 @@ export class ReportsService {
                     channelPartnerId: cp.id,
                     type: 'COMMISSION',
                     status: 'FINALIZED',
-                    createdAt: { gte: startDate, lte: endDate }
+                    createdAt: { gte: sDate, lte: eDate }
                 },
                 include: {
                     booking: true
@@ -579,10 +662,13 @@ export class ReportsService {
     }
 
     async generateExcelReport(user: any, startDate: Date, endDate: Date, propertyId?: string): Promise<Buffer> {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
         try {
-            const financial = await this.getFinancialReport(user, startDate, endDate, propertyId);
-            const occupancy = await this.getOccupancyReport(user, startDate, endDate, propertyId);
-            const roomPerf = await this.getRoomPerformanceReport(user, startDate, endDate, propertyId);
+            const financial = await this.getFinancialReport(user, sDate, eDate, propertyId);
+            const occupancy = await this.getOccupancyReport(user, sDate, eDate, propertyId);
+            const roomPerf = await this.getRoomPerformanceReport(user, sDate, eDate, propertyId);
 
             let propertyName = "Global Network Analytics";
             if (propertyId) {
@@ -614,7 +700,7 @@ export class ReportsService {
 
                 ws.mergeCells('A3:D3');
                 const dateCell = ws.getCell('A3');
-                dateCell.value = `Period: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
+                dateCell.value = `Period: ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`;
                 dateCell.font = { italic: true, size: 10 };
                 dateCell.alignment = { horizontal: 'center' };
 
@@ -706,10 +792,13 @@ export class ReportsService {
     }
 
     async generatePdfReport(user: any, startDate: Date, endDate: Date, propertyId?: string): Promise<Buffer> {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
         try {
-            const financial = await this.getFinancialReport(user, startDate, endDate, propertyId);
-            const occupancy = await this.getOccupancyReport(user, startDate, endDate, propertyId);
-            const roomPerf = await this.getRoomPerformanceReport(user, startDate, endDate, propertyId);
+            const financial = await this.getFinancialReport(user, sDate, eDate, propertyId);
+            const occupancy = await this.getOccupancyReport(user, sDate, eDate, propertyId);
+            const roomPerf = await this.getRoomPerformanceReport(user, sDate, eDate, propertyId);
 
             let propertyName = "Global Network Analytics";
             if (propertyId) {
@@ -747,7 +836,7 @@ export class ReportsService {
                                 width: 'auto',
                                 stack: [
                                     { text: 'BUSINESS PERFORMANCE', style: 'docTitle' },
-                                    { text: `Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, style: 'docPeriod' }
+                                    { text: `Period: ${sDate.toLocaleDateString()} - ${eDate.toLocaleDateString()}`, style: 'docPeriod' }
                                 ],
                                 alignment: 'right'
                             }
@@ -898,6 +987,9 @@ export class ReportsService {
     }
 
     async getAbandonedBookings(user: any, startDate: Date, endDate: Date, propertyId?: string) {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
@@ -916,8 +1008,8 @@ export class ReportsService {
             where: {
                 status: 'PENDING_PAYMENT',
                 createdAt: {
-                    gte: startDate,
-                    lte: endDate,
+                    gte: sDate,
+                    lte: eDate,
                 },
                 room: {
                     property: propertyFilter

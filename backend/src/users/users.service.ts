@@ -74,8 +74,7 @@ export class UsersService {
 
             // 2. Authorization check for non-global admins
             if (!isGlobalAdmin) {
-                const manageableRoleNames = this.getManageableRoles(currentUserRoles);
-                const isAuthorized = requestedRoleNames.every(name => manageableRoleNames.includes(name));
+                const isAuthorized = this.isAuthorizedToAssignRoles(currentUser, requestedRoles);
                 if (!isAuthorized) {
                     throw new ForbiddenException('You are not authorized to assign one or more of these roles');
                 }
@@ -144,6 +143,38 @@ export class UsersService {
             if (error instanceof ConflictException || error instanceof ForbiddenException) throw error;
             throw error;
         }
+    }
+
+    private isAuthorizedToAssignRoles(currentUser: any, requestedRoles: any[]): boolean {
+        const currentUserRoles = currentUser.roles || [];
+
+        // Property Owner logic
+        if (currentUserRoles.includes('PropertyOwner')) {
+            const ownedPropertyIds = (currentUser.ownedProperties || []).map((p: any) => p.id);
+            const staffPropertyIds = (currentUser.propertyStaff || []).map((s: any) => s.propertyId);
+            const allManagedPropertyIds = [...new Set([...ownedPropertyIds, ...staffPropertyIds])];
+
+            return requestedRoles.every(role => {
+                // Allow assigning standard property/event roles (templates)
+                if (role.isSystem && (role.category === 'PROPERTY' || role.category === 'EVENT')) {
+                    // But block assigning high-level system roles
+                    if (['SuperAdmin', 'Admin', 'PropertyOwner', 'Marketing', 'ChannelPartner'].includes(role.name)) {
+                        return false;
+                    }
+                    return true;
+                }
+                // Allow assigning roles specific to their property
+                if (role.propertyId && allManagedPropertyIds.includes(role.propertyId)) {
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        // Fallback to legacy hardcoded names for other roles (EventOrganizer, Marketing)
+        const manageableRoleNames = this.getManageableRoles(currentUserRoles);
+        const requestedRoleNames = requestedRoles.map(r => r.name);
+        return requestedRoleNames.every(name => manageableRoleNames.includes(name));
     }
 
     private getManageableRoles(userRoles: string[]): string[] {
@@ -222,8 +253,7 @@ export class UsersService {
 
             // 3. Authorization check for non-global admins
             if (!isGlobalAdmin) {
-                const manageableRoleNames = this.getManageableRoles(currentUserRoles);
-                const isAuthorized = requestedRoleNames.every(name => manageableRoleNames.includes(name));
+                const isAuthorized = this.isAuthorizedToAssignRoles(requestUser, requestedRoles);
                 if (!isAuthorized) {
                     throw new ForbiddenException('You are not authorized to assign one or more of these roles');
                 }

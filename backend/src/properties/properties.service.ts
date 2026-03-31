@@ -737,21 +737,24 @@ export class PropertiesService {
 
         const roles = user.roles || [];
         const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+        const isMarketing = roles.includes('Marketing');
+        const isPlatformAdmin = isAdmin || isMarketing;
 
-        if (property.ownerId !== user.id && !isAdmin) {
+        if (property.ownerId !== user.id && !isPlatformAdmin) {
             throw new ForbiddenException('You can only update your own properties');
         }
 
         // Prepare data for update, handling restricted fields
         const updateData: any = { ...data };
 
-        // If not admin, prevent changing ownership/marketing fields
-        if (!isAdmin) {
+        // If not platform admin, prevent changing ownership/marketing/financial fields
+        if (!isPlatformAdmin) {
             delete updateData.ownerId;
             delete updateData.addedById;
             delete updateData.marketingCommission;
             delete updateData.commissionStatus;
             delete updateData.isFeatured;
+            delete updateData.platformCommission; // <--- Restrict this
         } else {
             // Admin logic
             // 1. Handle Owner ID

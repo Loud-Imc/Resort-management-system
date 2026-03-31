@@ -6,8 +6,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ConfigModule } from '@nestjs/config';
 import { AuditModule } from '../audit/audit.module';
 
+import { SystemSettingsModule } from '../system-settings/system-settings.module';
+
 @Module({
-    imports: [PrismaModule, NotificationsModule, AuditModule, ConfigModule],
+    imports: [PrismaModule, NotificationsModule, AuditModule, ConfigModule, SystemSettingsModule],
     controllers: [FinancialsController],
     providers: [FinancialsService],
     exports: [FinancialsService],

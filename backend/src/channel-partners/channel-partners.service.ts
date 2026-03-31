@@ -2,13 +2,16 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { ConfigService } from '@nestjs/config';
 import { ReferralAbuseService } from '../common/services/referral-abuse.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, ChannelPartnerStatus, RedemptionStatus, PartnerType } from '@prisma/client';
+import { Prisma, ChannelPartnerStatus, RedemptionStatus, PartnerType, ChannelPartner } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { RegisterChannelPartnerDto } from './dto/register-channel-partner.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import * as bcrypt from 'bcrypt';
 import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
+import { PayoutRequestDto } from './dto/payout-request.dto';
+import { FinancialsService } from '../financials/financials.service';
 import { normalizePhone } from '../common/utils/phone';
 
 @Injectable()
@@ -23,6 +26,7 @@ export class ChannelPartnersService {
         private readonly notificationsService: NotificationsService,
         private readonly referralAbuseService: ReferralAbuseService,
         private readonly systemSettingsService: SystemSettingsService,
+        private financialsService: FinancialsService,
     ) { }
 
     // Generate unique referral code
@@ -55,7 +59,8 @@ export class ChannelPartnersService {
 
         // Generate unique referral code if new
         const referralCode = existing?.referralCode || await this.getUniqueReferralCode();
-        const defaultCommissionRate = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE') || 10;
+        const commissionSetting = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE');
+        const defaultCommissionRate = commissionSetting ?? 10;
 
         // Get CP role
         const cpRole = await this.prisma.role.findFirst({
@@ -100,6 +105,7 @@ export class ChannelPartnersService {
                     authorizedPersonName: dto?.authorizedPersonName,
                     aadhaarImage: dto?.aadhaarImage,
                     licenceImage: dto?.licenceImage,
+                    overrideCommissionRate: existing?.overrideCommissionRate ?? Number(defaultCommissionRate),
                 },
                 include: {
                     user: {
@@ -112,6 +118,7 @@ export class ChannelPartnersService {
 
     // Public Registration for Channel Partners
     async publicRegister(dto: RegisterChannelPartnerDto) {
+        let existingCP: any = null;
         const existingUser = await this.prisma.user.findFirst({
             where: {
                 OR: [
@@ -155,7 +162,7 @@ export class ChannelPartnersService {
             }
 
             // 2. Check if already has the CP record
-            const existingCP = await this.prisma.channelPartner.findUnique({
+            existingCP = await this.prisma.channelPartner.findUnique({
                 where: { userId: existingUser.id },
             });
 
@@ -247,6 +254,7 @@ export class ChannelPartnersService {
                         authorizedPersonName: dto.authorizedPersonName,
                         aadhaarImage: dto.aadhaarImage,
                         licenceImage: dto.licenceImage,
+                        overrideCommissionRate: existingCP?.overrideCommissionRate ?? Number(defaultCommissionRate),
                     }
                 });
 
@@ -392,6 +400,7 @@ export class ChannelPartnersService {
         return {
             id: cp.id,
             referralCode: cp.referralCode,
+            commissionRate: Number(cp.overrideCommissionRate || 0),
             overrideCommissionRate: cp.overrideCommissionRate,
             totalPoints: cp.totalPoints,
             activePoints,
@@ -594,7 +603,10 @@ export class ChannelPartnersService {
         ]);
 
         return {
-            data: cps,
+            data: cps.map(cp => ({
+                ...cp,
+                commissionRate: Number(cp.overrideCommissionRate || 0)
+            })),
             meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
         };
     }
@@ -661,6 +673,7 @@ export class ChannelPartnersService {
         return {
             data: {
                 ...cp,
+                commissionRate: Number(cp.overrideCommissionRate || 0),
                 activePoints,
                 pendingBalance: Number(cp.totalEarnings) - Number(cp.paidOut),
                 totalReferrals,
@@ -989,7 +1002,7 @@ export class ChannelPartnersService {
                     amount,
                     description: description || `Wallet top - up of ₹${amount} `,
                     channelPartnerId,
-                    bookingId: referenceId, // Using bookingId field as a general reference for now
+                    referenceId: referenceId,
                 }
             });
 
@@ -1027,8 +1040,9 @@ export class ChannelPartnersService {
                 amount: -amount,
                 description: description || `Wallet payment of ₹${amount} `,
                 channelPartnerId,
-                bookingId: referenceId, // Keeping this for backward compatibility if referenceId is a bookingId
-                referenceId: referenceId, // Also storing it as referenceId
+                // Only assign to bookingId if it looks like a valid UUID (not a Razorpay ID)
+                bookingId: (referenceId && referenceId.length === 36) ? referenceId : undefined,
+                referenceId: referenceId,
             },
         });
 
@@ -1128,7 +1142,7 @@ export class ChannelPartnersService {
         const order = await razorpay.orders.create({
             amount: Math.round(amount * 100), // paise
             currency: 'INR',
-            receipt: `wallet_topup_${cp.id}_${Date.now()} `,
+            receipt: `wt_${cp.id.substring(0, 8)}_${Date.now()}`,
             notes: {
                 channelPartnerId: cp.id,
                 type: 'CP_WALLET_TOPUP',
@@ -1228,5 +1242,58 @@ export class ChannelPartnersService {
 
             return cp;
         });
+    }
+
+    async claimEarnings(userId: string, amount: number) {
+        if (amount <= 0) throw new BadRequestException('Amount must be positive');
+
+        return this.prisma.$transaction(async (tx) => {
+            // Lock CP row
+            const [cp] = await tx.$queryRaw<ChannelPartner[]>`SELECT * FROM channel_partners WHERE "userId" = ${userId} FOR UPDATE`;
+            if (!cp) throw new NotFoundException('Channel partner profile not found');
+
+            const unclaimedBalance = Number(cp.totalEarnings) - Number(cp.paidOut);
+            if (amount > unclaimedBalance) {
+                throw new BadRequestException(`Insufficient unclaimed earnings. Available: ₹${unclaimedBalance.toLocaleString()}`);
+            }
+
+            // Update CP: increment paidOut (moved from earnings pool), increment walletBalance
+            const updated = await tx.channelPartner.update({
+                where: { id: cp.id },
+                data: {
+                    paidOut: { increment: amount },
+                    walletBalance: { increment: amount }
+                }
+            });
+
+            // Create Transaction Record
+            await tx.cPTransaction.create({
+                data: {
+                    channelPartnerId: cp.id,
+                    amount: new Decimal(amount),
+                    type: 'WALLET_TOPUP' as any,
+                    status: 'FINALIZED' as any,
+                    description: `Transferred ₹${amount.toLocaleString()} from commissions to wallet balance`,
+                }
+            });
+
+            return updated;
+        });
+    }
+
+    async requestRedemption(userId: string, amount: number) {
+        const cp = await this.prisma.channelPartner.findUnique({
+            where: { userId },
+        });
+
+        if (!cp) throw new NotFoundException('Channel partner profile not found');
+        if (cp.status !== 'APPROVED') throw new ForbiddenException('Only approved partners can request payouts');
+
+        if (Number(cp.walletBalance) < amount) {
+            throw new BadRequestException(`Insufficient wallet balance. Available: ₹${Number(cp.walletBalance).toLocaleString()}`);
+        }
+
+        // Delegate to financialsService for request creation
+        return this.financialsService.createRedemptionRequest(cp, amount);
     }
 }
