@@ -49,14 +49,19 @@ export default function Login() {
         try {
             await login({ email, password });
 
-            // Post-login check for portal access (Property Owner role)
+            // Post-login check for portal access (Property-related roles)
             const storedUser = localStorage.getItem('property_user');
             if (storedUser) {
                 const user = JSON.parse(storedUser);
-                const roles = user.roles || [user.role];
-                if (!roles.includes('PropertyOwner') && !roles.includes('SuperAdmin')) {
+                const roles = (user.roles || [user.role] || []).map((r: string) => r.toLowerCase());
+
+                // Allow if SuperAdmin OR has any role that isn't primarily for other portals
+                const isSuperAdmin = roles.includes('superadmin');
+                const isRestrictedPortal = roles.every((r: string) => ['channelpartner', 'customer'].includes(r));
+
+                if (!isSuperAdmin && isRestrictedPortal) {
                     logout();
-                    throw new Error('Account not registered for this portal. Please register your property first.');
+                    throw new Error('Account not registered for this portal. This dashboard is for Property Owners and Staff.');
                 }
             }
 
