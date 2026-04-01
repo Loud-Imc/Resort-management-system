@@ -21,8 +21,8 @@ echo "🏗️ Building Backend..."
 cd backend
 npm install
 
-npx prisma generate
-npx prisma migrate deploy
+npx prisma generate --env-file .env
+npx prisma migrate deploy --env-file .env
 npm run build
 echo "🔄 Restarting Backend Service..."
 # Check if the process is already running
