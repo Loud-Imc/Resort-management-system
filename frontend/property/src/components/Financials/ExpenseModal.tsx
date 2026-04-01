@@ -8,6 +8,8 @@ import { expensesService } from '../../services/expenses';
 import type { Expense, ExpenseCategory } from '../../types/expense';
 import { useProperty } from '../../context/PropertyContext';
 import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 
 const expenseSchema = z.object({
     amount: z.number().min(0.01, 'Amount must be greater than 0'),
@@ -29,24 +31,34 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
     const queryClient = useQueryClient();
     const { selectedProperty } = useProperty();
 
-    const { data: categories } = useQuery<ExpenseCategory[]>({
-        queryKey: ['expenseCategories'],
-        queryFn: expensesService.getCategories,
+    const { data: categories, refetch: refetchCategories } = useQuery<ExpenseCategory[]>({
+        queryKey: ['expenseCategories', selectedProperty?.id],
+        queryFn: () => expensesService.getCategories(selectedProperty?.id),
     });
+
+    const [isAddingCategory, setIsAddingCategory] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
     const {
         register, handleSubmit, reset,
         formState: { errors },
     } = useForm<ExpenseFormData>({
         resolver: zodResolver(expenseSchema),
-        defaultValues: {
-            amount: expense?.amount || 0,
-            description: expense?.description || '',
-            categoryId: expense?.categoryId || '',
-            date: expense?.date ? format(new Date(expense.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-            propertyId: expense?.propertyId || selectedProperty?.id || '',
-        },
     });
+
+    // Reset form when expense changes or modal opens
+    useEffect(() => {
+        if (isOpen) {
+            reset({
+                amount: expense?.amount || 0,
+                description: expense?.description || '',
+                categoryId: expense?.categoryId || '',
+                date: expense?.date ? format(new Date(expense.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+                propertyId: expense?.propertyId || selectedProperty?.id || '',
+            });
+        }
+    }, [expense, isOpen, reset, selectedProperty?.id]);
 
     const mutation = useMutation({
         mutationFn: (data: ExpenseFormData) => {
@@ -65,6 +77,27 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
             toast.error(error.response?.data?.message || 'Something went wrong');
         },
     });
+
+    const createCategoryMutation = async () => {
+        if (!newCategoryName.trim()) return;
+        try {
+            setIsCreatingCategory(true);
+            const category = await expensesService.createCategory({
+                name: newCategoryName,
+                propertyId: selectedProperty?.id
+            });
+            await refetchCategories();
+            // @ts-ignore
+            reset({ ...expense, categoryId: category.id, propertyId: selectedProperty?.id });
+            setIsAddingCategory(false);
+            setNewCategoryName('');
+            toast.success('Category created successfully');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to create category');
+        } finally {
+            setIsCreatingCategory(false);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -96,16 +129,34 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
 
                     {/* Category */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
+                            <button type="button" onClick={() => setIsAddingCategory(!isAddingCategory)}
+                                className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                                {isAddingCategory ? 'Select existing' : <><Plus className="h-3 w-3" /> Add new</>}
+                            </button>
+                        </div>
                         <div className="relative">
                             <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                            <select {...register('categoryId')}
-                                className="block w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none">
-                                <option value="">Select Category</option>
-                                {categories?.map((cat) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
-                            </select>
+                            {isAddingCategory ? (
+                                <div className="flex gap-2">
+                                    <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)}
+                                        placeholder="New category name"
+                                        className="block w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
+                                    <button type="button" onClick={createCategoryMutation} disabled={isCreatingCategory}
+                                        className="px-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold disabled:opacity-50">
+                                        {isCreatingCategory ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <select {...register('categoryId')}
+                                    className="block w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none">
+                                    <option value="">Select Category</option>
+                                    {categories?.map((cat) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+                                </select>
+                            )}
                         </div>
-                        {errors.categoryId && <p className="text-xs text-red-500">{errors.categoryId.message}</p>}
+                        {errors.categoryId && !isAddingCategory && <p className="text-xs text-red-500">{errors.categoryId.message}</p>}
                     </div>
 
                     {/* Date */}

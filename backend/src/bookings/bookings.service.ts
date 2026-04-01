@@ -30,24 +30,30 @@ export class BookingsService {
      * Create a new booking (manual or online)
      */
     async create(createBookingDto: CreateBookingDto, user: any) {
-        let roomTypeId = createBookingDto.roomTypeId as string,
-            checkInDate = createBookingDto.checkInDate,
-            checkOutDate = createBookingDto.checkOutDate,
-            adultsCount = createBookingDto.adultsCount,
-            childrenCount = createBookingDto.childrenCount,
-            guests = createBookingDto.guests,
-            roomId = createBookingDto.roomId,
-            specialRequests = createBookingDto.specialRequests,
-            couponCode = createBookingDto.couponCode,
-            referralCode = createBookingDto.referralCode,
-            bookingSourceId_raw = createBookingDto.bookingSourceId,
-            isManualBooking = createBookingDto.isManualBooking ?? false,
-            overrideTotal = createBookingDto.overrideTotal,
-            overrideReason = createBookingDto.overrideReason,
-            whatsappNumber = createBookingDto.whatsappNumber,
-            isGroupBooking = createBookingDto.isGroupBooking ?? false,
-            groupSize = createBookingDto.groupSize;
-        const rawBookingSourceId = bookingSourceId_raw;
+        let {
+            roomTypeId,
+            checkInDate,
+            checkOutDate,
+            adultsCount,
+            childrenCount,
+            guests,
+            roomId,
+            specialRequests,
+            couponCode,
+            referralCode,
+            bookingSourceId: rawBookingSourceId,
+            isManualBooking: isManualInput = false,
+            overrideTotal,
+            overrideReason,
+            whatsappNumber,
+            isGroupBooking: isGroupInput = false,
+            groupSize,
+            selectedRoomIds
+        } = createBookingDto;
+
+        let isManualBooking = isManualInput;
+        let isGroupBooking = isGroupInput;
+        const rawBookingSourceId_val = rawBookingSourceId;
 
         let isAuthorizedStaff = false;
         const userId = user?.id || 'GUEST_USER';
@@ -99,6 +105,7 @@ export class BookingsService {
 
         const bookingSourceId = rawBookingSourceId || undefined;
         const agentId = createBookingDto.agentId || undefined;
+        const paidAmountInput = createBookingDto.paidAmount;
 
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
@@ -130,7 +137,7 @@ export class BookingsService {
 
         // 2. Check availability (standard booking only — group bookings validate via allocateRoomsForGroup below)
         if (!isGroupBooking) {
-            const isAvailable = await this.availabilityService.checkAvailability(roomTypeId, checkIn, checkOut);
+            const isAvailable = await this.availabilityService.checkAvailability(roomTypeId!, checkIn, checkOut);
             if (!isAvailable) {
                 throw new BadRequestException('No rooms available for the selected dates');
             }
@@ -158,9 +165,14 @@ export class BookingsService {
 
         // 3. Calculate pricing (standard bookings only — group bookings price after room allocation)
         let pricing: any;
+        // Determine room count for pricing
+        const roomCount = (selectedRoomIds && selectedRoomIds.length > 0)
+            ? selectedRoomIds.length
+            : 1;
+
         if (!isGroupBooking) {
             pricing = await this.pricingService.calculatePrice(
-                roomTypeId,
+                roomTypeId!,
                 checkIn,
                 checkOut,
                 adultsCount,
@@ -170,6 +182,7 @@ export class BookingsService {
                 createBookingDto.currency || 'INR',
                 isGroupBooking,
                 groupSize,
+                (selectedRoomIds?.length || 1),
             );
         }
 
@@ -209,7 +222,7 @@ export class BookingsService {
             // Use the first allocated room's type as the delegate room type for pricing
             roomTypeId = allocatedRooms[0].roomTypeId;
             pricing = await this.pricingService.calculatePrice(
-                roomTypeId,
+                roomTypeId!,
                 checkIn,
                 checkOut,
                 adultsCount,
@@ -219,6 +232,7 @@ export class BookingsService {
                 createBookingDto.currency || 'INR',
                 isGroupBooking,
                 groupSize,
+                (selectedRoomIds?.length || allocatedRooms?.length || 1),
             );
             finalTotal = pricing.totalAmount;
         }
@@ -252,19 +266,43 @@ export class BookingsService {
         }
 
         // 5. Get an available room
-        let selectedRoom: any;
+        let selectedRooms: any[] = [];
         if (isGroupBooking && allocatedRooms.length > 0) {
-            selectedRoom = allocatedRooms[0];
+            selectedRooms = allocatedRooms;
         } else {
-            const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId, checkIn, checkOut);
-            if (roomId) {
-                selectedRoom = availableRooms.find(r => r.id === roomId);
-                if (!selectedRoom) throw new BadRequestException('Selected room is not available');
+            if (selectedRoomIds && selectedRoomIds.length > 0) {
+                // Fetch all specifically selected rooms
+                selectedRooms = await this.prisma.room.findMany({
+                    where: { id: { in: selectedRoomIds } },
+                    include: { roomType: true },
+                });
+
+                if (selectedRooms.length !== selectedRoomIds.length) {
+                    throw new BadRequestException('One or more selected rooms were not found');
+                }
+
+                if (selectedRooms.some(r => r.roomTypeId !== roomTypeId)) {
+                    throw new BadRequestException('One or more selected rooms do not match the selected room type');
+                }
+            } else if (roomId) {
+                const sr = await this.prisma.room.findUnique({
+                    where: { id: roomId },
+                    include: { roomType: true },
+                });
+                if (!sr || sr.roomTypeId !== roomTypeId) {
+                    throw new BadRequestException('Selected room is not available for this room type');
+                }
+                selectedRooms = [sr];
             } else {
-                if (availableRooms.length === 0) throw new BadRequestException('No rooms available');
-                selectedRoom = availableRooms[0];
+                // Auto-allocate
+                const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId!, checkIn, checkOut);
+                if (availableRooms.length === 0) throw new BadRequestException('No rooms available for these dates');
+                selectedRooms = [availableRooms[0]];
             }
         }
+
+        const selectedRoom = selectedRooms[0];
+        const extraRoomIds = selectedRooms.slice(1).map(r => r.id);
 
         // 6. Resolve IDs and generation logic
         const bookingNumber = await this.generateBookingNumber();
@@ -383,15 +421,18 @@ export class BookingsService {
                     }
                 }
             } else {
-                // Lock the single selected room for standard booking
-                await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${selectedRoom.id} FOR UPDATE`;
-                const isStillAvailable = await this.availabilityService.isRoomAvailable(
-                    selectedRoom.id, checkIn, checkOut, tx
-                );
-                if (!isStillAvailable) {
-                    throw new BadRequestException(
-                        'This room was just booked by another user. Please try again.'
+                // Lock the explicitly selected rooms (plural) for standard booking
+                const roomsToLock = [...selectedRooms].sort((a, b) => a.id.localeCompare(b.id));
+                for (const room of roomsToLock) {
+                    await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${room.id} FOR UPDATE`;
+                    const isStillAvailable = await this.availabilityService.isRoomAvailable(
+                        room.id, checkIn, checkOut, tx
                     );
+                    if (!isStillAvailable) {
+                        throw new BadRequestException(
+                            `Room ${room.roomNumber || room.id} is no longer available. Please try again.`
+                        );
+                    }
                 }
             }
 
@@ -440,7 +481,7 @@ export class BookingsService {
                     paymentOption: createBookingDto.paymentOption || 'FULL',
                     status: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
                     roomId: selectedRoom.id,
-                    roomTypeId,
+                    roomTypeId: roomTypeId!,
                     propertyId: selectedRoom.propertyId,
                     userId: finalBookingUserId,
                     bookingSourceId,
@@ -452,8 +493,12 @@ export class BookingsService {
                     commissionableAmount: pricing.totalAmount - pricing.taxAmount,
                     couponId,
                     couponCode: couponId ? couponCode : null, // Store the code string
-                    paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? finalTotal : 0,
-                    paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'FULL' : 'UNPAID',
+                    paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
+                        ? (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? 0 : finalTotal))
+                        : 0,
+                    paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
+                        ? ((paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? 0 : finalTotal)) >= finalTotal - 0.01 ? 'FULL' : (Number(paidAmountInput) > 0 ? 'PARTIAL' : 'UNPAID'))
+                        : 'UNPAID',
                     confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
                     paymentMethod: createBookingDto.paymentMethod as any,
                     guests: {
@@ -474,7 +519,12 @@ export class BookingsService {
                 },
                 include: {
                     room: true,
-                    roomType: { include: { cancellationPolicy: true } },
+                    roomType: {
+                        include: {
+                            cancellationPolicy: true,
+                            property: true,
+                        }
+                    },
                     guests: true,
                     user: {
                         select: {
@@ -515,6 +565,10 @@ export class BookingsService {
 
             // 7.6 Finalize details (Income, Payments, CP Rewards)
             if (isManualBooking || createBookingDto.paymentMethod === 'WALLET') {
+                const finalPaidAmount = (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
+                    ? (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? 0 : finalTotal))
+                    : 0;
+
                 // CP Rewards processing (MOVED TO CHECK-IN STAGE)
                 if (channelPartnerId) {
                     const isWalletPayment = createBookingDto.paymentMethod === 'WALLET';
@@ -536,7 +590,7 @@ export class BookingsService {
                         // Create payment record
                         const paymentRecord = await tx.payment.create({
                             data: {
-                                amount: finalTotal - cpCommission,
+                                amount: finalPaidAmount - cpCommission, // For wallet, we deduct CP commission at source
                                 status: 'PAID',
                                 paymentMethod: 'WALLET',
                                 paymentDate: new Date(),
@@ -552,32 +606,69 @@ export class BookingsService {
                                 data: { referenceId: paymentRecord.id }
                             });
                         }
+
+                        // Income record
+                        await tx.income.create({
+                            data: {
+                                amount: finalPaidAmount,
+                                source: 'ONLINE_BOOKING',
+                                description: `Booking ${bookingNumber} (Wallet Payment)`,
+                                bookingId: newBooking.id,
+                                propertyId: newBooking.propertyId,
+                                paymentId: paymentRecord.id
+                            },
+                        });
                     }
                 }
 
-                // Income record
-                await tx.income.create({
-                    data: {
-                        amount: finalTotal,
-                        source: createBookingDto.paymentMethod === 'WALLET' ? 'ONLINE_BOOKING' : 'ROOM_BOOKING',
-                        description: `Booking ${bookingNumber}${createBookingDto.paymentMethod === 'WALLET' ? ' (Wallet Payment)' : ''}`,
-                        bookingId: newBooking.id,
-                        propertyId: newBooking.propertyId,
-                    },
-                });
+                // Handle manual payment (Cash, UPI, etc.)
+                if (isManualBooking && finalPaidAmount > 0) {
+                    const pMethod = createBookingDto.paymentMethod || 'CASH';
+                    const commissionRate = Number((newBooking as any).roomType?.property?.platformCommission ?? 10);
+                    const platformFee = (finalPaidAmount * commissionRate) / 100;
+                    const netAmount = finalPaidAmount - platformFee;
+
+                    const paymentRecord = await tx.payment.create({
+                        data: {
+                            amount: finalPaidAmount,
+                            status: 'PAID',
+                            paymentMethod: pMethod as any,
+                            paymentDate: new Date(),
+                            bookingId: newBooking.id,
+                            currency: 'INR',
+                            platformFee: 0,
+                            netAmount: finalPaidAmount,
+                            commissionRate: 0,
+                            payoutStatus: 'PAID',
+                            notes: `At-creation manual payment: ${pMethod} (Zero Platform Fee)`
+                        },
+                    });
+
+                    // Income record (linked to payment)
+                    await tx.income.create({
+                        data: {
+                            amount: finalPaidAmount,
+                            source: 'ROOM_BOOKING',
+                            description: `Manual booking payment for ${bookingNumber} (${pMethod})`,
+                            bookingId: newBooking.id,
+                            paymentId: paymentRecord.id,
+                            propertyId: newBooking.propertyId,
+                        },
+                    });
+                }
             }
 
-            // 7.7 If Group Booking, block extra rooms
-            if (isGroupBooking && allocatedRooms.length > 1) {
-                const extraRooms = allocatedRooms.slice(1);
-                for (const room of extraRooms) {
+            // 7.7 If Group Booking OR Multiple selected rooms, block extra rooms
+            const roomsToBlock = isGroupBooking ? allocatedRooms.slice(1) : selectedRooms.slice(1);
+            if (roomsToBlock.length > 0) {
+                for (const room of roomsToBlock) {
                     await tx.roomBlock.create({
                         data: {
                             roomId: room.id,
                             startDate: checkIn,
                             endDate: checkOut,
-                            reason: `Group Booking ${bookingNumber}`,
-                            notes: `Automatically blocked for group booking ${newBooking.id}`,
+                            reason: isGroupBooking ? `Group Booking ${bookingNumber}` : `Multi-Room Booking ${bookingNumber}`,
+                            notes: `Automatically blocked for booking ${newBooking.id}`,
                             createdById: finalBookingUserId,
                             bookingId: newBooking.id,
                         }

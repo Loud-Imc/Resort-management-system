@@ -1129,10 +1129,11 @@ export class PaymentsService {
                     paymentMethod: dto.method,
                     paymentDate: new Date(),
                     bookingId: dto.bookingId,
-                    notes: `Property Desk Payment: ${dto.notes || ''}`,
-                    platformFee: platformFee,
-                    netAmount: netAmount,
-                    commissionRate: commissionRate,
+                    notes: `Property Desk Payment: ${dto.notes || ''} (Zero Platform Fee)`,
+                    platformFee: 0,
+                    netAmount: dto.amount,
+                    commissionRate: 0,
+                    payoutStatus: 'PAID',
                 },
             });
 
@@ -1214,10 +1215,11 @@ export class PaymentsService {
                     paymentMethod: method,
                     paymentDate: new Date(),
                     bookingId: request.bookingId,
-                    notes: `Approved Manual Payment: ${notes || ''}`,
-                    platformFee: platformFee,
-                    netAmount: netAmount,
-                    commissionRate: commissionRate,
+                    notes: `Approved Manual Payment: ${notes || ''} (Zero Platform Fee)`,
+                    platformFee: 0,
+                    netAmount: amount,
+                    commissionRate: 0,
+                    payoutStatus: 'PAID',
                 },
             });
 

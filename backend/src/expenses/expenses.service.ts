@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto, UpdateExpenseDto, CreateExpenseCategoryDto } from './dto/expense.dto';
 import { AuditService } from '../audit/audit.service';
@@ -251,6 +251,17 @@ export class ExpensesService {
      * Create expense category
      */
     async createCategory(createCategoryDto: CreateExpenseCategoryDto, userId: string) {
+        const { name, propertyId } = createCategoryDto;
+
+        // Check for duplicate name for this property (or system)
+        const existing = await this.prisma.expenseCategory.findFirst({
+            where: { name, propertyId: propertyId || null },
+        });
+
+        if (existing) {
+            throw new ConflictException(`Category "${name}" already exists`);
+        }
+
         const category = await this.prisma.expenseCategory.create({
             data: createCategoryDto,
         });
@@ -269,8 +280,14 @@ export class ExpensesService {
     /**
      * Get all expense categories
      */
-    async findAllCategories() {
+    async findAllCategories(propertyId?: string) {
         return this.prisma.expenseCategory.findMany({
+            where: {
+                OR: [
+                    { propertyId: null },
+                    { propertyId: propertyId || undefined }
+                ]
+            },
             include: {
                 _count: {
                     select: { expenses: true },

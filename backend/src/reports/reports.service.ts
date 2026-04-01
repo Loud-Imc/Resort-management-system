@@ -456,6 +456,21 @@ export class ReportsService {
             };
         }
 
+        // 4. Expenses by Category
+        const expensesByCategory = await this.prisma.expense.groupBy({
+            by: ['categoryId'],
+            where: {
+                date: { gte: sDate, lte: eDate },
+                property: propertyId ? { id: propertyId } : (isGlobalAdmin ? undefined : propertyFilter)
+            },
+            _sum: { amount: true },
+        });
+
+        const categoryIds = expensesByCategory.map(item => item.categoryId);
+        const categories = await this.prisma.expenseCategory.findMany({
+            where: { id: { in: categoryIds } }
+        });
+
         return {
             period: { start: sDate, end: eDate },
             summary: {
@@ -467,6 +482,10 @@ export class ReportsService {
                 source: item.source,
                 _sum: { amount: item._sum.amount },
                 _count: item._count._all
+            })),
+            expensesByCategory: expensesByCategory.map(item => ({
+                category: { name: categories.find(c => c.id === item.categoryId)?.name || 'Unknown' },
+                _sum: { amount: item._sum.amount }
             })),
             isGlobal: isGlobalAdmin && !propertyId,
             platformSummary,

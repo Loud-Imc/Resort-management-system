@@ -54,6 +54,7 @@ export class PricingService {
         targetCurrency: string = 'INR',
         isGroupBooking: boolean = false,
         groupSize?: number,
+        requestedRoomCount: number = 1,
     ): Promise<PricingBreakdown> {
         // 1. Get room type pricing configuration
         console.log("adultcount", adultsCount);
@@ -137,18 +138,20 @@ export class PricingService {
             }
             baseAmount = basePricePerNight * numberOfNights;
         } else {
-            // Standard pricing (nights * base price for 1 adult)
-            basePricePerNight = Number(roomType.basePrice);
+            // Standard pricing (nights * base price for X rooms)
+            const rooms = requestedRoomCount || 1;
+            basePricePerNight = Number(roomType.basePrice) * rooms;
             baseAmount = basePricePerNight * numberOfNights;
 
             // 4. Calculate extra adult charges
-            // Extra adults are only charged when guest count exceeds the room's maxAdults capacity
-            const extraAdults = Math.max(0, adultsCount - roomType.maxAdults);
+            // Extra adults are charged when guest count exceeds combined rooms' maxAdults capacity
+            const totalMaxAdults = Number(roomType.maxAdults) * rooms;
+            const extraAdults = Math.max(0, adultsCount - totalMaxAdults);
             extraAdultAmount = extraAdults * Number(roomType.extraAdultPrice) * numberOfNights;
 
             // 5. Calculate extra child charges
-            // Extra children are only charged when guest count exceeds the room's maxChildren capacity
-            const extraChildren = Math.max(0, childrenCount - roomType.maxChildren);
+            const totalMaxChildren = Number(roomType.maxChildren) * rooms;
+            const extraChildren = Math.max(0, childrenCount - totalMaxChildren);
             extraChildAmount = extraChildren * Number(roomType.extraChildPrice) * numberOfNights;
         }
 

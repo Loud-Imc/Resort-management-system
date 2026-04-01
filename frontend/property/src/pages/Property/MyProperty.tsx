@@ -121,25 +121,26 @@ export default function MyProperty() {
     };
 
     const populateFields = (p: Property) => {
-        setName(p.name || '');
-        setDescription(p.description || '');
-        setAddress(p.address || '');
-        setCity(p.city || '');
-        setState(p.state || '');
-        setCountry(p.country || '');
-        setPincode(p.pincode || '');
-        setPhone(p.phone || '');
-        setEmail(p.email || '');
-        setWhatsappNumber(p.whatsappNumber || '');
-        setPlatformCommission(Number(p.platformCommission || 10));
-        setAmenities(p.amenities || []);
-        setImages(p.images || []);
-        setCoverImage(p.coverImage || '');
-        setAllowsGroupBooking(p.allowsGroupBooking || false);
-        setMaxGroupCapacity(p.maxGroupCapacity || '');
-        setGroupPricePerHead(p.groupPricePerHead || '');
-        setGroupPriceAdult(p.groupPriceAdult || '');
-        setGroupPriceChild(p.groupPriceChild || '');
+        if (!p) return;
+        setName(p.name ?? '');
+        setDescription(p.description ?? '');
+        setAddress(p.address ?? '');
+        setCity(p.city ?? '');
+        setState(p.state ?? '');
+        setCountry(p.country ?? '');
+        setPincode(p.pincode ?? '');
+        setPhone(p.phone ?? '');
+        setEmail(p.email ?? '');
+        setWhatsappNumber(p.whatsappNumber ?? '');
+        setPlatformCommission(p.platformCommission !== undefined && p.platformCommission !== null ? Number(p.platformCommission) : 10);
+        setAmenities(p.amenities ?? []);
+        setImages(p.images ?? []);
+        setCoverImage(p.coverImage ?? '');
+        setAllowsGroupBooking(p.allowsGroupBooking ?? false);
+        setMaxGroupCapacity(p.maxGroupCapacity ?? '');
+        setGroupPricePerHead(p.groupPricePerHead ?? '');
+        setGroupPriceAdult(p.groupPriceAdult ?? '');
+        setGroupPriceChild(p.groupPriceChild ?? '');
     };
 
     const handleSave = async () => {

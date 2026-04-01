@@ -184,4 +184,16 @@ export class CreateBookingDto {
     @IsString()
     @IsOptional()
     gstNumber?: string;
+
+    @ApiProperty({ example: 5000, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Type(() => Number)
+    paidAmount?: number;
+
+    @ApiProperty({ type: [String], required: false })
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    selectedRoomIds?: string[];
 }

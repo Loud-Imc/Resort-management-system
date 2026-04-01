@@ -432,12 +432,15 @@ model Expense {
 
 model ExpenseCategory {
   id          String    @id @default(uuid())
-  name        String    @unique
+  name        String
   description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  propertyId  String?
   expenses    Expense[]
+  property    Property? @relation(fields: [propertyId], references: [id])
 
+  @@unique([name, propertyId])
   @@map("expense_categories")
 }
 
@@ -522,6 +525,7 @@ model Property {
   groupPriceAdult      Decimal?          @db.Decimal(10, 2)
   groupPriceChild      Decimal?          @db.Decimal(10, 2)
   icalSyncs            PropertyIcal[]
+  expenseCategories    ExpenseCategory[]
 
   @@map("properties")
 }

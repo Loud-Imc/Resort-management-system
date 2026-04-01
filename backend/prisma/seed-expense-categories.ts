@@ -18,14 +18,21 @@ async function main() {
     ];
 
     for (const cat of categories) {
-        await prisma.expenseCategory.upsert({
-            where: { name: cat.name },
-            update: {
-                description: cat.description,
-            },
-            create: cat,
+        const existing = await prisma.expenseCategory.findFirst({
+            where: { name: cat.name, propertyId: null },
         });
-        console.log(`✅ Category Upserted: ${cat.name}`);
+
+        if (existing) {
+            await prisma.expenseCategory.update({
+                where: { id: existing.id },
+                data: { description: cat.description },
+            });
+        } else {
+            await prisma.expenseCategory.create({
+                data: { ...cat, propertyId: null },
+            });
+        }
+        console.log(`✅ Category Sync: ${cat.name}`);
     }
 
     console.log('\n🎉 Expense Categories seeded successfully!');

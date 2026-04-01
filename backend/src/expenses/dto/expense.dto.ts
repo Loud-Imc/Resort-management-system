@@ -77,4 +77,9 @@ export class CreateExpenseCategoryDto {
     @IsString()
     @IsOptional()
     description?: string;
+
+    @ApiProperty({ example: 'property-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    propertyId?: string;
 }

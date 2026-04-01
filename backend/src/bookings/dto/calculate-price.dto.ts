@@ -56,4 +56,11 @@ export class CalculatePriceDto {
     @IsOptional()
     @Type(() => Number)
     groupSize?: number;
+
+    @ApiProperty({ example: 1, required: false })
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    @Type(() => Number)
+    roomCount?: number;
 }

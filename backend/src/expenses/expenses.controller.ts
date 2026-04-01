@@ -100,8 +100,9 @@ export class ExpensesController {
     @Get('categories/all')
     @Permissions(PERMISSIONS.EXPENSES.READ)
     @ApiOperation({ summary: 'Get all expense categories' })
-    findAllCategories() {
-        return this.expensesService.findAllCategories();
+    @ApiQuery({ name: 'propertyId', required: false })
+    findAllCategories(@Query('propertyId') propertyId?: string) {
+        return this.expensesService.findAllCategories(propertyId);
     }
 
     @Get('categories/:id')

@@ -132,6 +132,7 @@ export class BookingsController {
             dto.currency,
             dto.isGroupBooking,
             dto.groupSize,
+            dto.roomCount,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {

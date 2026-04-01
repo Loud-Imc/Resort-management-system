@@ -22,8 +22,12 @@ export const expensesService = {
         const { data } = await api.delete(`/expenses/${id}`);
         return data;
     },
-    getCategories: async (): Promise<ExpenseCategory[]> => {
-        const { data } = await api.get<ExpenseCategory[]>('/expenses/categories/all');
+    getCategories: async (propertyId?: string): Promise<ExpenseCategory[]> => {
+        const { data } = await api.get<ExpenseCategory[]>('/expenses/categories/all', { params: { propertyId } });
+        return data;
+    },
+    createCategory: async (dto: { name: string; description?: string; propertyId?: string }): Promise<ExpenseCategory> => {
+        const { data } = await api.post<ExpenseCategory>('/expenses/categories', dto);
         return data;
     },
 };

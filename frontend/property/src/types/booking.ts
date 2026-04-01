@@ -81,6 +81,8 @@ export interface CreateBookingDto {
         email?: string;
         phone?: string;
         age?: number;
+        idType?: string;
+        idNumber?: string;
     }[];
     couponCode?: string;
     referralCode?: string;
@@ -90,7 +92,8 @@ export interface CreateBookingDto {
     groupSize?: number;
     propertyId?: string;
     paymentOption?: 'FULL' | 'PARTIAL';
-    paymentMethod?: 'CASH' | 'UPI' | 'ONLINE';
+    paymentMethod?: 'CASH' | 'UPI' | 'CARD' | 'ONLINE' | 'WALLET';
+    paidAmount?: number;
     bookingSourceId?: string;
     overrideTotal?: number;
     overrideReason?: string;

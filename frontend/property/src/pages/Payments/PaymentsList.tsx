@@ -177,11 +177,15 @@ export default function PaymentsList() {
                             {filteredPayments?.map((payment) => (
                                 <tr key={payment.id} className="hover:bg-muted/30 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-mono text-muted-foreground">
-                                            {payment.razorpayPaymentId || '-'}
+                                        <div className="text-sm font-bold text-foreground">
+                                            {payment.razorpayPaymentId || (
+                                                <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 uppercase text-[10px] font-black tracking-widest">
+                                                    <CreditCard className="h-3 w-3" /> {payment.paymentMethod || 'MANUAL'}
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="text-xs text-muted-foreground/50 font-mono mt-1">
-                                            {payment.id.substring(0, 8)}...
+                                        <div className="text-[10px] text-muted-foreground/50 font-mono mt-1">
+                                            Ref: {payment.id.substring(0, 8)}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">

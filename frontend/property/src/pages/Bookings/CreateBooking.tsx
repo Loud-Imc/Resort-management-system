@@ -12,7 +12,7 @@ import { bookingSourcesService } from '../../services/bookingSources';
 import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase } from 'lucide-react';
 import clsx from 'clsx';
 import SearchableSelect from '../../components/SearchableSelect';
-import type { PriceCalculationResult } from '../../types/booking';
+import type { PriceCalculationResult, CreateBookingDto } from '../../types/booking';
 import type { RoomType } from '../../types/room';
 import { useProperty } from '../../context/PropertyContext';
 
@@ -27,13 +27,15 @@ const bookingSchema = z.object({
     referralCode: z.string().optional(),
     bookingSourceId: z.string().optional(),
     roomId: z.string().optional(),
+    selectedRoomIds: z.array(z.string()).optional(),
     isManualBooking: z.boolean().optional(),
     isGroupBooking: z.boolean().optional(),
     groupSize: z.number().optional(),
     overrideTotal: z.number().optional(),
     overrideReason: z.string().optional(),
-    paymentMethod: z.enum(['CASH', 'UPI', 'ONLINE']),
+    paymentMethod: z.enum(['CASH', 'UPI', 'CARD', 'ONLINE', 'WALLET']),
     paymentOption: z.enum(['FULL', 'PARTIAL']),
+    paidAmount: z.number().optional(),
     guests: z.array(z.object({
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
@@ -83,6 +85,7 @@ export default function CreateBooking() {
             overrideReason: '',
             paymentMethod: 'CASH',
             paymentOption: 'FULL',
+            paidAmount: undefined,
             couponCode: '',
             referralCode: '',
             guests: [{ firstName: '', lastName: '' }],
@@ -135,6 +138,8 @@ export default function CreateBooking() {
             setAvailability(avail);
 
             if (avail.available) {
+                const values = getValues();
+                const roomCount = (values.selectedRoomIds && values.selectedRoomIds.length > 0) ? values.selectedRoomIds.length : 1;
                 const price = await (bookingsService as any).calculatePrice({
                     roomTypeId: isGroup ? (avail.allocationPreview?.[0]?.roomTypeId || values.roomTypeId) : values.roomTypeId,
                     checkInDate: values.checkInDate,
@@ -143,6 +148,7 @@ export default function CreateBooking() {
                     childrenCount: Number(values.childrenCount),
                     isGroupBooking: isGroup,
                     groupSize: isGroup ? Number(values.groupSize) : undefined,
+                    roomCount,
                     couponCode: values.couponCode,
                     referralCode: values.referralCode,
                 });
@@ -180,11 +186,17 @@ export default function CreateBooking() {
             propertyId: data.isGroupBooking ? propertyId : undefined,
             paymentOption,
             bookingSourceId: data.bookingSourceId || undefined,
-            roomId: data.roomId || undefined,
+            roomId: data.selectedRoomIds && data.selectedRoomIds.length > 0 ? data.selectedRoomIds[0] : (data.roomId || undefined),
+            selectedRoomIds: data.selectedRoomIds || undefined,
             overrideTotal: data.overrideTotal ? Number(data.overrideTotal) : undefined,
             paymentMethod: data.isManualBooking ? data.paymentMethod : 'ONLINE',
+            paidAmount: data.isManualBooking
+                ? (data.paymentOption === 'FULL'
+                    ? (data.overrideTotal || priceDetails?.totalAmount)
+                    : (data.paidAmount || 0))
+                : undefined,
         };
-        createBookingMutation.mutate(sanitizedData);
+        createBookingMutation.mutate(sanitizedData as CreateBookingDto);
     };
 
     if (loadingRoomTypes) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
@@ -333,7 +345,7 @@ export default function CreateBooking() {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Final Step: Check Availability & Total Price</label>
                                     <button type="button" onClick={handleCheckAvailability} disabled={checkingAvailability}
                                         className="w-full bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 px-4 py-3 rounded-md text-lg font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md">
-                                        {checkingAvailability ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Calculate Total Amount'}
+                                        {checkingAvailability ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Check Availability'}
                                     </button>
 
                                     {availability && (
@@ -359,19 +371,46 @@ export default function CreateBooking() {
 
                                             {!isGroupMode && availability.available && availability.roomList && availability.roomList.length > 0 && (
                                                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2 mt-4">
-                                                    <label className="block text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-2 tracking-widest">Select Specific Room (Optional)</label>
-                                                    <select
-                                                        {...register('roomId')}
-                                                        className="w-full border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded-md shadow-sm h-10 text-sm font-bold"
-                                                    >
-                                                        <option value="">Auto-allocate (Random)</option>
+                                                    <label className="block text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-3 tracking-widest">Select One or More Rooms</label>
+                                                    <div className="flex flex-wrap gap-2">
                                                         {availability.roomList.map((room) => (
-                                                            <option key={room.id} value={room.id}>
+                                                            <button
+                                                                key={room.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const current = watch('selectedRoomIds') || [];
+                                                                    const next = current.includes(room.id)
+                                                                        ? current.filter(id => id !== room.id)
+                                                                        : [...current, room.id];
+                                                                    setValue('selectedRoomIds', next);
+                                                                    // Re-calculate price with new room count
+                                                                    if (availability.available) handleCheckAvailability();
+                                                                }}
+                                                                className={clsx(
+                                                                    "px-3 py-2 rounded-md border text-sm font-bold transition-all flex items-center gap-2",
+                                                                    (watch('selectedRoomIds') || []).includes(room.id)
+                                                                        ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none"
+                                                                        : "bg-white dark:bg-gray-800 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:border-blue-400"
+                                                                )}
+                                                            >
+                                                                <span className={clsx("h-2 w-2 rounded-full", (watch('selectedRoomIds') || []).includes(room.id) ? "bg-white" : "bg-blue-400")}></span>
                                                                 Room {room.roomNumber || room.name}
-                                                            </option>
+                                                            </button>
                                                         ))}
-                                                    </select>
-                                                    <p className="text-[10px] text-blue-500 mt-2 italic font-medium">Leave as "Auto-allocate" if you don't have a specific room preference.</p>
+                                                    </div>
+                                                    <p className="text-[10px] text-blue-500 mt-3 italic font-medium">Select multiple rooms to scale the total price and block them all.</p>
+                                                    {(watch('selectedRoomIds') || []).length > 0 && (
+                                                        <div className="mt-3 pt-3 border-t border-blue-100 dark:border-blue-800/50 flex justify-between items-center">
+                                                            <span className="text-xs font-bold text-blue-800 dark:text-blue-300">{(watch('selectedRoomIds') || []).length} Rooms Selected</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setValue('selectedRoomIds', []); handleCheckAvailability(); }}
+                                                                className="text-[10px] font-black uppercase text-red-500 hover:text-red-600"
+                                                            >
+                                                                Clear All
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -403,37 +442,6 @@ export default function CreateBooking() {
                             </div>
                         </div>
 
-                        {/* Price Override & Payments */}
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-green-600">
-                                <CheckCircle className="h-5 w-5" /> Price Override & Payment
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Override Total Price (₹)</label>
-                                    <input type="number" {...register('overrideTotal', { setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v) })} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" placeholder="Optional" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for Override</label>
-                                    <input type="text" {...register('overrideReason')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" placeholder="e.g. Birthday Discount" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
-                                    <select {...register('paymentMethod')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10">
-                                        <option value="CASH">Cash</option>
-                                        <option value="UPI">UPI / QR</option>
-                                        <option value="ONLINE">Online Link</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Option</label>
-                                    <select {...register('paymentOption')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10">
-                                        <option value="FULL">Fully Paid</option>
-                                        <option value="PARTIAL">Partially Paid</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
 
                         {/* Source */}
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
@@ -453,45 +461,95 @@ export default function CreateBooking() {
 
                         {/* Guest Details */}
                         {availability?.available && (
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                                        <Users className="h-5 w-5 text-blue-600" /> Guest Details
-                                    </h2>
-                                    <button type="button" onClick={() => append({ firstName: '', lastName: '' })} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add Guest</button>
+                            <>
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                                            <Users className="h-5 w-5 text-blue-600" /> Guest Details
+                                        </h2>
+                                        <button type="button" onClick={() => append({ firstName: '', lastName: '' })} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add Guest</button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {fields.map((field, index) => (
+                                            <div key={field.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg relative group">
+                                                {fields.length > 1 && (
+                                                    <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-sm opacity-0 group-hover:opacity-100 transition-opacity">Remove</button>
+                                                )}
+                                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Guest {index + 1} {index === 0 && '(Primary)'}</h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <input {...register(`guests.${index}.firstName`)} placeholder="First Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                        {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.firstName?.message}</p>}
+                                                    </div>
+                                                    <div>
+                                                        <input {...register(`guests.${index}.lastName`)} placeholder="Last Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                        {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
+                                                    </div>
+                                                    <input {...register(`guests.${index}.email`)} type="email" placeholder="Email (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                    <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                    <select {...register(`guests.${index}.idType`)} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm">
+                                                        <option value="">-- ID Type --</option>
+                                                        <option value="AADHAR">Aadhar Card</option>
+                                                        <option value="PASSPORT">Passport</option>
+                                                        <option value="VOTER_ID">Voter ID</option>
+                                                        <option value="DRIVING_LICENSE">Driving License</option>
+                                                        <option value="OTHER">Other</option>
+                                                    </select>
+                                                    <input {...register(`guests.${index}.idNumber`)} placeholder="ID Number (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="space-y-4">
-                                    {fields.map((field, index) => (
-                                        <div key={field.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg relative group">
-                                            {fields.length > 1 && (
-                                                <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-sm opacity-0 group-hover:opacity-100 transition-opacity">Remove</button>
-                                            )}
-                                            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Guest {index + 1} {index === 0 && '(Primary)'}</h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <input {...register(`guests.${index}.firstName`)} placeholder="First Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                    {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.firstName?.message}</p>}
-                                                </div>
-                                                <div>
-                                                    <input {...register(`guests.${index}.lastName`)} placeholder="Last Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                    {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
-                                                </div>
-                                                <input {...register(`guests.${index}.email`)} type="email" placeholder="Email (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                <select {...register(`guests.${index}.idType`)} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm">
-                                                    <option value="">-- ID Type --</option>
-                                                    <option value="AADHAR">Aadhar Card</option>
-                                                    <option value="PASSPORT">Passport</option>
-                                                    <option value="VOTER_ID">Voter ID</option>
-                                                    <option value="DRIVING_LICENSE">Driving License</option>
-                                                    <option value="OTHER">Other</option>
-                                                </select>
-                                                <input {...register(`guests.${index}.idNumber`)} placeholder="ID Number (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+
+                                {/* Price Override & Payments - Moved here for better workflow */}
+                                <div className="mt-8 bg-green-50/50 dark:bg-green-900/10 p-6 rounded-lg shadow-sm border border-green-200 dark:border-green-800/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-green-700 dark:text-green-400">
+                                        <CheckCircle className="h-5 w-5" /> Manage Payment for this Booking
+                                    </h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Option / Status</label>
+                                            <select {...register('paymentOption')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
+                                                <option value="FULL">Collect Full Payment Now</option>
+                                                <option value="PARTIAL">Collect Partial / Deposit</option>
+                                            </select>
+                                        </div>
+                                        {watch('paymentOption') === 'PARTIAL' && (
+                                            <div className="animate-in zoom-in-95 duration-200">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Initial Deposit Amount (₹)</label>
+                                                <input
+                                                    type="number"
+                                                    {...register('paidAmount', { valueAsNumber: true })}
+                                                    className="w-full border-blue-200 dark:border-blue-900 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-black text-lg focus:ring-blue-500 border-2 transition-all"
+                                                    placeholder="0.00"
+                                                    required={watch('paymentOption') === 'PARTIAL'}
+                                                />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Method</label>
+                                            <select {...register('paymentMethod')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
+                                                <option value="CASH">Cash Payment</option>
+                                                <option value="UPI">UPI / QR Code</option>
+                                                <option value="CARD">Debit / Credit Card</option>
+                                                <option value="WALLET">Channel Partner Wallet</option>
+                                                <option value="ONLINE">Send Payment Link (Email/SMS)</option>
+                                            </select>
+                                        </div>
+                                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-100 dark:border-gray-800 pt-6">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Override Price (Optional)</label>
+                                                <input type="number" {...register('overrideTotal', { setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v) })} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all" placeholder="Set custom total" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Reason for Override</label>
+                                                <input type="text" {...register('overrideReason')} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all" placeholder="Why the custom price?" />
                                             </div>
                                         </div>
-                                    ))}
+                                    </div>
                                 </div>
-                            </div>
+                            </>
                         )}
 
                         <div className="flex justify-end pt-4">
@@ -512,7 +570,9 @@ export default function CreateBooking() {
                         ) : (
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600 dark:text-gray-400">{priceDetails.numberOfNights} Nights x ₹{priceDetails.pricePerNight}</span>
+                                    <span className="text-gray-600 dark:text-gray-400">
+                                        {(watch('selectedRoomIds') || []).length > 1 ? `${(watch('selectedRoomIds') || []).length} Rooms` : '1 Room'} x {priceDetails.numberOfNights} Nights
+                                    </span>
                                     <span className="font-medium">₹{priceDetails.baseAmount.toFixed(2)}</span>
                                 </div>
                                 {priceDetails.extraAdultAmount > 0 && (
@@ -546,9 +606,19 @@ export default function CreateBooking() {
                                     <span className="text-gray-600 dark:text-gray-400">Taxes</span>
                                     <span className="font-medium">₹{priceDetails.taxAmount.toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between items-center pt-2">
-                                    <span className="font-bold text-lg">Total</span>
-                                    <span className="font-bold text-2xl text-blue-600">₹{priceDetails.totalAmount.toFixed(2)}</span>
+                                <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700 mt-2">
+                                    <span className="font-bold text-lg">Effective Total</span>
+                                    <div className="text-right">
+                                        <span className={clsx(
+                                            "font-bold text-2xl block",
+                                            watch('overrideTotal') ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"
+                                        )}>
+                                            ₹{(watch('overrideTotal') || priceDetails.totalAmount).toFixed(2)}
+                                        </span>
+                                        {watch('overrideTotal') && (
+                                            <span className="text-[10px] text-gray-400 line-through">Original: ₹{priceDetails.totalAmount.toFixed(2)}</span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
