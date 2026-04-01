@@ -25,6 +25,10 @@ const staffService = {
     removeStaff: async (propertyId: string, userId: string): Promise<void> => {
         await api.delete(`/properties/${propertyId}/staff/${userId}`);
     },
+    updateStaff: async (propertyId: string, userId: string, data: { roleId?: string; firstName?: string; lastName?: string; phone?: string; email?: string }): Promise<PropertyStaff> => {
+        const { data: response } = await api.patch<PropertyStaff>(`/properties/${propertyId}/staff/${userId}`, data);
+        return response;
+    },
 };
 
 export default staffService;

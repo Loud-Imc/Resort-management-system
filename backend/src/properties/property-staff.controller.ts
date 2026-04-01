@@ -25,14 +25,14 @@ export class PropertyStaffController {
 
     @Patch(':userId')
     @Permissions(PERMISSIONS.PROPERTY_STAFF.MANAGE)
-    @ApiOperation({ summary: 'Update staff member role' })
+    @ApiOperation({ summary: 'Update staff member details and role' })
     updateStaff(
         @Param('id') propertyId: string,
         @Param('userId') userId: string,
-        @Body() data: { roleId: string },
+        @Body() data: { roleId?: string; firstName?: string; lastName?: string; phone?: string; email?: string },
         @Request() req
     ) {
-        return this.propertyStaffService.updateStaff(propertyId, userId, data.roleId, req.user.id);
+        return this.propertyStaffService.updateStaff(propertyId, userId, data, req.user.id);
     }
 
     @Get()

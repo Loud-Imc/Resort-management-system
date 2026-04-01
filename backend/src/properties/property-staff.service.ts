@@ -65,9 +65,10 @@ export class PropertyStaffService {
         });
     }
 
-    async updateStaff(propertyId: string, userId: string, roleId: string, requestUserId: string) {
+    async updateStaff(propertyId: string, userId: string, data: { roleId?: string; firstName?: string; lastName?: string; phone?: string; email?: string }, requestUserId: string) {
         const staff = await this.prisma.propertyStaff.findUnique({
-            where: { propertyId_userId: { propertyId, userId } }
+            where: { propertyId_userId: { propertyId, userId } },
+            include: { user: true }
         });
 
         if (!staff) throw new NotFoundException('Staff member not found');
@@ -86,28 +87,57 @@ export class PropertyStaffService {
             throw new ForbiddenException('Only property owners or admins can manage staff');
         }
 
-        const newRole = await this.prisma.role.findUnique({ where: { id: roleId } });
-        if (!newRole) throw new NotFoundException('Role not found');
+        // Email uniqueness check
+        if (data.email && data.email !== staff.user.email) {
+            const existingUser = await this.prisma.user.findUnique({
+                where: { email: data.email }
+            });
+            if (existingUser) throw new ConflictException('Email is already in use by another account');
+        }
 
         return this.prisma.$transaction(async (tx) => {
-            // Remove old role from UserRoles
-            if ((staff as any).roleId) {
-                await tx.userRole.delete({
-                    where: { userId_roleId: { userId, roleId: (staff as any).roleId } }
-                }).catch(() => null); // Ignore if already missing
-            }      // Assign new role
-            await tx.userRole.upsert({
-                where: { userId_roleId: { userId, roleId } },
-                create: { userId, roleId },
-                update: {}
-            });
+            // 1. Update user details if provided
+            if (data.firstName || data.lastName || data.phone !== undefined || data.email) {
+                await tx.user.update({
+                    where: { id: userId },
+                    data: {
+                        firstName: data.firstName,
+                        lastName: data.lastName,
+                        phone: data.phone,
+                        email: data.email
+                    }
+                });
+            }
 
-            // Update PropertyStaff record
-            return tx.propertyStaff.update({
+            // 2. Handle role update if provided
+            if (data.roleId && data.roleId !== staff.roleId) {
+                const newRole = await this.prisma.role.findUnique({ where: { id: data.roleId } });
+                if (!newRole) throw new NotFoundException('Role not found');
+
+                // Remove old role from UserRoles
+                await tx.userRole.delete({
+                    where: { userId_roleId: { userId, roleId: staff.roleId } }
+                }).catch(() => null);
+
+                // Assign new role
+                await tx.userRole.upsert({
+                    where: { userId_roleId: { userId, roleId: data.roleId } },
+                    create: { userId, roleId: data.roleId },
+                    update: {}
+                });
+
+                // Update PropertyStaff record with new roleId
+                await tx.propertyStaff.update({
+                    where: { propertyId_userId: { propertyId, userId } },
+                    data: { roleId: data.roleId }
+                });
+            }
+
+            // Return updated staff record
+            return tx.propertyStaff.findUnique({
                 where: { propertyId_userId: { propertyId, userId } },
-                data: { roleId },
                 include: {
-                    user: { select: { id: true, firstName: true, lastName: true, email: true } },
+                    user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
                     role: true
                 }
             });
@@ -158,7 +188,7 @@ export class PropertyStaffService {
             where: { propertyId },
             include: {
                 user: {
-                    select: { id: true, firstName: true, lastName: true, email: true }
+                    select: { id: true, firstName: true, lastName: true, email: true, phone: true }
                 },
                 role: true
             },

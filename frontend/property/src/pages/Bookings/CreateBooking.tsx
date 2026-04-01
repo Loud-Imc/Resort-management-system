@@ -57,7 +57,7 @@ export default function CreateBooking() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { selectedProperty } = useProperty();
-    const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
+    const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; roomList?: any[]; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
 
@@ -124,7 +124,7 @@ export default function CreateBooking() {
         setAvailability(null);
         setPriceDetails(null);
         try {
-            const avail = await (bookingsService as any).checkAvailability({
+            const avail = await bookingsService.checkAvailability({
                 roomTypeId: values.roomTypeId || undefined,
                 checkInDate: values.checkInDate,
                 checkOutDate: values.checkOutDate,
@@ -219,6 +219,8 @@ export default function CreateBooking() {
                                             value={watch('roomTypeId') || ''}
                                             onChange={(val: string) => {
                                                 setValue('roomTypeId', val);
+                                                setValue('roomId', '');
+                                                setAvailability(null);
                                             }}
                                             required
                                         />
@@ -354,6 +356,24 @@ export default function CreateBooking() {
                                                     </p>
                                                 </div>
                                             </div>
+
+                                            {!isGroupMode && availability.available && availability.roomList && availability.roomList.length > 0 && (
+                                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2 mt-4">
+                                                    <label className="block text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-2 tracking-widest">Select Specific Room (Optional)</label>
+                                                    <select
+                                                        {...register('roomId')}
+                                                        className="w-full border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded-md shadow-sm h-10 text-sm font-bold"
+                                                    >
+                                                        <option value="">Auto-allocate (Random)</option>
+                                                        {availability.roomList.map((room) => (
+                                                            <option key={room.id} value={room.id}>
+                                                                Room {room.roomNumber || room.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <p className="text-[10px] text-blue-500 mt-2 italic font-medium">Leave as "Auto-allocate" if you don't have a specific room preference.</p>
+                                                </div>
+                                            )}
 
                                             {isGroupMode && availability.available && availability.allocationPreview && (
                                                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2">

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
     Users, Plus, Trash2, Shield,
     User as UserIcon, Mail, Loader2,
-    X, Search, Check
+    X, Search, Check, Edit2
 } from 'lucide-react';
 import staffService, { type PropertyStaff } from '../../services/staff';
 import { usersService } from '../../services/users';
@@ -21,6 +21,8 @@ export default function StaffList() {
     const [error, setError] = useState<string | null>(null);
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<PropertyStaff | null>(null);
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [dbRoles, setDbRoles] = useState<Role[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -155,6 +157,43 @@ export default function StaffList() {
         }
     };
 
+    const handleEditClick = (member: PropertyStaff) => {
+        setEditingStaff(member);
+        setSelectedRoleId(typeof member.role === 'string' ? '' : (member.role as any)?.id || '');
+        setNewUser({
+            firstName: member.user?.firstName || '',
+            lastName: member.user?.lastName || '',
+            email: member.user?.email || '',
+            phone: (member.user as any)?.phone || '',
+            password: '' // Not editing password here
+        });
+        setIsEditModalOpen(true);
+        loadUsers(); // Refresh roles just in case
+    };
+
+    const handleEditStaff = async () => {
+        if (!propertyId || !editingStaff) return;
+        try {
+            setSubmitting(true);
+            const updated = await staffService.updateStaff(propertyId, editingStaff.userId, {
+                roleId: selectedRoleId,
+                firstName: newUser.firstName,
+                lastName: newUser.lastName,
+                phone: newUser.phone,
+                email: newUser.email
+            });
+            toast.success('Staff member updated successfully');
+            setStaff(staff.map(s => s.id === updated.id ? updated : s));
+            setIsEditModalOpen(false);
+            setEditingStaff(null);
+            resetModalState();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || err.message || 'Failed to update staff');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const filteredUsers = (allUsers || []).filter(u => {
         if (!u) return false;
         const search = (searchQuery || '').toLowerCase();
@@ -202,10 +241,16 @@ export default function StaffList() {
                                 <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600">
                                     <UserIcon className="h-6 w-6" />
                                 </div>
-                                <button onClick={() => handleRemoveStaff(member.userId)}
-                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all" title="Remove Staff">
-                                    <Trash2 className="h-4 w-4" />
-                                </button>
+                                <div className="flex gap-1">
+                                    <button onClick={() => handleEditClick(member)}
+                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-all" title="Edit Staff">
+                                        <Edit2 className="h-4 w-4" />
+                                    </button>
+                                    <button onClick={() => handleRemoveStaff(member.userId)}
+                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all" title="Remove Staff">
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{member.user?.firstName} {member.user?.lastName}</h3>
                             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -247,7 +292,7 @@ export default function StaffList() {
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <Plus className="h-5 w-5 text-blue-600" /> Add Team Member
                             </h2>
-                            <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
+                            <button onClick={() => { setIsAddModalOpen(false); resetModalState(); }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
                                 <X className="h-5 w-5 text-gray-400" />
                             </button>
                         </div>
@@ -409,7 +454,7 @@ export default function StaffList() {
                         </div>
                         {!createdCredentials && (
                             <div className="p-6 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0">
-                                <button onClick={() => setIsAddModalOpen(false)}
+                                <button onClick={() => { setIsAddModalOpen(false); resetModalState(); }}
                                     className="px-5 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all">Cancel</button>
                                 <button onClick={handleAddStaff} disabled={(!selectedUser && !isCreatingNew) || submitting}
                                     className="px-8 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-sm transition-all">
@@ -421,6 +466,106 @@ export default function StaffList() {
                     </div>
                 </div>
             )}
+
+            {/* Edit Staff Modal */}
+            <EditStaffModal
+                isOpen={isEditModalOpen}
+                onClose={() => { setIsEditModalOpen(false); setEditingStaff(null); resetModalState(); }}
+                editingStaff={editingStaff}
+                newUser={newUser}
+                setNewUser={setNewUser}
+                dbRoles={dbRoles}
+                selectedRoleId={selectedRoleId}
+                setSelectedRoleId={setSelectedRoleId}
+                onSubmit={handleEditStaff}
+                submitting={submitting}
+            />
+        </div>
+    );
+}
+
+// Edit Staff Modal (Simplified sub-component logic within the same file for consistency)
+function EditStaffModal({
+    isOpen,
+    onClose,
+    editingStaff,
+    newUser,
+    setNewUser,
+    dbRoles,
+    selectedRoleId,
+    setSelectedRoleId,
+    onSubmit,
+    submitting
+}: any) {
+    if (!isOpen || !editingStaff) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white dark:bg-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Edit2 className="h-5 w-5 text-blue-600" /> Edit Team Member
+                    </h2>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
+                        <X className="h-5 w-5 text-gray-400" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2 space-y-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Email Address</label>
+                            <input type="email" value={newUser.email}
+                                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase ml-1">First Name</label>
+                            <input type="text" value={newUser.firstName}
+                                onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name</label>
+                            <input type="text" value={newUser.lastName}
+                                onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Phone Number</label>
+                            <input type="tel" value={newUser.phone}
+                                onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                        </div>
+                    </div>
+
+                    {/* Role Selection */}
+                    <div className="space-y-3 transition-all duration-300">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider pl-1">
+                            Update Property Role
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {(Array.isArray(dbRoles) ? dbRoles : []).map((role: any) => (
+                                <button key={role.id} type="button" onClick={() => setSelectedRoleId(role.id)}
+                                    className={clsx("px-4 py-3 rounded-xl text-left border-2 transition-all flex flex-col gap-0.5",
+                                        selectedRoleId === role.id ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-600 hover:border-gray-300 bg-white dark:bg-gray-800")}>
+                                    <p className={clsx("text-sm font-bold", selectedRoleId === role.id ? "text-blue-600" : "text-gray-900 dark:text-white")}>{role.name}</p>
+                                    <p className="text-[10px] text-gray-400 font-medium italic">Scope: {role.isSystem ? 'System' : 'Property'}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-6 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0">
+                    <button onClick={onClose}
+                        className="px-5 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all">Cancel</button>
+                    <button onClick={onSubmit} disabled={submitting}
+                        className="px-8 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-sm transition-all">
+                        {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {submitting ? 'Updating...' : 'Save Changes'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

@@ -1,5 +1,5 @@
 import api from './api';
-import type { Booking, CreateBookingDto, CheckAvailabilityDto, PriceCalculationDto, PriceCalculationResult } from '../types/booking';
+import type { Booking, CreateBookingDto, CheckAvailabilityDto, CheckAvailabilityResult, PriceCalculationDto, PriceCalculationResult } from '../types/booking';
 
 export const bookingsService = {
     getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string }) => {
@@ -13,7 +13,7 @@ export const bookingsService = {
     },
 
     checkAvailability: async (data: CheckAvailabilityDto) => {
-        const response = await api.post<{ available: boolean; availableRooms: number }>(
+        const response = await api.post<CheckAvailabilityResult>(
             '/bookings/check-availability',
             data
         );
@@ -44,7 +44,7 @@ export const bookingsService = {
         const { data } = await api.post<Booking>(`/bookings/${id}/cancel`, { reason });
         return data;
     },
-    
+
     getUnreadCount: async (propertyId?: string) => {
         const { data } = await api.get<number>('/bookings/unread-count', { params: { propertyId } });
         return data;

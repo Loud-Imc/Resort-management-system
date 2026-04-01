@@ -44,6 +44,7 @@ export class BookingsController {
         );
 
         let allocationPreview: any[] = [];
+        let roomList: any[] = [];
         let groupUnavailableReason: string | undefined;
 
         if (dto.isGroupBooking && dto.groupSize && dto.propertyId) {
@@ -58,11 +59,24 @@ export class BookingsController {
                 const hasPool = await this.availabilityService.hasGroupPool(dto.propertyId);
                 groupUnavailableReason = hasPool ? 'CAPACITY_EXCEEDED' : 'NO_POOL_CONFIGURED';
             }
+        } else if (!dto.isGroupBooking && dto.roomTypeId) {
+            // For standard bookings, return the list of available rooms
+            const availableRooms = await this.availabilityService.getAvailableRooms(
+                dto.roomTypeId,
+                new Date(dto.checkInDate),
+                new Date(dto.checkOutDate)
+            );
+            roomList = availableRooms.map(r => ({
+                id: r.id,
+                name: r.name,
+                roomNumber: r.roomNumber
+            }));
         }
 
         return {
             available: isAvailable,
             availableRooms: availableCount,
+            roomList,
             allocationPreview: allocationPreview.map(room => ({
                 id: room.id,
                 name: room.name,

@@ -100,6 +100,17 @@ export interface CheckAvailabilityDto {
     roomTypeId?: string;
     checkInDate: string;
     checkOutDate: string;
+    isGroupBooking?: boolean;
+    groupSize?: number;
+    propertyId?: string;
+}
+
+export interface CheckAvailabilityResult {
+    available: boolean;
+    availableRooms: number;
+    roomList?: { id: string; name: string; roomNumber: string }[];
+    allocationPreview?: any[];
+    groupUnavailableReason?: string;
 }
 
 export interface PriceCalculationDto {
