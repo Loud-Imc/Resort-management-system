@@ -66,6 +66,7 @@ export const bookingService = {
         currency?: string;
         isGroupBooking?: boolean;
         groupSize?: number;
+        generalCode?: string;
     }) => {
         const { data } = await api.post('/bookings/calculate-price', params);
         return data;

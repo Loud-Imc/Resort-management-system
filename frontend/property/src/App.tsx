@@ -31,6 +31,7 @@ import Reports from './pages/Reports/Reports';
 import MyProperty from './pages/Property/MyProperty';
 import CalendarSync from './pages/Property/CalendarSync';
 import Notifications from './pages/Notifications';
+import AccountSettings from './pages/AccountSettings';
 
 const queryClient = new QueryClient();
 
@@ -88,6 +89,9 @@ function App() {
 
                     {/* Notifications */}
                     <Route path="notifications" element={<Notifications />} />
+
+                    {/* Account Settings */}
+                    <Route path="account-settings" element={<AccountSettings />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />

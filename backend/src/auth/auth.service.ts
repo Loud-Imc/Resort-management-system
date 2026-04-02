@@ -32,7 +32,7 @@ export class AuthService {
         const identifier = loginDto.email.trim();
         console.log(`[AuthService] Login attempt for identifier: ${identifier}`);
 
-        let user = await this.usersService.findByEmail(identifier);
+        let user: any = await this.usersService.findByEmail(identifier);
         if (user) {
             console.log(`[AuthService] User found by email: ${identifier}`);
         } else {
@@ -51,6 +51,10 @@ export class AuthService {
         if (!user) {
             console.warn(`[AuthService] Login failed: User not found for identifier: ${identifier}`);
             throw new UnauthorizedException('Invalid credentials');
+        }
+
+        if (!user.password) {
+            throw new UnauthorizedException('Please log in with OTP');
         }
 
         const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
@@ -78,22 +82,24 @@ export class AuthService {
                 throw new UnauthorizedException('Phone number not found in token');
             }
 
-            let user = await this.usersService.findByPhone(phoneNumber);
+            let user: any = await this.usersService.findByPhone(phoneNumber);
 
             // If user doesn't exist, we might want to register them automatically or throw error
             // For now, let's assume registration is a separate step or handled here
             if (!user) {
-                // Check if user exists by email as fallback? Probably not.
-                // Let's create a new user or throw if registration required.
                 // For this implementation, let's auto-register if it's a new phone number.
                 user = await this.usersService.createWithPhone(phoneNumber);
+            }
+
+            if (!user) {
+                throw new UnauthorizedException('User could not be found or created');
             }
 
             if (!user.isActive) {
                 throw new UnauthorizedException('Account is inactive');
             }
 
-            return this.generateTokens(user);
+            return this.generateTokens(user as any);
         } catch (error) {
             console.error('Phone login error:', error);
             throw new UnauthorizedException('Invalid phone token');

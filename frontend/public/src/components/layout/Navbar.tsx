@@ -94,7 +94,7 @@ export default function Navbar() {
                                     <button
                                         onClick={handleLogout}
                                         className={clsx("p-2 rounded-full hover:bg-gray-100/10 transition-all", textColor)}
-                                        title="Sign Out"
+                                        title="Sign Ou`t"
                                     >
                                         <LogOut className="h-5 w-5" />
                                     </button>
@@ -111,8 +111,8 @@ export default function Navbar() {
                                     {user.avatar ? (
                                         <img src={user.avatar} alt={user.firstName} className="h-8 w-8 rounded-full object-cover" />
                                     ) : (
-                                        <div className="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-xs font-bold">
-                                            {user.firstName[0]}{user.lastName[0]}
+                                        <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
+                                            <UserIcon className="h-4 w-4" />
                                         </div>
                                     )}
                                     <span className={clsx("pr-3 pl-1 font-bold text-sm", textColor)}>Profile</span>

@@ -86,6 +86,7 @@ export interface CreateBookingDto {
     }[];
     couponCode?: string;
     referralCode?: string;
+    generalCode?: string;
     roomId?: string;
     isManualBooking?: boolean;
     isGroupBooking?: boolean;
@@ -124,6 +125,7 @@ export interface PriceCalculationDto {
     childrenCount: number;
     couponCode?: string;
     referralCode?: string;
+    generalCode?: string;
     isGroupBooking?: boolean;
     groupSize?: number;
 }
@@ -144,4 +146,6 @@ export interface PriceCalculationResult {
     numberOfNights: number;
     pricePerNight: number;
     taxRate: number;
+    appliedCodeType?: 'COUPON' | 'REFERRAL' | 'NONE';
+    referralPartnerId?: string;
 }

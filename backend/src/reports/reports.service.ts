@@ -5,11 +5,25 @@ import * as path from 'path';
 const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
 // Handle case sensitivity: Linux has 'Printer.js', Windows has 'printer.js'
 let PdfPrinter: any;
+let URLResolver: any;
+let virtualFs: any;
+
 try {
-    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'Printer'));
+    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'Printer')).default || require(path.join(pdfmakeDir, 'js', 'Printer'));
+    URLResolver = require(path.join(pdfmakeDir, 'js', 'URLResolver')).default || require(path.join(pdfmakeDir, 'js', 'URLResolver'));
+    virtualFs = require(path.join(pdfmakeDir, 'js', 'virtual-fs')).default || require(path.join(pdfmakeDir, 'js', 'virtual-fs'));
 } catch {
-    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer'));
+    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer')).default || require(path.join(pdfmakeDir, 'js', 'printer'));
+    URLResolver = require(path.join(pdfmakeDir, 'js', 'urlresolver')).default || require(path.join(pdfmakeDir, 'js', 'urlresolver'));
+    virtualFs = require(path.join(pdfmakeDir, 'js', 'virtual-fs')).default || require(path.join(pdfmakeDir, 'js', 'virtual-fs'));
 }
+
+import * as fs from 'fs';
+const DEBUG_LOG = path.join(process.cwd(), 'pdf_debug.log');
+const log = (msg: string) => {
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(DEBUG_LOG, `[${timestamp}] ${msg}\n`);
+};
 
 // Casting status values to any to bypass transitory prisma client sync issues in this specific service
 const APPROVED = 'APPROVED' as any;
@@ -825,17 +839,19 @@ export class ReportsService {
                 if (property) propertyName = property.name;
             }
 
+            log(`Generating PDF for property: ${propertyName}, period: ${sDate.toISOString()} to ${eDate.toISOString()}`);
             const fonts = {
                 Roboto: {
-                    normal: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Regular.ttf'),
-                    bold: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Medium.ttf'),
-                    italics: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Italic.ttf'),
-                    bolditalics: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-MediumItalic.ttf')
+                    normal: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Regular.ttf'),
+                    bold: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Medium.ttf'),
+                    italics: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Italic.ttf'),
+                    bolditalics: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-MediumItalic.ttf')
                 }
             };
+            log(`Using fonts from: ${fonts.Roboto.normal}`);
 
-            const PrinterConstruct = PdfPrinter.default || PdfPrinter;
-            const printer = new PrinterConstruct(fonts);
+            const urlResolver = new URLResolver(virtualFs);
+            const printer = new PdfPrinter(fonts, virtualFs, urlResolver);
 
             const docDefinition: any = {
                 pageSize: 'A4',
@@ -987,19 +1003,27 @@ export class ReportsService {
                 defaultStyle: { font: 'Roboto' }
             };
 
-            return new Promise(async (resolve, reject) => {
-                try {
-                    const pdfDoc = await printer.createPdfKitDocument(docDefinition);
-                    const chunks: any[] = [];
-                    pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
-                    pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-                    pdfDoc.on('error', (err: any) => reject(err));
-                    pdfDoc.end();
-                } catch (e) {
-                    reject(e);
-                }
+            log(`Calling createPdfKitDocument...`);
+            const pdfDoc = await printer.createPdfKitDocument(docDefinition);
+            log(`document created, starting stream...`);
+
+            return new Promise((resolve, reject) => {
+                const chunks: any[] = [];
+                pdfDoc.on('data', (chunk: any) => {
+                    chunks.push(chunk);
+                });
+                pdfDoc.on('end', () => {
+                    log(`stream end, chunks size: ${chunks.length}`);
+                    resolve(Buffer.concat(chunks));
+                });
+                pdfDoc.on('error', (err: any) => {
+                    log(`PDF Stream Error: ${err.message}`);
+                    reject(err);
+                });
+                pdfDoc.end();
             });
         } catch (error) {
+            log(`Error generating PDF report: ${error.message}\nStack: ${error.stack}`);
             this.logger.error(`Error generating PDF report: ${error.message}`, error.stack);
             throw error;
         }

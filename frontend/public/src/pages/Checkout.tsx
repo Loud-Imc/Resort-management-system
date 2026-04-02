@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, LogIn, Camera, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { Loader2, ArrowLeft, ShieldCheck, CreditCard, User as UserIcon, Info, AlertCircle, X, LogIn, CheckCircle2, Camera } from 'lucide-react';
 import { differenceInDays, format, addDays } from 'date-fns';
 import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
@@ -60,8 +60,7 @@ export default function Checkout() {
     const navigate = useNavigate();
     const [isProcessing, setIsProcessing] = useState(false);
     const [couponCode, setCouponCode] = useState('');
-    const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
-    const [appliedReferralCode, setAppliedReferralCode] = useState<string | null>(null);
+    const [appliedCode, setAppliedCode] = useState<string | null>(null);
     const [user, setUser] = useState<any>(null);
     const [token, setToken] = useState<string | null>(null);
     const [idImage, setIdImage] = useState<string | null>(null);
@@ -143,20 +142,24 @@ export default function Checkout() {
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['pricing', roomId, checkIn, checkOut, adults, children, appliedCoupon, appliedReferralCode, selectedCurrency],
-        queryFn: () => bookingService.calculatePrice({
-            roomTypeId: roomId!,
-            checkInDate: checkIn,
-            checkOutDate: checkOut,
-            adultsCount: Number(adults),
-            childrenCount: Number(children),
-            couponCode: appliedCoupon || undefined,
-            referralCode: appliedReferralCode || undefined,
-            currency: selectedCurrency,
-            isGroupBooking,
-            groupSize
-        }),
-        enabled: !!roomId && (!!appliedCoupon || !!appliedReferralCode),
+        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, appliedCode, selectedCurrency, isGroupBooking, groupSize],
+        queryFn: async () => {
+            console.log('[Checkout] Fetching pricing with appliedCode:', appliedCode);
+            const res = await bookingService.calculatePrice({
+                roomTypeId: roomId!,
+                checkInDate: checkIn,
+                checkOutDate: checkOut,
+                adultsCount: Number(adults),
+                childrenCount: Number(children),
+                generalCode: appliedCode || undefined,
+                currency: selectedCurrency,
+                isGroupBooking,
+                groupSize
+            });
+            console.log('[Checkout] Pricing result:', res);
+            return res;
+        },
+        enabled: !!roomId && !!appliedCode,
         retry: false,
     });
 
@@ -174,7 +177,7 @@ export default function Checkout() {
     });
 
     // Derive effective pricing to display
-    const effectivePricing = (appliedCoupon || appliedReferralCode) && couponPricing && !isPricingError ? couponPricing : basePricing;
+    const effectivePricing = appliedCode && couponPricing && !isPricingError ? couponPricing : basePricing;
     const pricingLoading = couponPricingLoading;
 
     // Const Selected Room is now fetched directly
@@ -185,20 +188,8 @@ export default function Checkout() {
         const code = couponCode.trim().toUpperCase();
         if (!code) return;
 
-        if (code.startsWith('CP')) {
-            setAppliedReferralCode(code);
-            setAppliedCoupon(null);
-            // If the code matches current user's code, allow wallet payment
-            if (cpProfile && code === cpProfile.referralCode) {
-                // We'll show the wallet option
-            } else {
-                setPaymentMethod('ONLINE');
-            }
-        } else {
-            setAppliedCoupon(code);
-            setAppliedReferralCode(null);
-            setPaymentMethod('ONLINE');
-        }
+        setAppliedCode(code);
+        setPaymentMethod('ONLINE');
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,8 +230,7 @@ export default function Checkout() {
                 whatsappNumber: userData.whatsappNumber,
                 gstNumber: userData.gstNumber,
                 specialRequests: userData.specialRequests,
-                couponCode: appliedCoupon || undefined,
-                referralCode: appliedReferralCode || undefined,
+                generalCode: appliedCode || undefined,
                 paymentMethod: paymentMethod,
                 paymentOption: paymentOption,
                 currency: selectedCurrency,
@@ -568,18 +558,24 @@ export default function Checkout() {
                                                     placeholder="GUEST10 or CP... (10 chars)"
                                                     className="w-full p-3 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
                                                 />
-                                                {(appliedCoupon || appliedReferralCode) && (
-                                                    <div className="flex justify-end mt-1">
+                                                {appliedCode && (
+                                                    <div className="mt-2 flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+                                                                {couponPricing?.appliedCodeType === 'REFERRAL' ? 'Partner Code Applied' : 'Coupon Applied'}
+                                                            </span>
+                                                            <span className="text-sm font-bold text-blue-900 uppercase">
+                                                                {appliedCode}
+                                                            </span>
+                                                        </div>
                                                         <button
-                                                            type="button"
                                                             onClick={() => {
-                                                                setAppliedCoupon(null);
-                                                                setAppliedReferralCode(null);
+                                                                setAppliedCode(null);
                                                                 setCouponCode('');
                                                             }}
-                                                            className="text-[10px] text-red-500 font-bold hover:underline"
+                                                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                                                         >
-                                                            REMOVE
+                                                            <X className="h-4 w-4" />
                                                         </button>
                                                     </div>
                                                 )}
@@ -595,21 +591,7 @@ export default function Checkout() {
                                         </div>
                                     </div>
 
-                                    {(appliedCoupon || appliedReferralCode) && !pricingLoading && !isPricingError && (
-                                        <div className="mt-1 space-y-1">
-                                            <p className="text-xs text-green-600 font-medium flex items-center gap-1.5">
-                                                <ShieldCheck className="h-3.5 w-3.5" />
-                                                {appliedReferralCode ? `Referral code "${appliedReferralCode}" applied!` : `Coupon "${appliedCoupon}" applied!`}
-                                            </p>
-                                            {appliedReferralCode && (effectivePricing?.referralDiscountAmount || 0) === 0 && (
-                                                <p className="text-[10px] text-amber-600 font-medium italic pl-5">
-                                                    Note: This code doesn't offer an additional discount for this booking.
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {isPricingError && (appliedCoupon || appliedReferralCode) && (
+                                    {isPricingError && appliedCode && (
                                         <p className="text-xs text-red-500 font-medium italic mt-1">
                                             {pricingError?.response?.data?.message || 'Invalid code'}
                                         </p>
@@ -655,7 +637,7 @@ export default function Checkout() {
 
 
 
-                        {cpProfile && appliedReferralCode === cpProfile.referralCode && (
+                        {cpProfile && appliedCode === cpProfile.referralCode && couponPricing?.appliedCodeType === 'REFERRAL' && (
                             <div className="bg-primary-50 p-5 rounded-xl border border-primary-100 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-sm font-bold text-primary-900">Payment Option</h4>
@@ -793,16 +775,16 @@ export default function Checkout() {
                                         <span>{formatPrice(effectivePricing?.taxAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
 
-                                    {appliedCoupon && !isPricingError && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
+                                    {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'COUPON' && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
-                                            <span>Coupon Discount ({appliedCoupon})</span>
+                                            <span>Coupon Discount ({appliedCode})</span>
                                             <span>-{formatPrice(effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
-                                    {appliedReferralCode && !isPricingError && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
+                                    {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'REFERRAL' && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
-                                            <span>Referral Discount ({appliedReferralCode})</span>
+                                            <span>Referral Discount ({appliedCode})</span>
                                             <span>-{formatPrice(effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}

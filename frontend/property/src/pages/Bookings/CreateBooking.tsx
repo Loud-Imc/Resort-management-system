@@ -23,8 +23,7 @@ const bookingSchema = z.object({
     roomTypeId: z.string().optional(),
     adultsCount: z.number().min(1, 'At least 1 adult is required'),
     childrenCount: z.number().min(0),
-    couponCode: z.string().optional(),
-    referralCode: z.string().optional(),
+    appliedCode: z.string().optional(),
     bookingSourceId: z.string().optional(),
     roomId: z.string().optional(),
     selectedRoomIds: z.array(z.string()).optional(),
@@ -86,8 +85,7 @@ export default function CreateBooking() {
             paymentMethod: 'CASH',
             paymentOption: 'FULL',
             paidAmount: undefined,
-            couponCode: '',
-            referralCode: '',
+            appliedCode: '',
             guests: [{ firstName: '', lastName: '' }],
         },
     });
@@ -149,8 +147,7 @@ export default function CreateBooking() {
                     isGroupBooking: isGroup,
                     groupSize: isGroup ? Number(values.groupSize) : undefined,
                     roomCount,
-                    couponCode: values.couponCode,
-                    referralCode: values.referralCode,
+                    generalCode: values.appliedCode,
                 });
                 setPriceDetails(price);
             }
@@ -178,10 +175,11 @@ export default function CreateBooking() {
         if (!availability?.available) { toast.error('Please check availability first'); return; }
 
         // Remove propertyId (unless needed for group allocation) and other non-DTO fields
-        const { propertyId, paymentOption, ...rest } = data;
+        const { propertyId, paymentOption, appliedCode, ...rest } = data;
 
         const sanitizedData = {
             ...rest,
+            generalCode: appliedCode || undefined,
             roomTypeId: data.isGroupBooking ? undefined : rest.roomTypeId,  // clear stale roomTypeId for group bookings
             propertyId: data.isGroupBooking ? propertyId : undefined,
             paymentOption,
@@ -314,23 +312,15 @@ export default function CreateBooking() {
                                         )}
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Code (Optional)</label>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Promo or Referral Code (Optional)</label>
                                     <div className="flex gap-2">
-                                        <input type="text" {...register('couponCode')} placeholder="e.g. SAVE10" className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10" />
-                                        <button
-                                            type="button"
-                                            onClick={handleCheckAvailability}
-                                            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-500"
-                                        >
-                                            Apply
-                                        </button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CP Referral Code (Optional)</label>
-                                    <div className="flex gap-2">
-                                        <input type="text" {...register('referralCode')} placeholder="e.g. PARTNER20" className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase" />
+                                        <input
+                                            type="text"
+                                            {...register('appliedCode')}
+                                            placeholder="GUEST10 or CP... (10 chars)"
+                                            className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase"
+                                        />
                                         <button
                                             type="button"
                                             onClick={handleCheckAvailability}
@@ -592,16 +582,16 @@ export default function CreateBooking() {
                                         <span>Offer Discount</span><span>-₹{priceDetails.offerDiscountAmount.toFixed(2)}</span>
                                     </div>
                                 )}
-                                {priceDetails.couponDiscountAmount > 0 && (
+                                {priceDetails.couponDiscountAmount > 0 && priceDetails.appliedCodeType === 'COUPON' && (
                                     <div className="flex justify-between text-sm text-green-600 font-medium">
                                         <span>Coupon Discount</span><span>-₹{priceDetails.couponDiscountAmount.toFixed(2)}</span>
                                     </div>
                                 )}
-                                {priceDetails.referralDiscountAmount ? priceDetails.referralDiscountAmount > 0 && (
+                                {priceDetails.referralDiscountAmount > 0 && priceDetails.appliedCodeType === 'REFERRAL' && (
                                     <div className="flex justify-between text-sm text-green-600 font-medium">
                                         <span>Referral Discount</span><span>-₹{priceDetails.referralDiscountAmount.toFixed(2)}</span>
                                     </div>
-                                ) : null}
+                                )}
                                 <div className="flex justify-between text-sm border-b border-gray-100 dark:border-gray-700 pb-3">
                                     <span className="text-gray-600 dark:text-gray-400">Taxes</span>
                                     <span className="font-medium">₹{priceDetails.taxAmount.toFixed(2)}</span>

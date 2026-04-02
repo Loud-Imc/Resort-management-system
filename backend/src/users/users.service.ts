@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
@@ -544,19 +544,15 @@ export class UsersService {
 
         const normalizedPhone = normalizePhone(phone);
 
-        // For phone-only registration, we generate a placeholder email
-        // and a random password or just rely on OTP for future logins.
-        const placeholderEmail = `user_${Date.now()}@placeholder.com`;
-        const randomPassword = Math.random().toString(36).slice(-10);
-        const hashedPassword = await bcrypt.hash(randomPassword, 10);
-
+        // For phone-only registration, we keep names and email as null
+        // until they are provided during the first booking or profile update.
         return this.prisma.user.create({
             data: {
                 phone: normalizedPhone,
-                email: placeholderEmail,
-                password: hashedPassword,
-                firstName: 'Phone',
-                lastName: 'User',
+                email: null,
+                password: null,
+                firstName: null,
+                lastName: null,
                 roles: customerRole ? {
                     create: {
                         role: { connect: { id: customerRole.id } }
@@ -598,6 +594,66 @@ export class UsersService {
                     roleId,
                 },
             },
+        });
+    }
+
+    async deleteUserAccount(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                ownedProperties: true,
+                roles: {
+                    include: {
+                        role: true
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const isPropertyOwner = user.roles.some(ur => ur.role.name === 'PropertyOwner');
+        const timestamp = new Date().getTime();
+        const anonymizedString = `deleted_${timestamp}`;
+
+        // 2. Perform anonymization and deactivation
+        return this.prisma.$transaction(async (tx) => {
+            // Deactivate all owned properties
+            if (isPropertyOwner) {
+                await tx.property.updateMany({
+                    where: { ownerId: userId },
+                    data: { isActive: false }
+                });
+            }
+
+            // Remove roles
+            await tx.userRole.deleteMany({
+                where: { userId }
+            });
+
+            // Delete notifications
+            await tx.notification.deleteMany({
+                where: { userId }
+            });
+
+            // Update user record with anonymized data
+            return tx.user.update({
+                where: { id: userId },
+                data: {
+                    email: user.email ? `${anonymizedString}@deleted.com` : null,
+                    phone: user.phone ? `deleted_${timestamp}` : null,
+                    firstName: 'Deleted',
+                    lastName: 'User',
+                    password: null,
+                    avatar: null,
+                    idNumber: null,
+                    whatsappNumber: null,
+                    isActive: false,
+                    fcmToken: null
+                }
+            });
         });
     }
 }

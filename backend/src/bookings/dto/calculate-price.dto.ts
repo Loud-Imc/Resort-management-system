@@ -40,6 +40,11 @@ export class CalculatePriceDto {
     @IsOptional()
     referralCode?: string;
 
+    @ApiProperty({ example: 'ANYCODE', required: false })
+    @IsString()
+    @IsOptional()
+    generalCode?: string;
+
     @ApiProperty({ example: 'AED', required: false })
     @IsString()
     @IsOptional()

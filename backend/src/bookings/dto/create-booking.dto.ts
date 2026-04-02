@@ -153,6 +153,11 @@ export class CreateBookingDto {
     @IsOptional()
     referralCode?: string;
 
+    @ApiProperty({ example: 'ANYCODE', required: false })
+    @IsString()
+    @IsOptional()
+    generalCode?: string;
+
     @ApiProperty({ example: 'CASH', required: false, enum: ['ONLINE', 'WALLET', 'CASH', 'UPI'] })
     @IsString()
     @IsOptional()

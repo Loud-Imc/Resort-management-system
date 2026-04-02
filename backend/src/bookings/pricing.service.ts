@@ -21,6 +21,9 @@ export interface PricingBreakdown {
     convertedTotal: number;
     // Group Booking
     roomCount?: number;
+    // Code Detection Info
+    appliedCodeType?: 'COUPON' | 'REFERRAL' | 'NONE';
+    referralPartnerId?: string;
 }
 
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -55,7 +58,33 @@ export class PricingService {
         isGroupBooking: boolean = false,
         groupSize?: number,
         requestedRoomCount: number = 1,
+        generalCode?: string,
     ): Promise<PricingBreakdown> {
+        console.log(`[PricingService] calculatePrice inputs - gen: ${generalCode} (${typeof generalCode}), coup: ${couponCode} (${typeof couponCode}), ref: ${referralCode} (${typeof referralCode})`);
+        // Resolve generalCode if provided
+        if (generalCode && !couponCode && !referralCode) {
+            const trimmed = generalCode.trim().toUpperCase();
+            // Check if it's a coupon first
+            const coupon = await this.prisma.coupon.findUnique({ where: { code: trimmed } });
+            console.log(`[PricingService] Coupon lookup for ${trimmed}: ${coupon ? 'FOUND' : 'NOT FOUND'}`);
+            if (coupon) {
+                couponCode = trimmed;
+            } else {
+                // If not a coupon, check if it's a referral code
+                const cp = await this.prisma.channelPartner.findFirst({
+                    where: { referralCode: trimmed, status: 'APPROVED' as any }
+                });
+                console.log(`[PricingService] CP lookup for ${trimmed}: ${cp ? 'FOUND' : 'NOT FOUND'} (Status: ${cp?.status})`);
+                if (cp) {
+                    referralCode = trimmed;
+                } else {
+                    // If neither, we'll let the individual logic below throw the error
+                    // Defaulting to coupon so it throws "Invalid coupon code"
+                    couponCode = trimmed;
+                }
+            }
+        }
+
         // 1. Get room type pricing configuration
         console.log("adultcount", adultsCount);
         console.log("childrenCount", childrenCount);
@@ -217,6 +246,7 @@ export class PricingService {
                 checkInDate,
             );
             subtotal -= couponDiscountAmount;
+            console.log(`[PricingService] Coupon discount applied: ${couponDiscountAmount}, new subtotal: ${subtotal}`);
         }
 
         // 9a. Global discount cap — applied AFTER all individual discounts, BEFORE tax
@@ -303,27 +333,31 @@ export class PricingService {
             roomCount = Math.ceil(groupSize / roomCapacity);
         }
 
-        return {
-            baseAmount,
-            extraAdultAmount,
-            extraChildAmount,
-            taxAmount,
-            offerDiscountAmount,
-            couponDiscountAmount,
-            referralDiscountAmount,
-            discountAmount: offerDiscountAmount + couponDiscountAmount + referralDiscountAmount,
-            totalAmount,
+        const result = {
+            baseAmount: Number(baseAmount.toFixed(2)),
+            extraAdultAmount: Number(extraAdultAmount.toFixed(2)),
+            extraChildAmount: Number(extraChildAmount.toFixed(2)),
+            taxAmount: Number(totalTaxAmount.toFixed(2)),
+            offerDiscountAmount: Number(offerDiscountAmount.toFixed(2)),
+            couponDiscountAmount: Number(couponDiscountAmount.toFixed(2)),
+            referralDiscountAmount: Number(referralDiscountAmount.toFixed(2)),
+            discountAmount: Number((offerDiscountAmount + couponDiscountAmount + referralDiscountAmount).toFixed(2)),
+            totalAmount: Number(totalAmount.toFixed(2)),
             numberOfNights,
             pricePerNight: basePricePerNight,
-            taxRate: Math.round(taxRate * 100),
+            taxRate: Math.round(taxRate),
             baseCurrency,
             targetCurrency,
             exchangeRate,
-            convertedTotal: totalAmount * exchangeRate,
+            convertedTotal: Number((totalAmount * exchangeRate).toFixed(2)),
             roomCount,
             // Transparency: inform the consumer whether the cap was enforced
             ...(capApplied && { discountCapApplied: true, discountCapPct: maxDiscountFraction * 100 }),
+            appliedCodeType: referralCode ? 'REFERRAL' : (couponCode ? 'COUPON' : 'NONE') as 'REFERRAL' | 'COUPON' | 'NONE',
+            referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode } }))?.id : undefined,
         };
+        console.log(`[PricingService] Final result: total=${result.totalAmount}, type=${result.appliedCodeType}`);
+        return result;
     }
 
     /**

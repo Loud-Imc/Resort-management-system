@@ -21,7 +21,8 @@ import {
     Moon,
     ChevronDown,
     Building2,
-    RefreshCw
+    RefreshCw,
+    Settings
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
@@ -227,6 +228,21 @@ export default function DashboardLayout() {
                         {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
                     </button>
 
+                    <NavLink
+                        to="/account-settings"
+                        className={({ isActive }) =>
+                            clsx(
+                                'w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors rounded-lg',
+                                isActive
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-foreground hover:bg-muted'
+                            )
+                        }
+                    >
+                        <Settings className="h-5 w-5" />
+                        Account Settings
+                    </NavLink>
+
                     <div className="flex items-center gap-3 px-4 py-3 mb-2">
                         <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
                             {user?.firstName?.charAt(0) || 'P'}
@@ -328,6 +344,21 @@ export default function DashboardLayout() {
                                     )}
                                 </NavLink>
                             ))}
+                            <NavLink
+                                to="/account-settings"
+                                onClick={() => setIsSidebarOpen(false)}
+                                className={({ isActive }) =>
+                                    clsx(
+                                        'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                                        isActive
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                    )
+                                }
+                            >
+                                <Settings className="h-5 w-5" />
+                                <span className="flex-1">Account Settings</span>
+                            </NavLink>
                         </nav>
                         <div className="p-4 border-t border-border">
                             <button

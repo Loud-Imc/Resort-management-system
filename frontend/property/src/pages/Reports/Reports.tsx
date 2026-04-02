@@ -121,15 +121,14 @@ export default function Reports() {
                 </div>
             </div>
 
-            {/* KPI Overview */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <KPICard title="Total Revenue" value={`₹${financialReport?.totalRevenue?.toLocaleString() || '0'}`}
+                <KPICard title="Total Revenue" value={`₹${financialReport?.summary?.totalIncome?.toLocaleString() || '0'}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />} color="text-emerald-500" />
                 <KPICard title="Avg. Occupancy" value={`${occupancyReport?.averageOccupancy || 0}%`}
                     icon={<Bed className="h-4 w-4 text-sky-500" />} color="text-sky-500" />
-                <KPICard title="Total Bookings" value={financialReport?.bookingsCount || 0}
+                <KPICard title="Total Bookings" value={financialReport?.summary?.bookingsCount || 0}
                     icon={<Users className="h-4 w-4 text-blue-600" />} color="text-blue-600" />
-                <KPICard title="Net Earnings" value={`₹${financialReport?.netAmount?.toLocaleString() || '0'}`}
+                <KPICard title="Net Earnings" value={`₹${financialReport?.summary?.netProfit?.toLocaleString() || '0'}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />} color="text-amber-500" />
             </div>
 

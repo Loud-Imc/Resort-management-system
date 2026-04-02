@@ -400,19 +400,22 @@ export class PropertiesService {
         let shouldUpdatePassword = false;
 
         if (existingUser) {
-            // Verify the provided password matches their existing account (or check if it's a Guest-only account being upgraded)
-            const isPasswordValid = await bcrypt.compare(dto.ownerPassword, existingUser.password);
-
             // A user is "claimable" if they only have the 'Customer' role
             const isGuestOnly = existingUser.roles.every((ur: any) => ur.role.name === 'Customer');
 
-            if (!isPasswordValid && !isGuestOnly) {
-                throw new ConflictException('An account with this email or phone already exists. Please provide the correct password to link it.');
-            }
-
-            // If it was a guest-only account and password didn't match, we update to the new password provided
-            if (isGuestOnly && !isPasswordValid) {
+            if (!existingUser.password) {
+                // If user exists but has no password (OTP registered), we'll allow them to "claim" it if they only have Customer role
                 shouldUpdatePassword = true;
+            } else {
+                const isPasswordValid = await bcrypt.compare(dto.ownerPassword, existingUser.password);
+                if (!isPasswordValid && !isGuestOnly) {
+                    throw new ConflictException('An account with this email or phone already exists. Please provide the correct password to link it.');
+                }
+
+                // If it was a guest-only account and password didn't match, we update to the new password provided
+                if (isGuestOnly && !isPasswordValid) {
+                    shouldUpdatePassword = true;
+                }
             }
             // Ensure PropertyOwner role is assigned
             const hasRole = existingUser.roles.some((ur: any) => ur.role.name === 'PropertyOwner');

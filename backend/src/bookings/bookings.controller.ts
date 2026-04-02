@@ -119,6 +119,7 @@ export class BookingsController {
     @Post('calculate-price')
     @ApiOperation({ summary: 'Calculate booking price (Public). Invalid referral codes are rate-limited per IP.' })
     async calculatePrice(@Body() dto: CalculatePriceDto, @Ip() ip: string) {
+        console.log(`[BookingsController] calculatePrice called with DTO:`, JSON.stringify(dto));
         // If referral code provided but invalid, count it as a failure for brute-force protection.
         // Valid codes: no penalty. No referral code: no tracking.
         const result = await this.pricingService.calculatePrice(
@@ -133,6 +134,7 @@ export class BookingsController {
             dto.isGroupBooking,
             dto.groupSize,
             dto.roomCount,
+            dto.generalCode,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {

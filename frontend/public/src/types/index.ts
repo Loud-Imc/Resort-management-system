@@ -80,6 +80,7 @@ export interface CreateBookingDto {
     specialRequests?: string;
     couponCode?: string;
     referralCode?: string; // CP referral code
+    generalCode?: string; // Intelligent code that can be either coupon or referral
     paymentMethod?: 'ONLINE' | 'WALLET';
     currency?: string;
     isGroupBooking?: boolean;

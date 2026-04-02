@@ -61,7 +61,7 @@ export const reportsService = {
             params: { startDate, endDate, propertyId },
             responseType: 'blob',
         });
-        
+
         const url = window.URL.createObjectURL(new Blob([data]));
         const link = document.createElement('a');
         link.href = url;
@@ -72,17 +72,25 @@ export const reportsService = {
     },
 
     exportPdf: async (startDate: string, endDate: string, propertyId?: string) => {
-        const { data } = await api.get('/reports/export/pdf', {
-            params: { startDate, endDate, propertyId },
-            responseType: 'blob',
-        });
-        
-        const url = window.URL.createObjectURL(new Blob([data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `Report_${startDate}_${endDate}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        console.log(`[reportsService] Exporting PDF for ${startDate} to ${endDate}`);
+        try {
+            const { data } = await api.get('/reports/export/pdf', {
+                params: { startDate, endDate, propertyId },
+                responseType: 'blob',
+            });
+            console.log(`[reportsService] PDF blob received, size: ${data.size} bytes`);
+
+            const url = window.URL.createObjectURL(new Blob([data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Report_${startDate}_${endDate}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            console.log(`[reportsService] PDF download triggered`);
+        } catch (error: any) {
+            console.error(`[reportsService] Error exporting PDF:`, error);
+            throw error;
+        }
     },
 };

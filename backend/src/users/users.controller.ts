@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Patch, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch, Request, Query, Delete } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
@@ -70,5 +70,11 @@ export class UsersController {
         @Param('roleId') roleId: string,
     ) {
         return this.usersService.assignRole(userId, roleId);
+    }
+
+    @Delete('me')
+    @ApiOperation({ summary: 'Delete current user account' })
+    async deleteMe(@Request() req) {
+        return this.usersService.deleteUserAccount(req.user.id);
     }
 }

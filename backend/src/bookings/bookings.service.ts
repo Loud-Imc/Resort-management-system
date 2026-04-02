@@ -48,7 +48,8 @@ export class BookingsService {
             whatsappNumber,
             isGroupBooking: isGroupInput = false,
             groupSize,
-            selectedRoomIds
+            selectedRoomIds,
+            generalCode
         } = createBookingDto;
 
         let isManualBooking = isManualInput;
@@ -183,6 +184,7 @@ export class BookingsService {
                 isGroupBooking,
                 groupSize,
                 (selectedRoomIds?.length || 1),
+                generalCode,
             );
         }
 
@@ -233,6 +235,7 @@ export class BookingsService {
                 isGroupBooking,
                 groupSize,
                 (selectedRoomIds?.length || allocatedRooms?.length || 1),
+                generalCode,
             );
             finalTotal = pricing.totalAmount;
         }
@@ -307,20 +310,26 @@ export class BookingsService {
         // 6. Resolve IDs and generation logic
         const bookingNumber = await this.generateBookingNumber();
         let couponId: string | undefined;
-        if (couponCode) {
-            const coupon = await this.prisma.coupon.findUnique({ where: { code: couponCode } });
+        if (couponCode || (generalCode && pricing.couponDiscountAmount > 0)) {
+            const effectiveCoupon = couponCode || (generalCode as string).trim().toUpperCase();
+            const coupon = await this.prisma.coupon.findUnique({ where: { code: effectiveCoupon } });
             couponId = coupon?.id;
+            // Ensure couponCode is set for DB storage if it was resolved from generalCode
+            if (!couponCode) couponCode = effectiveCoupon;
         }
 
         let channelPartnerId: string | undefined;
         let cpCommission = 0;
-        if (referralCode) {
+        if (referralCode || (generalCode && pricing.referralDiscountAmount > 0)) {
+            const effectiveReferral = referralCode || (generalCode as string).trim().toUpperCase();
             const cp = await this.prisma.channelPartner.findFirst({
-                where: { referralCode, status: 'APPROVED' as any },
+                where: { referralCode: effectiveReferral, status: 'APPROVED' as any },
             });
 
             if (cp) {
                 channelPartnerId = cp.id;
+                // Ensure referralCode is set for DB storage if it was resolved from generalCode
+                if (!referralCode) referralCode = effectiveReferral;
 
                 // Get propertyId to resolve priority
                 const baseRoomType = await this.prisma.roomType.findUnique({
@@ -386,6 +395,24 @@ export class BookingsService {
                     });
                 }
                 finalBookingUserId = user.id;
+            } else if (userId !== 'GUEST_USER') {
+                // For authenticated users (e.g. OTP logged in), update their profile if data is missing
+                const currentUser = await tx.user.findUnique({ where: { id: userId } });
+                if (currentUser) {
+                    const updateData: any = {};
+                    if (!currentUser.firstName) updateData.firstName = createBookingDto.guestName?.split(' ')[0];
+                    if (!currentUser.lastName) updateData.lastName = createBookingDto.guestName?.split(' ').slice(1).join(' ');
+                    if (!currentUser.email) updateData.email = lowercaseEmail;
+                    if (!currentUser.whatsappNumber) updateData.whatsappNumber = createBookingDto.whatsappNumber;
+
+                    if (Object.keys(updateData).length > 0) {
+                        console.log(`[BookingsService] [TX] Updating profile for logged-in user ${userId}:`, updateData);
+                        await tx.user.update({
+                            where: { id: userId },
+                            data: updateData
+                        });
+                    }
+                }
             }
 
             // 7.2 Deduct from wallet if applicable
@@ -857,7 +884,7 @@ export class BookingsService {
         }
 
         // Security check: verify email or phone
-        const matchesUserEmail = booking.user?.email.toLowerCase() === normalizedEmail;
+        const matchesUserEmail = booking.user?.email?.toLowerCase() === normalizedEmail;
         const matchesUserPhone = !!(normalizedPhoneInput && booking.user?.phone === normalizedPhoneInput);
         const matchesGuestEmail = booking.guests.some(g => g.email?.toLowerCase() === normalizedEmail);
         const matchesGuestPhone = !!(normalizedPhoneInput && booking.guests.some(g => g.phone === normalizedPhoneInput));

@@ -146,17 +146,20 @@ export class ChannelPartnersService {
         let shouldUpdatePassword = false;
 
         if (existingUser) {
-            // 1. Verify password (or check if it's a Guest-only account being upgraded)
-            const isPasswordValid = await bcrypt.compare(dto.password, existingUser.password);
-
-            // A user is "claimable" if they only have the 'Customer' role
             const isGuestOnly = existingUser.roles.every((ur: any) => ur.role.name === 'Customer');
+            let isPasswordValid = false;
 
-            if (!isPasswordValid && !isGuestOnly) {
-                throw new ConflictException('A user with this email or phone already exists. Please enter the correct password to link your account.');
+            if (!existingUser.password) {
+                // If user exists but has no password (OTP registered), we'll allow them to "claim" it
+                shouldUpdatePassword = true;
+            } else {
+                isPasswordValid = await bcrypt.compare(dto.password, existingUser.password);
+                if (!isPasswordValid && !isGuestOnly) {
+                    throw new ConflictException('A user with this email or phone already exists. Please enter the correct password to link your account.');
+                }
             }
 
-            // If it was a guest-only account and password didn't match, we update to the new password
+            // If it was a guest-only account and password didn't match (or was missing), we update to the new password
             if (isGuestOnly && !isPasswordValid) {
                 shouldUpdatePassword = true;
             }

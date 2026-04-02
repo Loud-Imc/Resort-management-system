@@ -77,6 +77,21 @@ export default function Profile() {
         }
     });
 
+    // Account Deletion Mutation
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const deleteAccountMutation = useMutation({
+        mutationFn: () => api.delete('/users/me'),
+        onSuccess: () => {
+            toast.success('Account deleted successfully');
+            localStorage.clear();
+            window.location.href = '/';
+        },
+        onError: (error: any) => {
+            const errorMsg = error.response?.data?.message || 'Failed to delete account';
+            toast.error(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
+        }
+    });
+
     const toTitleCase = (str: string) => {
         if (!str) return '';
         return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -227,8 +242,8 @@ export default function Profile() {
                                     {user?.avatar ? (
                                         <img src={user.avatar} alt={user.firstName} className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-primary-600 bg-primary-50 text-4xl font-bold">
-                                            {user?.firstName?.[0]}{user?.lastName?.[0]}
+                                        <div className="w-full h-full flex items-center justify-center text-primary-200 bg-primary-50/50">
+                                            <User className="w-16 h-16" strokeWidth={1.5} />
                                         </div>
                                     )}
                                 </div>
@@ -295,6 +310,7 @@ export default function Profile() {
                                                     value={formData.firstName}
                                                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                                                     disabled={!isUpdating}
+                                                    placeholder='First Name'
                                                     className="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
@@ -305,6 +321,7 @@ export default function Profile() {
                                                     value={formData.lastName}
                                                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                                     disabled={!isUpdating}
+                                                    placeholder='Last Name'
                                                     className="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
@@ -321,6 +338,7 @@ export default function Profile() {
                                                     value={formData.email}
                                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                                     disabled={!isUpdating}
+                                                    placeholder='Email Address'
                                                     className="w-full pl-16 pr-6 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
@@ -336,6 +354,7 @@ export default function Profile() {
                                                     type="tel"
                                                     value={formData.phone}
                                                     disabled={true}
+                                                    placeholder='Phone Number'
                                                     className="w-full pl-16 pr-6 py-4 rounded-2xl border border-gray-100 bg-gray-50/50 text-gray-400 font-medium cursor-not-allowed"
                                                 />
                                             </div>
@@ -372,6 +391,24 @@ export default function Profile() {
                                             </div>
                                         )}
                                     </form>
+
+                                    {/* Danger Zone */}
+                                    <div className="mt-16 pt-12 border-t border-gray-50">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                            <div>
+                                                <h4 className="text-xl font-bold text-gray-900 font-serif mb-2">Delete Account</h4>
+                                                <p className="text-gray-400 text-sm font-medium max-w-md">
+                                                    Permanently deactivate your account and anonymize your personal data. This action cannot be undone.
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => setShowDeleteConfirm(true)}
+                                                className="px-8 py-3 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition-all text-xs uppercase tracking-widest border border-red-100"
+                                            >
+                                                Delete Account
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="p-10 md:p-14">
@@ -694,6 +731,39 @@ export default function Profile() {
                                             <Package className="h-4 w-4" />
                                         </>
                                     )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Account Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
+                    <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-10 text-center">
+                            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <AlertTriangle className="h-10 w-10 text-red-500" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-900 font-serif mb-4">Are you sure?</h3>
+                            <p className="text-gray-500 text-sm font-medium mb-10 leading-relaxed">
+                                This will permanently deactivate your account and anonymize your data. All active bookings and properties must be handled before deletion.
+                            </p>
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={() => deleteAccountMutation.mutate()}
+                                    disabled={deleteAccountMutation.isPending}
+                                    className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                                >
+                                    {deleteAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Yes, Delete My Account'}
+                                </button>
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="w-full py-4 bg-gray-50 text-gray-600 font-bold rounded-2xl hover:bg-gray-100 transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Cancel
                                 </button>
                             </div>
                         </div>
