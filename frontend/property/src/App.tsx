@@ -32,6 +32,7 @@ import MyProperty from './pages/Property/MyProperty';
 import CalendarSync from './pages/Property/CalendarSync';
 import Notifications from './pages/Notifications';
 import AccountSettings from './pages/AccountSettings';
+import DeleteAccount from './pages/DeleteAccount';
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ function App() {
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
+                  <Route path="/delete-account" element={<DeleteAccount />} />
 
                   <Route path="/" element={<DashboardLayout />}>
                     <Route index element={<DashboardHome />} />

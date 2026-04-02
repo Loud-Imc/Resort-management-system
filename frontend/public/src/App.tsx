@@ -26,6 +26,7 @@ import Profile from './pages/Profile';
 import PartnerDashboard from './pages/PartnerDashboard';
 import Notifications from './pages/Notifications';
 import NotificationManager from './components/NotificationManager';
+import DeleteAccount from './pages/DeleteAccount';
 
 import { CurrencyProvider } from './context/CurrencyContext';
 import { SearchProvider } from './context/SearchContext';
@@ -64,6 +65,7 @@ function App() {
                 <Route path="/my-bookings" element={<Navigate to="/profile?tab=bookings" replace />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/notifications" element={<Notifications />} />
+                <Route path="/delete-account" element={<DeleteAccount />} />
                 <Route path="/partner/dashboard" element={<PartnerDashboard />} />
                 <Route path="/rooms" element={<Navigate to="/search" replace />} />
 

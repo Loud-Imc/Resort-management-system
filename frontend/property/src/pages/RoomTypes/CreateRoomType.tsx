@@ -28,9 +28,9 @@ const COMMON_INCLUSIONS = [
 ];
 
 const COMMON_AMENITIES = [
-    'Wi-Fi', 'Air Conditioning (AC)', 'Fan', 'Room Heater', 'LED TV',
+    'Wi-Fi', 'Air Conditioning (AC)', 'Fan', 'Room Heater', 'TV',
     'Mini Fridge', 'Electric Kettle', 'Safe Box', 'Telephone', 'Hair Dryer',
-    'Iron & Board', 'Daily Housekeeping', 'Toiletries', 'Desk & Chair',
+    'Iron box', 'Daily Housekeeping', 'Toiletries', 'Desk & Chair',
     'Wardrobe', 'Sofa / Seating Area', 'Extra Mattress', 'Bathrobes',
     'Plush Towels', 'Laundry Service'
 ];

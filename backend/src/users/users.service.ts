@@ -615,6 +615,7 @@ export class UsersService {
         }
 
         const isPropertyOwner = user.roles.some(ur => ur.role.name === 'PropertyOwner');
+        const isChannelPartner = user.roles.some(ur => ur.role.name === 'ChannelPartner');
         const timestamp = new Date().getTime();
         const anonymizedString = `deleted_${timestamp}`;
 
@@ -624,7 +625,18 @@ export class UsersService {
             if (isPropertyOwner) {
                 await tx.property.updateMany({
                     where: { ownerId: userId },
-                    data: { isActive: false }
+                    data: {
+                        isActive: false,
+                        status: 'INACTIVE'
+                    }
+                });
+            }
+
+            // Deactivate channel partner record
+            if (isChannelPartner) {
+                await tx.channelPartner.update({
+                    where: { userId },
+                    data: { status: 'INACTIVE' }
                 });
             }
 

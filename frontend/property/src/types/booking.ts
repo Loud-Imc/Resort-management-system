@@ -61,6 +61,14 @@ export interface Booking {
     agentId?: string;
     commissionAmount: number;
     guests: BookingGuest[];
+    roomBlocks?: {
+        room: {
+            roomNumber: string;
+            roomType: {
+                name: string;
+            };
+        };
+    }[];
     amountInBookingCurrency: number;
     bookingCurrency: string;
     exchangeRate: number;

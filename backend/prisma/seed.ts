@@ -215,7 +215,7 @@ async function main() {
                     basePrice: 4500,
                     maxAdults: 2,
                     maxChildren: 1,
-                    amenities: ['High-speed WiFi', '42-inch LED TV', 'Tea/Coffee Maker']
+                    amenities: ['High-speed WiFi', '42-inch TV', 'Tea/Coffee Maker']
                 },
                 {
                     name: 'Luxury Garden Suite',

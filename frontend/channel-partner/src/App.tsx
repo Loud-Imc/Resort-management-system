@@ -11,6 +11,7 @@ import Settings from './pages/Settings';
 import WalletPage from './pages/WalletPage';
 import InlineBookingPage from './pages/InlineBookingPage';
 import Notifications from './pages/Notifications';
+import DeleteAccount from './pages/DeleteAccount';
 import './App.css';
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/delete-account" element={<DeleteAccount />} />
 
       {/* Protected Routes */}
       <Route

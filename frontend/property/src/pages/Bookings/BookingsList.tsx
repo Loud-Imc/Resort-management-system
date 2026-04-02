@@ -278,9 +278,15 @@ export default function BookingsList() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-foreground">
-                                                {booking.user.firstName} {booking.user.lastName}
+                                                {booking.isManualBooking && booking.guests?.[0]
+                                                    ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
+                                                    : `${booking.user.firstName} ${booking.user.lastName}`}
                                             </div>
-                                            <div className="text-sm text-muted-foreground">{booking.user.email}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                                {booking.isManualBooking && booking.guests?.[0]
+                                                    ? (booking.guests[0].email || 'No Email')
+                                                    : booking.user.email}
+                                            </div>
                                             {booking.isGroupBooking && (
                                                 <div className="mt-1">
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase">
@@ -293,8 +299,22 @@ export default function BookingsList() {
                                             <div className="text-sm text-foreground">{booking.guests[0].phone}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-foreground">Unit {booking.room.roomNumber}</div>
-                                            <div className="text-xs text-muted-foreground">{booking.room.roomType?.name}</div>
+                                            <div className="space-y-2">
+                                                <div>
+                                                    <div className="text-sm font-bold text-foreground">Unit {booking.room.roomNumber}</div>
+                                                    <div className="text-[10px] text-muted-foreground uppercase font-medium">{booking.room.roomType?.name}</div>
+                                                </div>
+                                                {booking.roomBlocks && booking.roomBlocks.length > 0 && (
+                                                    <div className="pt-1.5 space-y-2 border-t border-border/50">
+                                                        {booking.roomBlocks.map((block, idx) => (
+                                                            <div key={idx}>
+                                                                <div className="text-sm font-bold text-foreground">Unit {block.room.roomNumber}</div>
+                                                                <div className="text-[10px] text-muted-foreground uppercase font-medium">{block.room.roomType?.name}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">
@@ -454,9 +474,21 @@ export default function BookingsList() {
                                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Stay Info</span>
                                         </div>
                                         <div className="flex justify-between items-end">
-                                            <div>
-                                                <div className="text-lg font-bold">Unit {checkInBooking.room.roomNumber}</div>
-                                                <div className="text-xs text-muted-foreground">{checkInBooking.room.roomType.name}</div>
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <div className="text-lg font-black text-primary">Unit {checkInBooking.room.roomNumber}</div>
+                                                    <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{checkInBooking.room.roomType.name}</div>
+                                                </div>
+                                                {checkInBooking.roomBlocks && checkInBooking.roomBlocks.length > 0 && (
+                                                    <div className="pt-3 border-t border-border/30 space-y-3">
+                                                        {checkInBooking.roomBlocks.map((block, idx) => (
+                                                            <div key={idx}>
+                                                                <div className="text-lg font-black text-primary">Unit {block.room.roomNumber}</div>
+                                                                <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{block.room.roomType.name}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-xs font-bold">{format(new Date(checkInBooking.checkInDate), 'MMM d')} - {format(new Date(checkInBooking.checkOutDate), 'MMM d')}</div>
@@ -572,7 +604,6 @@ export default function BookingsList() {
                                         )}
                                     </div>
                                 )}
-                                drum
 
                                 <div className="space-y-6">
                                     <div className="flex items-center justify-between">

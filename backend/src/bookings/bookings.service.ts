@@ -792,6 +792,15 @@ export class BookingsService {
                 bookingSource: true,
                 guests: true,
                 property: true,
+                roomBlocks: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                }
             },
             orderBy: {
                 createdAt: 'desc',
