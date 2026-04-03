@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 import { RequestStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 
 @Injectable()
 export class PaymentsService {
@@ -21,6 +22,7 @@ export class PaymentsService {
         private channelPartnersService: ChannelPartnersService,
         private notificationsService: NotificationsService,
         private audit: AuditService,
+        private systemSettings: SystemSettingsService,
     ) {
         const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -134,7 +136,9 @@ export class PaymentsService {
                     status: 'PENDING',
                     razorpayOrderId: order.id,
                     bookingId: booking.id,
-                    commissionRate: booking.roomType?.property?.platformCommission || 10,
+                    commissionRate: booking.roomType?.property?.platformCommission
+                        ? Number(booking.roomType.property.platformCommission)
+                        : Number(await this.systemSettings.getSetting('DEFAULT_PLATFORM_COMMISSION') ?? 10),
                 },
             });
 
@@ -218,7 +222,9 @@ export class PaymentsService {
                     status: 'PENDING',
                     razorpayOrderId: order.id,
                     eventBookingId: eventBooking.id,
-                    commissionRate: eventBooking.event?.property?.platformCommission || 10,
+                    commissionRate: eventBooking.event?.property?.platformCommission
+                        ? Number(eventBooking.event.property.platformCommission)
+                        : Number(await this.systemSettings.getSetting('DEFAULT_PLATFORM_COMMISSION') ?? 10),
                 },
             });
 
@@ -538,7 +544,9 @@ export class PaymentsService {
                     razorpayOrderId: paymentData.order_id,
                     bookingId: bookingId,
                     paymentMethod: paymentData.method,
-                    commissionRate: bookingInfo?.property?.platformCommission || 10,
+                    commissionRate: bookingInfo?.property?.platformCommission
+                        ? Number(bookingInfo.property.platformCommission)
+                        : Number(await this.systemSettings.getSetting('DEFAULT_PLATFORM_COMMISSION') ?? 10),
                 },
                 include: {
                     booking: {

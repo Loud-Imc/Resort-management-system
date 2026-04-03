@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { normalizePhone } from '../common/utils/phone';
 import { AuditService } from '../audit/audit.service';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 
 @Injectable()
 export class PropertiesService {
@@ -14,6 +15,7 @@ export class PropertiesService {
         private readonly prisma: PrismaService,
         private readonly notificationsService: NotificationsService,
         private readonly audit: AuditService,
+        private readonly systemSettings: SystemSettingsService,
     ) { }
 
     // Generate URL-friendly slug from name
@@ -158,7 +160,9 @@ export class PropertiesService {
                     ownerAadhaarImage: details.ownerAadhaarImage || null,
                     allowsGroupBooking: details.allowsGroupBooking || false,
                     maxGroupCapacity: details.maxGroupCapacity || null,
-                    platformCommission: details.platformCommission ? new Prisma.Decimal(details.platformCommission) : new Prisma.Decimal(10.00),
+                    platformCommission: details.platformCommission
+                        ? new Prisma.Decimal(details.platformCommission)
+                        : new Prisma.Decimal(await this.systemSettings.getSetting('DEFAULT_PLATFORM_COMMISSION') ?? 10.00),
                 }
             });
 

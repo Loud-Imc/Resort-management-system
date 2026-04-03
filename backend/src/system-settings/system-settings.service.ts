@@ -47,6 +47,11 @@ export class SystemSettingsService implements OnModuleInit {
                 description: 'Global default commission rate for Channel Partners if no tier, property, or partner-specific overrides exist.'
             },
             {
+                key: 'DEFAULT_PLATFORM_COMMISSION',
+                value: 10.0,
+                description: 'Global default platform commission rate for properties during registration.'
+            },
+            {
                 key: 'PAYOUT_COOLING_HOURS',
                 value: 24,
                 description: 'Cooling period (in hours) after checkout before a property settlement can be approved.'

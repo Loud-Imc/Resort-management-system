@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
+import { settingsService } from '../services/settings';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import type { ConfirmationResult } from 'firebase/auth';
 
@@ -61,6 +62,24 @@ export default function Register() {
         }
         return () => clearInterval(interval);
     }, [resendTimer]);
+
+    // Fetch Dynamic Commission
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const settings = await settingsService.getPublicSettings();
+                if (settings.DEFAULT_PLATFORM_COMMISSION !== undefined) {
+                    setFormData(prev => ({
+                        ...prev,
+                        platformCommission: settings.DEFAULT_PLATFORM_COMMISSION
+                    }));
+                }
+            } catch (error) {
+                console.error('Failed to fetch public settings:', error);
+            }
+        };
+        fetchSettings();
+    }, []);
 
     const normalizePhoneNumber = (phone: string) => {
         if (!phone) return '';

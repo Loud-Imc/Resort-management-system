@@ -14,6 +14,22 @@ import {
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
 
+const PREDEFINED_AMENITIES = [
+    'Free WiFi', 'Swimming Pool', 'Infinity Pool', 'Free Parking', 'Valet Parking',
+    'Restaurant', 'Bar', 'Lounge', 'Coffee Shop', 'Gym', 'State-of-the-art Fitness Center',
+    'Spa & Wellness', 'Steam & Sauna', 'Ayurvedic Massage', 'Room Service',
+    'Air Conditioning', 'Central Heating', '24-hour Front Desk', 'Concierge Service',
+    'Laundry Service', 'Dry Cleaning', 'Business Center', 'Meeting Rooms',
+    'Conference Hall', 'Airport Shuttle', 'Kids Club', 'Play Area',
+    'Private Beach', 'Garden', 'Terrace', 'Bonfire Area', 'Campsite',
+    'Indoor Games', 'Outdoor Sports', 'Tennis Court', 'Badminton Court',
+    'Yoga Deck', 'Meditation Center', 'CCTV Security', '24/7 Security Guard',
+    'Fire Safety', 'Power Backup', 'Complimentary Breakfast', 'Mini Bar',
+    'Doctor on Call', 'Wheelchair Accessible', 'Pet Friendly',
+    'EV Charging Station', 'Tour Desk', 'Library', 'Daily Housekeeping',
+    'Newspaper', 'Smoke Detectors'
+];
+
 export default function MyProperty() {
     const { user } = useAuth();
     const { selectedProperty, refreshProperties } = useProperty();
@@ -166,12 +182,14 @@ export default function MyProperty() {
                 // Update the request details
                 await propertiesService.updateRequest(selectedProperty.id, payload);
                 toast.success('Registration details updated successfully!');
+                setEditMode(false);
             } else {
                 // Standard Property update
                 const updated = await propertiesService.update(selectedProperty.id, payload);
                 setProperty(updated);
                 populateFields(updated);
                 toast.success('Property updated successfully!');
+                setEditMode(false);
             }
         } catch (err: any) {
             toast.error(err.response?.data?.message || 'Failed to update property');
@@ -195,14 +213,17 @@ export default function MyProperty() {
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
         try {
             setUploading(true);
-            const res = await uploadService.upload(file);
-            setImages(prev => [...prev, res.url || res.path]);
+            const filesArray = Array.from(files);
+            const res = await uploadService.uploadMultiple(filesArray);
+            const urls = res.map((r: any) => r.url || r.path);
+            setImages(prev => [...prev, ...urls]);
+            toast.success(`Successfully uploaded ${urls.length} images`);
         } catch {
-            toast.error('Failed to upload image');
+            toast.error('Failed to upload images');
         } finally {
             setUploading(false);
         }
@@ -523,21 +544,61 @@ export default function MyProperty() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <Globe className="h-5 w-5 text-blue-600" /> Amenities
                 </h2>
-                <div className="flex flex-wrap gap-2">
-                    {amenities.map((a, i) => (
-                        <span key={i} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium">
-                            {a}
-                            {editMode && <button onClick={() => removeAmenity(i)} className="ml-1 text-blue-400 hover:text-red-500"><X className="h-3 w-3" /></button>}
-                        </span>
-                    ))}
-                    {amenities.length === 0 && <p className="text-sm text-gray-400 dark:text-gray-500">No amenities listed</p>}
-                </div>
+
+                {/* Predefined List (Only in Edit Mode) */}
                 {editMode && (
-                    <div className="flex gap-2">
-                        <input value={newAmenity} onChange={e => setNewAmenity(e.target.value)} placeholder="Add amenity"
+                    <div className="space-y-3">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-tighter mb-2">Select from Predefined</label>
+                        <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                            {PREDEFINED_AMENITIES.map((a) => {
+                                const isSelected = amenities.includes(a);
+                                return (
+                                    <button
+                                        key={a}
+                                        type="button"
+                                        onClick={() => {
+                                            if (isSelected) {
+                                                setAmenities(amenities.filter(item => item !== a));
+                                            } else {
+                                                setAmenities([...amenities, a]);
+                                            }
+                                        }}
+                                        className={clsx(
+                                            "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                                            isSelected
+                                                ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none"
+                                                : "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400"
+                                        )}
+                                    >
+                                        {a}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                <div className="pt-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-tighter mb-2">
+                        {editMode ? 'Selected & Custom Amenities' : 'Current Amenities'}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                        {amenities.map((a, i) => (
+                            <span key={i} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium border border-blue-100 dark:border-blue-800">
+                                {a}
+                                {editMode && <button onClick={() => removeAmenity(i)} className="ml-1 text-blue-400 hover:text-red-500"><X className="h-3 w-3" /></button>}
+                            </span>
+                        ))}
+                        {amenities.length === 0 && <p className="text-sm text-gray-400 dark:text-gray-500">No amenities listed</p>}
+                    </div>
+                </div>
+
+                {editMode && (
+                    <div className="flex gap-2 pt-2">
+                        <input value={newAmenity} onChange={e => setNewAmenity(e.target.value)} placeholder="Add custom amenity"
                             onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
-                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm" />
-                        <button onClick={addAmenity} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none" />
+                        <button onClick={addAmenity} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 dark:shadow-none">
                             <Plus className="h-4 w-4" />
                         </button>
                     </div>
@@ -569,7 +630,7 @@ export default function MyProperty() {
                                     <span className="text-xs text-gray-400 mt-1">Add Image</span>
                                 </>
                             )}
-                            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                            <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
                         </label>
                     )}
                 </div>
@@ -723,28 +784,6 @@ export default function MyProperty() {
                 </div>
             </div>
 
-            {/* Stats */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Property Stats</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{property._count?.rooms || 0}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Rooms</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{property._count?.bookings || 0}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Bookings</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{property._count?.staff || 0}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Staff</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{property.rating?.toFixed(1) || '—'}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Rating</p>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }

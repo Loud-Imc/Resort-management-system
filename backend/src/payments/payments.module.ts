@@ -7,9 +7,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { MailModule } from '../mail/mail.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditModule } from '../audit/audit.module';
+import { SystemSettingsModule } from '../system-settings/system-settings.module';
 
 @Module({
-    imports: [ConfigModule, ChannelPartnersModule, PrismaModule, MailModule, NotificationsModule, AuditModule],
+    imports: [ConfigModule, ChannelPartnersModule, PrismaModule, MailModule, NotificationsModule, AuditModule, SystemSettingsModule],
     controllers: [PaymentsController],
     providers: [PaymentsService],
     exports: [PaymentsService],

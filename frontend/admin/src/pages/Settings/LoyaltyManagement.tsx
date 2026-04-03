@@ -40,6 +40,7 @@ export default function LoyaltyManagement() {
     const [gstTiers, setGstTiers] = useState<GstTier[]>([]);
     const [loyaltyPoints, setLoyaltyPoints] = useState<number>(0);
     const [defaultCommission, setDefaultCommission] = useState<number>(10);
+    const [defaultPlatformCommission, setDefaultPlatformCommission] = useState<number>(10);
     const [payoutCoolingHours, setPayoutCoolingHours] = useState<number>(24);
 
     // Tiers State
@@ -76,6 +77,9 @@ export default function LoyaltyManagement() {
             const commissionSetting = settingsData.find((s: GlobalSetting) => s.key === 'DEFAULT_COMMISSION_RATE');
             if (commissionSetting) setDefaultCommission(Number(commissionSetting.value));
 
+            const platformCommissionSetting = settingsData.find((s: GlobalSetting) => s.key === 'DEFAULT_PLATFORM_COMMISSION');
+            if (platformCommissionSetting) setDefaultPlatformCommission(Number(platformCommissionSetting.value));
+
             const coolingSetting = settingsData.find((s: GlobalSetting) => s.key === 'PAYOUT_COOLING_HOURS');
             if (coolingSetting) setPayoutCoolingHours(Number(coolingSetting.value));
 
@@ -109,6 +113,7 @@ export default function LoyaltyManagement() {
             await Promise.all([
                 settingsService.update('LOYALTY_POINTS_PER_INR', loyaltyPoints, 'Number of loyalty points earned per 1 INR spent'),
                 settingsService.update('DEFAULT_COMMISSION_RATE', defaultCommission, 'Global default commission rate for Channel Partners'),
+                settingsService.update('DEFAULT_PLATFORM_COMMISSION', defaultPlatformCommission, 'Global default platform commission rate for properties'),
                 settingsService.update('PAYOUT_COOLING_HOURS', payoutCoolingHours, 'Cooling period (hours) before settlement approval'),
             ]);
             toast.success('Settings updated successfully');
@@ -330,6 +335,13 @@ export default function LoyaltyManagement() {
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Default CP Commission (%)</label>
                                         <div className="relative">
                                             <input type="number" value={defaultCommission} onChange={(e) => setDefaultCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-lg font-bold" placeholder="10" />
+                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Default Platform Commission (%)</label>
+                                        <div className="relative">
+                                            <input type="number" value={defaultPlatformCommission} onChange={(e) => setDefaultPlatformCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-lg font-bold" placeholder="10" />
                                             <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                                         </div>
                                     </div>

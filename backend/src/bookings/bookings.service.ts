@@ -12,6 +12,7 @@ import { TrackBookingDto } from './dto/track-booking.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Cron } from '@nestjs/schedule';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 
 @Injectable()
 export class BookingsService {
@@ -24,6 +25,7 @@ export class BookingsService {
         private channelPartnersService: ChannelPartnersService,
         private paymentsService: PaymentsService,
         private notificationsService: NotificationsService,
+        private systemSettings: SystemSettingsService,
     ) { }
 
     /**
@@ -651,7 +653,9 @@ export class BookingsService {
                 // Handle manual payment (Cash, UPI, etc.)
                 if (isManualBooking && finalPaidAmount > 0) {
                     const pMethod = createBookingDto.paymentMethod || 'CASH';
-                    const commissionRate = Number((newBooking as any).roomType?.property?.platformCommission ?? 10);
+                    const commissionRate = Number((newBooking as any).roomType?.property?.platformCommission
+                        ?? await this.systemSettings.getSetting('DEFAULT_PLATFORM_COMMISSION')
+                        ?? 10);
                     const platformFee = (finalPaidAmount * commissionRate) / 100;
                     const netAmount = finalPaidAmount - platformFee;
 

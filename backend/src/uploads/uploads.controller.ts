@@ -1,5 +1,5 @@
-import { Controller, Post, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Post, UseInterceptors, UploadedFile, UploadedFiles, BadRequestException } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiConsumes, ApiBody, ApiOperation } from '@nestjs/swagger';
 import type { Express } from 'express';
 
@@ -32,5 +32,34 @@ export class UploadsController {
             url: `${baseUrl}/uploads/${file.filename}`,
             filename: file.filename
         };
+    }
+
+    @Post('bulk')
+    @ApiOperation({ summary: 'Upload multiple files' })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                files: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                        format: 'binary',
+                    },
+                },
+            },
+        },
+    })
+    @UseInterceptors(FilesInterceptor('files', 10)) // Limit to 10 files
+    uploadFiles(@UploadedFiles() files: Express.Multer.File[]) {
+        if (!files || files.length === 0) {
+            throw new BadRequestException('Files are required');
+        }
+        const baseUrl = process.env.API_URL || 'http://localhost:3000';
+        return files.map(file => ({
+            url: `${baseUrl}/uploads/${file.filename}`,
+            filename: file.filename
+        }));
     }
 }

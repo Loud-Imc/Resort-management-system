@@ -260,7 +260,7 @@ export default function CreateRoomType() {
                                 <div className="flex flex-col justify-center">
                                     <label className="inline-flex items-center cursor-pointer group">
                                         <input type="checkbox" {...register('isPubliclyVisible')} className="sr-only peer" />
-                                        <div className="relative w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                        <div className="relative w-11 h-6 bg-red-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                         <div className="ml-3">
                                             <span className="block text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Publicly Visible</span>
                                             <span className="block text-[10px] text-gray-500 font-medium">Show this room type on the public website</span>
@@ -271,7 +271,7 @@ export default function CreateRoomType() {
                                 <div className="flex flex-col justify-center border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700 pt-4 md:pt-0 md:pl-8">
                                     <label className="inline-flex items-center cursor-pointer group">
                                         <input type="checkbox" {...register('isAvailableForGroupBooking')} className="sr-only peer" />
-                                        <div className="relative w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                        <div className="relative w-11 h-6 bg-red-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                         <div className="ml-3">
                                             <span className="block text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Enable Group Bookings</span>
                                             <span className="block text-[10px] text-gray-500 font-medium">Allows guests to book per head for large groups</span>

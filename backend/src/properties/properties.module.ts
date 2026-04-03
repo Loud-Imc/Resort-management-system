@@ -5,9 +5,10 @@ import { PropertyStaffController } from './property-staff.controller';
 import { PropertyStaffService } from './property-staff.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuditModule } from '../audit/audit.module';
+import { SystemSettingsModule } from '../system-settings/system-settings.module';
 
 @Module({
-    imports: [PrismaModule, AuditModule],
+    imports: [PrismaModule, AuditModule, SystemSettingsModule],
     controllers: [PropertiesController, PropertyStaffController],
     providers: [PropertiesService, PropertyStaffService],
     exports: [PropertiesService, PropertyStaffService],
