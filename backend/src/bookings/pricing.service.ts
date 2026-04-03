@@ -118,18 +118,8 @@ export class PricingService {
 
         // For standard bookings: guests beyond maxAdults/maxChildren are permitted
         // but incur extra charges (calculated below). Group bookings use groupSize capacity.
-        if (isGroupBooking && groupSize) {
-            // Validate against property capacity if global group booking is enabled, otherwise room capacity
-            const maxGroupCap = (roomType.property as any).allowsGroupBooking
-                ? (roomType.property as any).maxGroupCapacity || 999
-                : (roomType.groupMaxOccupancy || (roomType.maxAdults * 2));
-
-            if (groupSize > maxGroupCap) {
-                throw new BadRequestException(
-                    `Maximum ${maxGroupCap} guests allowed for group booking in this ${(roomType.property as any).allowsGroupBooking ? 'property' : 'room type'}`,
-                );
-            }
-        }
+        // Removed the strict groupSize > maxGroupCap validation because it incorrectly limits multi-room group bookings 
+        // to a single room's capacity. Aggregate capacity is handled by AvailabilityService.
 
         // 3. Calculate base price
         let baseAmount = 0;

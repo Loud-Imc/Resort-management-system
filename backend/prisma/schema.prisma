@@ -8,56 +8,56 @@ datasource db {
 }
 
 model User {
-  id                   String          @id @default(uuid())
-  email                String?         @unique
-  password             String?
-  firstName            String?
-  lastName             String?
-  phone                String?         @unique
-  isActive             Boolean         @default(true)
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-  commissionPercentage Decimal?        @db.Decimal(5, 2)
-  createdById          String?
-  idNumber             String?
-  idType               String?
-  whatsappNumber       String?
-  avatar               String?
-  auditLogs            AuditLog[]
-  agentBookings        Booking[]       @relation("AgentBookings")
-  bookings             Booking[]
-  reviews              Review[]
-  channelPartner       ChannelPartner?
-  eventBookings        EventBooking[]
-  createdEvents        Event[]         @relation("EventsCreated")
-  addedProperties      Property[]      @relation("PropertyAddedBy")
-  ownedProperties      Property[]      @relation("PropertyOwner")
-  propertyStaff        PropertyStaff[]
-  createdBlocks        RoomBlock[]
-  roles                UserRole[]
-  createdBy            User?           @relation("UserCreator", fields: [createdById], references: [id])
-  createdUsers         User[]          @relation("UserCreator")
-  notifications        Notification[]
-  fcmToken             String?
-  approvedSettlements  PropertySettlement[]          @relation("SettlementApprover")
-  createdSettlements   PropertySettlement[]          @relation("SettlementCreator")
-  payoutSettlements    PropertySettlement[]          @relation("SettlementPayoutProcessor")
-  redemptionApprovals  CPRedemptionRequest[]        @relation("RedemptionApprover")
-  redemptionPayouts    CPRedemptionRequest[]        @relation("RedemptionPayoutProcessor")
-  adjustmentRequests   FinancialAdjustmentRequest[] @relation("AdjustmentRequester")
-  adjustmentApprovals  FinancialAdjustmentRequest[] @relation("AdjustmentApprover")
-  createdCoupons       Coupon[]                   @relation("CouponCreatedBy")
-  approvedCoupons      Coupon[]                   @relation("CouponApprovedBy")
-  reconciliationRequests PaymentReconciliation[] @relation("ReconciliationMaker")
-  reconciliationResolutions PaymentReconciliation[] @relation("ReconciliationChecker")
-  requestedManualPayments ManualPaymentRequest[]   @relation("RequestedManualPayments")
-  approvedManualPayments  ManualPaymentRequest[]   @relation("ApprovedManualPayments")
-  propertyRequests        PropertyRequest[]        @relation("PropertyRequester")
-  approvedPropertyRequests PropertyRequest[]       @relation("PropertyApprover")
-  rejectedPropertyRequests PropertyRequest[]       @relation("PropertyRejecter")
-  referredPropertyRequests PropertyRequest[]       @relation("PropertyReferrer")
-  requestedRefunds     RefundRequest[]            @relation("RefundRequester")
-  approvedRefunds      RefundRequest[]            @relation("RefundApprover")
+  id                        String                       @id @default(uuid())
+  email                     String?                      @unique
+  password                  String?
+  firstName                 String?
+  lastName                  String?
+  phone                     String?                      @unique
+  isActive                  Boolean                      @default(true)
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  commissionPercentage      Decimal?                     @db.Decimal(5, 2)
+  createdById               String?
+  idNumber                  String?
+  idType                    String?
+  whatsappNumber            String?
+  avatar                    String?
+  fcmToken                  String?
+  auditLogs                 AuditLog[]
+  agentBookings             Booking[]                    @relation("AgentBookings")
+  bookings                  Booking[]
+  channelPartner            ChannelPartner?
+  approvedCoupons           Coupon[]                     @relation("CouponApprovedBy")
+  createdCoupons            Coupon[]                     @relation("CouponCreatedBy")
+  redemptionApprovals       CPRedemptionRequest[]        @relation("RedemptionApprover")
+  redemptionPayouts         CPRedemptionRequest[]        @relation("RedemptionPayoutProcessor")
+  eventBookings             EventBooking[]
+  createdEvents             Event[]                      @relation("EventsCreated")
+  adjustmentApprovals       FinancialAdjustmentRequest[] @relation("AdjustmentApprover")
+  adjustmentRequests        FinancialAdjustmentRequest[] @relation("AdjustmentRequester")
+  approvedManualPayments    ManualPaymentRequest[]       @relation("ApprovedManualPayments")
+  requestedManualPayments   ManualPaymentRequest[]       @relation("RequestedManualPayments")
+  notifications             Notification[]
+  reconciliationRequests    PaymentReconciliation[]      @relation("ReconciliationMaker")
+  reconciliationResolutions PaymentReconciliation[]      @relation("ReconciliationChecker")
+  addedProperties           Property[]                   @relation("PropertyAddedBy")
+  ownedProperties           Property[]                   @relation("PropertyOwner")
+  approvedPropertyRequests  PropertyRequest[]            @relation("PropertyApprover")
+  referredPropertyRequests  PropertyRequest[]            @relation("PropertyReferrer")
+  rejectedPropertyRequests  PropertyRequest[]            @relation("PropertyRejecter")
+  propertyRequests          PropertyRequest[]            @relation("PropertyRequester")
+  approvedSettlements       PropertySettlement[]         @relation("SettlementApprover")
+  createdSettlements        PropertySettlement[]         @relation("SettlementCreator")
+  payoutSettlements         PropertySettlement[]         @relation("SettlementPayoutProcessor")
+  propertyStaff             PropertyStaff[]
+  approvedRefunds           RefundRequest[]              @relation("RefundApprover")
+  requestedRefunds          RefundRequest[]              @relation("RefundRequester")
+  reviews                   Review[]
+  createdBlocks             RoomBlock[]
+  roles                     UserRole[]
+  createdBy                 User?                        @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers              User[]                       @relation("UserCreator")
 
   @@map("users")
 }
@@ -71,10 +71,10 @@ model Role {
   category    RoleCategory     @default(SYSTEM)
   isSystem    Boolean          @default(false)
   propertyId  String?
+  staff       PropertyStaff[]
   permissions RolePermission[]
   property    Property?        @relation("PropertyRoles", fields: [propertyId], references: [id])
   users       UserRole[]
-  staff       PropertyStaff[]
 
   @@unique([name, propertyId], name: "name_propertyId")
   @@map("roles")
@@ -114,37 +114,37 @@ model RolePermission {
 }
 
 model RoomType {
-  id                 String        @id @default(uuid())
-  name               String
-  description        String?
-  amenities          String[]
-  basePrice          Decimal       @db.Decimal(10, 2)
-  extraAdultPrice    Decimal       @db.Decimal(10, 2)
-  extraChildPrice    Decimal       @db.Decimal(10, 2)
-  freeChildrenCount  Int           @default(0)
-  maxAdults          Int           @default(2)
-  maxChildren        Int           @default(2)
-  isPubliclyVisible  Boolean       @default(true)
-  images             String[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  propertyId             String
-  cancellationPolicyText String?
-  highlights             String[]      @default([])
-  inclusions         String[]      @default([])
-  marketingBadgeText String?
-  marketingBadgeType String?
-  bookings           Booking[]
-  reviews            Review[]
-  offers             Offer[]
-  pricingRules       PricingRule[]
-  property           Property      @relation(fields: [propertyId], references: [id])
-  rooms              Room[]
-  cancellationPolicyId String?
-  cancellationPolicy   CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
-  isAvailableForGroupBooking Boolean @default(false)
+  id                         String              @id @default(uuid())
+  name                       String
+  description                String?
+  amenities                  String[]
+  basePrice                  Decimal             @db.Decimal(10, 2)
+  extraAdultPrice            Decimal             @db.Decimal(10, 2)
+  extraChildPrice            Decimal             @db.Decimal(10, 2)
+  freeChildrenCount          Int                 @default(0)
+  maxAdults                  Int                 @default(2)
+  maxChildren                Int                 @default(2)
+  isPubliclyVisible          Boolean             @default(true)
+  images                     String[]
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  propertyId                 String
+  highlights                 String[]            @default([])
+  inclusions                 String[]            @default([])
+  marketingBadgeText         String?
+  marketingBadgeType         String?
+  cancellationPolicyId       String?
+  cancellationPolicyText     String?
+  isAvailableForGroupBooking Boolean             @default(false)
   groupMaxOccupancy          Int?
+  bookings                   Booking[]
+  offers                     Offer[]
+  pricingRules               PricingRule[]
   icalSyncs                  PropertyIcal[]
+  reviews                    Review[]
+  cancellationPolicy         CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  property                   Property            @relation(fields: [propertyId], references: [id])
+  rooms                      Room[]
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -207,76 +207,76 @@ model RoomBlock {
 }
 
 model Booking {
-  id                      String               @id @default(uuid())
-  bookingNumber           String               @unique
+  id                      String                 @id @default(uuid())
+  bookingNumber           String                 @unique
   checkInDate             DateTime
   checkOutDate            DateTime
   numberOfNights          Int
   adultsCount             Int
   childrenCount           Int
-  baseAmount              Decimal              @db.Decimal(10, 2)
-  extraAdultAmount        Decimal              @default(0) @db.Decimal(10, 2)
-  extraChildAmount        Decimal              @default(0) @db.Decimal(10, 2)
-  taxAmount               Decimal              @default(0) @db.Decimal(10, 2)
-  totalAmount             Decimal              @db.Decimal(10, 2)
-  isPriceOverridden       Boolean              @default(false)
+  baseAmount              Decimal                @db.Decimal(10, 2)
+  extraAdultAmount        Decimal                @default(0) @db.Decimal(10, 2)
+  extraChildAmount        Decimal                @default(0) @db.Decimal(10, 2)
+  taxAmount               Decimal                @default(0) @db.Decimal(10, 2)
+  totalAmount             Decimal                @db.Decimal(10, 2)
+  isPriceOverridden       Boolean                @default(false)
   overrideReason          String?
-  status                  BookingStatus        @default(PENDING_PAYMENT)
+  status                  BookingStatus          @default(PENDING_PAYMENT)
   specialRequests         String?
-  isManualBooking         Boolean              @default(false)
+  isManualBooking         Boolean                @default(false)
   roomId                  String
   roomTypeId              String
   userId                  String
   bookingSourceId         String?
   agentId                 String?
-  commissionAmount        Decimal              @default(0) @db.Decimal(10, 2)
+  commissionAmount        Decimal                @default(0) @db.Decimal(10, 2)
   couponId                String?
-  couponCode              String?
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
   confirmedAt             DateTime?
   checkedInAt             DateTime?
   checkedOutAt            DateTime?
   cancelledAt             DateTime?
-  abandonedCartSentAt     DateTime?
-  balanceReminderSentAt   DateTime?
-  reviewRequestSentAt     DateTime?
   channelPartnerId        String?
-  cpCommission            Decimal?             @db.Decimal(10, 2)
-  cpDiscount              Decimal?             @db.Decimal(10, 2)
-  commissionableAmount    Decimal              @default(0) @db.Decimal(10, 2)
+  cpCommission            Decimal?               @db.Decimal(10, 2)
+  cpDiscount              Decimal?               @db.Decimal(10, 2)
   propertyId              String?
-  couponDiscountAmount    Decimal              @default(0) @db.Decimal(10, 2)
-  offerDiscountAmount     Decimal               @default(0) @db.Decimal(10, 2)
-  paymentMethod           BookingPaymentMethod?
+  couponDiscountAmount    Decimal                @default(0) @db.Decimal(10, 2)
+  offerDiscountAmount     Decimal                @default(0) @db.Decimal(10, 2)
   whatsappNumber          String?
-  amountInBookingCurrency Decimal              @default(0) @db.Decimal(10, 2)
-  bookingCurrency         String               @default("INR")
-  exchangeRate            Decimal              @default(1.0) @db.Decimal(10, 4)
-  paidAmount              Decimal              @default(0) @db.Decimal(10, 2)
-  paymentOption           BookingPaymentOption @default(FULL)
-  paymentStatus           BookingPaymentStatus @default(UNPAID)
-  gstNumber               String?
-  isSeenByProperty        Boolean              @default(false)
-  isGroupBooking          Boolean              @default(false)
+  amountInBookingCurrency Decimal                @default(0) @db.Decimal(10, 2)
+  bookingCurrency         String                 @default("INR")
+  exchangeRate            Decimal                @default(1.0) @db.Decimal(10, 4)
+  paidAmount              Decimal                @default(0) @db.Decimal(10, 2)
+  paymentOption           BookingPaymentOption   @default(FULL)
+  paymentStatus           BookingPaymentStatus   @default(UNPAID)
+  abandonedCartSentAt     DateTime?
+  isSeenByProperty        Boolean                @default(false)
+  reviewRequestSentAt     DateTime?
+  balanceReminderSentAt   DateTime?
   groupSize               Int?
+  isGroupBooking          Boolean                @default(false)
+  couponCode              String?
+  commissionableAmount    Decimal                @default(0) @db.Decimal(10, 2)
+  paymentMethod           BookingPaymentMethod?
+  gstNumber               String?
   auditLogs               AuditLog[]
   guests                  BookingGuest[]
-  roomBlocks              RoomBlock[]
-  agent                   User?                @relation("AgentBookings", fields: [agentId], references: [id])
-  bookingSource           BookingSource?       @relation(fields: [bookingSourceId], references: [id])
-  channelPartner          ChannelPartner?      @relation("CPReferrals", fields: [channelPartnerId], references: [id])
-  coupon                  Coupon?              @relation(fields: [couponId], references: [id])
-  property                Property?            @relation(fields: [propertyId], references: [id])
-  room                    Room                 @relation(fields: [roomId], references: [id])
-  roomType                RoomType             @relation(fields: [roomTypeId], references: [id])
-  user                    User                 @relation(fields: [userId], references: [id])
-  income                  Income[]
-  payments                Payment[]
+  agent                   User?                  @relation("AgentBookings", fields: [agentId], references: [id])
+  bookingSource           BookingSource?         @relation(fields: [bookingSourceId], references: [id])
+  channelPartner          ChannelPartner?        @relation("CPReferrals", fields: [channelPartnerId], references: [id])
+  coupon                  Coupon?                @relation(fields: [couponId], references: [id])
+  property                Property?              @relation(fields: [propertyId], references: [id])
+  room                    Room                   @relation(fields: [roomId], references: [id])
+  roomType                RoomType               @relation(fields: [roomTypeId], references: [id])
+  user                    User                   @relation(fields: [userId], references: [id])
   cpTransactions          CPTransaction[]
-  propertySettlement      PropertySettlement?
+  income                  Income[]
   manualPaymentRequests   ManualPaymentRequest[]
+  payments                Payment[]
+  propertySettlement      PropertySettlement?
   review                  Review?
+  roomBlocks              RoomBlock[]
 
   @@index([propertyId])
   @@index([status])
@@ -304,13 +304,13 @@ model BookingGuest {
 }
 
 model BookingSource {
-  id          String    @id @default(uuid())
-  name        String    @unique
+  id          String         @id @default(uuid())
+  name        String         @unique
   description String?
-  commission  Decimal?  @db.Decimal(5, 2)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  commission  Decimal?       @db.Decimal(5, 2)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   bookings    Booking[]
   icalSyncs   PropertyIcal[]
 
@@ -346,45 +346,45 @@ model Coupon {
   usedCount        Int          @default(0)
   minBookingAmount Decimal?     @db.Decimal(10, 2)
   isActive         Boolean      @default(true)
-  isApproved       Boolean      @default(false)
-  createdById      String?
-  approvedById     String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+  approvedById     String?
+  createdById      String?
+  isApproved       Boolean      @default(false)
   bookings         Booking[]
-  createdBy        User?        @relation("CouponCreatedBy", fields: [createdById], references: [id])
   approvedBy       User?        @relation("CouponApprovedBy", fields: [approvedById], references: [id])
+  createdBy        User?        @relation("CouponCreatedBy", fields: [createdById], references: [id])
 
   @@index([isActive])
   @@map("coupons")
 }
 
 model Payment {
-  id                String        @id @default(uuid())
-  amount            Decimal       @db.Decimal(10, 2)
-  currency          String        @default("INR")
-  status            PaymentStatus @default(PENDING)
-  razorpayOrderId   String?       @unique
-  razorpayPaymentId String?       @unique
+  id                String                 @id @default(uuid())
+  amount            Decimal                @db.Decimal(10, 2)
+  currency          String                 @default("INR")
+  status            PaymentStatus          @default(PENDING)
+  razorpayOrderId   String?                @unique
+  razorpayPaymentId String?                @unique
   razorpaySignature String?
   paymentMethod     String?
   paymentDate       DateTime?
-  refundAmount      Decimal?      @db.Decimal(10, 2)
+  refundAmount      Decimal?               @db.Decimal(10, 2)
   refundDate        DateTime?
   refundReason      String?
   bookingId         String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
   eventBookingId    String?
-  netAmount         Decimal?      @db.Decimal(10, 2)
-  payoutStatus      PayoutStatus  @default(PENDING)
-  platformFee       Decimal?      @db.Decimal(10, 2)
-  commissionRate    Decimal?      @db.Decimal(5, 2)
+  netAmount         Decimal?               @db.Decimal(10, 2)
+  payoutStatus      PayoutStatus           @default(PENDING)
+  platformFee       Decimal?               @db.Decimal(10, 2)
   notes             String?
-  booking           Booking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  eventBooking      EventBooking? @relation(fields: [eventBookingId], references: [id], onDelete: Restrict)
+  commissionRate    Decimal?               @db.Decimal(5, 2)
   income            Income?
   reconciliation    PaymentReconciliation?
+  booking           Booking?               @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  eventBooking      EventBooking?          @relation(fields: [eventBookingId], references: [id], onDelete: Restrict)
   refundRequests    RefundRequest[]
 
   @@index([bookingId])
@@ -406,8 +406,8 @@ model Income {
   paymentId      String?       @unique
   booking        Booking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   eventBooking   EventBooking? @relation(fields: [eventBookingId], references: [id], onDelete: Restrict)
-  property       Property?     @relation(fields: [propertyId], references: [id])
   payment        Payment?      @relation(fields: [paymentId], references: [id])
+  property       Property?     @relation(fields: [propertyId], references: [id])
 
   @@index([bookingId])
   @@index([date])
@@ -437,8 +437,8 @@ model ExpenseCategory {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   propertyId  String?
-  expenses    Expense[]
   property    Property? @relation(fields: [propertyId], references: [id])
+  expenses    Expense[]
 
   @@unique([name, propertyId])
   @@map("expense_categories")
@@ -463,104 +463,103 @@ model AuditLog {
 }
 
 model Property {
-  id                  String            @id @default(uuid())
-  name                String
-  slug                String            @unique
-  type                PropertyType
-  description         String?
-  address             String
-  city                String
-  state               String
-  country             String            @default("India")
-  pincode             String?
-  latitude            Decimal?          @db.Decimal(10, 8)
-  longitude           Decimal?          @db.Decimal(11, 8)
-  email               String
-  phone               String
-  images              String[]
-  coverImage          String?
-  amenities           String[]
-  policies            Json?
-  rating              Decimal?          @db.Decimal(2, 1)
-  reviewCount         Int               @default(0)
-  isActive            Boolean           @default(true)
-  isVerified          Boolean           @default(false)
-  propertyRequest     PropertyRequest?
-  ownerId             String
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  addedById           String?
-  commissionStatus    CommissionStatus  @default(PENDING)
-  marketingCommission Decimal           @default(0) @db.Decimal(10, 2)
-  isFeatured          Boolean           @default(false)
-  platformCommission  Decimal           @default(10.00) @db.Decimal(5, 2)
-  whatsappNumber      String?
-  status              PropertyStatus    @default(PENDING)
-  categoryId          String?
-  baseCurrency        String            @default("INR")
-  taxRate             Float             @default(12)
-  licenceImage        String?
-  gstNumber           String?
-  ownerAadhaarNumber  String?
-  ownerAadhaarImage   String?
-  bookings            Booking[]
-  reviews             Review[]
-  events              Event[]
-  expenses            Expense[]
-  incomes             Income[]
-  addedBy             User?             @relation("PropertyAddedBy", fields: [addedById], references: [id])
-  category            PropertyCategory? @relation(fields: [categoryId], references: [id])
-  owner               User              @relation("PropertyOwner", fields: [ownerId], references: [id])
-  staff               PropertyStaff[]
-  roles               Role[]            @relation("PropertyRoles")
-  roomTypes           RoomType[]
-  rooms               Room[]
-  cancellationPolicies CancellationPolicy[] @relation("PropertyPolicies")
-  settlements         PropertySettlement[]
+  id                          String               @id @default(uuid())
+  name                        String
+  slug                        String               @unique
+  type                        PropertyType
+  description                 String?
+  address                     String
+  city                        String
+  state                       String
+  country                     String               @default("India")
+  pincode                     String?
+  latitude                    Decimal?             @db.Decimal(10, 8)
+  longitude                   Decimal?             @db.Decimal(11, 8)
+  email                       String
+  phone                       String
+  images                      String[]
+  coverImage                  String?
+  amenities                   String[]
+  policies                    Json?
+  rating                      Decimal?             @db.Decimal(2, 1)
+  reviewCount                 Int                  @default(0)
+  isActive                    Boolean              @default(true)
+  isVerified                  Boolean              @default(false)
+  ownerId                     String
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+  addedById                   String?
+  commissionStatus            CommissionStatus     @default(PENDING)
+  marketingCommission         Decimal              @default(0) @db.Decimal(10, 2)
+  isFeatured                  Boolean              @default(false)
+  platformCommission          Decimal              @default(10.00) @db.Decimal(5, 2)
+  whatsappNumber              String?
+  status                      PropertyStatus       @default(PENDING)
+  categoryId                  String?
+  baseCurrency                String               @default("INR")
+  taxRate                     Float                @default(12)
   defaultCancellationPolicyId String?
-  defaultCancellationPolicy   CancellationPolicy? @relation("PropertyDefaultPolicy", fields: [defaultCancellationPolicyId], references: [id])
-  allowsGroupBooking   Boolean           @default(false)
-  maxGroupCapacity     Int?
-  groupPricePerHead    Decimal?          @db.Decimal(10, 2)
-  groupPriceAdult      Decimal?          @db.Decimal(10, 2)
-  groupPriceChild      Decimal?          @db.Decimal(10, 2)
-  icalSyncs            PropertyIcal[]
-  expenseCategories    ExpenseCategory[]
+  gstNumber                   String?
+  licenceImage                String?
+  ownerAadhaarImage           String?
+  ownerAadhaarNumber          String?
+  allowsGroupBooking          Boolean              @default(false)
+  maxGroupCapacity            Int?
+  groupPricePerHead           Decimal?             @db.Decimal(10, 2)
+  groupPriceAdult             Decimal?             @db.Decimal(10, 2)
+  groupPriceChild             Decimal?             @db.Decimal(10, 2)
+  bookings                    Booking[]
+  cancellationPolicies        CancellationPolicy[] @relation("PropertyPolicies")
+  events                      Event[]
+  expenseCategories           ExpenseCategory[]
+  expenses                    Expense[]
+  incomes                     Income[]
+  addedBy                     User?                @relation("PropertyAddedBy", fields: [addedById], references: [id])
+  category                    PropertyCategory?    @relation(fields: [categoryId], references: [id])
+  defaultCancellationPolicy   CancellationPolicy?  @relation("PropertyDefaultPolicy", fields: [defaultCancellationPolicyId], references: [id])
+  owner                       User                 @relation("PropertyOwner", fields: [ownerId], references: [id])
+  icalSyncs                   PropertyIcal[]
+  propertyRequest             PropertyRequest?
+  settlements                 PropertySettlement[]
+  staff                       PropertyStaff[]
+  reviews                     Review[]
+  roles                       Role[]               @relation("PropertyRoles")
+  roomTypes                   RoomType[]
+  rooms                       Room[]
 
   @@map("properties")
 }
 
 model PropertyIcal {
-  id           String    @id @default(uuid())
-  propertyId   String
-  icalUrl      String
-  platformName String    // e.g., "Airbnb", "Booking.com"
-  lastSyncedAt DateTime?
-  status       String    @default("ACTIVE") // ACTIVE, FAILED
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  id              String         @id @default(uuid())
+  propertyId      String
+  icalUrl         String
+  platformName    String
+  lastSyncedAt    DateTime?
+  status          String         @default("ACTIVE")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   bookingSourceId String?
-  bookingSource   BookingSource? @relation(fields: [bookingSourceId], references: [id], onDelete: SetNull)
   roomTypeId      String?
-  roomType        RoomType?      @relation(fields: [roomTypeId], references: [id], onDelete: SetNull)
+  bookingSource   BookingSource? @relation(fields: [bookingSourceId], references: [id])
+  property        Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType        RoomType?      @relation(fields: [roomTypeId], references: [id])
 
   @@map("property_icals")
 }
 
 model CancellationPolicy {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   name        String
   description String?
   propertyId  String
-  rules       Json     // [{ hoursBeforeCheckIn: number, refundPercentage: number }]
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  property    Property @relation("PropertyPolicies", fields: [propertyId], references: [id])
-  roomTypes   RoomType[]
+  rules       Json
+  isDefault   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  property    Property   @relation("PropertyPolicies", fields: [propertyId], references: [id])
   properties  Property[] @relation("PropertyDefaultPolicy")
+  roomTypes   RoomType[]
 
   @@map("cancellation_policies")
 }
@@ -572,9 +571,9 @@ model PropertyCategory {
   icon        String?
   description String?
   isActive    Boolean    @default(true)
-  position    Int        @default(0)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  position    Int        @default(0)
   properties  Property[]
 
   @@map("property_categories")
@@ -582,54 +581,54 @@ model PropertyCategory {
 
 model PropertyStaff {
   id         String   @id @default(uuid())
-  roleId     String
   propertyId String
   userId     String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  roleId     String
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id])
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
   @@unique([propertyId, userId])
   @@map("property_staff")
 }
 
 model ChannelPartner {
-  id                   String               @id @default(uuid())
-  referralCode         String               @unique
-  overrideCommissionRate Decimal?           @db.Decimal(5, 2)
-  totalPoints          Int                  @default(0)
-  availablePoints      Int                  @default(0)
-  totalEarnings        Decimal              @default(0) @db.Decimal(12, 2)
-  paidOut              Decimal              @default(0) @db.Decimal(12, 2)
-  userId               String               @unique
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  authorizedPersonName String?
-  businessAddress      String?
-  organizationName     String?
-  partnerType          PartnerType          @default(INDIVIDUAL)
-  status               ChannelPartnerStatus @default(PENDING)
-  taxId                String?
-  accountHolderName    String?
-  accountNumber        String?
-  bankName             String?
-  ifscCode             String?
-  notificationPrefs    Json?                @default("{\"emailRewards\": true, \"pushBookings\": true, \"emailReferrals\": true}")
-  pendingEarnings      Decimal              @default(0) @db.Decimal(12, 2)
-  pendingPoints        Int                  @default(0)
-  referralDiscountRate Decimal              @default(5.00) @db.Decimal(5, 2)
-  upiId                String?
-  walletBalance        Decimal              @default(0) @db.Decimal(12, 2)
-  registrationFeePaid  Boolean              @default(false)
-  aadhaarImage         String?
-  licenceImage         String?
-  referrals            Booking[]            @relation("CPReferrals")
-  user                 User                 @relation(fields: [userId], references: [id])
-  redemptions          CPRewardRedemption[]
-  transactions         CPTransaction[]
-  redemptionRequests   CPRedemptionRequest[]
+  id                     String                @id @default(uuid())
+  referralCode           String                @unique
+  totalPoints            Int                   @default(0)
+  availablePoints        Int                   @default(0)
+  totalEarnings          Decimal               @default(0) @db.Decimal(12, 2)
+  paidOut                Decimal               @default(0) @db.Decimal(12, 2)
+  userId                 String                @unique
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  authorizedPersonName   String?
+  businessAddress        String?
+  organizationName       String?
+  partnerType            PartnerType           @default(INDIVIDUAL)
+  status                 ChannelPartnerStatus  @default(PENDING)
+  taxId                  String?
+  accountHolderName      String?
+  accountNumber          String?
+  bankName               String?
+  ifscCode               String?
+  notificationPrefs      Json?                 @default("{\"emailRewards\": true, \"pushBookings\": true, \"emailReferrals\": true}")
+  pendingEarnings        Decimal               @default(0) @db.Decimal(12, 2)
+  pendingPoints          Int                   @default(0)
+  referralDiscountRate   Decimal               @default(5.00) @db.Decimal(5, 2)
+  upiId                  String?
+  walletBalance          Decimal               @default(0) @db.Decimal(12, 2)
+  registrationFeePaid    Boolean               @default(false)
+  aadhaarImage           String?
+  licenceImage           String?
+  overrideCommissionRate Decimal?              @db.Decimal(5, 2)
+  referrals              Booking[]             @relation("CPReferrals")
+  user                   User                  @relation(fields: [userId], references: [id])
+  redemptionRequests     CPRedemptionRequest[]
+  redemptions            CPRewardRedemption[]
+  transactions           CPTransaction[]
 
   @@map("channel_partners")
 }
@@ -642,12 +641,12 @@ model CPTransaction {
   description      String?
   channelPartnerId String
   bookingId        String?
-  referenceId      String?
   createdAt        DateTime            @default(now())
   status           CPTransactionStatus @default(FINALIZED)
   isPrepaid        Boolean             @default(false)
+  referenceId      String?
+  booking          Booking?            @relation(fields: [bookingId], references: [id])
   channelPartner   ChannelPartner      @relation(fields: [channelPartnerId], references: [id])
-  booking          Booking?           @relation(fields: [bookingId], references: [id])
 
   @@unique([bookingId, type])
   @@unique([referenceId, type])
@@ -728,21 +727,20 @@ model Event {
 }
 
 model Review {
-  id          String   @id @default(uuid())
-  rating      Int
-  comment     String?
-  userId      String
-  roomTypeId  String?
-  propertyId  String
-  bookingId   String   @unique
-  images      String[] @default([])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  user        User     @relation(fields: [userId], references: [id])
-  roomType    RoomType? @relation(fields: [roomTypeId], references: [id])
-  property    Property @relation(fields: [propertyId], references: [id])
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  id         String    @id @default(uuid())
+  rating     Int
+  comment    String?
+  userId     String
+  roomTypeId String?
+  propertyId String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  images     String[]  @default([])
+  bookingId  String    @unique
+  booking    Booking   @relation(fields: [bookingId], references: [id])
+  property   Property  @relation(fields: [propertyId], references: [id])
+  roomType   RoomType? @relation(fields: [roomTypeId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
 
   @@index([propertyId])
   @@index([bookingId])
@@ -771,6 +769,187 @@ model EventBooking {
   @@map("event_bookings")
 }
 
+model Notification {
+  id         String   @id @default(uuid())
+  title      String
+  message    String
+  type       String
+  isRead     Boolean  @default(false)
+  data       Json?
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  targetRole String?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model GlobalSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("global_settings")
+}
+
+model PropertySettlement {
+  id           String           @id @default(uuid())
+  propertyId   String
+  bookingId    String           @unique
+  grossAmount  Decimal          @db.Decimal(10, 2)
+  platformFee  Decimal          @db.Decimal(10, 2)
+  cpCommission Decimal          @db.Decimal(10, 2)
+  netPayout    Decimal          @db.Decimal(10, 2)
+  status       SettlementStatus @default(CALCULATED)
+  createdById  String?
+  approvedById String?
+  payoutById   String?
+  processedAt  DateTime?
+  referenceId  String?
+  method       String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  approvedBy   User?            @relation("SettlementApprover", fields: [approvedById], references: [id])
+  booking      Booking          @relation(fields: [bookingId], references: [id])
+  createdBy    User?            @relation("SettlementCreator", fields: [createdById], references: [id])
+  payoutBy     User?            @relation("SettlementPayoutProcessor", fields: [payoutById], references: [id])
+  property     Property         @relation(fields: [propertyId], references: [id])
+
+  @@map("property_settlements")
+}
+
+model CPRedemptionRequest {
+  id             String           @id @default(uuid())
+  cpId           String
+  amount         Decimal          @db.Decimal(12, 2)
+  status         RedemptionStatus @default(REQUESTED)
+  referenceId    String?
+  method         String?
+  approverId     String?
+  payoutById     String?
+  reason         String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  approver       User?            @relation("RedemptionApprover", fields: [approverId], references: [id])
+  channelPartner ChannelPartner   @relation(fields: [cpId], references: [id])
+  payoutBy       User?            @relation("RedemptionPayoutProcessor", fields: [payoutById], references: [id])
+
+  @@map("cp_redemption_requests")
+}
+
+model FinancialAdjustmentRequest {
+  id            String         @id @default(uuid())
+  amount        Decimal        @db.Decimal(12, 2)
+  type          AdjustmentType
+  targetId      String
+  reason        String
+  requestedById String
+  approvedById  String?
+  status        RequestStatus  @default(PENDING)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  approvedBy    User?          @relation("AdjustmentApprover", fields: [approvedById], references: [id])
+  requestedBy   User           @relation("AdjustmentRequester", fields: [requestedById], references: [id])
+
+  @@map("financial_adjustment_requests")
+}
+
+model PaymentReconciliation {
+  id             String        @id @default(uuid())
+  paymentId      String        @unique
+  gatewayStatus  String
+  dbStatus       String
+  status         RequestStatus @default(PENDING)
+  reconciledById String?
+  resolvedById   String?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  payment        Payment       @relation(fields: [paymentId], references: [id])
+  reconciledBy   User?         @relation("ReconciliationMaker", fields: [reconciledById], references: [id])
+  resolvedBy     User?         @relation("ReconciliationChecker", fields: [resolvedById], references: [id])
+
+  @@map("payment_reconciliations")
+}
+
+model RefundRequest {
+  id               String        @id @default(uuid())
+  paymentId        String
+  amount           Decimal       @db.Decimal(10, 2)
+  reason           String?
+  status           RequestStatus @default(PENDING)
+  requestedById    String
+  approvedById     String?
+  razorpayRefundId String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  approvedBy       User?         @relation("RefundApprover", fields: [approvedById], references: [id])
+  payment          Payment       @relation(fields: [paymentId], references: [id])
+  requestedBy      User          @relation("RefundRequester", fields: [requestedById], references: [id])
+
+  @@map("refund_requests")
+}
+
+model ManualPaymentRequest {
+  id            String        @id @default(uuid())
+  bookingId     String
+  amount        Decimal       @db.Decimal(10, 2)
+  method        String
+  notes         String?
+  status        RequestStatus @default(PENDING)
+  requestedById String
+  approvedById  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  approvedBy    User?         @relation("ApprovedManualPayments", fields: [approvedById], references: [id])
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  requestedBy   User          @relation("RequestedManualPayments", fields: [requestedById], references: [id])
+
+  @@map("manual_payment_requests")
+}
+
+model PropertyRequest {
+  id            String        @id @default(uuid())
+  name          String
+  location      String
+  ownerEmail    String
+  ownerPhone    String
+  details       Json?
+  status        RequestStatus @default(PENDING)
+  requestedById String
+  approvedById  String?
+  propertyId    String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  reason        String?
+  rejectedById  String?
+  rejectedAt    DateTime?
+  referredById  String?
+  approvedBy    User?         @relation("PropertyApprover", fields: [approvedById], references: [id])
+  property      Property?     @relation(fields: [propertyId], references: [id])
+  referredBy    User?         @relation("PropertyReferrer", fields: [referredById], references: [id])
+  rejectedBy    User?         @relation("PropertyRejecter", fields: [rejectedById], references: [id])
+  requestedBy   User          @relation("PropertyRequester", fields: [requestedById], references: [id])
+
+  @@map("property_requests")
+}
+
+model OneTimePassword {
+  id        String   @id @default(uuid())
+  phone     String
+  code      String
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone, type])
+  @@map("one_time_passwords")
+}
+
 enum RoleCategory {
   SYSTEM
   PROPERTY
@@ -793,7 +972,6 @@ enum BookingPaymentMethod {
 
 enum BookingStatus {
   PENDING_PAYMENT
-  RESERVED
   CONFIRMED
   CHECKED_IN
   CHECKED_OUT
@@ -802,6 +980,7 @@ enum BookingStatus {
   REFUNDED
   PAYMENT_FAILED
   PAYMENT_CANCELLED
+  RESERVED
 }
 
 enum BookingPaymentStatus {
@@ -918,137 +1097,6 @@ enum EventBookingStatus {
   REFUNDED
 }
 
-model Notification {
-  id         String   @id @default(uuid())
-  title      String
-  message    String
-  type       String   // e.g., 'BOOKING_CREATED', 'PAYMENT_SUCCESS', 'SYSTEM'
-  targetRole String?  // e.g., 'Customer', 'ChannelPartner', 'PropertyOwner'
-  isRead     Boolean  @default(false)
-  data       Json?    // For storing related IDs like bookingId
-  userId     String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("notifications")
-}
-
-model GlobalSetting {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  value       Json
-  description String?  @db.Text
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
-
-  @@map("global_settings")
-}
-
-model PropertySettlement {
-  id              String           @id @default(uuid())
-  propertyId      String
-  bookingId       String           @unique
-  grossAmount     Decimal          @db.Decimal(10, 2)
-  platformFee     Decimal          @db.Decimal(10, 2)
-  cpCommission    Decimal          @db.Decimal(10, 2)
-  netPayout       Decimal          @db.Decimal(10, 2)
-  status          SettlementStatus @default(CALCULATED)
-  createdById     String?
-  approvedById    String?
-  payoutById      String?
-  processedAt     DateTime?
-  referenceId     String?
-  method          String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  
-  property        Property         @relation(fields: [propertyId], references: [id])
-  booking         Booking          @relation(fields: [bookingId], references: [id])
-  createdBy       User?            @relation("SettlementCreator", fields: [createdById], references: [id])
-  approvedBy      User?            @relation("SettlementApprover", fields: [approvedById], references: [id])
-  payoutBy        User?            @relation("SettlementPayoutProcessor", fields: [payoutById], references: [id])
-
-  @@map("property_settlements")
-}
-
-model CPRedemptionRequest {
-  id              String           @id @default(uuid())
-  cpId            String
-  amount          Decimal          @db.Decimal(12, 2)
-  status          RedemptionStatus @default(REQUESTED)
-  referenceId     String?
-  method          String?
-  approverId      String?
-  payoutById      String?
-  reason          String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  channelPartner  ChannelPartner   @relation(fields: [cpId], references: [id])
-  approver        User?            @relation("RedemptionApprover", fields: [approverId], references: [id])
-  payoutBy        User?            @relation("RedemptionPayoutProcessor", fields: [payoutById], references: [id])
-
-  @@map("cp_redemption_requests")
-}
-
-model FinancialAdjustmentRequest {
-  id              String           @id @default(uuid())
-  amount          Decimal          @db.Decimal(12, 2)
-  type            AdjustmentType
-  targetId        String           // CP or Guest userId
-  reason          String
-  requestedById   String
-  approvedById    String?
-  status          RequestStatus    @default(PENDING)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  requestedBy     User             @relation("AdjustmentRequester", fields: [requestedById], references: [id])
-  approvedBy      User?            @relation("AdjustmentApprover", fields: [approvedById], references: [id])
-
-  @@map("financial_adjustment_requests")
-}
-
-model PaymentReconciliation {
-  id              String           @id @default(uuid())
-  paymentId       String           @unique
-  gatewayStatus   String
-  dbStatus        String
-  status          RequestStatus    @default(PENDING)
-  reconciledById  String?
-  resolvedById    String?
-  notes           String?          @db.Text
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  payment         Payment          @relation(fields: [paymentId], references: [id])
-  reconciledBy    User?            @relation("ReconciliationMaker", fields: [reconciledById], references: [id])
-  resolvedBy      User?            @relation("ReconciliationChecker", fields: [resolvedById], references: [id])
-
-  @@map("payment_reconciliations")
-}
-
-model RefundRequest {
-  id              String        @id @default(uuid())
-  paymentId       String
-  amount          Decimal       @db.Decimal(10, 2)
-  reason          String?       @db.Text
-  status          RequestStatus @default(PENDING)
-  requestedById   String
-  approvedById    String?
-  razorpayRefundId String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  payment         Payment       @relation(fields: [paymentId], references: [id])
-  requestedBy     User          @relation("RefundRequester", fields: [requestedById], references: [id])
-  approvedBy      User?         @relation("RefundApprover", fields: [approvedById], references: [id])
-
-  @@map("refund_requests")
-}
-
 enum SettlementStatus {
   CALCULATED
   APPROVED
@@ -1071,57 +1119,12 @@ enum AdjustmentType {
 
 enum RedemptionStatus {
   PENDING
+  SHIPPED
+  DELIVERED
+  CANCELLED
   REQUESTED
   APPROVED
   PROCESSING
-  SHIPPED
-  DELIVERED
   PAID
   FAILED
-  CANCELLED
-}
-model ManualPaymentRequest {
-  id               String        @id @default(uuid())
-  bookingId        String
-  amount           Decimal       @db.Decimal(10, 2)
-  method           String        // Cash, UPI, Bank Transfer
-  notes            String?
-  status           RequestStatus @default(PENDING)
-  requestedById    String
-  approvedById     String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-
-  booking          Booking       @relation(fields: [bookingId], references: [id])
-  requestedBy      User          @relation("RequestedManualPayments", fields: [requestedById], references: [id])
-  approvedBy       User?         @relation("ApprovedManualPayments", fields: [approvedById], references: [id])
-
-  @@map("manual_payment_requests")
-}
-
-model PropertyRequest {
-  id               String        @id @default(uuid())
-  name             String
-  location         String
-  ownerEmail       String
-  ownerPhone       String
-  details          Json?
-  status           RequestStatus @default(PENDING)
-  reason           String?       @db.Text // Rejection reason
-  requestedById    String
-  referredById     String?
-  approvedById     String?
-  rejectedById     String?
-  rejectedAt       DateTime?
-  propertyId       String?       @unique // Link to created property after approval
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-
-  requestedBy      User          @relation("PropertyRequester", fields: [requestedById], references: [id])
-  referredBy       User?         @relation("PropertyReferrer", fields: [referredById], references: [id])
-  approvedBy       User?         @relation("PropertyApprover", fields: [approvedById], references: [id])
-  rejectedBy       User?         @relation("PropertyRejecter", fields: [rejectedById], references: [id])
-  property         Property?     @relation(fields: [propertyId], references: [id])
-
-  @@map("property_requests")
 }

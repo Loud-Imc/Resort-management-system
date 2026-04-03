@@ -7,6 +7,7 @@ import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import type { ConfirmationResult } from 'firebase/auth';
+import api from '../services/api';
 
 export default function Register() {
     const { registerProperty } = useAuth();
@@ -26,6 +27,13 @@ export default function Register() {
     const [otp, setOtp] = useState('');
     const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
     const [resendTimer, setResendTimer] = useState(0);
+
+    // Commission OTP related states
+    const [isVerifyingCommission, setIsVerifyingCommission] = useState(false);
+    const [isCommissionVerified, setIsCommissionVerified] = useState(false);
+    const [showCommissionOtpInput, setShowCommissionOtpInput] = useState(false);
+    const [commissionOtp, setCommissionOtp] = useState('');
+    const [commissionResendTimer, setCommissionResendTimer] = useState(0);
 
     const [formData, setFormData] = useState({
         // Owner fields
@@ -62,6 +70,16 @@ export default function Register() {
         }
         return () => clearInterval(interval);
     }, [resendTimer]);
+
+    useEffect(() => {
+        let interval: any;
+        if (commissionResendTimer > 0) {
+            interval = setInterval(() => {
+                setCommissionResendTimer((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [commissionResendTimer]);
 
     // Fetch Dynamic Commission
     useEffect(() => {
@@ -171,6 +189,51 @@ export default function Register() {
         }
     };
 
+    const handleSendCommissionOtp = async () => {
+        if (!formData.ownerPhone) {
+            toast.error('Please verify your phone number in Step 1 first');
+            return;
+        }
+        if (!formData.platformCommission) {
+            toast.error('Please enter platform commission percentage');
+            return;
+        }
+
+        setIsVerifyingCommission(true);
+        try {
+            await api.post('/properties/public/send-commission-otp', {
+                phone: normalizePhoneNumber(formData.ownerPhone),
+                commission: formData.platformCommission
+            });
+            setShowCommissionOtpInput(true);
+            setCommissionResendTimer(60);
+            toast.success('Commission verification code sent');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to send verification code');
+        } finally {
+            setIsVerifyingCommission(false);
+        }
+    };
+
+    const handleVerifyCommissionOtp = async () => {
+        if (!commissionOtp) return;
+
+        setIsVerifyingCommission(true);
+        try {
+            await api.post('/properties/public/verify-commission-otp', {
+                phone: normalizePhoneNumber(formData.ownerPhone),
+                code: commissionOtp.trim()
+            });
+            setIsCommissionVerified(true);
+            setShowCommissionOtpInput(false);
+            toast.success('Commission verified successfully');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Invalid verification code');
+        } finally {
+            setIsVerifyingCommission(false);
+        }
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
 
@@ -193,6 +256,15 @@ export default function Register() {
             setIsPhoneVerified(false);
             setShowOtpInput(false);
             setOtp('');
+            setIsCommissionVerified(false);
+            setShowCommissionOtpInput(false);
+        }
+
+        // If commission changes, reset verification
+        if (name === 'platformCommission') {
+            setIsCommissionVerified(false);
+            setShowCommissionOtpInput(false);
+            setCommissionOtp('');
         }
     };
 
@@ -218,6 +290,12 @@ export default function Register() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!isCommissionVerified) {
+            toast.error('Please verify the platform commission explicitly via OTP');
+            return;
+        }
+
         setIsLoading(true);
         try {
             // Format phone numbers to include country code for backend validation
@@ -611,26 +689,104 @@ export default function Register() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="col-span-2 md:col-span-1">
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Platform Commission (%)</label>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <Shield className="h-4 w-4 text-gray-400" />
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <Shield className="h-4 w-4 text-gray-400" />
+                                                </div>
+                                                <input
+                                                    name="platformCommission"
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    max="100"
+                                                    required
+                                                    disabled={isCommissionVerified || showCommissionOtpInput}
+                                                    value={formData.platformCommission}
+                                                    onChange={handleChange}
+                                                    className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white ${isCommissionVerified ? 'bg-green-50 border-green-200' : ''}`}
+                                                    placeholder="10.00"
+                                                />
+                                                {isCommissionVerified && (
+                                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                    </div>
+                                                )}
                                             </div>
-                                            <input
-                                                name="platformCommission"
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                max="100"
-                                                required
-                                                value={formData.platformCommission}
-                                                onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                                placeholder="10.00"
-                                            />
+                                            {!isCommissionVerified && !showCommissionOtpInput && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSendCommissionOtp}
+                                                    disabled={isVerifyingCommission || !formData.platformCommission}
+                                                    className="px-4 py-2 bg-primary-100 text-primary-700 rounded-xl font-bold text-xs hover:bg-primary-200 transition-all disabled:opacity-50"
+                                                >
+                                                    {isVerifyingCommission ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm via OTP'}
+                                                </button>
+                                            )}
+                                            {isCommissionVerified && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsCommissionVerified(false)}
+                                                    className="px-4 py-2 text-gray-500 hover:text-primary-600 transition-all text-xs font-bold"
+                                                >
+                                                    Edit
+                                                </button>
+                                            )}
                                         </div>
-                                        <p className="text-[10px] text-gray-400 mt-1">The percentage paid to the platform for each booking.</p>
+                                        <p className="text-[10px] text-gray-400 mt-1">The percentage paid to the platform for each booking. This requires OTP verification.</p>
                                     </div>
                                 </div>
+
+                                {showCommissionOtpInput && (
+                                    <div className="space-y-3 bg-teal-50/50 p-4 rounded-2xl border border-teal-100 animate-in fade-in slide-in-from-top-2">
+                                        <label className="block text-xs font-bold text-teal-700 uppercase tracking-wider flex items-center gap-2">
+                                            <Shield className="h-3 w-3" /> Commission Verification Code
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <KeyRound className="h-4 w-4 text-teal-400" />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    maxLength={6}
+                                                    value={commissionOtp}
+                                                    onChange={(e) => setCommissionOtp(e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-3 border border-teal-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all text-sm tracking-widest font-bold text-gray-900"
+                                                    placeholder="000000"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleVerifyCommissionOtp}
+                                                disabled={isVerifyingCommission || commissionOtp.length !== 6}
+                                                className="px-6 py-2 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700 transition-all disabled:opacity-50"
+                                            >
+                                                {isVerifyingCommission ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify'}
+                                            </button>
+                                        </div>
+                                        <div className="flex justify-between items-center px-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setShowCommissionOtpInput(false); setCommissionOtp(''); }}
+                                                className="text-xs text-gray-500 hover:text-gray-700"
+                                            >
+                                                Cancel
+                                            </button>
+                                            {commissionResendTimer > 0 ? (
+                                                <span className="text-xs text-gray-400">Resend in {commissionResendTimer}s</span>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSendCommissionOtp}
+                                                    className="text-xs text-teal-600 font-bold hover:underline"
+                                                >
+                                                    Resend Code
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Mandatory Documents */}
                                 <div className="border-t border-gray-100 pt-6 mt-6">
@@ -695,7 +851,7 @@ export default function Register() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={isLoading || !formData.ownerAadhaarImage || !formData.licenceImage}
+                                        disabled={isLoading || !formData.ownerAadhaarImage || !formData.licenceImage || !isCommissionVerified}
                                         className="flex-[2] py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-xl font-bold text-sm hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary-500/20"
                                     >
                                         {isLoading ? (

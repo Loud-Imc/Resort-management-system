@@ -215,6 +215,10 @@ export default function PropertyRequestsList() {
                                                     <p className="text-xs text-muted-foreground">Group Booking</p>
                                                     <p className="font-semibold text-sm">{details.allowsGroupBooking ? 'Yes' : 'No'}</p>
                                                 </div>
+                                                <div className="bg-card rounded-lg p-3 border border-border/50">
+                                                    <p className="text-xs text-muted-foreground">Platform Commission</p>
+                                                    <p className="font-semibold text-sm">{details.platformCommission || 10}%</p>
+                                                </div>
                                             </div>
                                             {details.propertyDescription && (
                                                 <div className="mt-3 bg-card rounded-lg p-3 border border-border/50">

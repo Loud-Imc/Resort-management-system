@@ -639,7 +639,14 @@ export default function CreateBooking() {
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-600 dark:text-gray-400">
-                                        {(watch('selectedRoomIds') || []).length > 1 ? `${(watch('selectedRoomIds') || []).length} Rooms` : '1 Room'} x {priceDetails.numberOfNights} Nights
+                                        {watch('isGroupBooking') ? (
+                                            <>
+                                                Group of {watch('groupSize') || 0} Guests
+                                                {availability?.roomList && ` (${availability.roomList.length} Rooms)`}
+                                            </>
+                                        ) : (
+                                            (watch('selectedRoomIds') || []).length > 1 ? `${(watch('selectedRoomIds') || []).length} Rooms` : '1 Room'
+                                        )} x {priceDetails.numberOfNights} Nights
                                     </span>
                                     <span className="font-medium">₹{priceDetails.baseAmount.toFixed(2)}</span>
                                 </div>

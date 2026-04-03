@@ -310,7 +310,20 @@ export class AvailabilityService {
             // Group Booking Search: Check total capacity of the property's group pool
             const properties = await this.prisma.property.findMany({
                 where: {
-                    allowsGroupBooking: true,
+                    // Enablement check
+                    OR: [
+                        { allowsGroupBooking: true },
+                        { roomTypes: { some: { isAvailableForGroupBooking: true } } }
+                    ],
+                    // Property-wide capacity cap (if set)
+                    AND: [
+                        {
+                            OR: [
+                                { maxGroupCapacity: null },
+                                { maxGroupCapacity: groupSize ? { gte: groupSize } : undefined }
+                            ]
+                        }
+                    ],
                     isActive: true,
                     status: PropertyStatus.APPROVED,
                     categoryId: categoryId || undefined,
@@ -324,7 +337,6 @@ export class AvailabilityService {
                         ]
                     }),
                     ...(type && type !== 'ALL' && { type: type as any }),
-                    maxGroupCapacity: groupSize ? { gte: groupSize } : undefined,
                 },
                 include: {
                     roomTypes: {

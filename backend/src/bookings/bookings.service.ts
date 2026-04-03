@@ -146,7 +146,6 @@ export class BookingsService {
             }
         }
 
-        // 2.1 Validate Group Capacity (Property Level)
         if (isGroupBooking && groupSize) {
             const activePropertyId = (createBookingDto as any).propertyId;
             if (!activePropertyId) {
@@ -154,15 +153,11 @@ export class BookingsService {
             }
             const property = await this.prisma.property.findUnique({
                 where: { id: activePropertyId },
-                select: { allowsGroupBooking: true, maxGroupCapacity: true }
+                select: { allowsGroupBooking: true }
             });
 
             if (!property?.allowsGroupBooking) {
                 throw new BadRequestException('This property does not support group bookings');
-            }
-
-            if (property.maxGroupCapacity && groupSize > property.maxGroupCapacity) {
-                throw new BadRequestException(`Group size exceeds property's maximum capacity of ${property.maxGroupCapacity}`);
             }
         }
 

@@ -98,6 +98,18 @@ export class PropertiesController {
         return this.propertiesService.publicRegister(dto);
     }
 
+    @Post('public/send-commission-otp')
+    @ApiOperation({ summary: 'Send OTP for Commission Verification (Public)' })
+    sendCommissionOtp(@Body('phone') phone: string, @Body('commission') commission: number) {
+        return this.propertiesService.sendCommissionOtp(phone, commission);
+    }
+
+    @Post('public/verify-commission-otp')
+    @ApiOperation({ summary: 'Verify OTP for Commission (Public)' })
+    verifyCommissionOtp(@Body('phone') phone: string, @Body('code') code: string) {
+        return this.propertiesService.verifyCommissionOtp(phone, code);
+    }
+
     @Get()
     @ApiOperation({ summary: 'List all properties (public)' })
     findAll(@Query() query: PropertyQueryDto) {

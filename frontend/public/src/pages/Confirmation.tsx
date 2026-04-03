@@ -214,7 +214,7 @@ export default function Confirmation() {
                         }
                         .pdf-capture-mode .logo-img {
                             filter: brightness(0) !important;
-                            height: 60px !important;
+                            height: 50px !important;
                         }
                         .pdf-capture-mode .invoice-badge {
                             background-color: #f0fdfa !important;
@@ -265,11 +265,11 @@ export default function Confirmation() {
                         {/* Print Only Header Content (Visible in PDF too) */}
                         <div className="hidden print:block [.pdf-capture-mode_&]:block mb-8 [.pdf-capture-mode_&]:mb-0">
                             <div className="flex items-center gap-3 mb-6">
-                                <img src={logo} alt="Route Guide" className="logo-img h-12 w-auto brightness-0" />
+                                <img src={logo} alt="Route Guide" className="logo-img h-8 w-auto brightness-0" />
                                 <div className="h-10 w-[1px] bg-gray-200 mx-2 hidden sm:block"></div>
                                 <div>
-                                    <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-widest leading-none">Route Guide</h1>
-                                    <p className="text-[10px] text-gray-600 font-medium uppercase tracking-tighter mt-1">
+                                    {/* <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-widest leading-none">Route Guide</h1> */}
+                                    <p className="text-[10px] text-gray-600 font-medium uppercase tracking-tighter mt-0">
                                         {balanceDue > 0 ? 'Official Booking Confirmation & Performa Invoice' : 'Official Booking Confirmation & Invoice'}
                                     </p>
                                 </div>
@@ -284,7 +284,7 @@ export default function Confirmation() {
                         <div className="hidden print:block [.pdf-capture-mode_&]:block text-right">
                             <div className="invoice-badge bg-white px-5 py-3 rounded-xl border-2 border-primary-100 inline-block shadow-sm">
                                 <span className="block text-[9px] text-primary-600 font-black uppercase tracking-widest mb-1">Booking ID</span>
-                                <span className="text-xl font-black text-primary-950">#{booking.bookingNumber}</span>
+                                <span className="text-md font-black text-primary-950">#{booking.bookingNumber}</span>
                             </div>
                             <p className="text-[10px] text-gray-500 font-bold mt-2 lowercase italic">Generated on {format(new Date(), 'MMM d, yyyy HH:mm')}</p>
                         </div>

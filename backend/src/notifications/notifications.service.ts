@@ -145,6 +145,37 @@ export class NotificationsService {
   }
 
   /**
+   * Send SMS Message (Standard Mobile Messenger)
+   */
+  async sendSMS(to: string, message: string) {
+    let from = this.configService.get('TWILIO_PHONE_NUMBER');
+
+    // Fallback to WhatsApp number if regular phone number is not configured
+    if (!from) {
+      const whatsappFrom = this.configService.get('TWILIO_WHATSAPP_NUMBER');
+      if (whatsappFrom) {
+        from = whatsappFrom.replace('whatsapp:', '');
+      }
+    }
+
+    if (!this.twilioClient || !from) {
+      this.logger.warn(`Twilio SMS not fully configured. From: ${from}. Simulating SMS to ${to}: ${message}`);
+      return;
+    }
+
+    try {
+      await this.twilioClient.messages.create({
+        body: message,
+        from: from,
+        to: to,
+      });
+      this.logger.log(`SMS sent to ${to} from ${from}`);
+    } catch (error) {
+      this.logger.error(`Failed to send SMS to ${to}:`, error);
+    }
+  }
+
+  /**
    * Convenience method for New Booking Alert
    * Idempotent: checks for an existing BOOKING_CONFIRMED notification before sending
    * to prevent duplicates triggered by both verifyPayment and handlePaymentCaptured.

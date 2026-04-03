@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 import { RegisterPropertyDto } from './dto/register-property.dto';
@@ -11,12 +11,70 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 
 @Injectable()
 export class PropertiesService {
+    private readonly logger = new Logger(PropertiesService.name);
     constructor(
         private readonly prisma: PrismaService,
         private readonly notificationsService: NotificationsService,
         private readonly audit: AuditService,
         private readonly systemSettings: SystemSettingsService,
     ) { }
+
+    /**
+     * Send OTP for Commission Verification
+     */
+    async sendCommissionOtp(phone: string, commission: number) {
+        const normalized = normalizePhone(phone);
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Upsert OTP
+        await this.prisma.oneTimePassword.deleteMany({
+            where: { phone: normalized, type: 'COMMISSION_VERIFICATION' }
+        });
+
+        await this.prisma.oneTimePassword.create({
+            data: {
+                phone: normalized,
+                code,
+                type: 'COMMISSION_VERIFICATION',
+                expiresAt
+            }
+        });
+
+        const message = `Your OTP for confirming the ${commission}% platform commission is ${code}. Please enter this to complete your registration.`;
+
+        await this.notificationsService.sendWhatsApp(normalized, message);
+
+        this.logger.log(`Commission OTP (${code}) sent via WhatsApp to ${normalized}`);
+
+        return { success: true, message: 'Verification code sent' };
+    }
+
+    /**
+     * Verify OTP for Commission
+     */
+    async verifyCommissionOtp(phone: string, code: string) {
+        const normalized = normalizePhone(phone);
+        this.logger.log(`Attempting to verify commission OTP for ${normalized} with code ${code}`);
+        const otp = await this.prisma.oneTimePassword.findFirst({
+            where: {
+                phone: normalized,
+                type: 'COMMISSION_VERIFICATION',
+                code,
+                expiresAt: { gte: new Date() }
+            }
+        });
+
+        if (!otp) {
+            this.logger.warn(`Commission OTP verification failed for ${normalized}. Code used: ${code}`);
+            throw new BadRequestException('Invalid or expired verification code');
+        }
+
+        // Delete OTP after verification
+        await this.prisma.oneTimePassword.delete({ where: { id: otp.id } });
+
+        return { success: true, message: 'Commission verified successfully' };
+    }
 
     // Generate URL-friendly slug from name
     private async generateUniqueSlug(name: string): Promise<string> {

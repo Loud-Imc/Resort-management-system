@@ -12,7 +12,12 @@ import { Property } from '../types';
 function HeroCarousel() {
     const slides = [
         "/images/hero-slide-1.png",
-        "/images/hero-slide-2.png"
+        "/images/hero-slide-2.png",
+        "/images/hero-slide-3.jpeg",
+        "/images/hero-slide-4.jpeg",
+        "/images/hero-slide-5.jpeg",
+        "/images/hero-slide-6.jpeg",
+        "/images/hero-slide-7.jpeg",
     ];
     const [current, setCurrent] = useState(0);
 

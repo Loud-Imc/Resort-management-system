@@ -17,7 +17,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function Login() {
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
-    const { login, logout, isAuthenticated, isLoading } = useAuth();
+    const { login, isAuthenticated, isLoading } = useAuth();
     const navigate = useNavigate();
 
     const {
@@ -52,16 +52,16 @@ export default function Login() {
             await login(data);
 
             // Post-login check for Admin role
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-                const user = JSON.parse(storedUser);
-                const roles = user.roles || [user.role];
-                if (!roles.includes('Admin') && !roles.includes('SuperAdmin')) {
-                    logout();
-                    setError('Account not registered for this portal. Administrative access required.');
-                    return;
-                }
-            }
+            // const storedUser = localStorage.getItem('user');
+            // if (storedUser) {
+            //     const user = JSON.parse(storedUser);
+            //     const roles = user.roles || [user.role];
+            //     if (!roles.includes('Admin') && !roles.includes('SuperAdmin')) {
+            //         logout();
+            //         setError('Account not registered for this portal. Administrative access required.');
+            //         return;
+            //     }
+            // }
 
             navigate('/');
         } catch (err: any) {
