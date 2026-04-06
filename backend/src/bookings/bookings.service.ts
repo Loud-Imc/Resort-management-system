@@ -722,6 +722,7 @@ export class BookingsService {
         checkOutDate?: Date;
         roomTypeId?: string;
         propertyId?: string;
+        hasSettlement?: boolean;
     }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
@@ -732,7 +733,16 @@ export class BookingsService {
             checkInDate: filters?.checkInDate ? { gte: filters.checkInDate } : undefined,
             checkOutDate: filters?.checkOutDate ? { lte: filters.checkOutDate } : undefined,
             roomTypeId: filters?.roomTypeId,
+            propertyId: filters?.propertyId,
         };
+
+        if (filters?.hasSettlement !== undefined) {
+            if (filters.hasSettlement) {
+                where.propertySettlement = { isNot: null };
+            } else {
+                where.propertySettlement = { is: null };
+            }
+        }
 
         if (isGlobalAdmin) {
             // Global admins can see everything or filter by a specific property if provided
@@ -799,7 +809,8 @@ export class BookingsService {
                             }
                         }
                     }
-                }
+                },
+                payments: { where: { status: 'PAID' } },
             },
             orderBy: {
                 createdAt: 'desc',

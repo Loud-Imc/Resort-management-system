@@ -68,40 +68,32 @@ export class RolesService {
 
             if (isGlobalAdmin) {
                 // Admin sees following by default:
-                // 1. If propertyId requested, show that property's roles ONLY (no system templates unless they are for that property)
-                // 2. If NO propertyId requested, show SYSTEM roles only (the global templates)
+                // 1. If propertyId requested, show that property's roles ONLY
+                // 2. If NO propertyId requested, show SYSTEM roles only
                 if (query?.propertyId) {
                     where.propertyId = query.propertyId;
-                    where.isSystem = false; // Usually admins want to see custom roles for a property
+                    where.isSystem = false;
                 } else {
                     where.isSystem = true;
                     where.propertyId = null;
                 }
             } else {
-                // Property Owner / Staff / Others
-                const ownedPropertyIds: string[] = [];
-                if (roles.includes('PropertyOwner')) {
+                // Property Owner / Staff
+                // SILO: Only show roles belonging to their specific property context.
+                // We no longer show "isSystem: true" templates here.
+                const currentPropertyId = query?.propertyId || user.propertyId;
+
+                if (currentPropertyId) {
+                    where.propertyId = currentPropertyId;
+                    where.isSystem = false;
+                } else if (roles.includes('PropertyOwner')) {
                     const ownedProperties = await this.prisma.property.findMany({
                         where: { ownerId: user.id },
                         select: { id: true }
                     });
-                    ownedPropertyIds.push(...ownedProperties.map(p => p.id));
+                    where.propertyId = { in: ownedProperties.map(p => p.id) };
+                    where.isSystem = false;
                 }
-
-                // Relevant property context (from query or session)
-                const currentPropertyId = query?.propertyId || user.propertyId;
-
-                where = {
-                    OR: [
-                        {
-                            isSystem: true,
-                            category: { in: ['PROPERTY', 'EVENT'] } // System templates
-                        },
-                        {
-                            propertyId: currentPropertyId || { in: ownedPropertyIds }
-                        }
-                    ]
-                };
             }
 
             if (query?.category) where.category = query.category;

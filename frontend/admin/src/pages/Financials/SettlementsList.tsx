@@ -10,27 +10,32 @@ import {
     ChevronRight,
     Building2,
     Shield,
-    Calculator
+    Calculator,
+    Search
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { format } from 'date-fns';
 import clsx from 'clsx';
 
 export default function SettlementsList() {
     const [statusFilter, setStatusFilter] = useState<string>('ELIGIBLE');
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
     const queryClient = useQueryClient();
 
     const { data: listData, isLoading, refetch } = useQuery<any[]>({
         queryKey: ['financial-data', statusFilter],
         queryFn: async () => {
             if (statusFilter === 'ELIGIBLE') {
-                const bookings = await bookingsService.getAll({ status: 'CHECKED_OUT' });
-                // Filter for fully paid bookings that don't have a settlement yet
-                // Note: The backend calculateSettlement will handle the "already exists" check,
-                // but we filter for paymentStatus === 'FULL' here.
-                return bookings.filter(b => b.paymentStatus === 'FULL');
+                const bookings = await bookingsService.getAll({ 
+                    status: 'CHECKED_OUT',
+                    hasSettlement: 'false' as any // Use string 'false' as it's passed to Query param
+                });
+                return (bookings || []).filter((b: any) => b.paymentStatus === 'FULL');
             }
-            return financialsService.getAllSettlements({ status: statusFilter as any });
+            const settlements = await financialsService.getAllSettlements({ status: statusFilter as any });
+            // Strict filter to ensure Paid data doesn't bleed into Calculated tab if backend returns it
+            return (settlements || []).filter((s: any) => s.status === statusFilter);
         },
     });
 
@@ -75,6 +80,18 @@ export default function SettlementsList() {
         }
     };
 
+    const filteredData = (listData || []).filter(item => {
+        const search = searchTerm.toLowerCase();
+        const isBooking = statusFilter === 'ELIGIBLE';
+        const bookingNumber = isBooking ? item.bookingNumber : item.booking?.bookingNumber;
+        const propertyName = isBooking ? (item.property?.name || '') : (item.property?.name || '');
+        const refId = (item.referenceId || '').toLowerCase();
+
+        return (bookingNumber?.toLowerCase().includes(search)) || 
+               (propertyName?.toLowerCase().includes(search)) || 
+               refId.includes(search);
+    });
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -93,7 +110,7 @@ export default function SettlementsList() {
             </div>
 
             {/* Pillar Status Info */}
-            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3">
+            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3 shadow-sm">
                 <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm">
                     <p className="font-bold text-primary">Maker-Checker Security Enforced</p>
@@ -101,22 +118,35 @@ export default function SettlementsList() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit overflow-x-auto max-w-full">
-                {['ELIGIBLE', 'CALCULATED', 'APPROVED', 'PAID'].map((status) => (
-                    <button
-                        key={status}
-                        onClick={() => setStatusFilter(status)}
-                        className={clsx(
-                            "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest whitespace-nowrap",
-                            statusFilter === status
-                                ? "bg-card text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        {status}
-                    </button>
-                ))}
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row gap-4 items-end sm:items-center justify-between">
+                <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit overflow-x-auto max-w-full shrink-0">
+                    {['ELIGIBLE', 'CALCULATED', 'APPROVED', 'PAID'].map((status) => (
+                        <button
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={clsx(
+                                "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest whitespace-nowrap",
+                                statusFilter === status
+                                    ? "bg-card text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            {status}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                        type="text"
+                        placeholder="Search by booking # or property..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all"
+                    />
+                </div>
             </div>
 
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -129,19 +159,19 @@ export default function SettlementsList() {
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Calculated Fees</th>
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Net Payout</th>
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Status</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground text-right">Actions</th>
+                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground text-right">{statusFilter === 'PAID' ? 'Payout Info' : 'Actions'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {listData?.length === 0 ? (
+                            {filteredData.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
                                         <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                        No {statusFilter.toLowerCase()} items found.
+                                        No {statusFilter.toLowerCase()} items found matching your search.
                                     </td>
                                 </tr>
                             ) : (
-                                listData?.map((item) => {
+                                filteredData.map((item) => {
                                     const isBooking = statusFilter === 'ELIGIBLE';
                                     const id = item.id;
                                     const bookingNumber = isBooking ? item.bookingNumber : item.booking?.bookingNumber;
@@ -160,19 +190,35 @@ export default function SettlementsList() {
                                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                         <Building2 className="h-3.5 w-3.5" />
                                                         <span>{propertyName}</span>
+                                                        {isBooking && item.paymentOption === 'PARTIAL' && (
+                                                            <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black rounded border border-amber-200">
+                                                                PARTIAL
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-bold text-foreground">
-                                                ₹{Number(gross).toLocaleString()}
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm font-bold text-foreground">
+                                                    ₹{Number(gross).toLocaleString()}
+                                                </div>
+                                                {isBooking && (
+                                                    <div className="text-[10px] text-amber-600 font-bold">
+                                                        Held: ₹{Number((item.payments || [])
+                                                            .filter((p: any) => p.payoutStatus === 'PENDING')
+                                                            .reduce((acc: number, p: any) => acc + Number(p.amount), 0)
+                                                        ).toLocaleString()}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 {isBooking ? (
                                                     <span className="text-xs text-muted-foreground italic">Pending calculation</span>
                                                 ) : (
                                                     <div className="text-xs space-y-0.5">
-                                                        <p className="text-rose-500 font-bold">- Platform: ₹{Number(item.platformFee).toLocaleString()}</p>
-                                                        <p className="text-rose-500 font-bold">- Partner: ₹{Number(item.cpCommission).toLocaleString()}</p>
+                                                        <p className="text-amber-600 font-bold">Held: ₹{Number(item.collectedAmount || 0).toLocaleString()}</p>
+                                                        <p className="text-rose-500 font-medium">- Fee: ₹{Number(item.platformFee).toLocaleString()}</p>
+                                                        <p className="text-rose-500 font-medium">- CP: ₹{Number(item.cpCommission).toLocaleString()}</p>
                                                     </div>
                                                 )}
                                             </td>
@@ -180,8 +226,11 @@ export default function SettlementsList() {
                                                 {isBooking ? (
                                                     <span className="text-muted-foreground">--</span>
                                                 ) : (
-                                                    <span className="text-lg font-black text-emerald-500">
-                                                        ₹{Number(item.netPayout).toLocaleString()}
+                                                    <span className={clsx(
+                                                        "text-lg font-black",
+                                                        Number(item.netPayout) >= 0 ? "text-emerald-500" : "text-rose-500"
+                                                    )}>
+                                                        {Number(item.netPayout) < 0 ? '-' : ''}₹{Math.abs(Number(item.netPayout)).toLocaleString()}
                                                     </span>
                                                 )}
                                             </td>
@@ -197,35 +246,49 @@ export default function SettlementsList() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                {isBooking && (
-                                                    <button
-                                                        onClick={() => calculateMutation.mutate(item.id)}
-                                                        disabled={calculateMutation.isPending}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 disabled:opacity-50"
-                                                    >
-                                                        {calculateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}
-                                                        CALCULATE
-                                                    </button>
-                                                )}
-                                                {status === 'CALCULATED' && (
-                                                    <button
-                                                        onClick={() => handleApprove(id)}
-                                                        disabled={processingId === id}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-black hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
-                                                    >
-                                                        {processingId === id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronRight className="h-3 w-3" />}
-                                                        APPROVE
-                                                    </button>
-                                                )}
-                                                {status === 'APPROVED' && (
-                                                    <button
-                                                        onClick={() => handlePayout(id)}
-                                                        disabled={processingId === id}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50"
-                                                    >
-                                                        {processingId === id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
-                                                        MARK AS PAID
-                                                    </button>
+                                                {status === 'PAID' ? (
+                                                    <div className="text-[10px] space-y-1">
+                                                        <p className="font-bold text-foreground">Ref: <span className="text-primary">{item.referenceId || 'N/A'}</span></p>
+                                                        <p className="text-muted-foreground italic">
+                                                            {item.processedAt ? format(new Date(item.processedAt), 'dd MMM yyyy') : 'N/A'}
+                                                        </p>
+                                                        {item.payoutBy && (
+                                                            <p className="text-muted-foreground">by {item.payoutBy.firstName}</p>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        {isBooking && (
+                                                            <button
+                                                                onClick={() => calculateMutation.mutate(item.id)}
+                                                                disabled={calculateMutation.isPending}
+                                                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 disabled:opacity-50"
+                                                            >
+                                                                {calculateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}
+                                                                CALCULATE
+                                                            </button>
+                                                        )}
+                                                        {status === 'CALCULATED' && (
+                                                            <button
+                                                                onClick={() => handleApprove(id)}
+                                                                disabled={processingId === id}
+                                                                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-black hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                                                            >
+                                                                {processingId === id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronRight className="h-3 w-3" />}
+                                                                APPROVE
+                                                            </button>
+                                                        )}
+                                                        {status === 'APPROVED' && (
+                                                            <button
+                                                                onClick={() => handlePayout(id)}
+                                                                disabled={processingId === id}
+                                                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50"
+                                                            >
+                                                                {processingId === id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                                                                MARK AS PAID
+                                                            </button>
+                                                        )}
+                                                    </>
                                                 )}
                                             </td>
                                         </tr>

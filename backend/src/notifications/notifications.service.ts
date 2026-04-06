@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as admin from 'firebase-admin';
 import { MailService } from '../mail/mail.service';
 import { PdfService } from '../pdf/pdf.service';
+import axios from 'axios';
 
 @Injectable()
 export class NotificationsService {
@@ -121,10 +122,32 @@ export class NotificationsService {
   }
 
   /**
-   * Send WhatsApp Message
+   * Main entry point for WhatsApp
    */
   async sendWhatsApp(to: string, message: string) {
-    const from = this.configService.get('TWILIO_WHATSAPP_NUMBER'); // e.g., 'whatsapp:+14155238886'
+    const provider = this.configService.get('SMS_PROVIDER') || 'TWILIO';
+    if (provider === 'MSG91') {
+      return this._sendWhatsAppViaMSG91(to, message);
+    }
+    return this._sendWhatsAppViaTwilio(to, message);
+  }
+
+  /**
+   * Main entry point for SMS
+   */
+  async sendSMS(to: string, message: string, variables?: Record<string, string>) {
+    const provider = this.configService.get('SMS_PROVIDER') || 'TWILIO';
+    if (provider === 'MSG91') {
+      return this._sendSMSViaMSG91(to, message, variables);
+    }
+    return this._sendSMSViaTwilio(to, message);
+  }
+
+  /**
+   * Internal Twilio WhatsApp
+   */
+  private async _sendWhatsAppViaTwilio(to: string, message: string) {
+    const from = this.configService.get('TWILIO_WHATSAPP_NUMBER');
 
     if (!this.twilioClient) {
       this.logger.warn(`Twilio not configured. Simulating WhatsApp to ${to}: ${message}`);
@@ -138,28 +161,25 @@ export class NotificationsService {
         from: from,
         to: formattedTo,
       });
-      this.logger.log(`WhatsApp sent to ${to}`);
+      this.logger.log(`WhatsApp sent to ${to} via Twilio`);
     } catch (error) {
-      this.logger.error(`Failed to send WhatsApp to ${to}:`, error);
+      this.logger.error(`Failed to send WhatsApp via Twilio to ${to}:`, error);
     }
   }
 
   /**
-   * Send SMS Message (Standard Mobile Messenger)
+   * Internal Twilio SMS
    */
-  async sendSMS(to: string, message: string) {
+  private async _sendSMSViaTwilio(to: string, message: string) {
     let from = this.configService.get('TWILIO_PHONE_NUMBER');
 
-    // Fallback to WhatsApp number if regular phone number is not configured
     if (!from) {
       const whatsappFrom = this.configService.get('TWILIO_WHATSAPP_NUMBER');
-      if (whatsappFrom) {
-        from = whatsappFrom.replace('whatsapp:', '');
-      }
+      if (whatsappFrom) from = whatsappFrom.replace('whatsapp:', '');
     }
 
     if (!this.twilioClient || !from) {
-      this.logger.warn(`Twilio SMS not fully configured. From: ${from}. Simulating SMS to ${to}: ${message}`);
+      this.logger.warn(`Twilio SMS not configured. Simulating SMS to ${to}: ${message}`);
       return;
     }
 
@@ -169,10 +189,70 @@ export class NotificationsService {
         from: from,
         to: to,
       });
-      this.logger.log(`SMS sent to ${to} from ${from}`);
+      this.logger.log(`SMS sent to ${to} via Twilio`);
     } catch (error) {
-      this.logger.error(`Failed to send SMS to ${to}:`, error);
+      this.logger.error(`Failed to send SMS via Twilio to ${to}:`, error);
     }
+  }
+
+  /**
+   * Internal MSG91 SMS
+   */
+  private async _sendSMSViaMSG91(to: string, message: string, variables?: Record<string, string>) {
+    const authKey = this.configService.get('MSG91_AUTH_KEY');
+    const templateId = this.configService.get('MSG91_OTP_TEMPLATE_ID');
+
+    if (!authKey) {
+      this.logger.warn(`MSG91 not configured. Simulating SMS to ${to}: ${message}`);
+      return;
+    }
+
+    // Normalizing phone (removing +)
+    const mobile = to.replace('+', '');
+
+    try {
+      if (templateId) {
+        // If variables are provided, use the Flow/Transaction API
+        if (variables) {
+          await axios.post('https://api.msg91.com/api/v5/flow/', {
+            template_id: templateId,
+            recipients: [{
+              mobiles: mobile,
+              ...variables
+            }]
+          }, {
+            headers: {
+              authkey: authKey,
+              'Content-Type': 'application/json'
+            }
+          });
+          this.logger.log(`Flow SMS sent to ${to} via MSG91 with variables: ${JSON.stringify(variables)}`);
+        } else {
+          // Fallback to simple OTP API if it looks like a 6-digit code
+          const otpMatch = message.match(/\b\d{6}\b/);
+          const otp = otpMatch ? otpMatch[0] : undefined;
+
+          if (otp) {
+            await axios.post(`https://api.msg91.com/api/v5/otp?template_id=${templateId}&mobile=${mobile}&authkey=${authKey}&otp=${otp}`);
+            this.logger.log(`OTP (${otp}) sent to ${to} via MSG91`);
+          } else {
+            this.logger.warn(`MSG91 requested but no variables/OTP found. Message: ${message}`);
+          }
+        }
+      } else {
+        this.logger.warn(`MSG91 Template ID missing. Check .env. Simulating to ${to}: ${message}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send SMS via MSG91 to ${to}:`, error.response?.data || error.message);
+    }
+  }
+
+  /**
+   * Internal MSG91 WhatsApp
+   */
+  private async _sendWhatsAppViaMSG91(to: string, message: string) {
+    // MSG91 WhatsApp usually uses their specific WhatsApp API / Flow
+    this.logger.warn(`MSG91 WhatsApp not yet fully implemented. Simulating to ${to}: ${message}`);
   }
 
   /**

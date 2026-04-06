@@ -10,7 +10,8 @@ import {
     ArrowUpCircle,
     ArrowDownCircle,
     MessageSquare,
-    Clock
+    Clock,
+    Search
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -19,6 +20,7 @@ import clsx from 'clsx';
 export default function AdjustmentRequestsList() {
     const [statusFilter, setStatusFilter] = useState<string>('PENDING');
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const { data: adjustments, isLoading, refetch } = useQuery<any[]>({
         queryKey: ['financial-adjustments', statusFilter],
@@ -40,6 +42,14 @@ export default function AdjustmentRequestsList() {
         }
     };
 
+    const filteredAdjustments = (adjustments || []).filter(a => {
+        const search = searchTerm.toLowerCase();
+        const userName = `${a.user?.firstName} ${a.user?.lastName}`.toLowerCase();
+        const reason = (a.reason || '').toLowerCase();
+
+        return userName.includes(search) || reason.includes(search);
+    });
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -58,7 +68,7 @@ export default function AdjustmentRequestsList() {
             </div>
 
             {/* Pillar Status Info */}
-            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3">
+            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3 shadow-sm">
                 <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm">
                     <p className="font-bold text-primary">Maker-Checker Safety Enforced</p>
@@ -66,22 +76,35 @@ export default function AdjustmentRequestsList() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
-                {['PENDING', 'APPROVED', 'REJECTED'].map((status) => (
-                    <button
-                        key={status}
-                        onClick={() => setStatusFilter(status)}
-                        className={clsx(
-                            "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest",
-                            statusFilter === status
-                                ? "bg-card text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        {status}
-                    </button>
-                ))}
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row gap-4 items-end sm:items-center justify-between">
+                <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit shrink-0">
+                    {['PENDING', 'APPROVED', 'REJECTED'].map((status) => (
+                        <button
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={clsx(
+                                "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest",
+                                statusFilter === status
+                                    ? "bg-card text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            {status}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                        type="text"
+                        placeholder="Search by user name or reason..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all"
+                    />
+                </div>
             </div>
 
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -97,15 +120,16 @@ export default function AdjustmentRequestsList() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {adjustments?.length === 0 ? (
+                            {filteredAdjustments.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic">
                                         <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                        No {statusFilter.toLowerCase()} adjustments found.
+                                        No {statusFilter.toLowerCase()} adjustments found matching your search.
                                     </td>
                                 </tr>
                             ) : (
-                                adjustments?.map((a) => (
+                                filteredAdjustments.map((a) => {
+                                    return (
                                     <tr key={a.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
@@ -156,8 +180,9 @@ export default function AdjustmentRequestsList() {
                                             )}
                                         </td>
                                     </tr>
-                                ))
-                            )}
+                                );
+                            })
+                        )}
                         </tbody>
                     </table>
                 </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Loader2, ArrowRight, KeyRound } from 'lucide-react';
 import api from '../services/api';
+import logo from '../assets/routeguide.svg';
 import { auth } from '../config/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import PhoneInput from 'react-phone-input-2';
@@ -106,8 +107,8 @@ export default function Login() {
                 navigate(redirect || '/');
             } catch (backendErr: any) {
                 console.error('Backend auth error:', backendErr);
-                const backendMsg = backendErr.response?.data?.message || 'Authentication with server failed.';
-                setError(`Server Error: ${backendMsg}`);
+                const backendMsg = backendErr.response?.data?.message || backendErr.message || 'Authentication with server failed.';
+                setError(backendMsg);
             }
         } catch (firebaseErr: any) {
             console.error('Firebase OTP verification error:', firebaseErr);
@@ -122,6 +123,9 @@ export default function Login() {
             <div id="recaptcha-container"></div>
 
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
+                <div className="flex justify-center mb-6">
+                    <img src={logo} alt="Route Guide" className="h-20 w-auto" />
+                </div>
                 <h2 className="text-center text-3xl font-extrabold text-gray-900 font-serif">
                     Sign In or Register
                 </h2>

@@ -77,8 +77,9 @@ export class PaymentsService {
             const currency = booking.bookingCurrency || 'INR';
 
             if (booking.status === 'PENDING_PAYMENT' && booking.paymentOption === 'PARTIAL') {
-                // If it's a first-time partial payment, charge 1/3rd
-                chargeAmount = Math.round(totalAmount / 3);
+                // Fetch dynamic partial payment percentage (default 33.33%)
+                const partialPaymentPct = await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33;
+                chargeAmount = Math.round((totalAmount * Number(partialPaymentPct)) / 100);
             }
 
             if (chargeAmount <= 0) {
@@ -264,7 +265,8 @@ export class PaymentsService {
         let chargeAmount = totalAmount - paidAmountInBookingCurrency;
 
         if (booking.status === 'PENDING_PAYMENT' && booking.paymentOption === 'PARTIAL') {
-            chargeAmount = Math.round(totalAmount / 3);
+            const partialPaymentPct = await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33;
+            chargeAmount = Math.round((totalAmount * Number(partialPaymentPct)) / 100);
         }
 
         if (chargeAmount <= 0) {
@@ -360,6 +362,16 @@ export class PaymentsService {
                 return null;
             }
 
+            // Fetch prior platform fees to calculate the cumulative deduction
+            const priorFees = await tx.payment.aggregate({
+                where: {
+                    bookingId: payment.bookingId,
+                    status: 'PAID',
+                },
+                _sum: { platformFee: true },
+            });
+            const totalFeesAlreadyTaken = Number(priorFees._sum.platformFee || 0);
+
             // Update payment record
             const paid = await tx.payment.update({
                 where: { id: payment.id },
@@ -368,7 +380,7 @@ export class PaymentsService {
                     razorpayPaymentId,
                     razorpaySignature,
                     paymentDate: new Date(),
-                    ...this.calculateFinancials(payment),
+                    ...this.calculateFinancials(payment, totalFeesAlreadyTaken),
                 },
             });
 
@@ -582,6 +594,16 @@ export class PaymentsService {
                 return; // Webhook or verify API already processed this
             }
 
+            // Fetch prior platform fees to calculate the cumulative deduction
+            const priorFees = await tx.payment.aggregate({
+                where: {
+                    bookingId: payment.bookingId,
+                    status: 'PAID',
+                },
+                _sum: { platformFee: true },
+            });
+            const totalFeesAlreadyTaken = Number(priorFees._sum.platformFee || 0);
+
             // Update payment
             await tx.payment.update({
                 where: { id: payment.id },
@@ -590,7 +612,7 @@ export class PaymentsService {
                     razorpayPaymentId: paymentData.id,
                     paymentMethod: paymentData.method,
                     paymentDate: new Date(paymentData.created_at * 1000),
-                    ...this.calculateFinancials(payment),
+                    ...this.calculateFinancials(payment, totalFeesAlreadyTaken),
                 },
             });
 
@@ -915,43 +937,53 @@ export class PaymentsService {
         return updatedPayment;
     }
 
-    private calculateFinancials(payment: any) {
+    private calculateFinancials(payment: any, totalFeesAlreadyTaken: number = 0) {
         try {
-            let amount = 0;
+            let amount = Number(payment.amount);
             let commissionRate = 10; // Default 10%
 
-            if (payment.commissionRate !== null && payment.commissionRate !== undefined) {
-                commissionRate = Number(payment.commissionRate);
-                amount = Number(payment.amount);
-            } else if (payment.bookingId && payment.booking?.property) {
-                amount = Number(payment.amount);
-                commissionRate = Number(payment.booking.property.platformCommission ?? 10);
-            } else if (payment.eventBookingId && payment.eventBooking?.event?.property) {
-                amount = Number(payment.amount);
-                commissionRate = Number(payment.eventBooking.event.property.platformCommission ?? 10);
-            } else {
-                // If we can't find property/commission, return defaults or empty
-                // For now, let's still calculate with 10% if amount exists
-                if (payment.amount) {
-                    amount = Number(payment.amount);
+            if (payment.bookingId && payment.booking?.property) {
+                const booking = payment.booking;
+                commissionRate = Number(booking.property.platformCommission ?? 10);
+
+                if (booking.isManualBooking) {
                     return {
-                        platformFee: (amount * 10) / 100,
-                        netAmount: (amount * 90) / 100,
+                        platformFee: 0,
+                        netAmount: amount,
+                        commissionRate: 0,
                     };
                 }
-                return {};
+
+                // Cumulative logic: Ensure platform takes full commission on TOTAL from first online payment
+                const totalBookingAmount = Number(booking.totalAmount);
+                const totalBookingCommission = (totalBookingAmount * commissionRate) / 100;
+                const feeToTake = Math.max(0, totalBookingCommission - totalFeesAlreadyTaken);
+
+                return {
+                    platformFee: feeToTake,
+                    netAmount: amount - feeToTake,
+                    commissionRate: commissionRate,
+                };
+            } else if (payment.eventBookingId && payment.eventBooking?.event?.property) {
+                commissionRate = Number(payment.eventBooking.event.property.platformCommission ?? 10);
+                const platformFee = (amount * commissionRate) / 100;
+                const netAmount = amount - platformFee;
+                return { platformFee, netAmount, commissionRate };
             }
 
-            const platformFee = (amount * commissionRate) / 100;
-            const netAmount = amount - platformFee;
-
+            // Fallback for generic payments
             return {
-                platformFee,
-                netAmount,
+                platformFee: (amount * 10) / 100,
+                netAmount: (amount * 90) / 100,
+                commissionRate: 10,
             };
         } catch (error) {
             console.error('[PaymentsService] Error calculating financials:', error);
-            return {};
+            return {
+                platformFee: 0,
+                netAmount: Number(payment.amount),
+                commissionRate: 0,
+            };
         }
     }
 

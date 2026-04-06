@@ -243,9 +243,12 @@ export default function PropertiesList() {
                                 </div>
 
                                 {/* Stats */}
-                                <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground font-medium">
+                                <div className="flex flex-wrap items-center gap-2 mt-4 text-sm text-muted-foreground font-medium">
                                     <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">{property._count?.rooms || 0} rooms</span>
                                     <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">{property._count?.bookings || 0} bookings</span>
+                                    <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md border border-primary/20">
+                                        {property.platformCommission || 0}% Comm.
+                                    </span>
                                     {property.rating && (
                                         <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">
                                             <Star className="h-4 w-4 text-yellow-500 fill-current" />

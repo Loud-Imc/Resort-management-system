@@ -8,7 +8,8 @@ import {
     AlertCircle,
     CreditCard,
     ArrowLeftCircle,
-    Clock
+    Clock,
+    Search
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -18,6 +19,7 @@ import { RefundRequest } from '../../types/payment';
 export default function RefundRequestsList() {
     const [statusFilter, setStatusFilter] = useState<string>('PENDING');
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const { data: requests, isLoading, refetch } = useQuery<RefundRequest[]>({
         queryKey: ['refund-requests', statusFilter],
@@ -39,6 +41,15 @@ export default function RefundRequestsList() {
         }
     };
 
+    const filteredRequests = (requests || []).filter(r => {
+        const search = searchTerm.toLowerCase();
+        const paymentId = r.payment?.id?.toLowerCase() || '';
+        const reason = (r.reason || '').toLowerCase();
+        const guestEmail = (r.payment?.booking?.user?.email || '').toLowerCase();
+
+        return paymentId.includes(search) || reason.includes(search) || guestEmail.includes(search);
+    });
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -57,7 +68,7 @@ export default function RefundRequestsList() {
             </div>
 
             {/* Pillar Status Info */}
-            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3">
+            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3 shadow-sm">
                 <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm">
                     <p className="font-bold text-primary">Maker-Checker Authorization Cycle</p>
@@ -65,22 +76,35 @@ export default function RefundRequestsList() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
-                {['PENDING', 'APPROVED', 'REJECTED'].map((status) => (
-                    <button
-                        key={status}
-                        onClick={() => setStatusFilter(status)}
-                        className={clsx(
-                            "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest",
-                            statusFilter === status
-                                ? "bg-card text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        {status}
-                    </button>
-                ))}
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row gap-4 items-end sm:items-center justify-between">
+                <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit shrink-0">
+                    {['PENDING', 'APPROVED', 'REJECTED'].map((status) => (
+                        <button
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={clsx(
+                                "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest",
+                                statusFilter === status
+                                    ? "bg-card text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            {status}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                        type="text"
+                        placeholder="Search by payment ID or reason..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all"
+                    />
+                </div>
             </div>
 
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -97,16 +121,17 @@ export default function RefundRequestsList() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {requests?.length === 0 ? (
+                            {filteredRequests.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
                                         <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                        No {statusFilter.toLowerCase()} refund requests found.
+                                        No {statusFilter.toLowerCase()} refund requests found matching your search.
                                     </td>
                                 </tr>
                             ) : (
-                                requests?.map((r) => (
-                                    <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                                filteredRequests.map((r) => {
+                                    return (
+                                        <tr key={r.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
@@ -151,8 +176,9 @@ export default function RefundRequestsList() {
                                             )}
                                         </td>
                                     </tr>
-                                ))
-                            )}
+                                );
+                            })
+                        )}
                         </tbody>
                     </table>
                 </div>

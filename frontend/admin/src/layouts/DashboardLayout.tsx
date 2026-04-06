@@ -23,7 +23,8 @@ import {
     Moon,
     Bell,
     Megaphone,
-    Settings
+    Settings,
+    Image as ImageIcon
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/routeguide.svg';
@@ -62,38 +63,48 @@ export default function DashboardLayout() {
     const navItems = [
         // PILLAR 1: INTELLIGENCE
         ...(hasPermission('reports.viewDashboard') ? [
-            { icon: LayoutDashboard, label: 'Executive Dashboard', path: '/' }
+            { icon: LayoutDashboard, label: 'Executive Dashboard', path: '/', end: true }
         ] : []),
         ...(hasPermission('reports.viewFinancial') ? [
             { icon: PieChart, label: 'Platform Reports', path: '/reports' }
         ] : []),
-        ...(hasPermission('properties.read') ? [
-            { icon: Building2, label: 'All Properties', path: '/properties' },
-        ] : []),
 
-        // PILLAR 2: VETTING & OVERSIGHT
+        // PILLAR 2: PROPERTY OVERSIGHT
+        ...(hasPermission('properties.read') ? [
+            { icon: Building2, label: 'All Properties', path: '/properties', end: true },
+        ] : []),
         ...(hasPermission('properties.create') ? [
             { icon: Shield, label: 'Property Requests', path: '/properties/requests' },
         ] : []),
+        ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [
+            { icon: LayoutDashboard, label: 'Property Categories', path: '/property-categories' },
+        ] : []),
+
+        // PILLAR 3: CHANNEL PARTNERS
         ...(hasPermission('channelPartners.read') ? [
             { icon: Users, label: 'CP Onboarding', path: '/channel-partners' },
         ] : []),
+        ...(hasPermission('payments.read') ? [
+            { icon: DollarSign, label: 'CP Redemptions', path: '/financials/redemptions' },
+        ] : []),
 
-        // PILLAR 3: FINANCIAL OPERATIONS
+        // PILLAR 4: FINANCIAL OPERATIONS
         ...(hasPermission('payments.read') ? [
             { icon: CreditCard, label: 'Settlements', path: '/financials/settlements' },
-            { icon: DollarSign, label: 'CP Redemptions', path: '/financials/redemptions' },
             { icon: DollarSign, label: 'Wallet Adjustments', path: '/financials/adjustments' },
             { icon: CreditCard, label: 'Refund Requests', path: '/financials/refunds' },
             { icon: Shield, label: 'Reconciliation', path: '/financials/reconciliation' },
         ] : []),
 
-        // PILLAR 4: GROWTH & MARKETING
+        // PILLAR 5: GROWTH & MARKETING
         ...(hasPermission('marketing.read') ? [
-            { icon: Megaphone, label: 'Growth Dashboard', path: '/marketing' },
+            { icon: Megaphone, label: 'Growth Dashboard', path: '/marketing', end: true },
         ] : []),
         ...(hasPermission('marketing.manageCoupons') ? [
             { icon: Ticket, label: 'Coupons', path: '/marketing/coupons' },
+        ] : []),
+        ...(hasPermission('marketing.manageCoupons') ? [
+            { icon: ImageIcon, label: 'Web Banners', path: '/marketing/banners' },
         ] : []),
         ...(hasPermission('marketing.manageBroadcasts') ? [
             { icon: Bell, label: 'Broadcast Alerts', path: '/marketing/notifications' },
@@ -102,15 +113,12 @@ export default function DashboardLayout() {
             { icon: Settings, label: 'Loyalty / Tiers', path: '/loyalty-management' }
         ] : []),
 
-        // PILLAR 5: PLATFORM INTEGRITY
+        // PILLAR 6: PLATFORM INTEGRITY
         ...(hasPermission('users.read') ? [
             { icon: Users, label: 'Platform Users', path: '/users' },
         ] : []),
         ...(hasPermission('roles.read') ? [
             { icon: Shield, label: 'System Roles', path: '/roles' },
-        ] : []),
-        ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [
-            { icon: LayoutDashboard, label: 'Property Categories', path: '/property-categories' },
         ] : []),
     ];
 
@@ -162,6 +170,7 @@ export default function DashboardLayout() {
                         <NavLink
                             key={item.path}
                             to={item.path}
+                            end={item.end}
                             className={({ isActive }) =>
                                 clsx(
                                     'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
@@ -261,6 +270,7 @@ export default function DashboardLayout() {
                                     key={item.path}
                                     onClick={() => setIsSidebarOpen(false)}
                                     to={item.path}
+                                    end={item.end}
                                     className={({ isActive }) =>
                                         clsx(
                                             'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',

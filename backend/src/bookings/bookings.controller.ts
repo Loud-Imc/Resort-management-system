@@ -186,11 +186,13 @@ export class BookingsController {
         @Query('status') status?: string,
         @Query('roomTypeId') roomTypeId?: string,
         @Query('propertyId') propertyId?: string,
+        @Query('hasSettlement') hasSettlement?: string,
     ) {
         return this.bookingsService.findAll(req.user, {
             status,
             roomTypeId,
             propertyId,
+            hasSettlement: hasSettlement === 'true' ? true : (hasSettlement === 'false' ? false : undefined),
         });
     }
 

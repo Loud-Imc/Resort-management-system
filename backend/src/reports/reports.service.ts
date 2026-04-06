@@ -27,6 +27,7 @@ const log = (msg: string) => {
 
 // Casting status values to any to bypass transitory prisma client sync issues in this specific service
 const APPROVED = 'APPROVED' as any;
+const SettlementStatus = { PAID: 'PAID' } as any;
 
 @Injectable()
 export class ReportsService {
@@ -374,33 +375,26 @@ export class ReportsService {
         // Platform-Specific Financial Logic
         let platformSummary: any = null;
         if (isGlobalAdmin && !propertyId) {
-            const paidPayments = await this.prisma.payment.findMany({
+            // Fetch settlements in this period to get ACCURATE profit (Realized Fees)
+            const paidSettlements = await this.prisma.propertySettlement.findMany({
                 where: {
-                    status: { in: ['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'] },
-                    paymentDate: { gte: sDate, lte: eDate }
+                    status: SettlementStatus.PAID,
+                    processedAt: { gte: sDate, lte: eDate }
                 },
-                include: {
-                    booking: {
-                        include: {
-                            cpTransactions: { where: { type: 'COMMISSION', status: 'FINALIZED' } },
-                            property: true
-                        }
-                    }
-                }
+                include: { property: true, booking: { include: { cpTransactions: { where: { type: 'COMMISSION' } } } } }
             });
 
-            const grossPlatformFees = paidPayments.reduce((sum, p: any) => sum + Number(p.platformFee || 0), 0);
-            const totalCPCommission = paidPayments.reduce((sum, p: any) => {
-                const commission = p.booking?.cpTransactions?.reduce((cSum, ctx) => cSum + Number(ctx.amount), 0) || 0;
-                return sum + commission;
-            }, 0);
-            const totalVolume = paidPayments.reduce((sum, p: any) => sum + Number(p.amount || 0), 0);
+            const grossPlatformFees = paidSettlements.reduce((sum, s) => sum + Number(s.platformFee), 0);
+            const totalCPCommission = paidSettlements.reduce((sum, s) => sum + Number(s.cpCommission), 0);
+            
+            // Total volume for gateway fee calculation (using booking totals for settled items)
+            const totalVolume = paidSettlements.reduce((sum, s) => sum + Number(s.grossAmount), 0);
             const estimatedGatewayFees = (totalVolume * 2.5) / 100;
 
             // Breakdown of fees by property
-            const platformFeeBreakdown = paidPayments.reduce((acc: any[], p: any) => {
-                const propertyName = p.booking?.property?.name || 'Unknown Property';
-                const fee = Number(p.platformFee || 0);
+            const platformFeeBreakdown = paidSettlements.reduce((acc: any[], s: any) => {
+                const propertyName = s.property?.name || 'Unknown Property';
+                const fee = Number(s.platformFee || 0);
                 if (fee === 0) return acc;
 
                 const existing = acc.find(a => a.organizationName === propertyName);

@@ -6,7 +6,9 @@ import {
     SettlementStatus,
     RedemptionStatus,
     BookingStatus,
-    BookingPaymentStatus
+    BookingPaymentStatus,
+    PayoutStatus,
+    PaymentStatus
 } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
@@ -144,7 +146,8 @@ export class FinancialsService {
             where: { id: bookingId },
             include: {
                 property: true,
-                cpTransactions: { where: { type: 'COMMISSION' } }
+                cpTransactions: { where: { type: 'COMMISSION', status: 'FINALIZED' } },
+                payments: { where: { status: 'PAID' } }
             },
         });
 
@@ -158,22 +161,39 @@ export class FinancialsService {
 
         if (!booking.property) throw new BadRequestException('Property details not found for this booking');
 
+        // Logic for Reconciled Settlement:
+        // 1. grossAmount is the TOTAL value of the booking
         const grossAmount = booking.totalAmount;
-        const platformFeeRate = (booking.property as any).platformCommission || 0;
-        const platformFee = grossAmount.mul(platformFeeRate).div(100);
+        
+        // 2. collectedAmount is what the Admin/Platform actually holds (payoutStatus PENDING)
+        const collectedAmount = booking.payments
+            .filter(p => p.payoutStatus === 'PENDING')
+            .reduce((acc, p) => acc.add(p.amount), new Decimal(0));
 
+        // 3. Platform Fee: Zero for manual bookings, else percentage of TOTAL
+        let platformFee = new Decimal(0);
+        if (!booking.isManualBooking) {
+            const platformFeeRate = (booking.property as any).platformCommission || 0;
+            platformFee = grossAmount.mul(platformFeeRate).div(100);
+        }
+
+        // 4. CP Commission: Sum of all commissions for this booking
         const cpCommission = booking.cpTransactions.reduce(
             (acc, tx) => acc.add(tx.amount),
             new Decimal(0)
         );
 
-        const netPayout = grossAmount.minus(platformFee).minus(cpCommission);
+        // 5. netPayout: What we strictly owe to the property from the funds we hold.
+        // NOTE: The platformFee is the TOTAL commission taken from the property.
+        // CP Commission is internally paid by the platform from this fee.
+        const netPayout = collectedAmount.minus(platformFee);
 
         return this.prisma.propertySettlement.create({
             data: {
                 bookingId,
                 propertyId: booking.propertyId as string,
                 grossAmount,
+                collectedAmount,
                 platformFee,
                 cpCommission,
                 netPayout,
@@ -225,15 +245,33 @@ export class FinancialsService {
 
         const oldStatus = settlement.status;
 
-        const updated = await this.prisma.propertySettlement.update({
-            where: { id: settlementId },
-            data: {
-                status,
-                ...(status === SettlementStatus.APPROVED && { approvedById: user.id }),
-                ...(status === SettlementStatus.PAID && { payoutById: user.id, processedAt: new Date() }),
-                ...(dto?.referenceId && { referenceId: dto.referenceId }),
-                ...(dto?.method && { method: dto.method }),
-            },
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const updatedSettlement = await tx.propertySettlement.update({
+                where: { id: settlementId },
+                data: {
+                    status,
+                    ...(status === SettlementStatus.APPROVED && { approvedById: user.id }),
+                    ...(status === SettlementStatus.PAID && { payoutById: user.id, processedAt: new Date() }),
+                    ...(dto?.referenceId && { referenceId: dto.referenceId }),
+                    ...(dto?.method && { method: dto.method }),
+                },
+            });
+
+            // 2. If PAID, mark all associated payments as PAID for payout
+            if (status === SettlementStatus.PAID) {
+                await tx.payment.updateMany({
+                    where: {
+                        bookingId: settlement.bookingId,
+                        payoutStatus: PayoutStatus.PENDING,
+                        status: PaymentStatus.PAID
+                    },
+                    data: {
+                        payoutStatus: PayoutStatus.PAID
+                    }
+                });
+            }
+
+            return updatedSettlement;
         });
 
         await this.audit.createLog({

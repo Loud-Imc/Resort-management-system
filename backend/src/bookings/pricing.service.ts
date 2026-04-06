@@ -24,6 +24,7 @@ export interface PricingBreakdown {
     // Code Detection Info
     appliedCodeType?: 'COUPON' | 'REFERRAL' | 'NONE';
     referralPartnerId?: string;
+    partialPaymentPct?: number;
 }
 
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -345,6 +346,7 @@ export class PricingService {
             ...(capApplied && { discountCapApplied: true, discountCapPct: maxDiscountFraction * 100 }),
             appliedCodeType: referralCode ? 'REFERRAL' : (couponCode ? 'COUPON' : 'NONE') as 'REFERRAL' | 'COUPON' | 'NONE',
             referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode } }))?.id : undefined,
+            partialPaymentPct: Number(await this.systemSettingsService.getSetting('PARTIAL_PAYMENT_PCT') || 33.33),
         };
         console.log(`[PricingService] Final result: total=${result.totalAmount}, type=${result.appliedCodeType}`);
         return result;

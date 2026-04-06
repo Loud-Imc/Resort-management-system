@@ -65,7 +65,8 @@ export default function Login() {
 
             navigate('/');
         } catch (err: any) {
-            setError('Invalid email or password');
+            const message = err.response?.data?.message || err.message || 'Invalid email or password';
+            setError(message);
         }
     };
 
@@ -73,7 +74,7 @@ export default function Login() {
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
             <div className="max-w-md w-full bg-card rounded-xl shadow-xl border border-border p-8 transition-colors duration-300">
                 <div className="text-center mb-10 flex flex-col items-center">
-                    <img src={logo} alt="Route Guide" className="h-24 w-auto mb-4" />
+                    <img src={logo} alt="Route Guide" className="h-20 w-auto mb-4" />
                     <h1 className="text-4xl font-bold text-foreground tracking-tight">Route Guide</h1>
                     <p className="text-muted-foreground mt-2 font-medium">Platform Administration</p>
                 </div>

@@ -43,9 +43,14 @@ export class PropertiesService {
 
         const message = `Your OTP for confirming the ${commission}% platform commission is ${code}. Please enter this to complete your registration.`;
 
-        await this.notificationsService.sendWhatsApp(normalized, message);
+        // We use sendSMS which now automatically chooses between Twilio and MSG91
+        // For MSG91, it will use the Flow API with variables for the custom message.
+        await this.notificationsService.sendSMS(normalized, message, {
+            commission: String(commission),
+            otp: code
+        });
 
-        this.logger.log(`Commission OTP (${code}) sent via WhatsApp to ${normalized}`);
+        this.logger.log(`Commission OTP (${code}) sent to ${normalized}`);
 
         return { success: true, message: 'Verification code sent' };
     }

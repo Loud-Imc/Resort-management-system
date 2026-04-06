@@ -2,8 +2,10 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rolesService } from '../../services/roles';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Edit2, Trash2, Shield, Loader2, Star, Building2, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, Shield, Loader2, Star, Building2, Calendar, Search } from 'lucide-react';
+import { useState } from 'react';
 import clsx from 'clsx';
+
 import { Role } from '../../types/user';
 
 export default function RolesList() {
@@ -11,11 +13,17 @@ export default function RolesList() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const { data: roles, isLoading } = useQuery<Role[]>({
         queryKey: ['roles'],
         queryFn: rolesService.getAll,
     });
+
+    const filteredRoles = (roles || []).filter(role => 
+        role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        role.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     const deleteMutation = useMutation({
         mutationFn: rolesService.delete,
@@ -48,22 +56,39 @@ export default function RolesList() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Roles & Permissions</h1>
                     <p className="text-sm text-muted-foreground mt-1">Manage system access and user roles</p>
                 </div>
-                <button
-                    onClick={() => navigate('/roles/create')}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
-                >
-                    <Plus className="h-5 w-5" />
-                    Create Role
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Search roles..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all"
+                        />
+                    </div>
+                    <button
+                        onClick={() => navigate('/roles/create')}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition shadow-sm font-bold whitespace-nowrap"
+                    >
+                        <Plus className="h-5 w-5" />
+                        Create Role
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {roles?.map((role) => {
+                {filteredRoles.length === 0 ? (
+                    <div className="col-span-full py-12 text-center text-muted-foreground italic">
+                        No roles found matching your search.
+                    </div>
+                ) : (
+                    filteredRoles.map((role) => {
                     const canEdit = isSuperAdmin || !role.isSystem;
                     return (
                         <div key={role.id} className="bg-card rounded-xl shadow-sm border border-border p-6 hover:shadow-md transition-all flex flex-col">
@@ -113,8 +138,9 @@ export default function RolesList() {
                             </div>
                         </div>
                     );
-                })}
-            </div>
+                })
+            )}
         </div>
-    );
+    </div>
+);
 }

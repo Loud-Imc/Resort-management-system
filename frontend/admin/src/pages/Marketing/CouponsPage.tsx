@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { discountService, Coupon } from '../../services/discounts';
-import { Loader2, Plus, Edit2, Trash2, Ticket, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Ticket, CheckCircle, XCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function CouponsPage() {
     const [coupons, setCoupons] = useState<Coupon[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
@@ -34,6 +35,14 @@ export default function CouponsPage() {
             setLoading(false);
         }
     };
+
+    const filteredCoupons = coupons.filter(coupon => {
+        const search = searchTerm.toLowerCase();
+        return (
+            coupon.code?.toLowerCase().includes(search) ||
+            coupon.description?.toLowerCase().includes(search)
+        );
+    });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,23 +105,35 @@ export default function CouponsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Coupons Management</h1>
                     <p className="text-muted-foreground font-medium">Create and manage promotional discount codes</p>
                 </div>
-                <button
-                    onClick={() => openModal()}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition shadow-sm font-bold"
-                >
-                    <Plus className="h-4 w-4" />
-                    New Coupon
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Search by code..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all"
+                        />
+                    </div>
+                    <button
+                        onClick={() => openModal()}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition shadow-sm font-bold whitespace-nowrap"
+                    >
+                        <Plus className="h-4 w-4" />
+                        New Coupon
+                    </button>
+                </div>
             </div>
 
             <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-muted/50 border-b border-border text-center">
+                    <thead className="bg-muted/50 border-b border-border">
                         <tr>
                             <th className="px-6 py-4 font-bold text-muted-foreground uppercase tracking-widest text-xs">Coupon</th>
                             <th className="px-6 py-4 font-bold text-muted-foreground uppercase tracking-widest text-xs">Value</th>
@@ -123,71 +144,81 @@ export default function CouponsPage() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                        {coupons.map((coupon) => (
-                            <tr key={coupon.id} className="hover:bg-muted/30 transition-colors group">
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-                                            <Ticket className="h-5 w-5 text-primary" />
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-card-foreground font-mono group-hover:text-primary transition-colors">{coupon.code}</div>
-                                            <div className="text-[10px] text-muted-foreground font-medium truncate max-w-[150px]">{coupon.description}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm">
-                                        {coupon.discountType === 'PERCENTAGE' ? `${coupon.discountValue}% Off` : `₹${coupon.discountValue} Off`}
-                                    </span>
-                                    {coupon.minBookingAmount !== undefined && coupon.minBookingAmount > 0 && (
-                                        <div className="text-[10px] text-muted-foreground font-medium mt-1">Min: ₹{coupon.minBookingAmount}</div>
-                                    )}
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="text-card-foreground text-[11px] font-bold">
-                                        {format(new Date(coupon.validFrom), 'MMM d')} - {format(new Date(coupon.validUntil), 'MMM d, yyyy')}
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex flex-col gap-1.5 min-w-[100px]">
-                                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-primary transition-all duration-500"
-                                                style={{ width: `${Math.min((coupon.usedCount / (coupon.maxUses || 1)) * 100, 100)}%` }}
-                                            />
-                                        </div>
-                                        <span className="text-[10px] text-muted-foreground font-bold">{coupon.usedCount} / {coupon.maxUses || '∞'} uses</span>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    {coupon.isActive ? (
-                                        <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm">
-                                            <CheckCircle className="h-3 w-3" /> Active
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 text-muted-foreground bg-muted px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm">
-                                            <XCircle className="h-3 w-3" /> Inactive
-                                        </span>
-                                    )}
-                                </td>
-                                <td className="px-6 py-4 text-right space-x-1">
-                                    <button
-                                        onClick={() => openModal(coupon)}
-                                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                                    >
-                                        <Edit2 className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(coupon.id)}
-                                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
+                        {filteredCoupons.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
+                                    No coupons found matching your search.
                                 </td>
                             </tr>
-                        ))}
-                    </tbody>
+                        ) : (
+                            filteredCoupons.map((coupon) => {
+                                return (
+                                    <tr key={coupon.id} className="hover:bg-muted/30 transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                                                    <Ticket className="h-5 w-5 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-card-foreground font-mono group-hover:text-primary transition-colors">{coupon.code}</div>
+                                                    <div className="text-[10px] text-muted-foreground font-medium truncate max-w-[150px]">{coupon.description}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm">
+                                                {coupon.discountType === 'PERCENTAGE' ? `${coupon.discountValue}% Off` : `₹${coupon.discountValue} Off`}
+                                            </span>
+                                            {coupon.minBookingAmount !== undefined && coupon.minBookingAmount > 0 && (
+                                                <div className="text-[10px] text-muted-foreground font-medium mt-1">Min: ₹{coupon.minBookingAmount}</div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-card-foreground text-[11px] font-bold">
+                                                {format(new Date(coupon.validFrom), 'MMM d')} - {format(new Date(coupon.validUntil), 'MMM d, yyyy')}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1.5 min-w-[100px]">
+                                                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-primary transition-all duration-500"
+                                                        style={{ width: `${Math.min((coupon.usedCount / (coupon.maxUses || 1)) * 100, 100)}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-[10px] text-muted-foreground font-bold">{coupon.usedCount} / {coupon.maxUses || '∞'} uses</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {coupon.isActive ? (
+                                                <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm">
+                                                    <CheckCircle className="h-3 w-3" /> Active
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-muted-foreground bg-muted px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm">
+                                                    <XCircle className="h-3 w-3" /> Inactive
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-right space-x-1">
+                                            <button
+                                                onClick={() => openModal(coupon)}
+                                                className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                                            >
+                                                <Edit2 className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(coupon.id)}
+                                                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                </tbody>
                 </table>
             </div>
 

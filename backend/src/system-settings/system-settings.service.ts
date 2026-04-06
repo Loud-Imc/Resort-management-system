@@ -55,6 +55,11 @@ export class SystemSettingsService implements OnModuleInit {
                 key: 'PAYOUT_COOLING_HOURS',
                 value: 24,
                 description: 'Cooling period (in hours) after checkout before a property settlement can be approved.'
+            },
+            {
+                key: 'PARTIAL_PAYMENT_PCT',
+                value: 33.33,
+                description: 'The percentage of the total amount required for a partial payment booking advance.'
             }
         ];
 

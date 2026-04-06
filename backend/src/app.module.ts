@@ -38,6 +38,7 @@ import { IcalModule } from './ical/ical.module';
 import { PdfModule } from './pdf/pdf.module';
 import { SystemSettingsModule } from './system-settings/system-settings.module';
 import { FinancialsModule } from './financials/financials.module';
+import { BannersModule } from './banners/banners.module';
 
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
@@ -83,6 +84,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
     NotificationsModule,
     RemindersModule,
     IcalModule,
+    BannersModule,
   ],
   controllers: [AppController],
   providers: [

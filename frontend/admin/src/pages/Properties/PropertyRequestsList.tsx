@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
     Shield, CheckCircle, XCircle, Loader2, Building2, MapPin,
     Phone, Mail, Clock, ChevronDown, ChevronUp, User, FileText,
-    Image, Tag, Info
+    Image, Tag, Info, Search, Filter
 } from 'lucide-react';
 import propertyService from '../../services/properties';
 import toast from 'react-hot-toast';
@@ -15,6 +15,8 @@ export default function PropertyRequestsList() {
     const [error, setError] = useState<string | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
 
     useEffect(() => {
         loadRequests();
@@ -71,6 +73,16 @@ export default function PropertyRequestsList() {
         setExpandedId(prev => prev === id ? null : id);
     };
 
+    const filteredRequests = requests.filter(request => {
+        const matchesSearch =
+            request.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            request.ownerEmail.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesStatus = statusFilter === 'ALL' || request.status === statusFilter;
+
+        return matchesSearch && matchesStatus;
+    });
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -88,6 +100,33 @@ export default function PropertyRequestsList() {
                 </div>
             </div>
 
+            {/* Search and Filter Bar */}
+            <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <input
+                        type="text"
+                        placeholder="Search by property name or owner email..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 px-4 py-2 border border-border bg-background text-foreground rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <Filter className="h-5 w-5 text-muted-foreground" />
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as any)}
+                        className="border border-border bg-background text-foreground rounded-xl px-4 py-2 focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-sm min-w-[150px] font-medium"
+                    >
+                        <option value="ALL">All Status</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="REJECTED">Rejected</option>
+                    </select>
+                </div>
+            </div>
+
             {error && (
                 <div className="bg-destructive/10 text-destructive p-4 rounded-xl border border-destructive/20 font-bold">
                     {error}
@@ -95,13 +134,13 @@ export default function PropertyRequestsList() {
             )}
 
             <div className="space-y-4">
-                {requests.length === 0 ? (
-                    <div className="bg-card rounded-2xl border border-border p-12 text-center">
+                {filteredRequests.length === 0 ? (
+                    <div className="bg-card rounded-2xl border border-border p-12 text-center shadow-sm">
                         <Shield className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                        <p className="text-muted-foreground italic">No property requests found.</p>
+                        <p className="text-muted-foreground italic">No property requests found matching your current filters.</p>
                     </div>
                 ) : (
-                    requests.map((request) => {
+                    filteredRequests.map((request) => {
                         const details = request.details || {};
                         const isExpanded = expandedId === request.id;
 

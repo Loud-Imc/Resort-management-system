@@ -8,7 +8,6 @@ import { differenceInDays, format, addDays } from 'date-fns';
 import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
 import { uploadService } from '../services/upload';
-import { channelPartnerService } from '../services/channelPartner';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrency } from '../context/CurrencyContext';
 import { formatPrice } from '../utils/currency';
@@ -65,7 +64,6 @@ export default function Checkout() {
     const [token, setToken] = useState<string | null>(null);
     const [idImage, setIdImage] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState<'ONLINE' | 'WALLET'>('ONLINE');
     const { selectedCurrency, rates } = useCurrency();
 
 
@@ -163,18 +161,6 @@ export default function Checkout() {
         retry: false,
     });
 
-    // Fetch CP Stats if logged in
-    const { data: cpStats } = useQuery<any>({
-        queryKey: ['cp-stats'],
-        queryFn: () => channelPartnerService.getStats(),
-        enabled: !!token,
-    });
-
-    const { data: cpProfile } = useQuery<any>({
-        queryKey: ['cp-profile'],
-        queryFn: () => channelPartnerService.getMyProfile(),
-        enabled: !!token,
-    });
 
     // Derive effective pricing to display
     const effectivePricing = appliedCode && couponPricing && !isPricingError ? couponPricing : basePricing;
@@ -189,7 +175,6 @@ export default function Checkout() {
         if (!code) return;
 
         setAppliedCode(code);
-        setPaymentMethod('ONLINE');
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,7 +216,7 @@ export default function Checkout() {
                 gstNumber: userData.gstNumber,
                 specialRequests: userData.specialRequests,
                 generalCode: appliedCode || undefined,
-                paymentMethod: paymentMethod,
+                paymentMethod: 'ONLINE' as const,
                 paymentOption: paymentOption,
                 currency: selectedCurrency,
                 isGroupBooking,
@@ -251,17 +236,6 @@ export default function Checkout() {
             const booking = token
                 ? await bookingService.createAuthenticatedBooking(bookingData)
                 : await bookingService.createBooking(bookingData);
-
-            if (paymentMethod === 'WALLET') {
-                // For wallet payment, the booking is confirmed immediately
-                navigate(`/confirmation?bookingId=${booking.id}`, {
-                    state: {
-                        booking: { ...booking, status: 'CONFIRMED' },
-                        email: userData.email
-                    }
-                });
-                return;
-            }
 
             // 2. Initiate Payment (Create Razorpay Order)
             const paymentInfo = await paymentService.initiatePayment({ bookingId: booking.id });
@@ -629,56 +603,13 @@ export default function Checkout() {
                                         <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'PARTIAL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Advance</span>
                                         {paymentOption === 'PARTIAL' && <ShieldCheck className="h-4 w-4 text-primary-600" />}
                                     </div>
-                                    <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round((effectivePricing?.totalAmount || 0) / 3), selectedCurrency, rates)}</span>
+                                    <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round((effectivePricing?.totalAmount || 0) * (effectivePricing?.partialPaymentPct || 33.33) / 100), selectedCurrency, rates)}</span>
                                     <p className="text-[10px] text-gray-500 italic">Pay the remaining balance at the property</p>
                                 </button>
                             </div>
                         </div>
 
 
-
-                        {cpProfile && appliedCode === cpProfile.referralCode && couponPricing?.appliedCodeType === 'REFERRAL' && (
-                            <div className="bg-primary-50 p-5 rounded-xl border border-primary-100 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-bold text-primary-900">Payment Option</h4>
-                                    <div className="text-xs font-bold text-primary-700 bg-white px-2 py-1 rounded shadow-sm border border-primary-200">
-                                        Wallet Balance: {formatPrice(Number(cpStats?.walletBalance || 0), 'INR', rates)}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentMethod('ONLINE')}
-                                        className={`p-3 border rounded-lg text-sm font-bold flex flex-col items-center gap-2 transition-all ${paymentMethod === 'ONLINE' ? 'bg-primary-600 border-primary-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-primary-300'}`}
-                                    >
-                                        <CreditCard className="h-5 w-5" />
-                                        Online Payment
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentMethod('WALLET')}
-                                        disabled={Number(cpStats?.walletBalance || 0) < ((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0))}
-                                        className={`p-3 border rounded-lg text-sm font-bold flex flex-col items-center gap-2 transition-all ${paymentMethod === 'WALLET' ? 'bg-primary-600 border-primary-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-primary-300 disabled:opacity-50 disabled:cursor-not-allowed'}`}
-                                    >
-                                        <CreditCard className="h-5 w-5" />
-                                        CP Wallet
-                                    </button>
-                                </div>
-
-                                {paymentMethod === 'WALLET' && (
-                                    <p className="text-[11px] text-primary-700 font-medium italic">
-                                        Amount to be deducted: {formatPrice(((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0)), selectedCurrency, rates)} (Total - Your 10% Commission)
-                                    </p>
-                                )}
-
-                                {paymentMethod === 'WALLET' && Number(cpStats?.walletBalance || 0) < ((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0)) && (
-                                    <p className="text-[11px] text-red-500 font-bold">
-                                        Insufficient wallet balance. Please use online payment or top up your wallet.
-                                    </p>
-                                )}
-                            </div>
-                        )}
 
                         <button
                             type="submit"
@@ -691,9 +622,7 @@ export default function Checkout() {
                                 </>
                             ) : (
                                 `${paymentOption === 'FULL' ? 'Book Now with' : 'Pay & Reserve'} ${formatPrice(
-                                    paymentMethod === 'WALLET'
-                                        ? ((effectivePricing?.totalAmount || 0) - (effectivePricing?.cpCommission || 0))
-                                        : (paymentOption === 'PARTIAL' ? Math.round((effectivePricing?.totalAmount || 0) / 3) : (effectivePricing?.totalAmount || 0)),
+                                    paymentOption === 'PARTIAL' ? Math.round((effectivePricing?.totalAmount || 0) * (effectivePricing?.partialPaymentPct || 33.33) / 100) : (effectivePricing?.totalAmount || 0),
                                     selectedCurrency,
                                     rates
                                 ) || '...'}`

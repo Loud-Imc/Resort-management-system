@@ -42,6 +42,7 @@ export default function LoyaltyManagement() {
     const [defaultCommission, setDefaultCommission] = useState<number>(10);
     const [defaultPlatformCommission, setDefaultPlatformCommission] = useState<number>(10);
     const [payoutCoolingHours, setPayoutCoolingHours] = useState<number>(24);
+    const [partialPaymentPct, setPartialPaymentPct] = useState<number>(33.33);
 
     // Tiers State
     const [levels, setLevels] = useState<PartnerLevel[]>([]);
@@ -83,6 +84,9 @@ export default function LoyaltyManagement() {
             const coolingSetting = settingsData.find((s: GlobalSetting) => s.key === 'PAYOUT_COOLING_HOURS');
             if (coolingSetting) setPayoutCoolingHours(Number(coolingSetting.value));
 
+            const partialPaymentSetting = settingsData.find((s: GlobalSetting) => s.key === 'PARTIAL_PAYMENT_PCT');
+            if (partialPaymentSetting) setPartialPaymentPct(Number(partialPaymentSetting.value));
+
             // Map Tiers & Rewards
             setLevels(levelsData.sort((a, b) => a.minPoints - b.minPoints));
             setRewards(rewardsData.sort((a, b) => a.pointCost - b.pointCost));
@@ -115,6 +119,7 @@ export default function LoyaltyManagement() {
                 settingsService.update('DEFAULT_COMMISSION_RATE', defaultCommission, 'Global default commission rate for Channel Partners'),
                 settingsService.update('DEFAULT_PLATFORM_COMMISSION', defaultPlatformCommission, 'Global default platform commission rate for properties'),
                 settingsService.update('PAYOUT_COOLING_HOURS', payoutCoolingHours, 'Cooling period (hours) before settlement approval'),
+                settingsService.update('PARTIAL_PAYMENT_PCT', partialPaymentPct, 'The percentage of the total amount required for a partial payment booking advance'),
             ]);
             toast.success('Settings updated successfully');
         } catch (error) {
@@ -222,34 +227,34 @@ export default function LoyaltyManagement() {
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                    <Coins className="h-8 w-8 text-primary-600" />
+                <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+                    <Coins className="h-8 w-8 text-primary" />
                     Loyalty & Tiers Management
                 </h1>
-                <p className="mt-2 text-gray-600">
+                <p className="mt-2 text-muted-foreground">
                     Centralize tax policies, Channel Partner (CP) reseller tiers, and the rewards catalog.
                 </p>
             </div>
 
             {/* Navigation Pills */}
-            <div className="flex p-1 bg-gray-100 rounded-2xl w-fit drop-shadow-sm border border-gray-200">
+            <div className="flex p-1 bg-muted rounded-2xl w-fit drop-shadow-sm border border-border">
                 <button
                     onClick={() => setActiveTab('GLOBAL')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'GLOBAL' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'GLOBAL' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                 >
                     <Coins className="h-4 w-4" /> Global Points & Tax
                 </button>
                 <button
                     onClick={() => setActiveTab('TIERS')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'TIERS' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'TIERS' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                 >
                     <Award className="h-4 w-4" /> Partner Tiers
                 </button>
                 <button
                     onClick={() => setActiveTab('REWARDS')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'REWARDS' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'REWARDS' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                 >
                     <Gift className="h-4 w-4" /> Rewards Catalog
@@ -260,55 +265,55 @@ export default function LoyaltyManagement() {
             {activeTab === 'GLOBAL' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-right-4 duration-300">
                     {/* GST Tiers Section */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-                        <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
+                    <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-border flex items-center justify-between bg-muted/30">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-100 rounded-lg">
-                                    <Calculator className="h-5 w-5 text-blue-600" />
+                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                    <Calculator className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-lg font-bold text-gray-900">GST Tax Tiers</h2>
-                                    <p className="text-xs text-gray-500">Automated based on room tariff</p>
+                                    <h2 className="text-lg font-bold text-foreground">GST Tax Tiers</h2>
+                                    <p className="text-xs text-muted-foreground">Automated based on room tariff</p>
                                 </div>
                             </div>
-                            <button onClick={addGstTier} className="p-2 text-primary-600 hover:bg-primary-50 rounded-full transition-colors" title="Add Tier">
+                            <button onClick={addGstTier} className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors" title="Add Tier">
                                 <Plus className="h-5 w-5" />
                             </button>
                         </div>
                         <div className="p-6 flex-1 space-y-4">
                             {gstTiers.length === 0 ? (
-                                <div className="text-center py-8 text-gray-400">
+                                <div className="text-center py-8 text-muted-foreground">
                                     <Info className="h-8 w-8 mx-auto mb-2 opacity-20" />
                                     <p>No GST tiers defined. Fallback is 12%.</p>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
                                     {gstTiers.map((tier, index) => (
-                                        <div key={index} className="group relative border border-gray-100 rounded-xl p-4 hover:border-primary-200 transition-all hover:shadow-md">
+                                        <div key={index} className="group relative border border-border rounded-xl p-4 hover:border-primary/50 transition-all hover:shadow-md bg-background/50">
                                             <div className="grid grid-cols-3 gap-4">
                                                 <div>
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Min Price (₹)</label>
-                                                    <input type="number" value={tier.min} onChange={(e) => updateGstTier(index, 'min', e.target.value)} className="w-full text-sm font-medium focus:ring-0 border-none p-0" placeholder="0" />
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Min Price (₹)</label>
+                                                    <input type="number" value={tier.min} onChange={(e) => updateGstTier(index, 'min', e.target.value)} className="w-full text-sm font-medium focus:ring-0 border-none p-0 bg-transparent text-foreground" placeholder="0" />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Max Price (₹)</label>
-                                                    <input type="number" value={tier.max === null ? '' : tier.max} onChange={(e) => updateGstTier(index, 'max', e.target.value)} className="w-full text-sm font-medium focus:ring-0 border-none p-0" placeholder="No limit" />
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Max Price (₹)</label>
+                                                    <input type="number" value={tier.max === null ? '' : tier.max} onChange={(e) => updateGstTier(index, 'max', e.target.value)} className="w-full text-sm font-medium focus:ring-0 border-none p-0 bg-transparent text-foreground" placeholder="No limit" />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Tax Rate (%)</label>
-                                                    <input type="number" value={tier.rate} onChange={(e) => updateGstTier(index, 'rate', e.target.value)} className="w-full text-sm font-bold text-primary-600 focus:ring-0 border-none p-0" placeholder="0" />
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Tax Rate (%)</label>
+                                                    <input type="number" value={tier.rate} onChange={(e) => updateGstTier(index, 'rate', e.target.value)} className="w-full text-sm font-bold text-primary focus:ring-0 border-none p-0 bg-transparent" placeholder="0" />
                                                 </div>
                                             </div>
-                                            <button onClick={() => removeGstTier(index)} className="absolute -right-2 -top-2 p-1.5 bg-red-50 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white">
+                                            <button onClick={() => removeGstTier(index)} className="absolute -right-2 -top-2 p-1.5 bg-destructive/10 text-destructive rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-white">
                                                 <Trash2 className="h-3.3 w-3.5" />
                                             </button>
                                         </div>
                                     ))}
                                 </div>
                             )}
-                            <div className="mt-6 pt-6 border-t border-gray-50 flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full"><AlertCircle className="h-3.5 w-3.5" /> Affects new bookings instantly.</div>
-                                <button onClick={handleSaveGstTiers} disabled={isSaving} className="flex items-center gap-2 px-6 py-2 bg-gray-900 text-white rounded-xl hover:bg-black transition-all disabled:opacity-50">
+                            <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-3 py-1.5 rounded-full"><AlertCircle className="h-3.5 w-3.5" /> Affects new bookings instantly.</div>
+                                <button onClick={handleSaveGstTiers} disabled={isSaving} className="flex items-center gap-2 px-6 py-2 bg-foreground text-background rounded-xl hover:opacity-90 transition-all disabled:opacity-50 font-bold">
                                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Tiers
                                 </button>
                             </div>
@@ -317,49 +322,56 @@ export default function LoyaltyManagement() {
 
                     {/* Loyalty Settings */}
                     <div className="space-y-8">
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="p-6 border-b border-gray-50 flex items-center gap-3 bg-gray-50/50">
-                                <div className="p-2 bg-emerald-100 rounded-lg"><Coins className="h-5 w-5 text-emerald-600" /></div>
-                                <div><h2 className="text-lg font-bold text-gray-900">Financial & Points Engine</h2><p className="text-xs text-gray-500">Global commission and conversion rates</p></div>
+                        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+                            <div className="p-6 border-b border-border flex items-center gap-3 bg-muted/30">
+                                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><Coins className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
+                                <div><h2 className="text-lg font-bold text-foreground">Financial & Points Engine</h2><p className="text-xs text-muted-foreground">Global commission and conversion rates</p></div>
                             </div>
                             <div className="p-6 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Points per ₹1 Commissionable Amt</label>
+                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Points per ₹1 Commissionable Amt</label>
                                         <div className="relative">
-                                            <input type="number" value={loyaltyPoints} onChange={(e) => setLoyaltyPoints(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-lg font-bold" placeholder="1" />
-                                            <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                            <input type="number" value={loyaltyPoints} onChange={(e) => setLoyaltyPoints(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl focus:ring-2 focus:ring-primary text-lg font-bold text-foreground" placeholder="1" />
+                                            <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Default CP Commission (%)</label>
+                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Default CP Commission (%)</label>
                                         <div className="relative">
-                                            <input type="number" value={defaultCommission} onChange={(e) => setDefaultCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-lg font-bold" placeholder="10" />
-                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                            <input type="number" value={defaultCommission} onChange={(e) => setDefaultCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-lg font-bold text-foreground" placeholder="10" />
+                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Default Platform Commission (%)</label>
+                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Default Platform Commission (%)</label>
                                         <div className="relative">
-                                            <input type="number" value={defaultPlatformCommission} onChange={(e) => setDefaultPlatformCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-lg font-bold" placeholder="10" />
-                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                            <input type="number" value={defaultPlatformCommission} onChange={(e) => setDefaultPlatformCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl focus:ring-2 focus:ring-primary text-lg font-bold text-foreground" placeholder="10" />
+                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-muted-foreground mb-2">Partial Payment (Advance) %</label>
+                                        <div className="relative">
+                                            <input type="number" step="0.1" value={partialPaymentPct} onChange={(e) => setPartialPaymentPct(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 text-lg font-bold text-foreground" placeholder="33.33" />
+                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                         </div>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                                        <Clock className="h-4 w-4 text-gray-400" />
+                                    <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                                        <Clock className="h-4 w-4 text-muted-foreground" />
                                         Payout Cooling Period (Hours)
                                     </label>
                                     <div className="relative">
-                                        <input type="number" value={payoutCoolingHours} onChange={(e) => setPayoutCoolingHours(Number(e.target.value))} className="w-full pl-4 pr-12 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-500 text-lg font-bold" placeholder="24" />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 uppercase">Hours</span>
+                                        <input type="number" value={payoutCoolingHours} onChange={(e) => setPayoutCoolingHours(Number(e.target.value))} className="w-full pl-4 pr-12 py-3 bg-muted/50 border-none rounded-xl focus:ring-2 focus:ring-amber-500 text-lg font-bold text-foreground" placeholder="24" />
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">Hours</span>
                                     </div>
-                                    <p className="mt-2 text-[10px] text-gray-400 font-medium italic">* Settlements can only be approved after this many hours have passed since checkout.</p>
+                                    <p className="mt-2 text-[10px] text-muted-foreground font-medium italic">* Settlements can only be approved after this many hours have passed since checkout.</p>
                                 </div>
 
-                                <button onClick={handleSaveLoyalty} disabled={isSaving} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-bold">
+                                <button onClick={handleSaveLoyalty} disabled={isSaving} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl hover:opacity-90 font-bold active:scale-[0.98] transition-all">
                                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Financial Settings
                                 </button>
                             </div>
@@ -370,42 +382,42 @@ export default function LoyaltyManagement() {
 
             {/* TAB CONTENT: TIERS */}
             {activeTab === 'TIERS' && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-right-4 duration-300">
-                    <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden animate-in slide-in-from-right-4 duration-300">
+                    <div className="p-6 border-b border-border flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-purple-100 rounded-lg"><Award className="h-5 w-5 text-purple-600" /></div>
-                            <div><h2 className="text-lg font-bold text-gray-900">Partner Status Levels</h2><p className="text-xs text-gray-500">Define required points and commission multipliers</p></div>
+                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg"><Award className="h-5 w-5 text-purple-600 dark:text-purple-400" /></div>
+                            <div><h2 className="text-lg font-bold text-foreground">Partner Status Levels</h2><p className="text-xs text-muted-foreground">Define required points and commission multipliers</p></div>
                         </div>
-                        <button onClick={() => { setCurrentLevel({}); setIsLevelModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-medium">
+                        <button onClick={() => { setCurrentLevel({}); setIsLevelModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:opacity-90 font-medium active:scale-[0.98] transition-all">
                             <Plus className="h-4 w-4" /> Add Tier
                         </button>
                     </div>
                     <div className="p-0">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-border">
+                            <thead className="bg-muted/50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Min Active Points</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission Rate (%)</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Level Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Min Active Points</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Commission Rate (%)</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-card divide-y divide-border">
                                 {levels.map((level) => (
-                                    <tr key={level.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-bold text-gray-900">{level.name}</div><div className="text-xs text-gray-500">{level.description}</div></td>
-                                        <td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold">{level.minPoints.toLocaleString()} pts</span></td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{level.commissionRate}%</td>
+                                    <tr key={level.id} className="hover:bg-muted/30 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-bold text-foreground">{level.name}</div><div className="text-xs text-muted-foreground">{level.description}</div></td>
+                                        <td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 rounded-full text-xs font-bold">{level.minPoints.toLocaleString()} pts</span></td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground font-medium">{level.commissionRate}%</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex justify-end gap-2">
-                                                <button onClick={() => { setCurrentLevel(level); setIsLevelModalOpen(true); }} className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"><Edit2 className="h-4 w-4" /></button>
-                                                <button onClick={() => handleDeleteLevel(level.id)} className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
+                                                <button onClick={() => { setCurrentLevel(level); setIsLevelModalOpen(true); }} className="p-2 text-blue-600 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50"><Edit2 className="h-4 w-4" /></button>
+                                                <button onClick={() => handleDeleteLevel(level.id)} className="p-2 text-destructive bg-destructive/10 rounded-lg hover:bg-destructive hover:text-white"><Trash2 className="h-4 w-4" /></button>
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
                                 {levels.length === 0 && (
-                                    <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No partner tiers found. Default fallback logic will be used.</td></tr>
+                                    <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No partner tiers found. Default fallback logic will be used.</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -418,10 +430,10 @@ export default function LoyaltyManagement() {
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900">Rewards Catalog</h2>
-                            <p className="text-sm text-gray-500">Items partners can redeem with their loyalty points.</p>
+                            <h2 className="text-xl font-bold text-foreground">Rewards Catalog</h2>
+                            <p className="text-sm text-muted-foreground">Items partners can redeem with their loyalty points.</p>
                         </div>
-                        <button onClick={() => { setCurrentReward({ isActive: true }); setIsRewardModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-medium">
+                        <button onClick={() => { setCurrentReward({ isActive: true }); setIsRewardModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 dark:bg-emerald-700 text-white rounded-xl hover:opacity-90 font-medium active:scale-[0.98] transition-all">
                             <Plus className="h-4 w-4" /> Add Reward
                         </button>
                     </div>
@@ -470,35 +482,35 @@ export default function LoyaltyManagement() {
 
             {/* Level Modal */}
             {isLevelModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-900">{currentLevel.id ? 'Edit Tier' : 'Create New Tier'}</h3>
-                            <button onClick={() => setIsLevelModalOpen(false)} className="text-gray-400 hover:text-gray-900"><X className="h-5 w-5" /></button>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-card rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 border border-border">
+                        <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+                            <h3 className="font-bold text-foreground">{currentLevel.id ? 'Edit Tier' : 'Create New Tier'}</h3>
+                            <button onClick={() => setIsLevelModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Level Name <span className="text-red-500">*</span></label>
-                                <input type="text" value={currentLevel.name || ''} onChange={(e) => setCurrentLevel({ ...currentLevel, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500" placeholder="e.g. Gold Tier" />
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Level Name <span className="text-red-500">*</span></label>
+                                <input type="text" value={currentLevel.name || ''} onChange={(e) => setCurrentLevel({ ...currentLevel, name: e.target.value })} className="w-full px-4 py-2 border border-border rounded-xl focus:ring-2 focus:ring-primary bg-background text-foreground" placeholder="e.g. Gold Tier" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Req. Points <span className="text-red-500">*</span></label>
-                                    <input type="number" value={currentLevel.minPoints === undefined ? '' : currentLevel.minPoints} onChange={(e) => setCurrentLevel({ ...currentLevel, minPoints: Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500" placeholder="e.g. 50000" />
+                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Req. Points <span className="text-red-500">*</span></label>
+                                    <input type="number" value={currentLevel.minPoints === undefined ? '' : currentLevel.minPoints} onChange={(e) => setCurrentLevel({ ...currentLevel, minPoints: Number(e.target.value) })} className="w-full px-4 py-2 border border-border rounded-xl focus:ring-2 focus:ring-primary bg-background text-foreground" placeholder="e.g. 50000" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Commission % <span className="text-red-500">*</span></label>
-                                    <input type="number" step="0.1" value={currentLevel.commissionRate === undefined ? '' : currentLevel.commissionRate} onChange={(e) => setCurrentLevel({ ...currentLevel, commissionRate: Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500" placeholder="e.g. 10.5" />
+                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Commission % <span className="text-red-500">*</span></label>
+                                    <input type="number" step="0.1" value={currentLevel.commissionRate === undefined ? '' : currentLevel.commissionRate} onChange={(e) => setCurrentLevel({ ...currentLevel, commissionRate: Number(e.target.value) })} className="w-full px-4 py-2 border border-border rounded-xl focus:ring-2 focus:ring-primary bg-background text-foreground" placeholder="e.g. 10.5" />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                                <textarea value={currentLevel.description || ''} onChange={(e) => setCurrentLevel({ ...currentLevel, description: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 min-h-[80px]" placeholder="Brief context about this tier..." />
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Description</label>
+                                <textarea value={currentLevel.description || ''} onChange={(e) => setCurrentLevel({ ...currentLevel, description: e.target.value })} className="w-full px-4 py-2 border border-border rounded-xl focus:ring-2 focus:ring-primary bg-background text-foreground min-h-[80px]" placeholder="Brief context about this tier..." />
                             </div>
                         </div>
-                        <div className="p-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-                            <button onClick={() => setIsLevelModalOpen(false)} className="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-xl">Cancel</button>
-                            <button onClick={handleSaveLevel} disabled={isSaving || !currentLevel.name || currentLevel.minPoints === undefined || currentLevel.commissionRate === undefined} className="px-5 py-2 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2">
+                        <div className="p-4 border-t border-border flex justify-end gap-3 bg-muted/30">
+                            <button onClick={() => setIsLevelModalOpen(false)} className="px-5 py-2 text-muted-foreground font-medium hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                            <button onClick={handleSaveLevel} disabled={isSaving || !currentLevel.name || currentLevel.minPoints === undefined || currentLevel.commissionRate === undefined} className="px-5 py-2 bg-primary text-white font-medium rounded-xl hover:opacity-90 disabled:opacity-50 flex items-center gap-2 active:scale-[0.98] transition-all">
                                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />} Save Tier
                             </button>
                         </div>
@@ -508,21 +520,21 @@ export default function LoyaltyManagement() {
 
             {/* Reward Modal */}
             {isRewardModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-900">{currentReward.id ? 'Edit Reward' : 'Add to Catalog'}</h3>
-                            <button onClick={() => setIsRewardModalOpen(false)} className="text-gray-400 hover:text-gray-900"><X className="h-5 w-5" /></button>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-card rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 border border-border">
+                        <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+                            <h3 className="font-bold text-foreground">{currentReward.id ? 'Edit Reward' : 'Add to Catalog'}</h3>
+                            <button onClick={() => setIsRewardModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Name <span className="text-red-500">*</span></label>
-                                    <input type="text" value={currentReward.name || ''} onChange={(e) => setCurrentReward({ ...currentReward, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500" placeholder="e.g. MacBook Pro M3" />
+                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Item Name <span className="text-red-500">*</span></label>
+                                    <input type="text" value={currentReward.name || ''} onChange={(e) => setCurrentReward({ ...currentReward, name: e.target.value })} className="w-full px-4 py-2 border border-border rounded-xl focus:ring-2 focus:ring-primary bg-background text-foreground" placeholder="e.g. MacBook Pro M3" />
                                 </div>
                                 <div className="col-span-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Point Cost <span className="text-red-500">*</span></label>
-                                    <input type="number" value={currentReward.pointCost === undefined ? '' : currentReward.pointCost} onChange={(e) => setCurrentReward({ ...currentReward, pointCost: Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 font-bold text-amber-600" placeholder="e.g. 500000" />
+                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Point Cost <span className="text-red-500">*</span></label>
+                                    <input type="number" value={currentReward.pointCost === undefined ? '' : currentReward.pointCost} onChange={(e) => setCurrentReward({ ...currentReward, pointCost: Number(e.target.value) })} className="w-full px-4 py-2 border border-border rounded-xl focus:ring-2 focus:ring-amber-500 font-bold text-amber-600 bg-background" placeholder="e.g. 500000" />
                                 </div>
                             </div>
 
@@ -571,9 +583,9 @@ export default function LoyaltyManagement() {
                                 <span className="text-xs text-gray-500 ml-auto">If unchecked, it hides from CP view.</span>
                             </div>
                         </div>
-                        <div className="p-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-                            <button onClick={() => setIsRewardModalOpen(false)} className="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-xl">Cancel</button>
-                            <button onClick={handleSaveReward} disabled={isSaving || !currentReward.name || currentReward.pointCost === undefined} className="px-5 py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2">
+                        <div className="p-4 border-t border-border flex justify-end gap-3 bg-muted/30">
+                            <button onClick={() => setIsRewardModalOpen(false)} className="px-5 py-2 text-muted-foreground font-medium hover:bg-muted rounded-xl transition-colors">Cancel</button>
+                            <button onClick={handleSaveReward} disabled={isSaving || !currentReward.name || currentReward.pointCost === undefined} className="px-5 py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 active:scale-[0.98] transition-all">
                                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />} Save Reward
                             </button>
                         </div>

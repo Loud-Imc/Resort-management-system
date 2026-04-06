@@ -31,7 +31,8 @@ const Login: React.FC = () => {
             login(response.accessToken, response.user);
             navigate('/');
         } catch (err: any) {
-            setError(err.message || 'Invalid email or password');
+            const message = err.message || (typeof err === 'string' ? err : 'Invalid email or password');
+            setError(message);
         } finally {
             setIsLoading(false);
         }
@@ -52,15 +53,14 @@ const Login: React.FC = () => {
                 padding: '3rem',
                 textAlign: 'center'
             }}>
-                <div style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
+                <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
                     <img
                         src={logo}
                         alt="Route Guide"
                         style={{
-                            height: '240px',
-                            marginBottom: '0',
-                            objectFit: 'contain',
-                            margin: '-70px 0' // Compensate for SVG empty space
+                            height: '100px',
+                            width: 'auto',
+                            objectFit: 'contain'
                         }}
                     />
                 </div>

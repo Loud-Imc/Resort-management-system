@@ -40,6 +40,7 @@ const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string;
 
 export default function BookingsList() {
     const [statusFilter, setStatusFilter] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState<string>('');
     const { selectedProperty } = useProperty();
     const queryClient = useQueryClient();
     const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
@@ -101,10 +102,21 @@ export default function BookingsList() {
 
     const { data: bookings, isLoading, error } = useQuery<Booking[]>({
         queryKey: ['bookings', statusFilter, selectedProperty?.id],
-        queryFn: () => bookingsService.getAll({
-            status: statusFilter || undefined,
-            propertyId: selectedProperty?.id
-        }),
+        queryFn: async () => {
+            const data = await bookingsService.getAll({
+                status: statusFilter || undefined,
+                propertyId: selectedProperty?.id
+            });
+            // Automatically filter out PENDING_PAYMENT and CANCELLED bookings on the property side
+            // unless specifically requested via a direct status filter.
+            if (!statusFilter) {
+                return data.filter(b =>
+                    b.status !== BookingStatus.PENDING_PAYMENT &&
+                    b.status !== BookingStatus.CANCELLED
+                );
+            }
+            return data;
+        },
         enabled: !!selectedProperty?.id,
     });
 
@@ -231,6 +243,8 @@ export default function BookingsList() {
                             <input
                                 type="text"
                                 placeholder="Search by guest name or booking ID..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 border border-border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                         </div>
@@ -246,7 +260,6 @@ export default function BookingsList() {
                                 <option value="RESERVED">Reserved</option>
                                 <option value="CHECKED_IN">Checked In</option>
                                 <option value="CHECKED_OUT">Checked Out</option>
-                                <option value="PENDING_PAYMENT">Pending Payment</option>
                                 <option value="CANCELLED">Cancelled</option>
                             </select>
                         </div>
@@ -268,7 +281,21 @@ export default function BookingsList() {
                                 </tr>
                             </thead>
                             <tbody className="bg-card divide-y divide-border">
-                                {bookings?.map((booking: Booking) => (
+                                {bookings?.filter(booking => {
+                                    if (!searchTerm) return true;
+                                    const searchStr = searchTerm.toLowerCase();
+                                    const guestName = (booking.isManualBooking && booking.guests?.[0]
+                                        ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
+                                        : `${booking.user.firstName} ${booking.user.lastName}`).toLowerCase();
+                                    const bookingNumber = booking.bookingNumber.toLowerCase();
+                                    const email = (booking.isManualBooking && booking.guests?.[0]
+                                        ? (booking.guests[0].email || '')
+                                        : booking.user.email).toLowerCase();
+
+                                    return guestName.includes(searchStr) ||
+                                        bookingNumber.includes(searchStr) ||
+                                        email.includes(searchStr);
+                                }).map((booking: Booking) => (
                                     <tr key={booking.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>

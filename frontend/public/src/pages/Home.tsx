@@ -4,25 +4,28 @@ import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { propertyApi } from '../services/properties';
-// import EventsSection from '../components/home/EventsSection';
-// import PromoBanner from '../components/home/PromoBanner';
+import { bannerApi, Banner } from '../services/banners';
+import PromoBanner from '../components/home/PromoBanner';
+import EventsSection from '../components/home/EventsSection';
 import PropertyCard from '../components/PropertyCard';
 import { Property } from '../types';
 
-function HeroCarousel() {
-    const slides = [
+interface HeroCarouselProps {
+    banners: Banner[];
+}
+
+function HeroCarousel({ banners }: HeroCarouselProps) {
+    const defaultSlides = [
         "/images/hero-slide-1.png",
         "/images/hero-slide-2.png",
-        "/images/hero-slide-3.jpeg",
-        "/images/hero-slide-4.jpeg",
-        "/images/hero-slide-5.jpeg",
-        "/images/hero-slide-6.jpeg",
-        "/images/hero-slide-7.jpeg",
     ];
+
+    const slides = banners.length > 0 ? banners.map(b => b.imageUrl) : defaultSlides;
     const [current, setCurrent] = useState(0);
 
     // Auto-advance
     useEffect(() => {
+        if (slides.length <= 1) return;
         const timer = setInterval(() => {
             setCurrent(prev => (prev + 1) % slides.length);
         }, 5000);
@@ -38,30 +41,37 @@ function HeroCarousel() {
                     style={{ backgroundImage: `url('${slide}')` }}
                 />
             ))}
-            <div className="absolute bottom-10 left-0 right-0 z-20 flex justify-center gap-2">
-                {slides.map((_, idx) => (
-                    <button
-                        key={idx}
-                        onClick={() => setCurrent(idx)}
-                        className={`h-2 rounded-full transition-all duration-300 ${idx === current ? 'w-8 bg-white' : 'w-2 bg-white/50 hover:bg-white/80'}`}
-                    />
-                ))}
-            </div>
+            {slides.length > 1 && (
+                <div className="absolute bottom-10 left-0 right-0 z-20 flex justify-center gap-2">
+                    {slides.map((_, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setCurrent(idx)}
+                            className={`h-2 rounded-full transition-all duration-300 ${idx === current ? 'w-8 bg-white' : 'w-2 bg-white/50 hover:bg-white/80'}`}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
 
 export default function Home() {
-    const { data: featuredProperties, isLoading } = useQuery({
+    const { data: featuredProperties, isLoading: isPropertiesLoading } = useQuery({
         queryKey: ['featuredProperties'],
         queryFn: () => propertyApi.getFeatured(3)
+    });
+
+    const { data: heroBanners = [] } = useQuery({
+        queryKey: ['heroBanners'],
+        queryFn: () => bannerApi.getActive('HERO')
     });
 
     return (
         <div className="space-y-0">
             {/* Hero Section */}
             <section className="relative h-[80vh] md:h-screen flex items-start pt-32 md:items-center md:justify-center md:pt-0 z-20">
-                <HeroCarousel />
+                <HeroCarousel banners={heroBanners} />
                 <div className="absolute inset-0 bg-black/20 z-10" />
                 <div className="relative z-30 max-w-7xl mx-auto px-4 w-full">
                     <SearchForm className="animate-fade-in-up" />
@@ -69,10 +79,7 @@ export default function Home() {
             </section>
 
             {/* Events Section */}
-            {/* <EventsSection /> */}
-
-            {/* Promo Banner (Replaces Secondary Banner) */}
-            {/* <PromoBanner /> */}
+            <EventsSection />
 
             {/* Featured Properties */}
             <section className="bg-gray-50 py-24">
@@ -88,7 +95,7 @@ export default function Home() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {isLoading ? (
+                        {isPropertiesLoading ? (
                             // Loading Skeletons
                             [1, 2, 3].map((i) => (
                                 <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-sm h-96 animate-pulse">
@@ -107,7 +114,7 @@ export default function Home() {
                             ))
                         )}
 
-                        {!isLoading && (!featuredProperties || featuredProperties.length === 0) && (
+                        {!isPropertiesLoading && (!featuredProperties || featuredProperties.length === 0) && (
                             <div className="col-span-3 text-center py-12 text-gray-500 bg-white rounded-xl border border-gray-100">
                                 No featured properties available at the moment.
                             </div>
@@ -122,29 +129,8 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* CTA Section */}
-            {/* <section className="bg-primary-900 text-white py-20 relative overflow-hidden">
-                <div className="absolute top-0 right-0 opacity-10">
-                    <svg width="400" height="400" viewBox="0 0 200 200">
-                        <path fill="currentColor" d="M45.7,-76.3C58.9,-69.3,69.1,-55.6,76.3,-41.4C83.5,-27.2,87.7,-12.4,85.3,1.4C82.9,15.2,73.9,28,63.6,38.3C53.3,48.6,41.7,56.3,29.8,62.5C17.9,68.7,5.6,73.4,-7.6,75.1C-20.8,76.8,-35,75.5,-47.2,69.5C-59.4,63.5,-69.6,52.8,-76.3,40.5C-83,28.2,-86.2,14.1,-84.6,0.9C-83,-12.3,-76.6,-24.6,-68.2,-35.1C-59.8,-45.6,-49.4,-54.3,-37.9,-62.4C-26.4,-70.5,-13.8,-78,0.7,-79.1C15.2,-80.3,30.4,-75,43.3,-67.2L45.7,-76.3Z" transform="translate(100 100)" />
-                    </svg>
-                </div>
-
-                <div className="max-w-4xl mx-auto text-center px-4 relative z-10">
-                    <h2 className="text-4xl font-serif font-bold mb-6">Begin Your Wellness Journey Today</h2>
-                    <p className="text-xl text-primary-100 mb-10">
-                        Book your stay directly with us to receive a complimentary nature consultation and a guided tour of our gardens.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link to="/properties" className="bg-white text-primary-900 px-8 py-4 rounded-full font-bold hover:bg-gray-100 transition-colors">
-                            Check Availability
-                        </Link>
-                        <a href="/contact" className="border-2 border-white text-white px-8 py-4 rounded-full font-bold hover:bg-white hover:text-primary-900 transition-colors">
-                            Contact Reservations
-                        </a>
-                    </div>
-                </div>
-            </section> */}
+            {/* Promo Banner (Dynamic) - Moved to bottom for better flow */}
+            <PromoBanner />
         </div>
     );
 }

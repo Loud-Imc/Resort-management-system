@@ -8,7 +8,8 @@ import {
     AlertCircle,
     Shield,
     ChevronRight,
-    Clock
+    Clock,
+    Search
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ import clsx from 'clsx';
 export default function RedemptionsList() {
     const [statusFilter, setStatusFilter] = useState<string>('REQUESTED');
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const { data: redemptions, isLoading, refetch } = useQuery<any[]>({
         queryKey: ['cp-redemptions', statusFilter],
@@ -52,6 +54,16 @@ export default function RedemptionsList() {
         }
     };
 
+    const filteredRedemptions = (redemptions || []).filter(r => {
+        const search = searchTerm.toLowerCase();
+        const partnerName = (r.channelPartner?.authorizedPersonName ||
+            `${r.channelPartner?.user?.firstName} ${r.channelPartner?.user?.lastName}`).toLowerCase();
+        const orgName = (r.channelPartner?.organizationName || '').toLowerCase();
+        const refId = (r.referenceId || '').toLowerCase();
+
+        return partnerName.includes(search) || orgName.includes(search) || refId.includes(search);
+    });
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -70,7 +82,7 @@ export default function RedemptionsList() {
             </div>
 
             {/* Pillar Status Info */}
-            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3">
+            <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3 shadow-sm">
                 <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm">
                     <p className="font-bold text-primary">Maker-Checker Security Enforced</p>
@@ -78,22 +90,35 @@ export default function RedemptionsList() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
-                {['REQUESTED', 'APPROVED', 'PAID'].map((status) => (
-                    <button
-                        key={status}
-                        onClick={() => setStatusFilter(status)}
-                        className={clsx(
-                            "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest",
-                            statusFilter === status
-                                ? "bg-card text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        {status === 'REQUESTED' ? 'PENDING' : status}
-                    </button>
-                ))}
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row gap-4 items-end sm:items-center justify-between">
+                <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit shrink-0">
+                    {['REQUESTED', 'APPROVED', 'PAID'].map((status) => (
+                        <button
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={clsx(
+                                "px-4 py-2 text-xs font-black rounded-lg transition-all uppercase tracking-widest",
+                                statusFilter === status
+                                    ? "bg-card text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            {status === 'REQUESTED' ? 'PENDING' : status}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                        type="text"
+                        placeholder="Search by partner name or ref ID..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 shadow-sm transition-all"
+                    />
+                </div>
             </div>
 
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -104,20 +129,21 @@ export default function RedemptionsList() {
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Channel Partner</th>
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Requested Amount</th>
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground">Requested At</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground text-right">Actions</th>
+                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground text-right">{statusFilter === 'PAID' ? 'Payout Info' : 'Actions'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {redemptions?.length === 0 ? (
+                            {filteredRedemptions.length === 0 ? (
                                 <tr>
                                     <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground italic">
                                         <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                        No {statusFilter.toLowerCase()} redemptions found.
+                                        No {statusFilter.toLowerCase()} redemptions found matching your search.
                                     </td>
                                 </tr>
                             ) : (
-                                redemptions?.map((r) => (
-                                    <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                                filteredRedemptions.map((r) => {
+                                    return (
+                                        <tr key={r.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2 bg-primary/10 rounded-lg">
@@ -146,30 +172,45 @@ export default function RedemptionsList() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            {r.status === 'REQUESTED' && (
-                                                <button
-                                                    onClick={() => handleApprove(r.id)}
-                                                    disabled={processingId === r.id}
-                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-black hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
-                                                >
-                                                    {processingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronRight className="h-3 w-3" />}
-                                                    APPROVE
-                                                </button>
-                                            )}
-                                            {r.status === 'APPROVED' && (
-                                                <button
-                                                    onClick={() => handlePayout(r.id)}
-                                                    disabled={processingId === r.id}
-                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50"
-                                                >
-                                                    {processingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
-                                                    PAY CP
-                                                </button>
+                                            {r.status === 'PAID' ? (
+                                                <div className="text-[10px] space-y-1">
+                                                    <p className="font-bold text-foreground">Ref: <span className="text-primary">{r.referenceId || 'N/A'}</span></p>
+                                                    <p className="text-muted-foreground italic">
+                                                        {format(new Date(r.updatedAt), 'dd MMM yyyy')}
+                                                    </p>
+                                                    {r.payoutBy && (
+                                                        <p className="text-muted-foreground">by {r.payoutBy.firstName}</p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {r.status === 'REQUESTED' && (
+                                                        <button
+                                                            onClick={() => handleApprove(r.id)}
+                                                            disabled={processingId === r.id}
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-black hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                                                        >
+                                                            {processingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronRight className="h-3 w-3" />}
+                                                            APPROVE
+                                                        </button>
+                                                    )}
+                                                    {r.status === 'APPROVED' && (
+                                                        <button
+                                                            onClick={() => handlePayout(r.id)}
+                                                            disabled={processingId === r.id}
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50"
+                                                        >
+                                                            {processingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                                                            PAY CP
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                         </td>
                                     </tr>
-                                ))
-                            )}
+                                );
+                            })
+                        )}
                         </tbody>
                     </table>
                 </div>

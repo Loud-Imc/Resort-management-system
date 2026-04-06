@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
+import logo from '../assets/logo.svg';
 import toast from 'react-hot-toast';
 
 export default function Login() {
@@ -68,7 +69,7 @@ export default function Login() {
             toast.success('Welcome back!');
             navigate('/');
         } catch (error: any) {
-            const message = error?.message || error?.response?.data?.message || 'Invalid credentials';
+            const message = error?.response?.data?.message || error?.message || 'Invalid credentials';
             toast.error(message);
         } finally {
             setIsLoading(false);
@@ -79,8 +80,8 @@ export default function Login() {
         <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-teal-50 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-800 text-white mb-4 shadow-lg">
-                        <Building2 className="h-8 w-8" />
+                    <div className="flex justify-center mb-4">
+                        <img src={logo} alt="Route Guide" className="h-24 w-auto" />
                     </div>
                     <h1 className="text-3xl font-bold text-gray-900">Property Dashboard</h1>
                     <p className="text-gray-500 mt-2">Manage your property operations</p>
