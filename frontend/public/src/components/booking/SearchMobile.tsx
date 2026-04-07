@@ -109,7 +109,7 @@ export default function SearchMobile({
                             <Building className="h-7 w-7" />
                         </div>
                         <span className={`${isDark ? 'text-white drop-shadow-sm' : 'text-gray-600'} text-[10px] font-black uppercase tracking-[0.2em] text-center leading-tight`}>
-                            All Stays
+                            All
                         </span>
                     </button>
                     {categories.map((cat) => {

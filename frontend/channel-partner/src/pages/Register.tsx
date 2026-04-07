@@ -129,10 +129,9 @@ const Register: React.FC = () => {
                         src={logo}
                         alt="Route Guide"
                         style={{
-                            height: '240px',
-                            marginBottom: '0',
-                            objectFit: 'contain',
-                            margin: '-70px 0' // Compensate for SVG empty space
+                            height: '100px',
+                            width: 'auto',
+                            objectFit: 'contain'
                         }}
                     />
                 </div>

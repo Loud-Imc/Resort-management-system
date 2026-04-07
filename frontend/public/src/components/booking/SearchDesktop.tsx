@@ -201,7 +201,7 @@ export default function SearchDesktop({
                                     }`}
                             >
                                 <Building className={`h-5 w-5 transition-transform duration-500 group-hover/btn:scale-110 ${categoryId === '' && !isGroupBooking ? (isDark ? 'text-primary-400' : 'text-primary-500') : 'text-current'}`} />
-                                <span className={`text-[13px] font-black uppercase tracking-[0.15em]`}>All Stays</span>
+                                <span className={`text-[13px] font-black uppercase tracking-[0.15em]`}>All</span>
                             </button>
 
                             {categories.map((cat) => {
@@ -525,7 +525,7 @@ export default function SearchDesktop({
                         className="absolute bottom-[-36px] left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary-600 via-primary-500 to-primary-700 text-white font-black px-20 py-6 rounded-full shadow-[0_20px_60px_-10px_rgba(22,163,74,0.5)] hover:scale-105 active:scale-95 transition-all duration-300 uppercase tracking-[0.4em] text-lg group w-auto whitespace-nowrap"
                     >
                         <span className="flex items-center gap-6">
-                            Start Searching
+                            Start
                             <Search className="h-6 w-6 group-hover:translate-x-2 transition-transform duration-300" />
                         </span>
                     </button>
