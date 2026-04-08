@@ -29,18 +29,7 @@ export class ChannelPartnersService {
         private financialsService: FinancialsService,
     ) { }
 
-    // Generate unique referral code
-    private generateReferralCode(): string {
-        // High-entropy 10-char alphanumeric code generated via crypto.randomBytes
-        // Backward-compatible: existing 6-char CP-XXXXXX codes still validate via findUnique
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const bytes = require('crypto').randomBytes(10);
-        let code = 'CP';
-        for (let i = 0; i < 10; i++) {
-            code += chars[bytes[i] % chars.length];
-        }
-        return code;
-    }
+
 
     // Register as a Channel Partner (Authenticated User version)
     async register(userId: string, dto?: any) {
@@ -58,7 +47,11 @@ export class ChannelPartnersService {
         }
 
         // Generate unique referral code if new
-        const referralCode = existing?.referralCode || await this.getUniqueReferralCode();
+        let referralCode = existing?.referralCode;
+        if (!referralCode) {
+             const userObj = await this.prisma.user.findUnique({ where: { id: userId } });
+             referralCode = await this.getUniqueReferralCode(userObj?.firstName || dto?.authorizedPersonName || 'PART');
+        }
         const commissionSetting = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE');
         const defaultCommissionRate = commissionSetting ?? 10;
 
@@ -178,7 +171,7 @@ export class ChannelPartnersService {
             }
         }
 
-        const referralCode = await this.getUniqueReferralCode();
+        const referralCode = await this.getUniqueReferralCode(dto.firstName);
         const hashedPassword = await bcrypt.hash(dto.password, 10);
         const defaultCommissionRate = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE') || 10;
 
@@ -286,14 +279,36 @@ export class ChannelPartnersService {
         return result;
     }
 
-    private async getUniqueReferralCode(): Promise<string> {
-        let referralCode = this.generateReferralCode();
+    private async getUniqueReferralCode(firstName: string): Promise<string> {
+        const cleanName = (firstName || 'PART').replace(/[^a-zA-Z]/g, '');
+        const prefix = cleanName.padEnd(4, 'X').slice(0, 4).toUpperCase();
+        
+        const latestCPs = await this.prisma.channelPartner.findMany({
+            select: { referralCode: true }
+        });
+        
+        let maxSeq = 100;
+        for (const cp of latestCPs) {
+            const match = cp.referralCode.match(/^[A-Z]{4}(\d+)$/);
+            if (match) {
+                const seq = parseInt(match[1], 10);
+                if (seq > maxSeq) {
+                    maxSeq = seq;
+                }
+            }
+        }
+        
+        let nextSeq = maxSeq + 1;
+        let referralCode = `${prefix}${nextSeq}`;
+        
         let exists = await this.prisma.channelPartner.findUnique({
             where: { referralCode },
         });
 
+        // In case of conflict (e.g., concurrency), increment and retry
         while (exists) {
-            referralCode = this.generateReferralCode();
+            nextSeq++;
+            referralCode = `${prefix}${nextSeq}`;
             exists = await this.prisma.channelPartner.findUnique({
                 where: { referralCode },
             });
