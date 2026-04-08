@@ -145,9 +145,9 @@ async function cleanProdDb() {
     console.log("Done.");
 
     process.stdout.write("Deleting non-system test roles... ");
-    await prisma.rolePermission.deleteMany({ where: { role: { isSystem: false } } });
-    await prisma.userRole.deleteMany({ where: { role: { isSystem: false } } });
-    await prisma.role.deleteMany({ where: { isSystem: false } });
+    await prisma.rolePermission.deleteMany({ where: { role: { isSystem: false, staff: { none: {} } } } });
+    await prisma.userRole.deleteMany({ where: { role: { isSystem: false, staff: { none: {} } } } });
+    await prisma.role.deleteMany({ where: { isSystem: false, staff: { none: {} } } });
     console.log("Done.");
 
     // Identify users to KEEP (Superadmin + Wayanad tied users)
