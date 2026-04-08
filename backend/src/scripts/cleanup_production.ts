@@ -135,7 +135,68 @@ async function cleanProdDb() {
     await prisma.property.deleteMany({ where: { id: { in: deletePropertyIds } } });
     console.log("Done.");
 
-    console.log(`\n🎉 DATABASE CLEANUP SUCCESSFUL! All waste properties deleted.`);
+    console.log(`\n🧹 Starting Phase 2: Channel Partners, Users & Roles Cleanup...`);
+
+    process.stdout.write("Deleting all Channel Partner data... ");
+    await prisma.cPRedemptionRequest.deleteMany();
+    await prisma.cPRewardRedemption.deleteMany();
+    await prisma.cPTransaction.deleteMany();
+    await prisma.channelPartner.deleteMany();
+    console.log("Done.");
+
+    process.stdout.write("Deleting non-system test roles... ");
+    await prisma.rolePermission.deleteMany({ where: { role: { isSystem: false } } });
+    await prisma.userRole.deleteMany({ where: { role: { isSystem: false } } });
+    await prisma.role.deleteMany({ where: { isSystem: false } });
+    console.log("Done.");
+
+    // Identify users to KEEP (Superadmin + Wayanad tied users)
+    const superAdmins = await prisma.user.findMany({
+        where: { roles: { some: { role: { name: 'SuperAdmin' } } } },
+        select: { id: true }
+    });
+    
+    const wayanadUsers = await prisma.user.findMany({
+        where: {
+            OR: [
+                { ownedProperties: { some: { id: KEEP_PROPERTY_ID } } },
+                { propertyStaff: { some: { propertyId: KEEP_PROPERTY_ID } } }
+            ]
+        },
+        select: { id: true }
+    });
+
+    const keepUserIds = Array.from(new Set([...superAdmins.map(u => u.id), ...wayanadUsers.map(u => u.id)]));
+
+    const usersToDelete = await prisma.user.findMany({
+        where: { id: { notIn: keepUserIds } },
+        select: { id: true }
+    });
+    const userIdsToDelete = usersToDelete.map(u => u.id);
+
+    if (userIdsToDelete.length > 0) {
+        process.stdout.write(`Deleting ${userIdsToDelete.length} redundant platform users... `);
+        await prisma.auditLog.deleteMany({ where: { userId: { in: userIdsToDelete } } });
+        await prisma.notification.deleteMany({ where: { userId: { in: userIdsToDelete } } });
+        await prisma.userRole.deleteMany({ where: { userId: { in: userIdsToDelete } } });
+
+        // Financials associated with users (if generated during testing)
+        try {
+            // @ts-ignore
+            if (prisma.refundRequest) await prisma.refundRequest.deleteMany({ where: { OR: [{ requestedById: { in: userIdsToDelete } }, { approvedById: { in: userIdsToDelete } }] } });
+            // @ts-ignore
+            if (prisma.financialAdjustmentRequest) await prisma.financialAdjustmentRequest.deleteMany({ where: { OR: [{ requestedById: { in: userIdsToDelete } }, { approvedById: { in: userIdsToDelete } }] } });
+            // @ts-ignore
+            if (prisma.paymentReconciliation) await prisma.paymentReconciliation.deleteMany({ where: { OR: [{ makerId: { in: userIdsToDelete } }, { checkerId: { in: userIdsToDelete } }] } });
+        } catch (e) {}
+
+        await prisma.user.deleteMany({ where: { id: { in: userIdsToDelete } } });
+        console.log("Done.");
+    } else {
+         console.log("No extra users found to delete.");
+    }
+
+    console.log(`\n🎉 DATABASE CLEANUP SUCCESSFUL! All waste properties, CPs, and test users deleted.`);
 }
 
 cleanProdDb()
