@@ -21,7 +21,7 @@ export default function NotificationManager() {
     useEffect(() => {
         const setupNotifications = async () => {
             const userStr = localStorage.getItem('user');
-            if (!userStr || !token) return;
+            if (!userStr || !token || !messaging) return; // Skip if messaging not supported
 
             try {
                 // Request permission
@@ -45,7 +45,8 @@ export default function NotificationManager() {
 
         setupNotifications();
 
-        // Listen for foreground messages
+        // Listen for foreground messages (only if messaging is supported)
+        if (!messaging) return;
         const unsubscribe = onMessage(messaging, (payload) => {
             console.log('Foreground message received:', payload);
             toast(payload.notification?.body || 'New notification', {

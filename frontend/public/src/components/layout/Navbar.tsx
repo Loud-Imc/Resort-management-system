@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, User as UserIcon, LogOut, Home as HomeIcon } from 'lucide-react';
+import { Menu, X, User as UserIcon, LogOut, Home as HomeIcon, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import CurrencySwitcher from './CurrencySwitcher';
@@ -122,8 +122,9 @@ export default function Navbar() {
                             <div className="flex items-center gap-6">
                                 <Link
                                     to="/track-booking"
-                                    className={clsx("font-semibold hover:text-primary-600 transition-colors", textColor)}
+                                    className={clsx("flex items-center gap-2 font-semibold hover:text-primary-600 transition-colors", textColor)}
                                 >
+                                    <MapPin className="h-5 w-5" />
                                     Track Booking
                                 </Link>
                                 <Link
@@ -215,9 +216,10 @@ export default function Navbar() {
                             <>
                                 <Link
                                     to="/track-booking"
-                                    className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
+                                    className="flex items-center gap-2 px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
                                     onClick={() => setIsOpen(false)}
                                 >
+                                    <MapPin className="h-5 w-5" />
                                     Track Booking
                                 </Link>
                                 <Link

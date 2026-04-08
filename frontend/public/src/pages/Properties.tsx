@@ -6,32 +6,14 @@ import { propertyApi } from '../services/properties';
 import { Property } from '../types';
 import { useSearch } from '../context/SearchContext';
 import SearchForm from '../components/booking/SearchForm';
-import PropertyFilters from '../components/PropertyFilters';
 
 export default function PropertiesPage() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const {
-        location, setLocation,
-        categoryId: globalCategoryId, setCategoryId: setGlobalCategoryId
-    } = useSearch();
+    const { setLocation, setCategoryId: setGlobalCategoryId } = useSearch();
 
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-
-    // Local filter state for refinements (initialized from global)
-    const [search, setSearch] = useState(location);
-    const [categoryId, setCategoryId] = useState<string>(globalCategoryId);
-
-    // Sync local state with global when it changes (e.g. from SearchForm)
-    useEffect(() => {
-        setSearch(location);
-    }, [location]);
-
-    useEffect(() => {
-        setCategoryId(globalCategoryId);
-    }, [globalCategoryId]);
 
     useEffect(() => {
         loadProperties();
@@ -53,40 +35,10 @@ export default function PropertiesPage() {
         }
     };
 
-    const handleApplyFilters = () => {
-        // Update global context
-        setLocation(search);
-        setGlobalCategoryId(categoryId);
-
-        const params = new URLSearchParams(searchParams);
-        if (search) params.set('location', search);
-        else params.delete('location');
-
-        if (categoryId) params.set('categoryId', categoryId);
-        else params.delete('categoryId');
-
-        setSearchParams(params);
-    };
-
     const clearFilters = () => {
-        setSearch('');
-        setCategoryId('');
         setLocation('');
         setGlobalCategoryId('');
-        setSelectedAmenities([]);
         setSearchParams({});
-    };
-
-    const toggleAmenity = (amenity: string) => {
-        if (amenity === 'CLEAR_ALL') {
-            setSelectedAmenities([]);
-            return;
-        }
-        setSelectedAmenities(prev =>
-            prev.includes(amenity)
-                ? prev.filter(a => a !== amenity)
-                : [...prev, amenity]
-        );
     };
 
     return (
@@ -117,22 +69,6 @@ export default function PropertiesPage() {
 
             <div className="container mx-auto px-4 py-8">
                 <div className="flex flex-col gap-10">
-                    {/* Horizontal Filters Section */}
-                    <div className="max-w-5xl mx-auto w-full">
-                        <PropertyFilters
-                            search={search}
-                            onSearchChange={setSearch}
-                            categoryId={categoryId}
-                            onCategoryChange={setCategoryId}
-                            selectedAmenities={selectedAmenities}
-                            onAmenityToggle={toggleAmenity}
-                            onApply={handleApplyFilters}
-                            onClear={clearFilters}
-                            resultsCount={properties.length}
-                            isLoading={loading}
-                        />
-                    </div>
-
                     {/* Main Content */}
                     <div className="flex-1">
                         {/* Error */}

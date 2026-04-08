@@ -22,5 +22,13 @@ import { getMessaging } from 'firebase/messaging';
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const messaging = getMessaging(app);
+
+// Firebase Messaging requires HTTPS — gracefully degrade on HTTP (staging)
+let messaging: ReturnType<typeof getMessaging> | null = null;
+try {
+    messaging = getMessaging(app);
+} catch (e) {
+    console.warn('Firebase Messaging not supported in this environment (requires HTTPS):', e);
+}
+export { messaging };
 export default app;
