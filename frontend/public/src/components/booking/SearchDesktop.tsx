@@ -152,7 +152,7 @@ export default function SearchDesktop({
                     <div
                         ref={scrollContainerRef}
                         onScroll={checkScroll}
-                        className={`flex flex-1 ${isDark ? 'bg-white/5 backdrop-blur-xl border-white/10' : 'bg-white border-gray-200'} p-1.5 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border overflow-x-auto no-scrollbar scroll-smooth items-center`}
+                        className={`flex flex-1 justify-center ${isDark ? 'bg-white/5 backdrop-blur-xl border-white/10' : 'bg-white border-gray-200'} p-1.5 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border overflow-x-auto no-scrollbar scroll-smooth items-center`}
                     >
                         <div className="flex min-w-max gap-1 items-center px-1">
                             {/* Group Mode Toggle Button */}

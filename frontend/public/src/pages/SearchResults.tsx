@@ -6,7 +6,7 @@ import { useSearch } from '../context/SearchContext';
 import { useCurrency } from '../context/CurrencyContext';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
-import PropertyFilters from '../components/PropertyFilters';
+
 import { Loader2, AlertCircle, Search, MapPin } from 'lucide-react';
 
 export default function SearchResults() {
@@ -27,19 +27,6 @@ export default function SearchResults() {
         groupSize
     } = useSearch();
 
-    // Local filter state for refinements (sync with global on mount/change)
-    const [search, setSearch] = useState(location);
-    const [categoryId, setCategoryId] = useState<string>(globalCategoryId);
-    const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-
-    // Keep local state in sync with global state when global state changes (e.g. from SearchForm)
-    useEffect(() => {
-        setSearch(location);
-    }, [location]);
-
-    useEffect(() => {
-        setCategoryId(globalCategoryId);
-    }, [globalCategoryId]);
 
     // Format dates for API
     const checkInStr = globalCheckIn ? globalCheckIn.toISOString().split('T')[0] : '';
@@ -70,65 +57,9 @@ export default function SearchResults() {
     const [nearbyProperties, setNearbyProperties] = useState<any[]>([]);
     const [isLoadingNearby, setIsLoadingNearby] = useState(false);
 
-    const handleApplyFilters = () => {
-        // Update global context
-        setLocation(search);
-        setGlobalCategoryId(categoryId);
-
-        const params = new URLSearchParams(searchParams);
-        if (search) params.set('location', search);
-        else params.delete('location');
-
-        if (categoryId) params.set('categoryId', categoryId);
-        else params.delete('categoryId');
-
-        if (latitude) params.set('latitude', latitude.toString());
-        if (longitude) params.set('longitude', longitude.toString());
-        if (radius) params.set('radius', radius.toString());
-
-        setSearchParams(params);
-    };
-
-    const handleNearMe = () => {
-        if (latitude && longitude) {
-            // Toggle off
-            setLatitude(null);
-            setLongitude(null);
-            const params = new URLSearchParams(searchParams);
-            params.delete('latitude');
-            params.delete('longitude');
-            params.delete('radius');
-            setSearchParams(params);
-            return;
-        }
-
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    setLatitude(position.coords.latitude);
-                    setLongitude(position.coords.longitude);
-                    const params = new URLSearchParams(searchParams);
-                    params.set('latitude', position.coords.latitude.toString());
-                    params.set('longitude', position.coords.longitude.toString());
-                    params.set('radius', radius.toString());
-                    setSearchParams(params);
-                },
-                (error) => {
-                    console.error('Error getting location:', error);
-                    alert('Failed to get your location. Please check browser permissions.');
-                }
-            );
-        } else {
-            alert('Geolocation is not supported by this browser.');
-        }
-    };
-
     const clearFilters = () => {
-        setSearch('');
-        setCategoryId('');
         setGlobalCategoryId('');
         setLocation('');
-        setSelectedAmenities([]);
         setRadius(50);
         setLatitude(null);
         setLongitude(null);
@@ -140,18 +71,6 @@ export default function SearchResults() {
         params.delete('longitude');
         params.delete('radius');
         setSearchParams(params);
-    };
-
-    const toggleAmenity = (amenity: string) => {
-        if (amenity === 'CLEAR_ALL') {
-            setSelectedAmenities([]);
-            return;
-        }
-        setSelectedAmenities(prev =>
-            prev.includes(amenity)
-                ? prev.filter(a => a !== amenity)
-                : [...prev, amenity]
-        );
     };
 
     // Group available room types by property
@@ -244,26 +163,6 @@ export default function SearchResults() {
                 </div>
 
                 <div className="space-y-8">
-                    {/* Horizontal Filters */}
-                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
-                        <PropertyFilters
-                            search={search}
-                            onSearchChange={setSearch}
-                            categoryId={categoryId}
-                            onCategoryChange={setCategoryId}
-                            selectedAmenities={selectedAmenities}
-                            onAmenityToggle={toggleAmenity}
-                            onApply={handleApplyFilters}
-                            onClear={clearFilters}
-                            resultsCount={groupedProperties.length}
-                            isLoading={isLoading}
-                            radius={radius}
-                            onRadiusChange={setRadius}
-                            onNearMe={handleNearMe}
-                            isNearMeActive={!!(latitude && longitude)}
-                        />
-                    </div>
-
                     {/* Results List */}
                     <div className="space-y-6">
                         <div className="flex items-center justify-between px-2">
