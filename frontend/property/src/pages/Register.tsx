@@ -35,6 +35,9 @@ export default function Register() {
     const [commissionOtp, setCommissionOtp] = useState('');
     const [commissionResendTimer, setCommissionResendTimer] = useState(0);
 
+    // TODO: Set to false once MSG91 is fully set up
+    const SKIP_COMMISSION_OTP = true;
+
     const [formData, setFormData] = useState({
         // Owner fields
         ownerFirstName: '',
@@ -291,7 +294,7 @@ export default function Register() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!isCommissionVerified) {
+        if (!SKIP_COMMISSION_OTP && !isCommissionVerified) {
             toast.error('Please verify the platform commission explicitly via OTP');
             return;
         }
@@ -701,7 +704,7 @@ export default function Register() {
                                                     min="0"
                                                     max="100"
                                                     required
-                                                    disabled={isCommissionVerified || showCommissionOtpInput}
+                                                    disabled={!SKIP_COMMISSION_OTP && (isCommissionVerified || showCommissionOtpInput)}
                                                     value={formData.platformCommission}
                                                     onChange={handleChange}
                                                     className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white ${isCommissionVerified ? 'bg-green-50 border-green-200' : ''}`}
@@ -713,7 +716,7 @@ export default function Register() {
                                                     </div>
                                                 )}
                                             </div>
-                                            {!isCommissionVerified && !showCommissionOtpInput && (
+                                            {!SKIP_COMMISSION_OTP && !isCommissionVerified && !showCommissionOtpInput && (
                                                 <button
                                                     type="button"
                                                     onClick={handleSendCommissionOtp}
@@ -723,7 +726,7 @@ export default function Register() {
                                                     {isVerifyingCommission ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm via OTP'}
                                                 </button>
                                             )}
-                                            {isCommissionVerified && (
+                                            {!SKIP_COMMISSION_OTP && isCommissionVerified && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setIsCommissionVerified(false)}
@@ -733,11 +736,15 @@ export default function Register() {
                                                 </button>
                                             )}
                                         </div>
-                                        <p className="text-[10px] text-gray-400 mt-1">The percentage paid to the platform for each booking. This requires OTP verification.</p>
+                                        <p className="text-[10px] text-gray-400 mt-1">
+                                            {SKIP_COMMISSION_OTP 
+                                                ? "The percentage paid to the platform for each booking."
+                                                : "The percentage paid to the platform for each booking. This requires OTP verification."}
+                                        </p>
                                     </div>
                                 </div>
 
-                                {showCommissionOtpInput && (
+                                {!SKIP_COMMISSION_OTP && showCommissionOtpInput && (
                                     <div className="space-y-3 bg-teal-50/50 p-4 rounded-2xl border border-teal-100 animate-in fade-in slide-in-from-top-2">
                                         <label className="block text-xs font-bold text-teal-700 uppercase tracking-wider flex items-center gap-2">
                                             <Shield className="h-3 w-3" /> Commission Verification Code
@@ -851,7 +858,7 @@ export default function Register() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={isLoading || !formData.ownerAadhaarImage || !formData.licenceImage || !isCommissionVerified}
+                                        disabled={isLoading || !formData.ownerAadhaarImage || !formData.licenceImage || (!SKIP_COMMISSION_OTP && !isCommissionVerified)}
                                         className="flex-[2] py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-xl font-bold text-sm hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary-500/20"
                                     >
                                         {isLoading ? (
