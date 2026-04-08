@@ -80,6 +80,7 @@ async function cleanProdDb() {
         await prisma.cPTransaction.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
         await prisma.bookingGuest.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
         await prisma.roomBlock.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
+        await prisma.propertySettlement.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
         
         // ManualPaymentRequests? If any exist
         try {
@@ -126,7 +127,6 @@ async function cleanProdDb() {
     await prisma.propertyStaff.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     await prisma.role.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     await prisma.propertyIcal.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
-    await prisma.propertySettlement.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     await prisma.cancellationPolicy.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     await prisma.event.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     console.log("Done.");
