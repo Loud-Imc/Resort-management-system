@@ -21,7 +21,7 @@ npm install
 
 npx prisma generate
 npx prisma migrate deploy
-npm run build
+NODE_OPTIONS="--max-old-space-size=1536" npm run build
 echo "🔄 Restarting Backend Service..."
 if pm2 describe resort-api-staging > /dev/null 2>&1; then
     echo "🔄 Reloading Backend Service..."
