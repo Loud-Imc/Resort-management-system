@@ -200,10 +200,9 @@ export class PropertiesController {
     // ============================================
 
     @Get('admin/all')
-    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.PROPERTIES.READ)
+    @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'List all properties including inactive (Admin)' })
+    @ApiOperation({ summary: 'List all properties including inactive (Admin/Owner/Staff)' })
     findAllAdmin(@Request() req, @Query() query: PropertyQueryDto) {
         return this.propertiesService.findAllAdmin(req.user, query);
     }

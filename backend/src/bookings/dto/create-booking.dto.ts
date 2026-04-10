@@ -206,4 +206,9 @@ export class CreateBookingDto {
     @IsDateString()
     @IsOptional()
     transactionDate?: string;
+
+    @ApiProperty({ example: false, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isHistoricalEntry?: boolean;
 }

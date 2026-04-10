@@ -111,8 +111,8 @@ export default function BookingsList() {
             // unless specifically requested via a direct status filter.
             if (!statusFilter) {
                 return data.filter(b =>
-                    b.status !== BookingStatus.PENDING_PAYMENT &&
-                    b.status !== BookingStatus.CANCELLED
+                    b.status !== BookingStatus.PENDING_PAYMENT
+                    //  && b.status !== BookingStatus.CANCELLED
                 );
             }
             return data;
