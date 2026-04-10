@@ -165,8 +165,7 @@ export class PropertiesController {
     }
 
     @Get('id/:id')
-    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.PROPERTIES.READ)
+    @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get property by ID (owner, staff, or admin only)' })
     findById(@Param('id') id: string, @Request() req) {

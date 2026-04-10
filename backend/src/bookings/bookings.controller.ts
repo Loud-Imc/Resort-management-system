@@ -174,8 +174,7 @@ export class BookingsController {
     }
 
     @Get()
-    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.BOOKINGS.READ)
+    @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get all bookings with filters' })
     @ApiQuery({ name: 'status', required: false })
@@ -223,8 +222,7 @@ export class BookingsController {
     }
 
     @Get('unread-count')
-    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.BOOKINGS.READ)
+    @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get unread (unseen) bookings count' })
     @ApiQuery({ name: 'propertyId', required: false })
