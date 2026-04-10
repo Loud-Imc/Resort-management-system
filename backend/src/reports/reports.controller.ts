@@ -45,6 +45,26 @@ export class ReportsController {
         );
     }
 
+    @Get('financial/details')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
+    @ApiOperation({ summary: 'Get financial report details (Incomes and Bookings list)' })
+    @ApiQuery({ name: 'startDate', required: true })
+    @ApiQuery({ name: 'endDate', required: true })
+    @ApiQuery({ name: 'propertyId', required: false })
+    getFinancialDetails(
+        @Request() req,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        return this.reportsService.getFinancialDetails(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId,
+        );
+    }
+
     @Get('occupancy')
     @Permissions(PERMISSIONS.REPORTS.VIEW_OCCUPANCY)
     @ApiOperation({ summary: 'Get occupancy report' })

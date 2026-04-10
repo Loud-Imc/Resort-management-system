@@ -35,6 +35,13 @@ export const reportsService = {
         return data;
     },
 
+    getFinancialDetails: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get<any>('/reports/financial/details', {
+            params: { startDate, endDate, propertyId },
+        });
+        return data;
+    },
+
     getOccupancyReport: async (startDate: string, endDate: string, propertyId?: string) => {
         const { data } = await api.get<any>('/reports/occupancy', {
             params: { startDate, endDate, propertyId },

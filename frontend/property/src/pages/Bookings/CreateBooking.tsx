@@ -36,6 +36,8 @@ const bookingSchema = z.object({
     paymentMethod: z.enum(['CASH', 'UPI', 'CARD', 'ONLINE', 'WALLET']),
     paymentOption: z.enum(['FULL', 'PARTIAL']),
     paidAmount: z.number().optional(),
+    isHistoricalEntry: z.boolean().optional(),
+    transactionDate: z.string().optional(),
     guests: z.array(z.object({
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
@@ -52,6 +54,12 @@ const bookingSchema = z.object({
 }, {
     message: "Room type is required for standard bookings",
     path: ["roomTypeId"]
+}).refine(data => {
+    if (data.isHistoricalEntry && !data.transactionDate) return false;
+    return true;
+}, {
+    message: "Transaction date is required for historical entries",
+    path: ["transactionDate"]
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
@@ -88,6 +96,8 @@ export default function CreateBooking() {
             paymentOption: 'FULL',
             paidAmount: undefined,
             appliedCode: '',
+            isHistoricalEntry: false,
+            transactionDate: format(new Date(), 'yyyy-MM-dd'),
             guests: [{ firstName: '', lastName: '' }],
         },
     });
@@ -200,6 +210,7 @@ export default function CreateBooking() {
 
         const sanitizedData = {
             ...rest,
+            transactionDate: data.isHistoricalEntry ? data.transactionDate : undefined,
             generalCode: appliedCode || undefined,
             roomTypeId: data.isGroupBooking ? undefined : rest.roomTypeId,  // clear stale roomTypeId for group bookings
             propertyId: data.isGroupBooking ? propertyId : undefined,
@@ -626,6 +637,36 @@ export default function CreateBooking() {
                                 {createBookingMutation.isPending ? (<><Loader2 className="h-5 w-5 animate-spin" /> Processing...</>) : 'Confirm Booking'}
                             </button>
                         </div>
+
+                        {/* Historical Entry Option */}
+                        {watch('isManualBooking') && (
+                            <div className="mt-6 flex flex-col gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        {...register('isHistoricalEntry')}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                    />
+                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                        Backdate this booking (Historical Entry)
+                                    </span>
+                                </label>
+                                {watch('isHistoricalEntry') && (
+                                    <div className="pl-6 animate-in slide-in-from-top-2">
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">Original Transaction Date</label>
+                                        <input
+                                            type="date"
+                                            {...register('transactionDate')}
+                                            className="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 w-full md:w-64"
+                                        />
+                                        {errors.transactionDate && <p className="text-red-500 text-xs mt-1">{errors.transactionDate.message}</p>}
+                                        <p className="text-[10px] text-gray-500 mt-2 italic">
+                                            This will override the create/payment dates so it appears in the past reports, keeping today's metrics clean.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </form>
                 </div>
 

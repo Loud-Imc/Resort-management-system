@@ -115,7 +115,11 @@ export class AuthService {
     }
 
     private generateTokens(user: any) {
-        const roleNames = user.roles.map(ur => ur.role.name);
+        // Collect roles from both global UserRole and property-specific PropertyStaff
+        const globalRoles = user.roles.map(ur => ur.role.name);
+        const staffRoles = (user.propertyStaff || []).map(ps => ps.role.name);
+        const roleNames = Array.from(new Set([...globalRoles, ...staffRoles]));
+
         const primaryRole = this.getPriorityRole(roleNames);
 
         const payload = {
@@ -124,9 +128,10 @@ export class AuthService {
             roles: roleNames,
         };
 
-        const permissions = Array.from(new Set(
-            user.roles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.name))
-        ));
+        // Collect permissions from both global and staff roles
+        const globalPermissions = user.roles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.name));
+        const staffPermissions = (user.propertyStaff || []).flatMap(ps => ps.role.permissions.map(rp => rp.permission.name));
+        const permissions = Array.from(new Set([...globalPermissions, ...staffPermissions]));
 
         return {
             accessToken: this.jwtService.sign({ ...payload, permissions }),

@@ -51,7 +51,8 @@ export class BookingsService {
             isGroupBooking: isGroupInput = false,
             groupSize,
             selectedRoomIds,
-            generalCode
+            generalCode,
+            transactionDate,
         } = createBookingDto;
 
         let isManualBooking = isManualInput;
@@ -478,8 +479,12 @@ export class BookingsService {
             }
 
             // 7.3 Create the booking
+            const effectiveCreatedAt = transactionDate ? new Date(transactionDate) : new Date();
+
             const newBooking = await tx.booking.create({
                 data: {
+                    createdAt: effectiveCreatedAt,
+                    updatedAt: effectiveCreatedAt,
                     bookingNumber,
                     checkInDate: checkIn,
                     checkOutDate: checkOut,
@@ -523,7 +528,7 @@ export class BookingsService {
                     paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
                         ? ((paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? 0 : finalTotal)) >= finalTotal - 0.01 ? 'FULL' : (Number(paidAmountInput) > 0 ? 'PARTIAL' : 'UNPAID'))
                         : 'UNPAID',
-                    confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? new Date() : null,
+                    confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? effectiveCreatedAt : null,
                     paymentMethod: createBookingDto.paymentMethod as any,
                     guests: {
                         create: (isGroupBooking && guests.length === 0) ? [] : guests.map(g => ({
@@ -614,10 +619,12 @@ export class BookingsService {
                         // Create payment record
                         const paymentRecord = await tx.payment.create({
                             data: {
+                                createdAt: effectiveCreatedAt,
+                                updatedAt: effectiveCreatedAt,
                                 amount: finalPaidAmount - cpCommission, // For wallet, we deduct CP commission at source
                                 status: 'PAID',
                                 paymentMethod: 'WALLET',
-                                paymentDate: new Date(),
+                                paymentDate: effectiveCreatedAt,
                                 bookingId: newBooking.id,
                                 currency: 'INR',
                             },
@@ -634,6 +641,9 @@ export class BookingsService {
                         // Income record
                         await tx.income.create({
                             data: {
+                                createdAt: effectiveCreatedAt,
+                                updatedAt: effectiveCreatedAt,
+                                date: effectiveCreatedAt,
                                 amount: finalPaidAmount,
                                 source: 'ONLINE_BOOKING',
                                 description: `Booking ${bookingNumber} (Wallet Payment)`,
@@ -656,10 +666,12 @@ export class BookingsService {
 
                     const paymentRecord = await tx.payment.create({
                         data: {
+                            createdAt: effectiveCreatedAt,
+                            updatedAt: effectiveCreatedAt,
                             amount: finalPaidAmount,
                             status: 'PAID',
                             paymentMethod: pMethod as any,
-                            paymentDate: new Date(),
+                            paymentDate: effectiveCreatedAt,
                             bookingId: newBooking.id,
                             currency: 'INR',
                             platformFee: 0,
@@ -673,6 +685,9 @@ export class BookingsService {
                     // Income record (linked to payment)
                     await tx.income.create({
                         data: {
+                            createdAt: effectiveCreatedAt,
+                            updatedAt: effectiveCreatedAt,
+                            date: effectiveCreatedAt,
                             amount: finalPaidAmount,
                             source: 'ROOM_BOOKING',
                             description: `Manual booking payment for ${bookingNumber} (${pMethod})`,
