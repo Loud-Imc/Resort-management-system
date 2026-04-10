@@ -8,12 +8,16 @@ import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
 import clsx from 'clsx';
 import GuestDetailsModal from '../components/Rooms/GuestDetailsModal';
+import FinancialDetailsModal from '../components/Reports/FinancialDetailsModal';
+import { format } from 'date-fns';
 
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
     const navigate = useNavigate();
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
     const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+    const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+    const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | null>(null);
 
     const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
         queryKey: ['dashboard-stats', selectedProperty?.id],
@@ -114,9 +118,12 @@ export default function DashboardHome() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 hover:shadow-md transition-shadow">
+                <div
+                    onClick={() => { setDetailsType('BOOKINGS'); setDetailsModalOpen(true); }}
+                    className="cursor-pointer bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-700 hover:-translate-y-1 transition-all group relative overflow-hidden"
+                >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                             <Calendar className="h-5 w-5 text-blue-600" />
                         </div>
                         <div>
@@ -126,9 +133,12 @@ export default function DashboardHome() {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 hover:shadow-md transition-shadow">
+                <div
+                    onClick={() => { setDetailsType('REVENUE'); setDetailsModalOpen(true); }}
+                    className="cursor-pointer bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 hover:shadow-lg hover:border-emerald-300 dark:hover:border-emerald-700 hover:-translate-y-1 transition-all group relative overflow-hidden"
+                >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center group-hover:bg-green-100 transition-colors">
                             <DollarSign className="h-5 w-5 text-green-600" />
                         </div>
                         <div>
@@ -264,6 +274,17 @@ export default function DashboardHome() {
                 roomId={selectedRoomId || ''}
                 isOpen={isGuestModalOpen}
                 onClose={() => setIsGuestModalOpen(false)}
+            />
+
+            <FinancialDetailsModal
+                isOpen={detailsModalOpen}
+                onClose={() => setDetailsModalOpen(false)}
+                type={detailsType}
+                dateRange={{
+                    startDate: format(new Date(), 'yyyy-MM-dd'),
+                    endDate: format(new Date(), 'yyyy-MM-dd')
+                }}
+                propertyId={selectedProperty?.id}
             />
         </div>
     );

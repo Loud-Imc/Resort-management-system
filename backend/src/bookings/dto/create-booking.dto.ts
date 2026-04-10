@@ -201,4 +201,9 @@ export class CreateBookingDto {
     @IsString({ each: true })
     @IsOptional()
     selectedRoomIds?: string[];
+
+    @ApiProperty({ example: '2023-01-01', required: false, description: 'Optional date to use for transaction times (e.g., historical bookings)' })
+    @IsDateString()
+    @IsOptional()
+    transactionDate?: string;
 }

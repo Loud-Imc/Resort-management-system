@@ -54,9 +54,10 @@ export default function Login() {
             const storedUser = localStorage.getItem('property_user');
             if (storedUser) {
                 const user = JSON.parse(storedUser);
-                const roles = (user.roles || [user.role] || []).map((r: string) => r.toLowerCase());
+                // Ensure roles is an array of lowercase strings
+                const rawRoles = user.roles || [];
+                const roles = (rawRoles.length > 0 ? rawRoles : [user.role || '']).map((r: string) => r.toLowerCase());
 
-                // Allow if SuperAdmin OR has any role that isn't primarily for other portals
                 const isSuperAdmin = roles.includes('superadmin');
                 const isRestrictedPortal = roles.every((r: string) => ['channelpartner', 'customer'].includes(r));
 

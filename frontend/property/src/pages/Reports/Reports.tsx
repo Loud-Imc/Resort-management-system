@@ -11,6 +11,7 @@ import {
     Loader2, TrendingUp, Users, Bed, Calendar, ArrowUpRight
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
+import FinancialDetailsModal from '../../components/Reports/FinancialDetailsModal';
 
 const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -22,6 +23,9 @@ export default function Reports() {
         endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     });
     const [rangeType, setRangeType] = useState('month');
+
+    const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+    const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | null>(null);
 
     const { data: financialReport, isLoading: loadingFinancial } = useQuery({
         queryKey: ['financialReport', dateRange, selectedProperty?.id],
@@ -123,11 +127,11 @@ export default function Reports() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard title="Total Revenue" value={`₹${financialReport?.summary?.totalIncome?.toLocaleString() || '0'}`}
-                    icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />} color="text-emerald-500" />
+                    icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />} color="text-emerald-500" onClick={() => { setDetailsType('REVENUE'); setDetailsModalOpen(true); }} isClickable />
                 <KPICard title="Avg. Occupancy" value={`${occupancyReport?.averageOccupancy || 0}%`}
                     icon={<Bed className="h-4 w-4 text-sky-500" />} color="text-sky-500" />
                 <KPICard title="Total Bookings" value={financialReport?.summary?.bookingsCount || 0}
-                    icon={<Users className="h-4 w-4 text-blue-600" />} color="text-blue-600" />
+                    icon={<Users className="h-4 w-4 text-blue-600" />} color="text-blue-600" onClick={() => { setDetailsType('BOOKINGS'); setDetailsModalOpen(true); }} isClickable />
                 <KPICard title="Net Earnings" value={`₹${financialReport?.summary?.netProfit?.toLocaleString() || '0'}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />} color="text-amber-500" />
             </div>
@@ -251,18 +255,29 @@ export default function Reports() {
                     </div>
                 </div>
             </div>
+
+            <FinancialDetailsModal
+                isOpen={detailsModalOpen}
+                onClose={() => setDetailsModalOpen(false)}
+                type={detailsType}
+                dateRange={dateRange}
+                propertyId={selectedProperty?.id}
+            />
         </div>
     );
 }
 
-function KPICard({ title, value, icon, color }: any) {
+function KPICard({ title, value, icon, color, onClick, isClickable }: any) {
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+        <div onClick={onClick} className={`bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all group overflow-hidden relative ${isClickable ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:border-blue-300 dark:hover:border-blue-700' : 'hover:shadow-md'}`}>
             <div className="flex justify-between items-start mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">{title}</h3>
                 <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">{icon}</div>
             </div>
             <p className={`text-2xl font-bold ${color}`}>{value}</p>
+            {isClickable && (
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
         </div>
     );
 }

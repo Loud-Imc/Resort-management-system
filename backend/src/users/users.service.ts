@@ -10,9 +10,10 @@ import { normalizePhone } from '../common/utils/phone';
 export class UsersService {
     constructor(private prisma: PrismaService) { }
 
-    async create(createUserDto: CreateUserDto) {
+    async create(createUserDto: CreateUserDto & { roleIds?: string[] }) {
+        const { roleIds, ...userData } = createUserDto;
         const existingUser = await this.prisma.user.findUnique({
-            where: { email: createUserDto.email },
+            where: { email: userData.email },
         });
 
         if (existingUser) {
@@ -25,13 +26,13 @@ export class UsersService {
 
         const user = await this.prisma.user.create({
             data: {
-                ...createUserDto,
-                phone: createUserDto.phone ? normalizePhone(createUserDto.phone) : undefined,
-                roles: customerRole ? {
-                    create: {
-                        role: { connect: { id: customerRole.id } }
-                    }
-                } : undefined,
+                ...userData,
+                phone: userData.phone ? normalizePhone(userData.phone) : undefined,
+                roles: {
+                    create: roleIds && roleIds.length > 0
+                        ? roleIds.map(roleId => ({ role: { connect: { id: roleId } } }))
+                        : (customerRole ? [{ role: { connect: { id: customerRole.id } } }] : [])
+                },
             },
             include: {
                 roles: {
@@ -477,7 +478,19 @@ export class UsersService {
                     }
                 },
                 ownedProperties: true,
-                propertyStaff: true,
+                propertyStaff: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
             },
         });
 
@@ -506,6 +519,19 @@ export class UsersService {
                         },
                     },
                 },
+                propertyStaff: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
             },
         });
         console.log(`[UsersService] findByEmail result for ${email}: ${user ? 'FOUND' : 'NOT FOUND'}`);
@@ -519,6 +545,19 @@ export class UsersService {
             where: { phone: normalizedPhone },
             include: {
                 roles: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                propertyStaff: {
                     include: {
                         role: {
                             include: {
@@ -561,6 +600,19 @@ export class UsersService {
             },
             include: {
                 roles: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                propertyStaff: {
                     include: {
                         role: {
                             include: {

@@ -386,7 +386,7 @@ export class ReportsService {
 
             const grossPlatformFees = paidSettlements.reduce((sum, s) => sum + Number(s.platformFee), 0);
             const totalCPCommission = paidSettlements.reduce((sum, s) => sum + Number(s.cpCommission), 0);
-            
+
             // Total volume for gateway fee calculation (using booking totals for settled items)
             const totalVolume = paidSettlements.reduce((sum, s) => sum + Number(s.grossAmount), 0);
             const estimatedGatewayFees = (totalVolume * 2.5) / 100;
@@ -498,6 +498,50 @@ export class ReportsService {
             isGlobal: isGlobalAdmin && !propertyId,
             platformSummary,
         };
+    }
+
+    /**
+     * Get financial details (Booking & Income list)
+     */
+    async getFinancialDetails(user: any, startDate: Date, endDate: Date, propertyId?: string) {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (isGlobalAdmin) {
+            if (propertyId) propertyFilter.id = propertyId;
+        } else {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+            if (propertyId) propertyFilter.id = propertyId;
+        }
+
+        const bookings = await this.prisma.booking.findMany({
+            where: {
+                createdAt: { gte: sDate, lte: eDate },
+                room: { property: propertyFilter }
+            },
+            include: { user: { select: { firstName: true, lastName: true } }, room: true, roomType: true }
+        });
+
+        const incomes = await this.prisma.income.findMany({
+            where: {
+                date: { gte: sDate, lte: eDate },
+                OR: [
+                    { booking: { property: propertyFilter } },
+                    { eventBooking: { event: { property: propertyFilter } } },
+                    ...(isGlobalAdmin && !propertyId ? [{ propertyId: null }] : [])
+                ]
+            },
+            include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } }, payment: true }
+        });
+
+        return { bookings, incomes };
     }
 
     /**
