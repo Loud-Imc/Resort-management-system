@@ -23,14 +23,12 @@ export class CancellationPoliciesController {
 
     @Get()
     @ApiQuery({ name: 'propertyId', required: true })
-    @Permissions(PERMISSIONS.PROPERTIES.READ)
     @ApiOperation({ summary: 'Get all cancellation policies for a property' })
     findAll(@Query('propertyId') propertyId: string) {
         return this.service.findAll(propertyId);
     }
 
     @Get(':id')
-    @Permissions(PERMISSIONS.PROPERTIES.READ)
     @ApiOperation({ summary: 'Get a cancellation policy by ID' })
     findOne(@Param('id') id: string) {
         return this.service.findOne(id);
