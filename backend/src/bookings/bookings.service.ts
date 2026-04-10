@@ -53,6 +53,7 @@ export class BookingsService {
             selectedRoomIds,
             generalCode,
             transactionDate,
+            isHistoricalEntry,
         } = createBookingDto;
 
         let isManualBooking = isManualInput;
@@ -359,24 +360,27 @@ export class BookingsService {
         // 7. Create booking & related entities in a transaction
         const booking = await this.prisma.$transaction(async (tx) => {
             // 7.1 For guest users, the user creation must be inside the transaction
+            // 7.1 Resolve the booking user
             let finalBookingUserId = bookingUserId;
-            if (userId === 'GUEST_USER') {
-                const normalizedPhone = normalizePhone(createBookingDto.guestPhone);
-                let user = await tx.user.findFirst({
+            const normalizedPhone = normalizePhone(createBookingDto.guestPhone);
+
+            // If it's a manual booking or a guest checkout, we MUST find or create the guest user
+            if (isManualBooking || userId === 'GUEST_USER') {
+                let guestUser = await tx.user.findFirst({
                     where: {
                         OR: [
-                            { email: lowercaseEmail },
-                            { phone: normalizedPhone }
+                            ...(lowercaseEmail ? [{ email: lowercaseEmail }] : []),
+                            ...(normalizedPhone ? [{ phone: normalizedPhone }] : [])
                         ],
                     },
                 });
 
-                if (!user) {
-                    console.log(`[BookingsService] [TX] Guest user not found for ${lowercaseEmail}. Creating...`);
+                if (!guestUser) {
+                    console.log(`[BookingsService] [TX] Guest user not found for ${lowercaseEmail || normalizedPhone}. Creating...`);
                     const customerRole = await tx.role.findFirst({ where: { name: 'Customer' } });
                     const roleId = customerRole ? customerRole.id : undefined;
 
-                    user = await tx.user.create({
+                    guestUser = await tx.user.create({
                         data: {
                             email: lowercaseEmail,
                             firstName: createBookingDto.guestName?.split(' ')[0] || 'Guest',
@@ -384,6 +388,7 @@ export class BookingsService {
                             phone: normalizedPhone,
                             whatsappNumber: createBookingDto.whatsappNumber,
                             password: await bcrypt.hash('GUEST_PASSWORD_PLACEHOLDER', 10),
+                            createdById: userId !== 'GUEST_USER' ? userId : undefined,
                             roles: roleId ? {
                                 create: {
                                     role: { connect: { id: roleId } }
@@ -392,15 +397,15 @@ export class BookingsService {
                         } as any
                     });
                 }
-                finalBookingUserId = user.id;
-            } else if (userId !== 'GUEST_USER') {
-                // For authenticated users (e.g. OTP logged in), update their profile if data is missing
+                finalBookingUserId = guestUser.id;
+            } else {
+                // For authenticated users booking for themselves (public logged-in), update their profile if data is missing
                 const currentUser = await tx.user.findUnique({ where: { id: userId } });
                 if (currentUser) {
                     const updateData: any = {};
                     if (!currentUser.firstName) updateData.firstName = createBookingDto.guestName?.split(' ')[0];
                     if (!currentUser.lastName) updateData.lastName = createBookingDto.guestName?.split(' ').slice(1).join(' ');
-                    if (!currentUser.email) updateData.email = lowercaseEmail;
+                    if (!currentUser.email && lowercaseEmail) updateData.email = lowercaseEmail;
                     if (!currentUser.whatsappNumber) updateData.whatsappNumber = createBookingDto.whatsappNumber;
 
                     if (Object.keys(updateData).length > 0) {

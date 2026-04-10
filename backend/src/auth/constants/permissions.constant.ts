@@ -204,13 +204,11 @@ export const PERMISSION_GROUPS = {
         // Rooms: Full Control (Create/Read/Update/Block) for own property
         PERMISSIONS.ROOMS.CREATE, PERMISSIONS.ROOMS.READ, PERMISSIONS.ROOMS.UPDATE, PERMISSIONS.ROOMS.BLOCK,
 
-        // Room Types: Read (to select type when creating room)
+        // Room Types: Full Control
         ...Object.values(PERMISSIONS.ROOM_TYPES),
 
-        // Bookings: Read & Check-in/out
-        PERMISSIONS.BOOKINGS.READ,
-        PERMISSIONS.BOOKINGS.CHECK_IN,
-        PERMISSIONS.BOOKINGS.CHECK_OUT,
+        // Bookings: Full Control
+        ...Object.values(PERMISSIONS.BOOKINGS),
 
         // Reports: Financials & Dashboard
         ...Object.values(PERMISSIONS.REPORTS),
@@ -219,8 +217,7 @@ export const PERMISSION_GROUPS = {
         PERMISSIONS.PROPERTIES.READ, PERMISSIONS.PROPERTIES.UPDATE,
 
         // Financials: Full Control for own property
-        PERMISSIONS.PAYMENTS.READ,
-        PERMISSIONS.PAYMENTS.UPDATE,
+        ...Object.values(PERMISSIONS.PAYMENTS),
         ...Object.values(PERMISSIONS.EXPENSES),
         ...Object.values(PERMISSIONS.INCOME),
 
@@ -243,11 +240,14 @@ export const PERMISSION_GROUPS = {
         PERMISSIONS.ROLES.UPDATE, // To edit property roles
         PERMISSIONS.ROLES.DELETE, // To delete property roles
 
-        // Marketing: Offers
-        PERMISSIONS.MARKETING.MANAGE_OFFERS,
+        // Marketing: Offers & Coupons
+        ...Object.values(PERMISSIONS.MARKETING),
 
         // Booking Sources: Full Control
         ...Object.values(PERMISSIONS.BOOKING_SOURCES),
+
+        // Configuration
+        PERMISSIONS.SETTINGS.MANAGE,
     ],
 
     MARKETING: [

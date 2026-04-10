@@ -82,11 +82,13 @@ export default function DashboardLayout() {
     };
 
     const navItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+        ...(hasPermission('reports.viewDashboard') ? [
+            { icon: LayoutDashboard, label: 'Dashboard', path: '/' }
+        ] : []),
 
         // Only show operational links if property is approved
         ...(selectedProperty?.status === 'APPROVED' ? [
-            // Bookings & Guests
+            // Bookings
             ...(hasPermission('bookings.read') ? [
                 {
                     icon: Calendar,
@@ -94,6 +96,10 @@ export default function DashboardLayout() {
                     path: '/bookings',
                     badge: unreadCount > 0 ? unreadCount : undefined
                 },
+            ] : []),
+
+            // Guest Management (Uses users.read)
+            ...(hasPermission('users.read') ? [
                 { icon: Users, label: 'Guests', path: '/guests' },
             ] : []),
 
@@ -133,11 +139,15 @@ export default function DashboardLayout() {
                 { icon: PieChart, label: 'Reports', path: '/reports' }
             ] : []),
 
-            { icon: RefreshCw, label: 'Calendar Sync', path: '/calendar-sync' },
+            ...(hasPermission('settings.manage') ? [
+                { icon: RefreshCw, label: 'Calendar Sync', path: '/calendar-sync' },
+            ] : []),
         ] : []),
 
-        // My Property is always accessible
-        { icon: Building2, label: 'My Property', path: '/my-property' },
+        // My Property access
+        ...(hasPermission('properties.read') ? [
+            { icon: Building2, label: 'My Property', path: '/my-property' },
+        ] : []),
     ];
 
     return (
