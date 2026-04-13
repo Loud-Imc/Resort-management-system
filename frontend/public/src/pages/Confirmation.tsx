@@ -375,21 +375,23 @@ export default function Confirmation() {
 
                                 <div className="space-y-4 print:space-y-2 [.pdf-capture-mode_&]:space-y-2">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500">Nightly Rate x {booking.numberOfNights}</span>
-                                        <span className="font-medium text-gray-900">{formatPrice(booking.baseAmount || 0, booking.bookingCurrency || 'INR')}</span>
+                                        <span className="text-gray-500">{roomType?.isGstInclusive ? 'Room Charges (GST Inc.)' : `Nightly Rate x ${booking.numberOfNights}`}</span>
+                                        <span className="font-medium text-gray-900">{formatPrice(roomType?.isGstInclusive ? (Number(booking.baseAmount) + Number(booking.taxAmount)) : (booking.baseAmount || 0), booking.bookingCurrency || 'INR')}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm">
-                                        <div className="flex items-center gap-1.5 text-gray-500">
-                                            <span>Taxes</span>
-                                            <div className="group/info relative print:hidden [.pdf-capture-mode_&]:hidden">
-                                                <Info className="h-3 w-3 text-gray-400 cursor-help" />
-                                                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[9px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                                                    GST is calculated per room per night at property-specific transaction values.
+                                    {!roomType?.isGstInclusive && (
+                                        <div className="flex justify-between text-sm">
+                                            <div className="flex items-center gap-1.5 text-gray-500">
+                                                <span>Taxes</span>
+                                                <div className="group/info relative print:hidden [.pdf-capture-mode_&]:hidden">
+                                                    <Info className="h-3 w-3 text-gray-400 cursor-help" />
+                                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[9px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                                                        GST is calculated per room per night at property-specific transaction values.
+                                                    </div>
                                                 </div>
                                             </div>
+                                            <span className="font-medium text-gray-900">{formatPrice(booking.taxAmount || 0, booking.bookingCurrency || 'INR')}</span>
                                         </div>
-                                        <span className="font-medium text-gray-900">{formatPrice(booking.taxAmount || 0, booking.bookingCurrency || 'INR')}</span>
-                                    </div>
+                                    )}
                                     {(booking.couponDiscountAmount > 0) && (
                                         <div className="flex justify-between text-sm text-green-600 font-medium print:text-gray-900 [.pdf-capture-mode_&]:text-gray-900">
                                             <span>Coupon Discount</span>

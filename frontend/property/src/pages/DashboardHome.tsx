@@ -11,9 +11,24 @@ import GuestDetailsModal from '../components/Rooms/GuestDetailsModal';
 import FinancialDetailsModal from '../components/Reports/FinancialDetailsModal';
 import { format } from 'date-fns';
 
+import { useNavigation } from '../hooks/useNavigation';
+import { useEffect } from 'react';
+
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
     const navigate = useNavigate();
+    const { navItems, hasPermission } = useNavigation();
+
+    // Redirect to first available tab if no dashboard permission
+    useEffect(() => {
+        if (!hasPermission('reports.viewDashboard')) {
+            const firstAllowed = navItems.find(item => item.path !== '/');
+            if (firstAllowed) {
+                navigate(firstAllowed.path, { replace: true });
+            }
+        }
+    }, [hasPermission, navItems, navigate]);
+
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
     const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -22,7 +37,7 @@ export default function DashboardHome() {
     const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
         queryKey: ['dashboard-stats', selectedProperty?.id],
         queryFn: () => reportsService.getDashboardStats(selectedProperty?.id),
-        enabled: !!selectedProperty?.id,
+        enabled: !!selectedProperty?.id && hasPermission('reports.viewDashboard'),
     });
 
     const { data: rooms } = useQuery<Room[]>({

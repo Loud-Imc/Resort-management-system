@@ -4,33 +4,22 @@ import { useAuth } from '../context/AuthContext';
 import { useProperty } from '../context/PropertyContext';
 import { useTheme } from '../context/ThemeContext';
 import {
-    LayoutDashboard,
-    Calendar,
-    BedDouble,
-    Users,
-    CreditCard,
-    DollarSign,
     LogOut,
     Menu,
     X,
-    PieChart,
-    Briefcase,
-    Shield,
-    Loader2,
     Sun,
     Moon,
     ChevronDown,
-    Building2,
-    RefreshCw,
+    Loader2,
     Settings
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import NotificationBell from '../components/NotificationBell';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { bookingsService } from '../services/bookings';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '../context/SocketContext';
+import { useNavigation } from '../hooks/useNavigation';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
@@ -41,12 +30,7 @@ export default function DashboardLayout() {
     const { socket } = useSocket();
     const queryClient = useQueryClient();
 
-    const { data: unreadCount = 0 } = useQuery({
-        queryKey: ['bookings', 'unread-count', selectedProperty?.id],
-        queryFn: () => bookingsService.getUnreadCount(selectedProperty?.id),
-        enabled: !!selectedProperty?.id && isAuthenticated,
-        refetchInterval: 60000, // Poll less frequently when we have sockets
-    });
+    const { navItems } = useNavigation();
 
     // Real-time update for unread count
     useEffect(() => {
@@ -76,79 +60,6 @@ export default function DashboardLayout() {
         logout();
         navigate('/login');
     };
-
-    const hasPermission = (permission: string) => {
-        return user?.permissions?.includes(permission) || user?.roles?.includes('SuperAdmin');
-    };
-
-    const navItems = [
-        ...(hasPermission('reports.viewDashboard') ? [
-            { icon: LayoutDashboard, label: 'Dashboard', path: '/' }
-        ] : []),
-
-        // Only show operational links if property is approved
-        ...(selectedProperty?.status === 'APPROVED' ? [
-            // Bookings
-            ...(hasPermission('bookings.read') ? [
-                {
-                    icon: Calendar,
-                    label: 'Bookings',
-                    path: '/bookings',
-                    badge: unreadCount > 0 ? unreadCount : undefined
-                },
-            ] : []),
-
-            // Guest Management (Uses users.read)
-            ...(hasPermission('users.read') ? [
-                { icon: Users, label: 'Guests', path: '/guests' },
-            ] : []),
-
-            // Rooms
-            ...(hasPermission('rooms.read') ? [
-                { icon: BedDouble, label: 'Rooms', path: '/rooms' },
-            ] : []),
-
-            // Room Types
-            ...(hasPermission('roomTypes.read') ? [
-                { icon: BedDouble, label: 'Room Types', path: '/room-types' },
-            ] : []),
-
-            // Financials
-            ...(hasPermission('payments.read') ? [
-                { icon: CreditCard, label: 'Payments', path: '/payments' },
-            ] : []),
-
-            ...(hasPermission('reports.viewFinancial') ? [
-                { icon: DollarSign, label: 'Financials', path: '/financials' },
-            ] : []),
-
-            ...(hasPermission('bookingSources.read') ? [
-                { icon: Briefcase, label: 'Sources', path: '/booking-sources' },
-            ] : []),
-
-            // Team & Roles
-            ...(hasPermission('users.read') ? [
-                { icon: Users, label: 'My Team', path: '/team' },
-            ] : []),
-
-            ...(hasPermission('roles.read') ? [
-                { icon: Shield, label: 'Roles', path: '/roles' },
-            ] : []),
-
-            ...(hasPermission('reports.viewDashboard') ? [
-                { icon: PieChart, label: 'Reports', path: '/reports' }
-            ] : []),
-
-            ...(hasPermission('settings.manage') ? [
-                { icon: RefreshCw, label: 'Calendar Sync', path: '/calendar-sync' },
-            ] : []),
-        ] : []),
-
-        // My Property access
-        ...(hasPermission('properties.read') ? [
-            { icon: Building2, label: 'My Property', path: '/my-property' },
-        ] : []),
-    ];
 
     return (
         <div className="min-h-screen bg-background text-foreground flex">
@@ -200,12 +111,12 @@ export default function DashboardLayout() {
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                    {navItems.map((item) => (
+                    {navItems.map((item: any) => (
                         <NavLink
                             key={item.path}
                             to={item.path}
                             end={item.path === '/'}
-                            className={({ isActive }) =>
+                            className={({ isActive }: { isActive: boolean }) =>
                                 clsx(
                                     'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
                                     isActive
@@ -240,7 +151,7 @@ export default function DashboardLayout() {
 
                     <NavLink
                         to="/account-settings"
-                        className={({ isActive }) =>
+                        className={({ isActive }: { isActive: boolean }) =>
                             clsx(
                                 'w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors rounded-lg',
                                 isActive
@@ -330,13 +241,13 @@ export default function DashboardLayout() {
                         )}
 
                         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                            {navItems.map((item) => (
+                            {navItems.map((item: any) => (
                                 <NavLink
                                     key={item.path}
                                     onClick={() => setIsSidebarOpen(false)}
                                     to={item.path}
                                     end={item.path === '/'}
-                                    className={({ isActive }) =>
+                                    className={({ isActive }: { isActive: boolean }) =>
                                         clsx(
                                             'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
                                             isActive
@@ -357,7 +268,7 @@ export default function DashboardLayout() {
                             <NavLink
                                 to="/account-settings"
                                 onClick={() => setIsSidebarOpen(false)}
-                                className={({ isActive }) =>
+                                className={({ isActive }: { isActive: boolean }) =>
                                     clsx(
                                         'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
                                         isActive
@@ -389,7 +300,7 @@ export default function DashboardLayout() {
                 <header className="hidden md:flex items-center justify-between px-8 py-4 bg-card/50 backdrop-blur-md border-b border-border sticky top-0 z-10">
                     <div className="flex items-center gap-2">
                         <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
-                            {navItems.find(item => item.path === window.location.pathname)?.label || 'Overview'}
+                            {(navItems as any[]).find(item => item.path === window.location.pathname)?.label || 'Overview'}
                         </h2>
                     </div>
                     <div className="flex items-center gap-4">

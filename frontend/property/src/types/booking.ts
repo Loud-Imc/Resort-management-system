@@ -39,6 +39,9 @@ export interface Booking {
     totalAmount: number;
     paidAmount: number;
     paymentStatus: 'UNPAID' | 'PARTIAL' | 'FULL';
+    paymentMethod?: string;
+    extraAdultAmount?: number;
+    extraChildAmount?: number;
     status: BookingStatus;
     specialRequests?: string;
     isManualBooking: boolean;
@@ -48,6 +51,7 @@ export interface Booking {
         floor: number;
         roomType: {
             name: string;
+            images?: string[];
         };
     };
     userId: string;
@@ -66,6 +70,7 @@ export interface Booking {
             roomNumber: string;
             roomType: {
                 name: string;
+                images?: string[];
             };
         };
     }[];

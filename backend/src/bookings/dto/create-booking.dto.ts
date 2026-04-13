@@ -118,6 +118,11 @@ export class CreateBookingDto {
     @IsOptional()
     overrideTotal?: number;
 
+    @ApiProperty({ example: true, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isOverrideInclusive?: boolean;
+
     @ApiProperty({ example: 'Special corporate rate', required: false })
     @IsString()
     @IsOptional()

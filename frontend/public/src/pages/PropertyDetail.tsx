@@ -619,12 +619,25 @@ export default function PropertyDetail() {
                                                                                 {formatPrice((availabilityInfo.baseAmount || 0) + (availabilityInfo.taxAmount || 0) + (availabilityInfo.activeOffer?.discountAmount || 0), selectedCurrency, rates)}
                                                                             </div>
                                                                         )}
-                                                                        <div className="text-3xl font-black text-gray-900">
-                                                                            {formatPrice(availabilityInfo.totalPrice, selectedCurrency, rates)}
-                                                                        </div>
-                                                                        <div className="text-[10px] text-gray-500 font-medium">
-                                                                            incl. {formatPrice(availabilityInfo.taxAmount || 0, selectedCurrency, rates)} taxes ({Math.round((availabilityInfo.taxRate || 0) / 100)}% GST)
-                                                                        </div>
+                                                                        {availabilityInfo.isGstInclusive ? (
+                                                                            <>
+                                                                                <div className="text-3xl font-black text-gray-900">
+                                                                                    {formatPrice(availabilityInfo.totalPrice, selectedCurrency, rates)}
+                                                                                </div>
+                                                                                <div className="text-[10px] text-green-600 font-bold uppercase tracking-tight">
+                                                                                    GST Inclusive
+                                                                                </div>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <div className="text-3xl font-black text-gray-900">
+                                                                                    {formatPrice((availabilityInfo.baseAmount || 0) + (availabilityInfo.extraAdultAmount || 0) + (availabilityInfo.extraChildAmount || 0), selectedCurrency, rates)}
+                                                                                </div>
+                                                                                <div className="text-[10px] text-gray-500 font-medium uppercase tracking-tight">
+                                                                                    + taxes ({availabilityInfo.taxRate}% GST)
+                                                                                </div>
+                                                                            </>
+                                                                        )}
                                                                         <div className="text-[10px] text-gray-400 font-medium">
                                                                             {formatPrice(availabilityInfo.pricePerNight, selectedCurrency, rates)} / night × {availabilityInfo.numberOfNights || 0} night{(availabilityInfo.numberOfNights || 0) > 1 ? 's' : ''}
                                                                         </div>
@@ -635,7 +648,11 @@ export default function PropertyDetail() {
                                                                             {formatPrice(roomType.basePrice, selectedCurrency, rates)}
                                                                         </div>
                                                                         <div className="text-[10px] text-gray-500 font-medium">
-                                                                            per night + taxes
+                                                                            {roomType.isGstInclusive ? (
+                                                                                <span className="text-green-600 font-bold uppercase tracking-tight">GST Inclusive</span>
+                                                                            ) : (
+                                                                                'per night + taxes'
+                                                                            )}
                                                                         </div>
                                                                     </>
                                                                 )}

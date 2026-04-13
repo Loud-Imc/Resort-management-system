@@ -28,9 +28,18 @@ export class PdfService {
   }
 
   async generateBookingConfirmation(booking: any): Promise<Buffer> {
+    console.log(`[PdfService] [DEBUG] Processing booking ${booking.bookingNumber}`);
     const property = booking.property || booking.room?.property;
     const roomType = booking.roomType;
     const user = booking.user;
+
+    if (!property) console.error(`[PdfService] [ERROR] property is undefined for booking ${booking.bookingNumber}`);
+    if (!roomType) console.error(`[PdfService] [ERROR] roomType is undefined for booking ${booking.bookingNumber}`);
+    if (!user) console.error(`[PdfService] [ERROR] user is undefined for booking ${booking.bookingNumber}`);
+
+    if (!property || !roomType || !user) {
+      console.log(`[PdfService] [DEBUG] Available keys in booking:`, Object.keys(booking));
+    }
 
     const docDefinition: any = {
       content: [

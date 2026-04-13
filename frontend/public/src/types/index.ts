@@ -19,6 +19,8 @@ export interface RoomType {
     baseAmount?: number;
     taxAmount?: number;
     taxRate?: number;
+    extraAdultAmount?: number;
+    extraChildAmount?: number;
     pricePerNight?: number;
     numberOfNights?: number;
     activeOffer?: any;
@@ -30,6 +32,7 @@ export interface RoomType {
     isAvailableForGroupBooking?: boolean;
     groupMaxOccupancy?: number;
     groupPricePerHead?: number;
+    isGstInclusive?: boolean;
 }
 
 export interface BookingSearchParams {

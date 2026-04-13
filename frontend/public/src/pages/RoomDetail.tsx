@@ -415,17 +415,24 @@ export default function RoomDetail() {
                                         </div>
                                         <div className="space-y-3 py-4 border-y border-gray-50">
                                             <div className="flex justify-between text-gray-500 text-sm font-medium">
-                                                <span>Base Price (1 Night)</span>
+                                                <span>{roomType.isGstInclusive ? 'Room Charges (GST Inc.)' : 'Base Price (1 Night)'}</span>
                                                 <span className="text-gray-900">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
                                             </div>
-                                            <div className="flex justify-between text-gray-500 text-sm font-medium">
-                                                <span>Taxes (12%)</span>
-                                                <span className="text-gray-900">{formatPrice(Math.round(roomType.basePrice * 0.12), selectedCurrency, rates)}</span>
-                                            </div>
+                                            {!roomType.isGstInclusive && (
+                                                <div className="flex justify-between text-gray-500 text-[10px] font-bold uppercase tracking-tight italic">
+                                                    <span>+ Taxes & Charges</span>
+                                                    <span>Calculated at checkout</span>
+                                                </div>
+                                            )}
                                             <div className="flex justify-between text-gray-900 font-black text-lg pt-2">
-                                                <span>Total Amount</span>
-                                                <span className="text-primary-600">{formatPrice(Math.round(roomType.basePrice * 1.12), selectedCurrency, rates)}</span>
+                                                <span>{roomType.isGstInclusive ? 'Total Price' : 'Subtotal'}</span>
+                                                <span className="text-primary-600">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
                                             </div>
+                                            {roomType.isGstInclusive && (
+                                                <div className="text-[10px] text-green-600 font-bold uppercase tracking-tight text-right -mt-1">
+                                                    GST Inclusive
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
