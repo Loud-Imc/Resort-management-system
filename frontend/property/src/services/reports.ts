@@ -100,4 +100,25 @@ export const reportsService = {
             throw error;
         }
     },
+
+    getGstReport: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get<any>('/reports/gst', {
+            params: { startDate, endDate, propertyId },
+        });
+        return data;
+    },
+
+    exportGstPdf: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get('/reports/export/gst-pdf', {
+            params: { startDate, endDate, propertyId },
+            responseType: 'blob',
+        });
+        const url = window.URL.createObjectURL(new Blob([data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `GST_Report_${startDate}_${endDate}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    },
 };
