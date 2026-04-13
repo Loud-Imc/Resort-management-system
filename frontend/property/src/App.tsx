@@ -14,6 +14,7 @@ import Register from './pages/Register';
 // Pages
 import BookingsList from './pages/Bookings/BookingsList';
 import CreateBooking from './pages/Bookings/CreateBooking';
+import EditBooking from './pages/Bookings/EditBooking';
 import BookingDetails from './pages/Bookings/BookingDetails';
 import RoomsList from './pages/Rooms/RoomsList';
 import CreateRoom from './pages/Rooms/CreateRoom';
@@ -57,6 +58,7 @@ function App() {
                     {/* Bookings */}
                     <Route path="bookings" element={<BookingsList />} />
                     <Route path="bookings/create" element={<CreateBooking />} />
+                    <Route path="bookings/:id/edit" element={<EditBooking />} />
                     <Route path="bookings/:id" element={<BookingDetails />} />
 
                     {/* Guests */}

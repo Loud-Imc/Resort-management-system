@@ -8,6 +8,7 @@ import { ChannelPartnersService } from '../channel-partners/channel-partners.ser
 import { PaymentsService } from '../payments/payments.service';
 import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { UpdateBookingDto } from './dto/update-booking.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -122,26 +123,12 @@ export class BookingsService {
         console.log(`[BookingsService] INCOMING: userId = ${userId}, guestEmail = ${lowercaseEmail}`);
         let bookingUserId = userId;
         // (Initial guest check moved inside transaction for atomicity, but we define variables here)
-
-        // 1. Check for existing PENDING_PAYMENT from the SAME USER for this roomType
-        console.log(`[BookingsService] Checking for self-block: email = ${lowercaseEmail}, roomTypeId = ${roomTypeId}`);
-        const existingPending = await this.prisma.booking.findFirst({
-            where: {
-                status: 'PENDING_PAYMENT',
-                roomTypeId,
-                user: { email: lowercaseEmail },
-                createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) } // Within last 30 mins
-            }
-        });
-
-        if (existingPending) {
-            console.log(`[BookingsService] SELF-BLOCK DETECTED: ${existingPending.bookingNumber} (${existingPending.id}). Deleting...`);
-            await this.prisma.booking.delete({ where: { id: existingPending.id } });
-            console.log(`[BookingsService] Self-block deleted successfully.`);
-        }
+        let finalTotal = 0;
 
         // 2. Check availability (standard booking only — group bookings validate via allocateRoomsForGroup below)
         if (!isGroupBooking) {
+            // For historical entries, we still check availability for *those dates* to prevent internal double booking, 
+            // but we don't care about "Today's" status.
             const isAvailable = await this.availabilityService.checkAvailability(roomTypeId!, checkIn, checkOut);
             if (!isAvailable) {
                 throw new BadRequestException('No rooms available for the selected dates');
@@ -189,7 +176,18 @@ export class BookingsService {
             );
         }
 
-        let finalTotal = pricing?.totalAmount ?? 0;
+        finalTotal = pricing?.totalAmount ?? 0;
+
+        if (isHistoricalEntry) {
+            // Constraint: Must be fully paid
+            if (paidAmountInput !== undefined && paidAmountInput < finalTotal - 0.01) {
+                throw new BadRequestException('Historical entries must be recorded with full payment');
+            }
+            // Constraint: Mandatory ID Data
+            if (!guests || guests.length === 0 || guests.some(g => !g.idType || !g.idNumber)) {
+                throw new BadRequestException('Guest identity information (ID Type & Number) is mandatory for historical entries');
+            }
+        }
 
         // 3.1 Handle Group Room Allocation across Multiple Rooms
         let allocatedRooms: any[] = [];
@@ -500,8 +498,12 @@ export class BookingsService {
                     whatsappNumber,
                     gstNumber: createBookingDto.gstNumber,
                     isManualBooking,
-                    paymentOption: createBookingDto.paymentOption || 'FULL',
-                    status: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
+                    isHistoricalEntry,
+                    transactionDate: transactionDate ? new Date(transactionDate) : null,
+                    paymentOption: isHistoricalEntry ? 'FULL' : (createBookingDto.paymentOption || 'FULL'),
+                    status: isHistoricalEntry && checkOut < new Date()
+                        ? 'CHECKED_OUT'
+                        : (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
                     roomId: selectedRoom.id,
                     roomTypeId: roomTypeId!,
                     propertyId: selectedRoom.propertyId,
@@ -1352,6 +1354,111 @@ export class BookingsService {
         });
 
         return updated;
+    }
+
+    async update(id: string, user: any, dto: UpdateBookingDto) {
+        const booking = await this.findOne(id, user);
+
+        if (!booking.isManualBooking) {
+            throw new ForbiddenException('Only manual bookings can be edited');
+        }
+
+        // Update basic info
+        return this.prisma.$transaction(async (tx) => {
+            const updated = await tx.booking.update({
+                where: { id },
+                data: {
+                    checkInDate: dto.checkInDate ? new Date(dto.checkInDate) : undefined,
+                    checkOutDate: dto.checkOutDate ? new Date(dto.checkOutDate) : undefined,
+                    adultsCount: dto.adultsCount,
+                    childrenCount: dto.childrenCount,
+                    specialRequests: dto.specialRequests,
+                    gstNumber: dto.gstNumber,
+                    // If total is overridden, update it
+                    totalAmount: dto.overrideTotal !== undefined ? dto.overrideTotal : undefined,
+                },
+                include: { guests: true }
+            });
+
+            // Update user/primary guest info if provided
+            if (dto.guestName || dto.guestEmail || dto.guestPhone) {
+                await tx.user.update({
+                    where: { id: booking.userId },
+                    data: {
+                        firstName: dto.guestName?.split(' ')[0],
+                        lastName: dto.guestName?.split(' ').slice(1).join(' '),
+                        email: dto.guestEmail,
+                        phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
+                    }
+                });
+            }
+
+            // Update guests if provided
+            if (dto.guests && dto.guests.length > 0) {
+                // Remove old guests and add new ones to be safe, or update existing by index/id
+                // For simplicity in manual edit, we'll try to update existing guest records
+                for (const g of dto.guests) {
+                    const existingGuest = updated.guests.find(eg => eg.email === g.email || eg.phone === g.phone);
+                    if (existingGuest) {
+                        await tx.bookingGuest.update({
+                            where: { id: existingGuest.id },
+                            data: {
+                                firstName: g.firstName,
+                                lastName: g.lastName,
+                                email: g.email,
+                                phone: g.phone,
+                                idType: g.idType,
+                                idNumber: g.idNumber,
+                                idImage: g.idImage,
+                            }
+                        });
+                    } else {
+                        await tx.bookingGuest.create({
+                            data: {
+                                ...g,
+                                bookingId: id
+                            }
+                        });
+                    }
+                }
+            }
+
+            await this.auditService.createLog({
+                action: 'UPDATE',
+                entity: 'Booking',
+                entityId: id,
+                userId: user.id,
+                oldValue: booking,
+                newValue: updated,
+                bookingId: id,
+            }, tx);
+
+            return updated;
+        });
+    }
+
+    async remove(id: string, user: any) {
+        const booking = await this.findOne(id, user);
+
+        if (!booking.isManualBooking) {
+            throw new ForbiddenException('Only manual bookings can be deleted');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // Delete related records
+            await tx.income.deleteMany({ where: { bookingId: id } });
+            await tx.payment.deleteMany({ where: { bookingId: id } });
+            await tx.bookingGuest.deleteMany({ where: { bookingId: id } });
+            await tx.roomBlock.deleteMany({ where: { bookingId: id } });
+            await tx.auditLog.deleteMany({ where: { bookingId: id } });
+
+            // Finally delete the booking
+            const deleted = await tx.booking.delete({
+                where: { id }
+            });
+
+            return { message: 'Booking deleted successfully', id: deleted.id };
+        });
     }
 
     /**

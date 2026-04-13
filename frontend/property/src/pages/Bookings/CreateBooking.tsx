@@ -61,6 +61,34 @@ const bookingSchema = z.object({
 }, {
     message: "Transaction date is required for historical entries",
     path: ["transactionDate"]
+}).refine(data => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(data.checkInDate);
+    checkIn.setHours(0, 0, 0, 0);
+    if (checkIn < today && !data.isHistoricalEntry) return false;
+    return true;
+}, {
+    message: "Backdate this booking (Historical Entry) must be enabled for past dates",
+    path: ["isHistoricalEntry"]
+}).refine(data => {
+    if (data.isHistoricalEntry) {
+        return data.guests.every(g => g.idType && g.idNumber);
+    }
+    return true;
+}, {
+    message: "Guest ID Type and Number are mandatory for ALL guests in historical entries. Please check all guest records.",
+    path: ["guests"]
+}).refine(data => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(data.checkInDate);
+    checkIn.setHours(0, 0, 0, 0);
+    if (checkIn < today && !data.isHistoricalEntry) return false;
+    return true;
+}, {
+    message: "Backdate this booking (Historical Entry) must be enabled for past dates",
+    path: ["isHistoricalEntry"]
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
@@ -104,10 +132,33 @@ export default function CreateBooking() {
         },
     });
 
-    // Auto-set property
+    // Auto-set property and detect historical entries
     useEffect(() => {
         if (selectedProperty?.id) setValue('propertyId', selectedProperty.id);
     }, [selectedProperty, setValue]);
+
+    const watchedCheckInDate = watch('checkInDate');
+    const watchedIsHistorical = watch('isHistoricalEntry');
+
+    useEffect(() => {
+        if (!watchedCheckInDate) return;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkIn = new Date(watchedCheckInDate);
+        checkIn.setHours(0, 0, 0, 0);
+
+        if (checkIn < today) {
+            if (!watchedIsHistorical) {
+                setValue('isHistoricalEntry', true);
+                setValue('transactionDate', watchedCheckInDate);
+                toast('Backdated stay detected. Enabling Historical Entry mode.', {
+                    icon: '⏳',
+                    duration: 4000
+                });
+            }
+        }
+    }, [watchedCheckInDate, setValue]);
 
     const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes', selectedProperty?.id],
@@ -218,18 +269,20 @@ export default function CreateBooking() {
             generalCode: appliedCode || undefined,
             roomTypeId: data.isGroupBooking ? undefined : rest.roomTypeId,  // clear stale roomTypeId for group bookings
             propertyId: data.isGroupBooking ? propertyId : undefined,
-            paymentOption,
             bookingSourceId: data.bookingSourceId || undefined,
             roomId: data.selectedRoomIds && data.selectedRoomIds.length > 0 ? data.selectedRoomIds[0] : (data.roomId || undefined),
             selectedRoomIds: data.selectedRoomIds || undefined,
             overrideTotal: data.overrideTotal ? Number(data.overrideTotal) : undefined,
             isOverrideInclusive: data.isOverrideInclusive,
             paymentMethod: data.isManualBooking ? data.paymentMethod : 'ONLINE',
-            paidAmount: data.isManualBooking
-                ? (data.paymentOption === 'FULL'
-                    ? (data.overrideTotal || priceDetails?.totalAmount)
-                    : (data.paidAmount || 0))
-                : undefined,
+            paidAmount: data.isHistoricalEntry
+                ? (data.overrideTotal || priceDetails?.totalAmount)
+                : (data.isManualBooking
+                    ? (data.paymentOption === 'FULL'
+                        ? (data.overrideTotal || priceDetails?.totalAmount)
+                        : (data.paidAmount || 0))
+                    : undefined),
+            paymentOption: data.isHistoricalEntry ? 'FULL' : paymentOption,
         };
         createBookingMutation.mutate(sanitizedData as CreateBookingDto);
     };
@@ -247,7 +300,24 @@ export default function CreateBooking() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                    <form onSubmit={handleSubmit(onSubmit, (errs) => {
+                        console.log('Form Errors:', errs);
+                        const fieldNames = Object.keys(errs).map(key => {
+                            if (key === 'guests') return 'Guest Details (ID mandatory for historical stays)';
+                            if (key === 'isHistoricalEntry') return 'Backdate Checkbox';
+                            return key.replace(/([A-Z])/g, ' $1').toLowerCase();
+                        });
+
+                        toast.error(
+                            <div>
+                                <p className="font-bold mb-1 underline">Please fix the following:</p>
+                                <ul className="list-disc pl-4 text-xs font-semibold">
+                                    {fieldNames.map((name, i) => <li key={i} className="capitalize">{name}</li>)}
+                                </ul>
+                            </div>,
+                            { duration: 6000 }
+                        );
+                    })} className="space-y-6">
                         {/* Booking Details */}
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -496,6 +566,13 @@ export default function CreateBooking() {
                                         </h2>
                                         <button type="button" onClick={() => append({ firstName: '', lastName: '' })} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add Guest</button>
                                     </div>
+                                    {errors.guests?.message && (
+                                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-bounce">
+                                            <p className="text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                                                <AlertCircle className="h-4 w-4" /> {errors.guests.message}
+                                            </p>
+                                        </div>
+                                    )}
                                     <div className="space-y-4">
                                         {fields.map((field, index) => (
                                             <div key={field.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg relative group">
@@ -514,14 +591,17 @@ export default function CreateBooking() {
                                                     </div>
                                                     <input {...register(`guests.${index}.email`)} type="email" placeholder="Email (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
                                                     <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                    <select {...register(`guests.${index}.idType`)} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm">
-                                                        <option value="">-- ID Type (Optional) --</option>
-                                                        <option value="AADHAR">Aadhar Card</option>
-                                                        <option value="PASSPORT">Passport</option>
-                                                        <option value="VOTER_ID">Voter ID</option>
-                                                        <option value="DRIVING_LICENSE">Driving License</option>
-                                                        <option value="OTHER">Other</option>
-                                                    </select>
+                                                    <div className="relative">
+                                                        <select {...register(`guests.${index}.idType`)} className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500")}>
+                                                            <option value="">-- ID Type (Optional) --</option>
+                                                            <option value="AADHAR">Aadhar Card</option>
+                                                            <option value="PASSPORT">Passport</option>
+                                                            <option value="VOTER_ID">Voter ID</option>
+                                                            <option value="DRIVING_LICENSE">Driving License</option>
+                                                            <option value="OTHER">Other</option>
+                                                        </select>
+                                                        {errors.guests?.[index]?.idType && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idType?.message}</p>}
+                                                    </div>
 
                                                     {watch(`guests.${index}.idType`) && (
                                                         <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-2">
@@ -530,8 +610,9 @@ export default function CreateBooking() {
                                                                 <input
                                                                     {...register(`guests.${index}.idNumber`)}
                                                                     placeholder="Enter ID number"
-                                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm"
+                                                                    className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idNumber && "border-red-500 ring-1 ring-red-500")}
                                                                 />
+                                                                {errors.guests?.[index]?.idNumber && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idNumber?.message}</p>}
                                                             </div>
 
                                                             <div>
@@ -684,22 +765,38 @@ export default function CreateBooking() {
                                         {...register('isHistoricalEntry')}
                                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
                                     />
-                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                        Backdate this booking (Historical Entry)
-                                    </span>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                            Backdate this booking (Historical Entry)
+                                        </span>
+                                        {watchedCheckInDate && new Date(watchedCheckInDate) < new Date(new Date().setHours(0, 0, 0, 0)) && (
+                                            <span className="text-[10px] text-orange-600 font-bold uppercase">Required for past dates</span>
+                                        )}
+                                    </div>
                                 </label>
+                                {errors.isHistoricalEntry && <p className="text-red-500 text-xs mt-1 font-bold">{errors.isHistoricalEntry.message}</p>}
                                 {watch('isHistoricalEntry') && (
-                                    <div className="pl-6 animate-in slide-in-from-top-2">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Original Transaction Date</label>
-                                        <input
-                                            type="date"
-                                            {...register('transactionDate')}
-                                            className="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 w-full md:w-64"
-                                        />
-                                        {errors.transactionDate && <p className="text-red-500 text-xs mt-1">{errors.transactionDate.message}</p>}
-                                        <p className="text-[10px] text-gray-500 mt-2 italic">
-                                            This will override the create/payment dates so it appears in the past reports, keeping today's metrics clean.
-                                        </p>
+                                    <div className="pl-6 animate-in slide-in-from-top-2 space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">Original Transaction Date</label>
+                                            <input
+                                                type="date"
+                                                {...register('transactionDate')}
+                                                className="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 w-full md:w-64"
+                                            />
+                                            {errors.transactionDate && <p className="text-red-500 text-xs mt-1">{errors.transactionDate.message}</p>}
+                                        </div>
+
+                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1 flex items-center gap-1">
+                                                <ShieldCheck className="h-3 w-3" /> Historical Verification Rules
+                                            </p>
+                                            <ul className="text-[10px] text-gray-500 list-disc pl-4 space-y-1">
+                                                <li>Guest ID details are **mandatory** (Type & Number)</li>
+                                                <li>System will record **Full Payment** automatically</li>
+                                                <li>Booking status will be set to **Checked Out**</li>
+                                            </ul>
+                                        </div>
                                     </div>
                                 )}
                             </div>

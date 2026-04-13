@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, Request, Ip } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, Request, Ip, Delete } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { BookingsService } from './bookings.service';
@@ -14,6 +14,7 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
 import { CheckInDto } from './dto/check-in.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
+import { UpdateBookingDto } from './dto/update-booking.dto';
 
 @ApiTags('Bookings')
 @Controller('bookings')
@@ -186,12 +187,16 @@ export class BookingsController {
         @Query('roomTypeId') roomTypeId?: string,
         @Query('propertyId') propertyId?: string,
         @Query('hasSettlement') hasSettlement?: string,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
     ) {
         return this.bookingsService.findAll(req.user, {
             status,
             roomTypeId,
             propertyId,
             hasSettlement: hasSettlement === 'true' ? true : (hasSettlement === 'false' ? false : undefined),
+            checkInDate: startDate ? new Date(startDate) : undefined,
+            checkOutDate: endDate ? new Date(endDate) : undefined,
         });
     }
 
@@ -285,5 +290,27 @@ export class BookingsController {
         @Request() req,
     ) {
         return this.bookingsService.updateStatus(id, status, req.user);
+    }
+
+    @Patch(':id')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Update manual booking' })
+    update(
+        @Param('id') id: string,
+        @Body() dto: UpdateBookingDto,
+        @Request() req,
+    ) {
+        return this.bookingsService.update(id, req.user, dto);
+    }
+
+    @Delete(':id')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.DELETE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Delete manual booking' })
+    remove(@Param('id') id: string, @Request() req) {
+        return this.bookingsService.remove(id, req.user);
     }
 }

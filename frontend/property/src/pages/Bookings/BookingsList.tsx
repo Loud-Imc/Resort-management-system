@@ -22,7 +22,8 @@ import {
     Upload,
     CheckCircle2,
     AlertCircle,
-    Trash2
+    Trash2,
+    Pencil
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -59,6 +60,9 @@ export default function BookingsList() {
     const [downloadBooking, setDownloadBooking] = useState<Booking | null>(null);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const invoiceRef = useRef<HTMLDivElement>(null);
+
+    const [startDate, setStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+    const [endDate, setEndDate] = useState<string>('');
 
     const handleOpenCheckIn = (booking: Booking) => {
         setCheckInBooking(booking);
@@ -109,23 +113,36 @@ export default function BookingsList() {
     };
 
     const { data: bookings, isLoading, error } = useQuery<Booking[]>({
-        queryKey: ['bookings', statusFilter, selectedProperty?.id],
+        queryKey: ['bookings', statusFilter, selectedProperty?.id, startDate, endDate],
         queryFn: async () => {
             const data = await bookingsService.getAll({
                 status: statusFilter || undefined,
-                propertyId: selectedProperty?.id
+                propertyId: selectedProperty?.id,
+                startDate: startDate || undefined,
+                endDate: endDate || undefined,
             });
-            // Automatically filter out PENDING_PAYMENT and CANCELLED bookings on the property side
-            // unless specifically requested via a direct status filter.
             if (!statusFilter) {
-                return data.filter(b =>
-                    b.status !== BookingStatus.PENDING_PAYMENT
-                    //  && b.status !== BookingStatus.CANCELLED
-                );
+                return data.filter(b => b.status !== BookingStatus.PENDING_PAYMENT);
             }
             return data;
         },
         enabled: !!selectedProperty?.id,
+    });
+
+    const filteredBookings = (bookings || []).filter(booking => {
+        if (!searchTerm) return true;
+        const searchStr = searchTerm.toLowerCase();
+        const guestName = (booking.isManualBooking && booking.guests?.[0]
+            ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
+            : `${booking.user.firstName} ${booking.user.lastName}`).toLowerCase();
+        const bookingNumber = booking.bookingNumber.toLowerCase();
+        const email = (booking.isManualBooking && booking.guests?.[0]
+            ? (booking.guests[0].email || '')
+            : booking.user.email).toLowerCase();
+
+        return guestName.includes(searchStr) ||
+            bookingNumber.includes(searchStr) ||
+            email.includes(searchStr);
     });
 
     const checkInMutation = useMutation({
@@ -189,6 +206,17 @@ export default function BookingsList() {
             queryClient.invalidateQueries({ queryKey: ['bookings'] });
         },
         onError: () => toast.error('Failed to cancel booking'),
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => bookingsService.delete(id),
+        onSuccess: () => {
+            toast.success('Booking deleted successfully');
+            queryClient.invalidateQueries({ queryKey: ['bookings'] });
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to delete booking');
+        },
     });
 
     const handleDownloadPDF = async (booking: Booking) => {
@@ -315,7 +343,7 @@ export default function BookingsList() {
                     </Link>
                 </div>
 
-                <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
+                <div className="bg-card rounded-lg shadow-sm border border-border">
                     {/* Filters */}
                     <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
                         <div className="relative flex-1">
@@ -328,20 +356,53 @@ export default function BookingsList() {
                                 className="w-full pl-10 pr-4 py-2 border border-border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Filter className="h-4 w-4 text-muted-foreground" />
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                className="border border-border bg-background text-foreground rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="">All Statuses</option>
-                                <option value="CONFIRMED">Confirmed</option>
-                                <option value="RESERVED">Reserved</option>
-                                <option value="CHECKED_IN">Checked In</option>
-                                <option value="CHECKED_OUT">Checked Out</option>
-                                <option value="CANCELLED">Cancelled</option>
-                            </select>
+                        <div className="flex flex-wrap items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">From:</span>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="border border-border bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">To:</span>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="border border-border bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Filter className="h-4 w-4 text-muted-foreground" />
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="border border-border bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[140px]"
+                                >
+                                    <option value="">All Statuses</option>
+                                    <option value="CONFIRMED">Confirmed</option>
+                                    <option value="RESERVED">Reserved</option>
+                                    <option value="CHECKED_IN">Checked In</option>
+                                    <option value="CHECKED_OUT">Checked Out</option>
+                                    <option value="CANCELLED">Cancelled</option>
+                                </select>
+                            </div>
+                            {(startDate !== format(new Date(), 'yyyy-MM-dd') || endDate !== '' || statusFilter !== '') && (
+                                <button
+                                    onClick={() => {
+                                        setStartDate(format(new Date(), 'yyyy-MM-dd'));
+                                        setEndDate('');
+                                        setStatusFilter('');
+                                        setSearchTerm('');
+                                    }}
+                                    className="text-xs font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-widest whitespace-nowrap"
+                                >
+                                    Clear Filters
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -361,21 +422,7 @@ export default function BookingsList() {
                                 </tr>
                             </thead>
                             <tbody className="bg-card divide-y divide-border">
-                                {bookings?.filter(booking => {
-                                    if (!searchTerm) return true;
-                                    const searchStr = searchTerm.toLowerCase();
-                                    const guestName = (booking.isManualBooking && booking.guests?.[0]
-                                        ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
-                                        : `${booking.user.firstName} ${booking.user.lastName}`).toLowerCase();
-                                    const bookingNumber = booking.bookingNumber.toLowerCase();
-                                    const email = (booking.isManualBooking && booking.guests?.[0]
-                                        ? (booking.guests[0].email || '')
-                                        : booking.user.email).toLowerCase();
-
-                                    return guestName.includes(searchStr) ||
-                                        bookingNumber.includes(searchStr) ||
-                                        email.includes(searchStr);
-                                }).map((booking: Booking) => (
+                                {filteredBookings.map((booking: Booking, index: number) => (
                                     <tr key={booking.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>
@@ -403,7 +450,11 @@ export default function BookingsList() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-foreground">{booking.guests[0].phone}</div>
+                                            <div className="text-sm text-foreground">
+                                                {booking.isManualBooking && booking.guests?.[0]
+                                                    ? booking.guests[0].phone
+                                                    : booking.user.phone || 'N/A'}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-2">
@@ -500,7 +551,7 @@ export default function BookingsList() {
                                                     </button>
                                                 )}
 
-                                                <div className="relative">
+                                                <div className="relative" style={{ zIndex: activeMenu === booking.id ? 50 : 0 }}>
                                                     <button
                                                         onClick={() => setActiveMenu(activeMenu === booking.id ? null : booking.id)}
                                                         className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-90"
@@ -513,7 +564,7 @@ export default function BookingsList() {
                                                                 className="fixed inset-0 z-10"
                                                                 onClick={() => setActiveMenu(null)}
                                                             ></div>
-                                                            <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                                            <div className={`absolute right-0 w-48 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in transition-all duration-200 ${filteredBookings.length > 3 && index >= filteredBookings.length - 2 ? 'bottom-full mb-2 slide-in-from-bottom-2' : 'top-full mt-2 slide-in-from-top-2'}`}>
                                                                 <button
                                                                     onClick={() => {
                                                                         setActiveMenu(null);
@@ -536,6 +587,29 @@ export default function BookingsList() {
                                                                     <Eye className="h-4 w-4" />
                                                                     View Details
                                                                 </Link>
+                                                                {booking.isManualBooking && (
+                                                                    <>
+                                                                        <Link
+                                                                            to={`/bookings/${booking.id}/edit`}
+                                                                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                                                                        >
+                                                                            <Pencil className="h-4 w-4" />
+                                                                            Edit Booking
+                                                                        </Link>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setActiveMenu(null);
+                                                                                if (confirm('Are you sure you want to PERMANENTLY delete this booking? This action cannot be undone and will remove all associated payment and guest records.')) {
+                                                                                    deleteMutation.mutate(booking.id);
+                                                                                }
+                                                                            }}
+                                                                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/5 transition-colors"
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                            Delete Booking
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         </>
                                                     )}
@@ -554,383 +628,387 @@ export default function BookingsList() {
                         </div>
                     )}
                 </div>
-            </div>
 
-            {/* Check-In Verification Modal */}
-            {checkInBooking && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl">
-                    <div className="bg-card w-full max-w-2xl rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-border/50 overflow-hidden animate-in fade-in zoom-in duration-300">
-                        <div className="relative p-8 border-b border-border/50 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-primary text-primary-foreground rounded-2xl shadow-lg rotate-3">
-                                        <ShieldCheck className="h-7 w-7" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-black tracking-tight text-foreground">Verification Center</h2>
-                                        <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-                                            Booking: <span className="text-primary font-bold">{checkInBooking.bookingNumber}</span>
-                                            <span className="w-1 h-1 rounded-full bg-border" />
-                                            Required for security compliance
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setCheckInBooking(null)}
-                                    className="p-3 hover:bg-muted rounded-2xl transition-all hover:rotate-90 duration-300"
-                                >
-                                    <X className="h-6 w-6 text-muted-foreground" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            if (Object.keys(idErrors).length > 0) {
-                                toast.error('Please fix validation errors');
-                                return;
-                            }
-
-                            const unpaidBalance = Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount);
-                            if (unpaidBalance > 0) {
-                                toast.error(`Please record remaining payment of ₹${unpaidBalance.toLocaleString()} first`);
-                                return;
-                            }
-
-                            // ID Verification Check
-                            const incompleteGuests = verificationData.filter(g => !g.idType || !g.idNumber || !g.idImage);
-                            if (incompleteGuests.length > 0) {
-                                toast.error('Please complete ID details for all guests');
-                                return;
-                            }
-
-                            checkInMutation.mutate({
-                                id: checkInBooking.id,
-                                data: { guests: verificationData }
-                            });
-                        }}>
-                            <div className="p-8 max-h-[70vh] overflow-y-auto space-y-8">
-                                {/* Premium Financial Summary */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-5 rounded-3xl bg-muted/30 border border-border/30 space-y-3">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Stay Info</span>
-                                        </div>
-                                        <div className="flex justify-between items-end">
-                                            <div className="space-y-4">
-                                                <div>
-                                                    <div className="text-lg font-black text-primary">Unit {checkInBooking.room.roomNumber}</div>
-                                                    <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{checkInBooking.room.roomType.name}</div>
-                                                </div>
-                                                {checkInBooking.roomBlocks && checkInBooking.roomBlocks.length > 0 && (
-                                                    <div className="pt-3 border-t border-border/30 space-y-3">
-                                                        {checkInBooking.roomBlocks.map((block, idx) => (
-                                                            <div key={idx}>
-                                                                <div className="text-lg font-black text-primary">Unit {block.room.roomNumber}</div>
-                                                                <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{block.room.roomType.name}</div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-xs font-bold">{format(new Date(checkInBooking.checkInDate), 'MMM d')} - {format(new Date(checkInBooking.checkOutDate), 'MMM d')}</div>
-                                                <div className="text-[10px] text-muted-foreground">{checkInBooking.numberOfNights} Nights</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-5 rounded-3xl bg-primary/5 border border-primary/10 space-y-3">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <ShieldCheck className="h-4 w-4 text-primary/60" />
-                                            <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">Financials</span>
-                                        </div>
-                                        <div className="flex justify-between items-end">
-                                            <div>
-                                                <div className="text-[10px] text-muted-foreground font-bold">UNPAID BALANCE</div>
-                                                <div className="text-2xl font-black text-amber-600">₹{(Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount)).toLocaleString()}</div>
-                                            </div>
-                                            <div className="text-right text-xs">
-                                                <div className="text-muted-foreground">Total: ₹{Number(checkInBooking.totalAmount).toLocaleString()}</div>
-                                                <div className="text-emerald-600 font-bold">Paid: ₹{Number(checkInBooking.paidAmount).toLocaleString()}</div>
-                                                {checkInBooking.bookingCurrency && checkInBooking.bookingCurrency !== 'INR' && (
-                                                    <div className="text-primary/70 text-[9px] mt-1 italic">
-                                                        Booking: {checkInBooking.bookingCurrency} {Number(checkInBooking.amountInBookingCurrency).toLocaleString()}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Manual Payment Entry */}
-                                {Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0 && (
-                                    <div className="p-6 rounded-[2rem] border-2 border-amber-500/20 bg-amber-500/5 space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <Banknote className="h-5 w-5 text-amber-600" />
-                                                <h3 className="text-sm font-black text-amber-900 uppercase tracking-wider">Record Payment</h3>
-                                            </div>
-                                            {!isRecordingPayment ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setIsRecordingPayment(true);
-                                                        setPaymentAmount((Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount)).toString());
-                                                    }}
-                                                    className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline"
-                                                >
-                                                    Add Payment Record
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsRecordingPayment(false)}
-                                                    className="text-[10px] font-black text-destructive uppercase tracking-widest hover:underline"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {isRecordingPayment && (
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                <div className="space-y-1.5">
-                                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Amount (₹)</label>
-                                                    <input
-                                                        type="number"
-                                                        value={paymentAmount}
-                                                        onChange={(e) => setPaymentAmount(e.target.value)}
-                                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-sm font-bold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none"
-                                                    />
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Method</label>
-                                                    <select
-                                                        value={paymentMethod}
-                                                        onChange={(e) => setPaymentMethod(e.target.value as any)}
-                                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none"
-                                                    >
-                                                        <option value="CASH">Cash</option>
-                                                        <option value="UPI">UPI / QR</option>
-                                                        <option value="CARD">Card</option>
-                                                        <option value="OTHER">Other</option>
-                                                    </select>
-                                                </div>
-                                                <div className="flex items-end">
-                                                    <button
-                                                        type="button"
-                                                        disabled={recordPaymentMutation.isPending || !paymentAmount}
-                                                        onClick={() => {
-                                                            recordPaymentMutation.mutate({
-                                                                bookingId: checkInBooking.id,
-                                                                amount: Number(paymentAmount),
-                                                                method: paymentMethod,
-                                                                notes: paymentNotes
-                                                            });
-                                                        }}
-                                                        className="w-full py-2 bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-all disabled:opacity-50"
-                                                    >
-                                                        {recordPaymentMutation.isPending ? 'Processing...' : 'Save Payment'}
-                                                    </button>
-                                                </div>
-                                                <div className="md:col-span-3 space-y-1.5">
-                                                    <input
-                                                        type="text"
-                                                        value={paymentNotes}
-                                                        onChange={(e) => setPaymentNotes(e.target.value)}
-                                                        placeholder="Optional notes (e.g., Transaction ID, reference...)"
-                                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-xs focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="space-y-6">
+                {/* Check-In Verification Modal */}
+                {
+                    checkInBooking && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl">
+                            <div className="bg-card w-full max-w-2xl rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-border/50 overflow-hidden animate-in fade-in zoom-in duration-300">
+                                <div className="relative p-8 border-b border-border/50 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-sm font-black text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                                            <UserIcon className="h-4 w-4" /> Guest Documents
-                                        </h3>
-                                        <span className="px-3 py-1 bg-muted rounded-full text-[10px] font-bold text-muted-foreground">
-                                            {checkInBooking.guests.length} Guests
-                                        </span>
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-primary text-primary-foreground rounded-2xl shadow-lg rotate-3">
+                                                <ShieldCheck className="h-7 w-7" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-black tracking-tight text-foreground">Verification Center</h2>
+                                                <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                                                    Booking: <span className="text-primary font-bold">{checkInBooking?.bookingNumber}</span>
+                                                    <span className="w-1 h-1 rounded-full bg-border" />
+                                                    Required for security compliance
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setCheckInBooking(null)}
+                                            className="p-3 hover:bg-muted rounded-2xl transition-all hover:rotate-90 duration-300"
+                                        >
+                                            <X className="h-6 w-6 text-muted-foreground" />
+                                        </button>
                                     </div>
+                                </div>
 
-                                    {verificationData.map((guest: any, idx: number) => (
-                                        <div key={guest.id} className="group p-6 rounded-[2rem] border border-border/50 bg-gradient-to-b from-card to-muted/10 space-y-6 hover:border-primary/30 transition-all duration-300">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
-                                                        {guest.id === verificationData[0].id ? 'P' : idx + 1}
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (Object.keys(idErrors).length > 0) {
+                                        toast.error('Please fix validation errors');
+                                        return;
+                                    }
+
+                                    const unpaidBalance = Number(checkInBooking?.totalAmount || 0) - Number(checkInBooking?.paidAmount || 0);
+                                    if (unpaidBalance > 0) {
+                                        toast.error(`Please record remaining payment of ₹${unpaidBalance.toLocaleString()} first`);
+                                        return;
+                                    }
+
+                                    // ID Verification Check
+                                    const incompleteGuests = verificationData.filter(g => !g.idType || !g.idNumber || !g.idImage);
+                                    if (incompleteGuests.length > 0) {
+                                        toast.error('Please complete ID details for all guests');
+                                        return;
+                                    }
+
+                                    checkInMutation.mutate({
+                                        id: checkInBooking?.id || '',
+                                        data: { guests: verificationData }
+                                    });
+                                }}>
+                                    <div className="p-8 max-h-[70vh] overflow-y-auto space-y-8">
+                                        {/* Premium Financial Summary */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-5 rounded-3xl bg-muted/30 border border-border/30 space-y-3">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Stay Info</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <div className="text-lg font-black text-primary">Unit {checkInBooking?.room?.roomNumber}</div>
+                                                            <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{checkInBooking?.room?.roomType?.name}</div>
+                                                        </div>
+                                                        {checkInBooking?.roomBlocks && checkInBooking.roomBlocks.length > 0 && (
+                                                            <div className="pt-3 border-t border-border/30 space-y-3">
+                                                                {checkInBooking.roomBlocks.map((block, idx) => (
+                                                                    <div key={idx}>
+                                                                        <div className="text-lg font-black text-primary">Unit {block.room.roomNumber}</div>
+                                                                        <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{block.room.roomType.name}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div>
-                                                        <div className="font-bold text-lg text-foreground">
-                                                            {checkInBooking.guests[idx].firstName} {checkInBooking.guests[idx].lastName}
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
-                                                            <span>{checkInBooking.guests[idx].phone || 'No Phone'}</span>
-                                                            <span className="w-1 h-1 rounded-full bg-border" />
-                                                            <span>{guest.id === verificationData[0].id ? 'Primary Guest' : 'Additional Guest'}</span>
-                                                        </div>
+                                                    <div className="text-right">
+                                                        <div className="text-xs font-bold">{checkInBooking?.checkInDate ? format(new Date(checkInBooking.checkInDate), 'MMM d') : ''} - {checkInBooking?.checkOutDate ? format(new Date(checkInBooking.checkOutDate), 'MMM d') : ''}</div>
+                                                        <div className="text-[10px] text-muted-foreground">{checkInBooking?.numberOfNights} Nights</div>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-4">
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">ID Type</label>
-                                                        <select
-                                                            value={guest.idType}
-                                                            onChange={(e) => handleIdChange(idx, 'idType', e.target.value)}
-                                                            className="w-full bg-background border border-border/50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer"
-                                                        >
-                                                            <option value="">Select ID Type</option>
-                                                            <option value="AADHAR">Aadhar Card</option>
-                                                            <option value="PASSPORT">Passport</option>
-                                                            <option value="VOTER_ID">Voter ID</option>
-                                                            <option value="DRIVING_LICENSE">Driving License</option>
-                                                            <option value="OTHER">Other Identification</option>
-                                                        </select>
+                                            <div className="p-5 rounded-3xl bg-primary/5 border border-primary/10 space-y-3">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <ShieldCheck className="h-4 w-4 text-primary/60" />
+                                                    <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">Financials</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <div>
+                                                        <div className="text-[10px] text-muted-foreground font-bold">UNPAID BALANCE</div>
+                                                        <div className="text-2xl font-black text-amber-600">₹{(Number(checkInBooking?.totalAmount || 0) - Number(checkInBooking?.paidAmount || 0)).toLocaleString()}</div>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">ID Number</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="text"
-                                                                value={guest.idNumber}
-                                                                onChange={(e) => handleIdChange(idx, 'idNumber', e.target.value)}
-                                                                placeholder="Enter document number"
-                                                                className={`w-full bg-background border rounded-2xl px-4 py-3 text-sm font-bold tracking-wider focus:ring-4 outline-none transition-all ${idErrors[`${idx}-idNumber`]
-                                                                    ? 'border-destructive ring-destructive/10'
-                                                                    : 'border-border/50 focus:ring-primary/10 focus:border-primary'
-                                                                    }`}
-                                                            />
-                                                            {idErrors[`${idx}-idNumber`] ? (
-                                                                <AlertCircle className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
-                                                            ) : guest.idNumber && (
-                                                                <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
-                                                            )}
-                                                        </div>
-                                                        {idErrors[`${idx}-idNumber`] && (
-                                                            <p className="text-[10px] text-destructive font-bold pl-1 mt-1">{idErrors[`${idx}-idNumber`]}</p>
-                                                        )}
-                                                        {guest.idType && ID_VALIDATION_PATTERNS[guest.idType] && !idErrors[`${idx}-idNumber`] && (
-                                                            <p className="text-[10px] text-muted-foreground font-medium pl-1 mt-1 opacity-70">
-                                                                {ID_VALIDATION_PATTERNS[guest.idType].sample}
-                                                            </p>
+                                                    <div className="text-right text-xs">
+                                                        <div className="text-muted-foreground">Total: ₹{Number(checkInBooking?.totalAmount || 0).toLocaleString()}</div>
+                                                        <div className="text-emerald-600 font-bold">Paid: ₹{Number(checkInBooking?.paidAmount || 0).toLocaleString()}</div>
+                                                        {checkInBooking?.bookingCurrency && checkInBooking.bookingCurrency !== 'INR' && (
+                                                            <div className="text-primary/70 text-[9px] mt-1 italic">
+                                                                Booking: {checkInBooking.bookingCurrency} {Number(checkInBooking.amountInBookingCurrency).toLocaleString()}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
+                                            </div>
+                                        </div>
 
-                                                <div className="space-y-1.5">
-                                                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1 block text-center md:text-left">Identity Proof</label>
-                                                    {guest.idImage ? (
-                                                        <div className="relative group rounded-[1.5rem] overflow-hidden border border-border/50 aspect-video bg-muted/30 shadow-sm hover:shadow-xl hover:border-primary transition-all duration-300">
-                                                            <img
-                                                                src={guest.idImage}
-                                                                alt="Identity Proof"
-                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                            />
-                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-[2px] gap-3">
-                                                                <a
-                                                                    href={guest.idImage}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all transform hover:-translate-y-1"
-                                                                >
-                                                                    <Eye className="h-5 w-5" />
-                                                                </a>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        const newData = [...verificationData];
-                                                                        newData[idx].idImage = '';
-                                                                        setVerificationData(newData);
-                                                                    }}
-                                                                    className="p-3 bg-destructive/20 hover:bg-destructive/40 rounded-2xl text-white transition-all transform hover:-translate-y-1"
-                                                                >
-                                                                    <Trash2 className="h-5 w-5" />
-                                                                </button>
-                                                            </div>
-                                                        </div>
+                                        {/* Manual Payment Entry */}
+                                        {checkInBooking && Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0 && (
+                                            <div className="p-6 rounded-[2rem] border-2 border-amber-500/20 bg-amber-500/5 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Banknote className="h-5 w-5 text-amber-600" />
+                                                        <h3 className="text-sm font-black text-amber-900 uppercase tracking-wider">Record Payment</h3>
+                                                    </div>
+                                                    {!isRecordingPayment ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsRecordingPayment(true);
+                                                                setPaymentAmount((Number(checkInBooking?.totalAmount || 0) - Number(checkInBooking?.paidAmount || 0)).toString());
+                                                            }}
+                                                            className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline"
+                                                        >
+                                                            Add Payment Record
+                                                        </button>
                                                     ) : (
-                                                        <label className="relative h-[106px] flex flex-col items-center justify-center border-2 border-dashed border-primary/20 bg-primary/5 rounded-[1.5rem] cursor-pointer hover:bg-primary/10 hover:border-primary/40 transition-all group overflow-hidden">
-                                                            {uploadingGuestId === guest.id ? (
-                                                                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                                                            ) : (
-                                                                <>
-                                                                    <div className="p-3 bg-primary/10 rounded-2xl mb-2 group-hover:scale-110 transition-transform">
-                                                                        <Upload className="h-5 w-5 text-primary" />
-                                                                    </div>
-                                                                    <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">Upload ID Document</span>
-                                                                    <input
-                                                                        type="file"
-                                                                        className="hidden"
-                                                                        accept="image/*"
-                                                                        onChange={(e) => {
-                                                                            const file = e.target.files?.[0];
-                                                                            if (file) handleUploadImage(idx, file);
-                                                                        }}
-                                                                    />
-                                                                </>
-                                                            )}
-                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsRecordingPayment(false)}
+                                                            className="text-[10px] font-black text-destructive uppercase tracking-widest hover:underline"
+                                                        >
+                                                            Cancel
+                                                        </button>
                                                     )}
                                                 </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
 
-                            <div className="p-8 border-t border-border/50 bg-muted/10 flex gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setCheckInBooking(null)}
-                                    className="px-8 py-4 bg-background border border-border/50 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-muted transition-all active:scale-95"
-                                >
-                                    Later
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={checkInMutation.isPending || uploadingGuestId !== null}
-                                    className={`flex-1 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-3 group shadow-lg ${(Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0) || verificationData.some(g => !g.idType || !g.idNumber || !g.idImage)
-                                        ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70'
-                                        : 'bg-primary text-primary-foreground hover:shadow-[0_20px_40px_-12px_rgba(var(--primary),0.3)] shadow-primary/20'
-                                        }`}
-                                >
-                                    {checkInMutation.isPending ? (
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                    ) : (
-                                        <>
-                                            {Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0
-                                                ? 'Payment Required'
-                                                : verificationData.some(g => !g.idType || !g.idNumber || !g.idImage)
-                                                    ? 'ID Verification Required'
-                                                    : 'Complete Check-In Process'
-                                            }
-                                            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                                        </>
-                                    )}
-                                </button>
+                                                {isRecordingPayment && (
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Amount (₹)</label>
+                                                            <input
+                                                                type="number"
+                                                                value={paymentAmount}
+                                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                                className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-sm font-bold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Method</label>
+                                                            <select
+                                                                value={paymentMethod}
+                                                                onChange={(e) => setPaymentMethod(e.target.value as any)}
+                                                                className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none"
+                                                            >
+                                                                <option value="CASH">Cash</option>
+                                                                <option value="UPI">UPI / QR</option>
+                                                                <option value="CARD">Card</option>
+                                                                <option value="OTHER">Other</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="flex items-end">
+                                                            <button
+                                                                type="button"
+                                                                disabled={recordPaymentMutation.isPending || !paymentAmount}
+                                                                onClick={() => {
+                                                                    recordPaymentMutation.mutate({
+                                                                        bookingId: checkInBooking?.id || '',
+                                                                        amount: Number(paymentAmount),
+                                                                        method: paymentMethod,
+                                                                        notes: paymentNotes
+                                                                    });
+                                                                }}
+                                                                className="w-full py-2 bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-all disabled:opacity-50"
+                                                            >
+                                                                {recordPaymentMutation.isPending ? 'Processing...' : 'Save Payment'}
+                                                            </button>
+                                                        </div>
+                                                        <div className="md:col-span-3 space-y-1.5">
+                                                            <input
+                                                                type="text"
+                                                                value={paymentNotes}
+                                                                onChange={(e) => setPaymentNotes(e.target.value)}
+                                                                placeholder="Optional notes (e.g., Transaction ID, reference...)"
+                                                                className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-xs focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="text-sm font-black text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                                    <UserIcon className="h-4 w-4" /> Guest Documents
+                                                </h3>
+                                                <span className="px-3 py-1 bg-muted rounded-full text-[10px] font-bold text-muted-foreground">
+                                                    {checkInBooking?.guests?.length || 0} Guests
+                                                </span>
+                                            </div>
+
+                                            {verificationData.map((guest: any, idx: number) => (
+                                                <div key={guest.id} className="group p-6 rounded-[2rem] border border-border/50 bg-gradient-to-b from-card to-muted/10 space-y-6 hover:border-primary/30 transition-all duration-300">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
+                                                                {guest.id === verificationData[0].id ? 'P' : idx + 1}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-lg text-foreground">
+                                                                    {checkInBooking?.guests?.[idx]?.firstName} {checkInBooking?.guests?.[idx]?.lastName}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
+                                                                    <span>{checkInBooking?.guests?.[idx]?.phone || 'No Phone'}</span>
+                                                                    <span className="w-1 h-1 rounded-full bg-border" />
+                                                                    <span>{guest.id === verificationData[0].id ? 'Primary Guest' : 'Additional Guest'}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <div className="space-y-4">
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">ID Type</label>
+                                                                <select
+                                                                    value={guest.idType}
+                                                                    onChange={(e) => handleIdChange(idx, 'idType', e.target.value)}
+                                                                    className="w-full bg-background border border-border/50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer"
+                                                                >
+                                                                    <option value="">Select ID Type</option>
+                                                                    <option value="AADHAR">Aadhar Card</option>
+                                                                    <option value="PASSPORT">Passport</option>
+                                                                    <option value="VOTER_ID">Voter ID</option>
+                                                                    <option value="DRIVING_LICENSE">Driving License</option>
+                                                                    <option value="OTHER">Other Identification</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">ID Number</label>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={guest.idNumber}
+                                                                        onChange={(e) => handleIdChange(idx, 'idNumber', e.target.value)}
+                                                                        placeholder="Enter document number"
+                                                                        className={`w-full bg-background border rounded-2xl px-4 py-3 text-sm font-bold tracking-wider focus:ring-4 outline-none transition-all ${idErrors[`${idx}-idNumber`]
+                                                                            ? 'border-destructive ring-destructive/10'
+                                                                            : 'border-border/50 focus:ring-primary/10 focus:border-primary'
+                                                                            }`}
+                                                                    />
+                                                                    {idErrors[`${idx}-idNumber`] ? (
+                                                                        <AlertCircle className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                                                                    ) : guest.idNumber && (
+                                                                        <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                                                                    )}
+                                                                </div>
+                                                                {idErrors[`${idx}-idNumber`] && (
+                                                                    <p className="text-[10px] text-destructive font-bold pl-1 mt-1">{idErrors[`${idx}-idNumber`]}</p>
+                                                                )}
+                                                                {guest.idType && ID_VALIDATION_PATTERNS[guest.idType] && !idErrors[`${idx}-idNumber`] && (
+                                                                    <p className="text-[10px] text-muted-foreground font-medium pl-1 mt-1 opacity-70">
+                                                                        {ID_VALIDATION_PATTERNS[guest.idType].sample}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1 block text-center md:text-left">Identity Proof</label>
+                                                            {guest.idImage ? (
+                                                                <div className="relative group rounded-[1.5rem] overflow-hidden border border-border/50 aspect-video bg-muted/30 shadow-sm hover:shadow-xl hover:border-primary transition-all duration-300">
+                                                                    <img
+                                                                        src={guest.idImage}
+                                                                        alt="Identity Proof"
+                                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                                    />
+                                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-[2px] gap-3">
+                                                                        <a
+                                                                            href={guest.idImage}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all transform hover:-translate-y-1"
+                                                                        >
+                                                                            <Eye className="h-5 w-5" />
+                                                                        </a>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newData = [...verificationData];
+                                                                                newData[idx].idImage = '';
+                                                                                setVerificationData(newData);
+                                                                            }}
+                                                                            className="p-3 bg-destructive/20 hover:bg-destructive/40 rounded-2xl text-white transition-all transform hover:-translate-y-1"
+                                                                        >
+                                                                            <Trash2 className="h-5 w-5" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <label className="relative h-[106px] flex flex-col items-center justify-center border-2 border-dashed border-primary/20 bg-primary/5 rounded-[1.5rem] cursor-pointer hover:bg-primary/10 hover:border-primary/40 transition-all group overflow-hidden">
+                                                                    {uploadingGuestId === guest.id ? (
+                                                                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <div className="p-3 bg-primary/10 rounded-2xl mb-2 group-hover:scale-110 transition-transform">
+                                                                                <Upload className="h-5 w-5 text-primary" />
+                                                                            </div>
+                                                                            <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">Upload ID Document</span>
+                                                                            <input
+                                                                                type="file"
+                                                                                className="hidden"
+                                                                                accept="image/*"
+                                                                                onChange={(e) => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (file) handleUploadImage(idx, file);
+                                                                                }}
+                                                                            />
+                                                                        </>
+                                                                    )}
+                                                                </label>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-8 border-t border-border/50 bg-muted/10 flex gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCheckInBooking(null)}
+                                            className="px-8 py-4 bg-background border border-border/50 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-muted transition-all active:scale-95"
+                                        >
+                                            Later
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={checkInMutation.isPending || uploadingGuestId !== null}
+                                            className={`flex-1 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-3 group shadow-lg ${checkInBooking && ((Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0) || verificationData.some(g => !g.idType || !g.idNumber || !g.idImage))
+                                                ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70'
+                                                : 'bg-primary text-primary-foreground hover:shadow-[0_20px_40px_-12px_rgba(var(--primary),0.3)] shadow-primary/20'
+                                                }`}
+                                        >
+                                            {checkInMutation.isPending ? (
+                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    {checkInBooking && Number(checkInBooking.totalAmount) - Number(checkInBooking.paidAmount) > 0
+                                                        ? 'Payment Required'
+                                                        : verificationData.some(g => !g.idType || !g.idNumber || !g.idImage)
+                                                            ? 'ID Verification Required'
+                                                            : 'Complete Check-In Process'
+                                                    }
+                                                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-            {/* Hidden Invoice Component for PDF generation */}
-            {downloadBooking && (
-                <div className="fixed -left-[9999px] top-0 overflow-hidden pointer-events-none">
-                    <BookingInvoice
-                        ref={invoiceRef}
-                        booking={downloadBooking}
-                    />
-                </div>
-            )}
+                        </div>
+                    )
+                }
+                {/* Hidden Invoice Component for PDF generation */}
+                {
+                    downloadBooking && (
+                        <div className="fixed -left-[9999px] top-0 overflow-hidden pointer-events-none">
+                            <BookingInvoice
+                                ref={invoiceRef}
+                                booking={downloadBooking}
+                            />
+                        </div>
+                    )
+                }
+            </div>
         </>
     );
 }

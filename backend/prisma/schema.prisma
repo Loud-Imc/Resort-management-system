@@ -261,6 +261,8 @@ model Booking {
   commissionableAmount    Decimal                @default(0) @db.Decimal(10, 2)
   paymentMethod           BookingPaymentMethod?
   gstNumber               String?
+  isHistoricalEntry       Boolean                @default(false)
+  transactionDate         DateTime?
   auditLogs               AuditLog[]
   guests                  BookingGuest[]
   agent                   User?                  @relation("AgentBookings", fields: [agentId], references: [id])

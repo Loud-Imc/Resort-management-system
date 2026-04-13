@@ -2,7 +2,13 @@ import api from './api';
 import type { Booking, CreateBookingDto, CheckAvailabilityDto, CheckAvailabilityResult, PriceCalculationDto, PriceCalculationResult } from '../types/booking';
 
 export const bookingsService = {
-    getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string }) => {
+    getAll: async (params?: {
+        status?: string;
+        roomTypeId?: string;
+        propertyId?: string;
+        startDate?: string;
+        endDate?: string;
+    }) => {
         const { data } = await api.get<Booking[]>('/bookings', { params });
         return data;
     },
@@ -47,6 +53,16 @@ export const bookingsService = {
 
     getUnreadCount: async (propertyId?: string) => {
         const { data } = await api.get<number>('/bookings/unread-count', { params: { propertyId } });
+        return data;
+    },
+
+    update: async (id: string, data: any) => {
+        const response = await api.patch<Booking>(`/bookings/${id}`, data);
+        return response.data;
+    },
+
+    delete: async (id: string) => {
+        const { data } = await api.delete<{ message: string; id: string }>(`/bookings/${id}`);
         return data;
     },
 };
