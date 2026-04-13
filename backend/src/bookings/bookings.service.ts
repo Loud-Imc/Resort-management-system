@@ -209,15 +209,41 @@ export class BookingsService {
                 throw new BadRequestException('Property ID is required for group booking');
             }
 
-            allocatedRooms = await this.availabilityService.allocateRoomsForGroup(
-                activePropertyId,
-                checkIn,
-                checkOut,
-                groupSize
-            );
+            if (selectedRoomIds && selectedRoomIds.length > 0) {
+                // Manual room selection for groups
+                allocatedRooms = await this.prisma.room.findMany({
+                    where: {
+                        id: { in: selectedRoomIds },
+                        roomType: { isAvailableForGroupBooking: true, propertyId: activePropertyId }
+                    },
+                    include: { roomType: true },
+                });
 
-            if (allocatedRooms.length === 0) {
-                throw new BadRequestException(`Not enough capacity in the group pool for ${groupSize} guests.`);
+                if (allocatedRooms.length !== selectedRoomIds.length) {
+                    throw new BadRequestException('One or more selected rooms were not found or are not in the group pool');
+                }
+
+                // Verify availability for all manually selected rooms
+                for (const room of allocatedRooms) {
+                    const isAvailable = await this.availabilityService.isRoomAvailable(room.id, checkIn, checkOut);
+                    if (!isAvailable) {
+                        throw new BadRequestException(`Room ${room.roomNumber || room.name} is no longer available for these dates`);
+                    }
+                    // Add capacity field for group allocation logic downstream if needed (though pricing uses guests)
+                    (room as any).capacity = (room.roomType as any).groupMaxOccupancy || (room.roomType.maxAdults + (room.roomType.maxChildren || 0));
+                }
+            } else {
+                // Auto-allocation fallback
+                allocatedRooms = await this.availabilityService.allocateRoomsForGroup(
+                    activePropertyId,
+                    checkIn,
+                    checkOut,
+                    groupSize
+                );
+
+                if (allocatedRooms.length === 0) {
+                    throw new BadRequestException(`Not enough capacity in the group pool for ${groupSize} guests.`);
+                }
             }
 
             // Use the first allocated room's type as the delegate room type for pricing
@@ -504,6 +530,7 @@ export class BookingsService {
                     status: isHistoricalEntry && checkOut < new Date()
                         ? 'CHECKED_OUT'
                         : (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
+                    isSeenByProperty: isAuthorizedStaff,
                     roomId: selectedRoom.id,
                     roomTypeId: roomTypeId!,
                     propertyId: selectedRoom.propertyId,

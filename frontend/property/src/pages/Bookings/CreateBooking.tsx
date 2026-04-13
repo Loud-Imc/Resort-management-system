@@ -221,7 +221,16 @@ export default function CreateBooking() {
 
             if (avail.available) {
                 const values = getValues();
-                const roomCount = (values.selectedRoomIds && values.selectedRoomIds.length > 0) ? values.selectedRoomIds.length : 1;
+
+                // For group bookings, auto-populate suggested rooms if none selected yet
+                if (isGroup && avail.allocationPreview && (!values.selectedRoomIds || values.selectedRoomIds.length === 0)) {
+                    const suggestedIds = avail.allocationPreview.map((r: any) => r.id);
+                    setValue('selectedRoomIds', suggestedIds);
+                }
+
+                const roomCount = (getValues('selectedRoomIds') && getValues('selectedRoomIds')!.length > 0)
+                    ? getValues('selectedRoomIds')!.length
+                    : (isGroup ? (avail.allocationPreview?.length || 1) : 1);
                 const price = await (bookingsService as any).calculatePrice({
                     roomTypeId: isGroup ? (avail.allocationPreview?.[0]?.roomTypeId || values.roomTypeId) : values.roomTypeId,
                     checkInDate: values.checkInDate,
@@ -320,9 +329,33 @@ export default function CreateBooking() {
                     })} className="space-y-6">
                         {/* Booking Details */}
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-blue-600" /> Booking Details
-                            </h2>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                                <h2 className="text-lg font-semibold flex items-center gap-2">
+                                    <Calendar className="h-5 w-5 text-blue-600" /> Booking Details
+                                </h2>
+
+                                <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setValue('isGroupBooking', false);
+                                        }}
+                                        className={clsx('px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', !isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+                                    >
+                                        Standard Booking
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setValue('isGroupBooking', true);
+                                            setValue('groupSize', getValues('adultsCount') + getValues('childrenCount'));
+                                        }}
+                                        className={clsx('px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+                                    >
+                                        Group Booking
+                                    </button>
+                                </div>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {!isGroupMode && (
                                     <div className="md:col-span-2">
@@ -354,32 +387,8 @@ export default function CreateBooking() {
                                     <input type="date" {...register('checkOutDate')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm" />
                                     {errors.checkOutDate && <p className="text-red-500 text-xs mt-1">{errors.checkOutDate.message}</p>}
                                 </div>
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Guests & Capacity</label>
-                                        <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setValue('isGroupBooking', false);
-                                                }}
-                                                className={clsx('px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', !isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
-                                            >
-                                                Standard
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setValue('isGroupBooking', true);
-                                                    setValue('groupSize', getValues('adultsCount') + getValues('childrenCount'));
-                                                }}
-                                                className={clsx('px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
-                                            >
-                                                Group
-                                            </button>
-                                        </div>
-                                    </div>
-
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Guests & Capacity</label>
                                     <div className="space-y-4">
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
@@ -466,52 +475,110 @@ export default function CreateBooking() {
                                                 </div>
                                             </div>
 
-                                            {!isGroupMode && availability.available && availability.roomList && availability.roomList.length > 0 && (
-                                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2 mt-4">
-                                                    <label className="block text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-3 tracking-widest">Select One or More Rooms</label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {availability.roomList.map((room) => (
-                                                            <button
-                                                                key={room.id}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const current = watch('selectedRoomIds') || [];
-                                                                    const next = current.includes(room.id)
-                                                                        ? current.filter(id => id !== room.id)
-                                                                        : [...current, room.id];
-                                                                    setValue('selectedRoomIds', next);
-                                                                    // Re-calculate price with new room count
-                                                                    if (availability.available) handleCheckAvailability();
-                                                                }}
-                                                                className={clsx(
-                                                                    "px-3 py-2 rounded-md border text-sm font-bold transition-all flex items-center gap-2",
-                                                                    (watch('selectedRoomIds') || []).includes(room.id)
-                                                                        ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none"
-                                                                        : "bg-white dark:bg-gray-800 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:border-blue-400"
-                                                                )}
-                                                            >
-                                                                <span className={clsx("h-2 w-2 rounded-full", (watch('selectedRoomIds') || []).includes(room.id) ? "bg-white" : "bg-blue-400")}></span>
-                                                                Room {room.roomNumber || room.name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                    <p className="text-[10px] text-blue-500 mt-3 italic font-medium">Select multiple rooms to scale the total price and block them all.</p>
-                                                    {(watch('selectedRoomIds') || []).length > 0 && (
-                                                        <div className="mt-3 pt-3 border-t border-blue-100 dark:border-blue-800/50 flex justify-between items-center">
-                                                            <span className="text-xs font-bold text-blue-800 dark:text-blue-300">{(watch('selectedRoomIds') || []).length} Rooms Selected</span>
+                                            {availability.available && availability.roomList && availability.roomList.length > 0 && (
+                                                <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-2 mt-6">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div>
+                                                            <h3 className="text-xs font-black uppercase text-blue-800 dark:text-blue-300 tracking-tighter flex items-center gap-2">
+                                                                <div className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse"></div>
+                                                                {isGroupMode ? 'Room Inventory Selection' : 'Select Available Rooms'}
+                                                            </h3>
+                                                            <p className="text-[10px] text-blue-500/80 mt-0.5 font-medium italic">
+                                                                {isGroupMode
+                                                                    ? `Total capacity must meet ${watch('groupSize')} guests.`
+                                                                    : 'Standard multi-room booking mode active.'}
+                                                            </p>
+                                                        </div>
+                                                        {(watch('selectedRoomIds') || []).length > 0 && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => { setValue('selectedRoomIds', []); handleCheckAvailability(); }}
-                                                                className="text-[10px] font-black uppercase text-red-500 hover:text-red-600"
+                                                                className="text-[10px] font-black uppercase text-red-500 hover:text-red-600 flex items-center gap-1 hover:bg-red-50 dark:hover:bg-red-950/30 px-2 py-1 rounded-md transition-colors"
                                                             >
-                                                                Clear All
+                                                                Clear Selection
                                                             </button>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                        {availability.roomList.map((room) => {
+                                                            const isSelected = (watch('selectedRoomIds') || []).includes(room.id);
+                                                            return (
+                                                                <button
+                                                                    key={room.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const current = watch('selectedRoomIds') || [];
+                                                                        const next = current.includes(room.id)
+                                                                            ? current.filter(id => id !== room.id)
+                                                                            : [...current, room.id];
+                                                                        setValue('selectedRoomIds', next);
+                                                                        if (availability.available) handleCheckAvailability();
+                                                                    }}
+                                                                    className={clsx(
+                                                                        "relative overflow-hidden group p-3 rounded-lg border-2 transition-all duration-300 text-left",
+                                                                        isSelected
+                                                                            ? "bg-blue-600 border-blue-600 text-white shadow-lg ring-2 ring-blue-600 ring-offset-2 dark:ring-offset-gray-900"
+                                                                            : "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 text-gray-700 dark:text-gray-300"
+                                                                    )}
+                                                                >
+                                                                    <div className="flex flex-col relative z-10">
+                                                                        <span className={clsx("text-xs font-black uppercase mb-1 tracking-tight", isSelected ? "text-blue-100" : "text-blue-600 dark:text-blue-400")}>
+                                                                            {room.roomNumber || room.name}
+                                                                        </span>
+                                                                        <div className="flex items-baseline gap-1">
+                                                                            <span className="text-[10px] font-bold">Cap: {room.capacity || 'N/A'}</span>
+                                                                        </div>
+                                                                        <span className={clsx("text-[8px] mt-1 truncate font-medium", isSelected ? "text-blue-200" : "text-gray-400")}>
+                                                                            {room.roomType}
+                                                                        </span>
+                                                                    </div>
+                                                                    {isSelected && (
+                                                                        <div className="absolute top-1 right-1">
+                                                                            <div className="bg-white/20 p-0.5 rounded-full">
+                                                                                <CheckCircle className="h-3 w-3 text-white" />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {isGroupMode && (
+                                                        <div className="mt-5 p-3 bg-white dark:bg-gray-800/80 rounded-xl border border-blue-100 dark:border-blue-900 shadow-inner">
+                                                            <div className="flex justify-between items-end mb-2">
+                                                                <div>
+                                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter block mb-0.5">Selected Inventory Power</span>
+                                                                    <span className={clsx("text-sm font-black flex items-center gap-1.5",
+                                                                        (availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) >= (watch('groupSize') || 0)
+                                                                            ? "text-green-600 dark:text-green-400"
+                                                                            : "text-orange-500 dark:text-orange-400")}>
+                                                                        {availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)} / {watch('groupSize')} GUESTS
+                                                                        {(availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) >= (watch('groupSize') || 0) && (
+                                                                            <CheckCircle className="h-4 w-4" />
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">
+                                                                    {(watch('selectedRoomIds') || []).length} Rooms Active
+                                                                </span>
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className={clsx("h-full transition-all duration-700 ease-out rounded-full",
+                                                                        (availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) >= (watch('groupSize') || 0)
+                                                                            ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]"
+                                                                            : "bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]")}
+                                                                    style={{ width: `${Math.min(100, (availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) / (watch('groupSize') || 1) * 100)}%` }}
+                                                                ></div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
                                             )}
 
-                                            {isGroupMode && availability.available && availability.allocationPreview && (
+                                            {isGroupMode && availability.available && availability.allocationPreview && (watch('selectedRoomIds') || []).length === 0 && (
                                                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2">
                                                     <h4 className="text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-3 tracking-widest">Suggested Allocation Preview</h4>
                                                     <div className="space-y-2">
@@ -557,197 +624,200 @@ export default function CreateBooking() {
                         </div>
 
                         {/* Guest Details */}
-                        {availability?.available && (
-                            <>
-                                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="text-lg font-semibold flex items-center gap-2">
-                                            <Users className="h-5 w-5 text-blue-600" /> Guest Details
-                                        </h2>
-                                        <button type="button" onClick={() => append({ firstName: '', lastName: '' })} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add Guest</button>
-                                    </div>
-                                    {errors.guests?.message && (
-                                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-bounce">
-                                            <p className="text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                                                <AlertCircle className="h-4 w-4" /> {errors.guests.message}
-                                            </p>
+                        {
+                            availability?.available && (
+                                <>
+                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h2 className="text-lg font-semibold flex items-center gap-2">
+                                                <Users className="h-5 w-5 text-blue-600" /> Guest Details
+                                            </h2>
+                                            <button type="button" onClick={() => append({ firstName: '', lastName: '' })} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add Guest</button>
                                         </div>
-                                    )}
-                                    <div className="space-y-4">
-                                        {fields.map((field, index) => (
-                                            <div key={field.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg relative group">
-                                                {fields.length > 1 && (
-                                                    <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-sm opacity-0 group-hover:opacity-100 transition-opacity">Remove</button>
-                                                )}
-                                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Guest {index + 1} {index === 0 && '(Primary)'}</h3>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div>
-                                                        <input {...register(`guests.${index}.firstName`)} placeholder="First Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                        {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.firstName?.message}</p>}
-                                                    </div>
-                                                    <div>
-                                                        <input {...register(`guests.${index}.lastName`)} placeholder="Last Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                        {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
-                                                    </div>
-                                                    <input {...register(`guests.${index}.email`)} type="email" placeholder="Email (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                    <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                    <div className="relative">
-                                                        <select {...register(`guests.${index}.idType`)} className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500")}>
-                                                            <option value="">-- ID Type (Optional) --</option>
-                                                            <option value="AADHAR">Aadhar Card</option>
-                                                            <option value="PASSPORT">Passport</option>
-                                                            <option value="VOTER_ID">Voter ID</option>
-                                                            <option value="DRIVING_LICENSE">Driving License</option>
-                                                            <option value="OTHER">Other</option>
-                                                        </select>
-                                                        {errors.guests?.[index]?.idType && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idType?.message}</p>}
-                                                    </div>
-
-                                                    {watch(`guests.${index}.idType`) && (
-                                                        <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-2">
-                                                            <div>
-                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">ID Number</label>
-                                                                <input
-                                                                    {...register(`guests.${index}.idNumber`)}
-                                                                    placeholder="Enter ID number"
-                                                                    className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idNumber && "border-red-500 ring-1 ring-red-500")}
-                                                                />
-                                                                {errors.guests?.[index]?.idNumber && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idNumber?.message}</p>}
-                                                            </div>
-
-                                                            <div>
-                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Upload Guest ID Photo</label>
-                                                                <div className="flex items-center gap-4">
-                                                                    <input
-                                                                        type="file"
-                                                                        accept="image/*"
-                                                                        onChange={(e) => handleGuestFileUpload(index, e)}
-                                                                        className="hidden"
-                                                                        id={`guest-id-upload-${index}`}
-                                                                    />
-                                                                    <label
-                                                                        htmlFor={`guest-id-upload-${index}`}
-                                                                        className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2 shadow-sm"
-                                                                    >
-                                                                        {idUploading[index] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                                                                        {watch(`guests.${index}.idImage`) ? 'Change ID Image' : 'Upload ID Image'}
-                                                                    </label>
-                                                                    {watch(`guests.${index}.idImage`) && (
-                                                                        <div className="flex items-center gap-4 animate-in fade-in zoom-in-95">
-                                                                            <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-[10px] font-black uppercase tracking-wider">
-                                                                                <ShieldCheck className="h-3.5 w-3.5" /> ID Uploaded
-                                                                            </div>
-                                                                            <div className="flex items-center gap-3">
-                                                                                <a
-                                                                                    href={watch(`guests.${index}.idImage`)}
-                                                                                    target="_blank"
-                                                                                    rel="noreferrer"
-                                                                                    className="h-30 w-50 rounded-md border border-gray-200 dark:border-gray-600 overflow-hidden hover:opacity-80 transition-opacity group/img relative"
-                                                                                >
-                                                                                    <img
-                                                                                        src={watch(`guests.${index}.idImage`)}
-                                                                                        alt="Guest ID"
-                                                                                        className="w-full h-full object-cover"
-                                                                                    />
-                                                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
-                                                                                        <Eye className="h-4 w-4 text-white" />
-                                                                                    </div>
-                                                                                </a>
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-[10px] text-gray-400 italic mt-1.5">Accepted formats: JPG, PNG. Max 5MB.</p>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Price Override & Payments - Moved here for better workflow */}
-                                <div className="mt-8 bg-green-50/50 dark:bg-green-900/10 p-6 rounded-lg shadow-sm border border-green-200 dark:border-green-800/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-green-700 dark:text-green-400">
-                                        <CheckCircle className="h-5 w-5" /> Manage Payment for this Booking
-                                    </h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Option / Status</label>
-                                            <select {...register('paymentOption')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
-                                                <option value="FULL">Collect Full Payment Now</option>
-                                                <option value="PARTIAL">Collect Partial / Deposit</option>
-                                            </select>
-                                        </div>
-                                        {watch('paymentOption') === 'PARTIAL' && (
-                                            <div className="animate-in zoom-in-95 duration-200">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Initial Deposit Amount (₹)</label>
-                                                <input
-                                                    type="number"
-                                                    {...register('paidAmount', { valueAsNumber: true })}
-                                                    className="w-full border-blue-200 dark:border-blue-900 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-black text-lg focus:ring-blue-500 border-2 transition-all"
-                                                    placeholder="0.00"
-                                                    required={watch('paymentOption') === 'PARTIAL'}
-                                                />
+                                        {errors.guests?.message && (
+                                            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-bounce">
+                                                <p className="text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                                                    <AlertCircle className="h-4 w-4" /> {errors.guests.message}
+                                                </p>
                                             </div>
                                         )}
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Method</label>
-                                            <select {...register('paymentMethod')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
-                                                <option value="CASH">Cash Payment</option>
-                                                <option value="UPI">UPI / QR Code</option>
-                                                <option value="CARD">Debit / Credit Card</option>
-                                                <option value="WALLET">Channel Partner Wallet</option>
-                                                <option value="ONLINE">Send Payment Link (Email/SMS)</option>
-                                            </select>
-                                        </div>
-                                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-100 dark:border-gray-800 pt-6">
-                                            <div>
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Override Price (Optional)</label>
-                                                    <div className="flex bg-gray-100 dark:bg-gray-700 p-0.5 rounded-md">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setValue('isOverrideInclusive', true);
-                                                                if (watch('overrideTotal')) handleCheckAvailability();
-                                                            }}
-                                                            className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
-                                                        >
-                                                            Inc. GST
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setValue('isOverrideInclusive', false);
-                                                                if (watch('overrideTotal')) handleCheckAvailability();
-                                                            }}
-                                                            className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', !watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
-                                                        >
-                                                            Exc. GST
-                                                        </button>
+                                        <div className="space-y-4">
+                                            {fields.map((field, index) => (
+                                                <div key={field.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg relative group">
+                                                    {fields.length > 1 && (
+                                                        <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-sm opacity-0 group-hover:opacity-100 transition-opacity">Remove</button>
+                                                    )}
+                                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Guest {index + 1} {index === 0 && '(Primary)'}</h3>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <input {...register(`guests.${index}.firstName`)} placeholder="First Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                            {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.firstName?.message}</p>}
+                                                        </div>
+                                                        <div>
+                                                            <input {...register(`guests.${index}.lastName`)} placeholder="Last Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                            {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
+                                                        </div>
+                                                        <input {...register(`guests.${index}.email`)} type="email" placeholder="Email (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                        <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                        <div className="relative">
+                                                            <select {...register(`guests.${index}.idType`)} className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500")}>
+                                                                <option value="">-- ID Type (Optional) --</option>
+                                                                <option value="AADHAR">Aadhar Card</option>
+                                                                <option value="PASSPORT">Passport</option>
+                                                                <option value="VOTER_ID">Voter ID</option>
+                                                                <option value="DRIVING_LICENSE">Driving License</option>
+                                                                <option value="OTHER">Other</option>
+                                                            </select>
+                                                            {errors.guests?.[index]?.idType && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idType?.message}</p>}
+                                                        </div>
+
+                                                        {watch(`guests.${index}.idType`) && (
+                                                            <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-2">
+                                                                <div>
+                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">ID Number</label>
+                                                                    <input
+                                                                        {...register(`guests.${index}.idNumber`)}
+                                                                        placeholder="Enter ID number"
+                                                                        className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idNumber && "border-red-500 ring-1 ring-red-500")}
+                                                                    />
+                                                                    {errors.guests?.[index]?.idNumber && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idNumber?.message}</p>}
+                                                                </div>
+
+                                                                <div>
+                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Upload Guest ID Photo</label>
+                                                                    <div className="flex items-center gap-4">
+                                                                        <input
+                                                                            type="file"
+                                                                            accept="image/*"
+                                                                            onChange={(e) => handleGuestFileUpload(index, e)}
+                                                                            className="hidden"
+                                                                            id={`guest-id-upload-${index}`}
+                                                                        />
+                                                                        <label
+                                                                            htmlFor={`guest-id-upload-${index}`}
+                                                                            className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2 shadow-sm"
+                                                                        >
+                                                                            {idUploading[index] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                                                                            {watch(`guests.${index}.idImage`) ? 'Change ID Image' : 'Upload ID Image'}
+                                                                        </label>
+                                                                        {watch(`guests.${index}.idImage`) && (
+                                                                            <div className="flex items-center gap-4 animate-in fade-in zoom-in-95">
+                                                                                <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-[10px] font-black uppercase tracking-wider">
+                                                                                    <ShieldCheck className="h-3.5 w-3.5" /> ID Uploaded
+                                                                                </div>
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <a
+                                                                                        href={watch(`guests.${index}.idImage`)}
+                                                                                        target="_blank"
+                                                                                        rel="noreferrer"
+                                                                                        className="h-30 w-50 rounded-md border border-gray-200 dark:border-gray-600 overflow-hidden hover:opacity-80 transition-opacity group/img relative"
+                                                                                    >
+                                                                                        <img
+                                                                                            src={watch(`guests.${index}.idImage`)}
+                                                                                            alt="Guest ID"
+                                                                                            className="w-full h-full object-cover"
+                                                                                        />
+                                                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                                                                                            <Eye className="h-4 w-4 text-white" />
+                                                                                        </div>
+                                                                                    </a>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-[10px] text-gray-400 italic mt-1.5">Accepted formats: JPG, PNG. Max 5MB.</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <input
-                                                    type="number"
-                                                    {...register('overrideTotal', {
-                                                        setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
-                                                        onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
-                                                    })}
-                                                    className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all font-bold"
-                                                    placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
-                                                />
-                                            </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Price Override & Payments - Moved here for better workflow */}
+                                    <div className="mt-8 bg-green-50/50 dark:bg-green-900/10 p-6 rounded-lg shadow-sm border border-green-200 dark:border-green-800/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-green-700 dark:text-green-400">
+                                            <CheckCircle className="h-5 w-5" /> Manage Payment for this Booking
+                                        </h2>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Reason for Override</label>
-                                                <input type="text" {...register('overrideReason')} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all" placeholder="Why the custom price?" />
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Option / Status</label>
+                                                <select {...register('paymentOption')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
+                                                    <option value="FULL">Collect Full Payment Now</option>
+                                                    <option value="PARTIAL">Collect Partial / Deposit</option>
+                                                </select>
+                                            </div>
+                                            {watch('paymentOption') === 'PARTIAL' && (
+                                                <div className="animate-in zoom-in-95 duration-200">
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Initial Deposit Amount (₹)</label>
+                                                    <input
+                                                        type="number"
+                                                        {...register('paidAmount', { valueAsNumber: true })}
+                                                        className="w-full border-blue-200 dark:border-blue-900 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-black text-lg focus:ring-blue-500 border-2 transition-all"
+                                                        placeholder="0.00"
+                                                        required={watch('paymentOption') === 'PARTIAL'}
+                                                    />
+                                                </div>
+                                            )}
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Method</label>
+                                                <select {...register('paymentMethod')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
+                                                    <option value="CASH">Cash Payment</option>
+                                                    <option value="UPI">UPI / QR Code</option>
+                                                    <option value="CARD">Debit / Credit Card</option>
+                                                    <option value="WALLET">Channel Partner Wallet</option>
+                                                    <option value="ONLINE">Send Payment Link (Email/SMS)</option>
+                                                </select>
+                                            </div>
+                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-100 dark:border-gray-800 pt-6">
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Override Price (Optional)</label>
+                                                        <div className="flex bg-gray-100 dark:bg-gray-700 p-0.5 rounded-md">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setValue('isOverrideInclusive', true);
+                                                                    if (watch('overrideTotal')) handleCheckAvailability();
+                                                                }}
+                                                                className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
+                                                            >
+                                                                Inc. GST
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setValue('isOverrideInclusive', false);
+                                                                    if (watch('overrideTotal')) handleCheckAvailability();
+                                                                }}
+                                                                className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', !watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
+                                                            >
+                                                                Exc. GST
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        {...register('overrideTotal', {
+                                                            setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
+                                                            onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
+                                                        })}
+                                                        className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all font-bold"
+                                                        placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Reason for Override</label>
+                                                    <input type="text" {...register('overrideReason')} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all" placeholder="Why the custom price?" />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </>
-                        )}
+                                </>
+                            )
+                        }
 
                         <div className="flex justify-end pt-4">
                             <button type="submit" disabled={!availability?.available || createBookingMutation.isPending}
@@ -757,55 +827,57 @@ export default function CreateBooking() {
                         </div>
 
                         {/* Historical Entry Option */}
-                        {watch('isManualBooking') && (
-                            <div className="mt-6 flex flex-col gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        {...register('isHistoricalEntry')}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                                    />
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                            Backdate this booking (Historical Entry)
-                                        </span>
-                                        {watchedCheckInDate && new Date(watchedCheckInDate) < new Date(new Date().setHours(0, 0, 0, 0)) && (
-                                            <span className="text-[10px] text-orange-600 font-bold uppercase">Required for past dates</span>
-                                        )}
-                                    </div>
-                                </label>
-                                {errors.isHistoricalEntry && <p className="text-red-500 text-xs mt-1 font-bold">{errors.isHistoricalEntry.message}</p>}
-                                {watch('isHistoricalEntry') && (
-                                    <div className="pl-6 animate-in slide-in-from-top-2 space-y-3">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Original Transaction Date</label>
-                                            <input
-                                                type="date"
-                                                {...register('transactionDate')}
-                                                className="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 w-full md:w-64"
-                                            />
-                                            {errors.transactionDate && <p className="text-red-500 text-xs mt-1">{errors.transactionDate.message}</p>}
+                        {
+                            watch('isManualBooking') && (
+                                <div className="mt-6 flex flex-col gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            {...register('isHistoricalEntry')}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                        />
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                                Backdate this booking (Historical Entry)
+                                            </span>
+                                            {watchedCheckInDate && new Date(watchedCheckInDate) < new Date(new Date().setHours(0, 0, 0, 0)) && (
+                                                <span className="text-[10px] text-orange-600 font-bold uppercase">Required for past dates</span>
+                                            )}
                                         </div>
+                                    </label>
+                                    {errors.isHistoricalEntry && <p className="text-red-500 text-xs mt-1 font-bold">{errors.isHistoricalEntry.message}</p>}
+                                    {watch('isHistoricalEntry') && (
+                                        <div className="pl-6 animate-in slide-in-from-top-2 space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">Original Transaction Date</label>
+                                                <input
+                                                    type="date"
+                                                    {...register('transactionDate')}
+                                                    className="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 w-full md:w-64"
+                                                />
+                                                {errors.transactionDate && <p className="text-red-500 text-xs mt-1">{errors.transactionDate.message}</p>}
+                                            </div>
 
-                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
-                                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1 flex items-center gap-1">
-                                                <ShieldCheck className="h-3 w-3" /> Historical Verification Rules
-                                            </p>
-                                            <ul className="text-[10px] text-gray-500 list-disc pl-4 space-y-1">
-                                                <li>Guest ID details are **mandatory** (Type & Number)</li>
-                                                <li>System will record **Full Payment** automatically</li>
-                                                <li>Booking status will be set to **Checked Out**</li>
-                                            </ul>
+                                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                                                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1 flex items-center gap-1">
+                                                    <ShieldCheck className="h-3 w-3" /> Historical Verification Rules
+                                                </p>
+                                                <ul className="text-[10px] text-gray-500 list-disc pl-4 space-y-1">
+                                                    <li>Guest ID details are **mandatory** (Type & Number)</li>
+                                                    <li>System will record **Full Payment** automatically</li>
+                                                    <li>Booking status will be set to **Checked Out**</li>
+                                                </ul>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </form>
-                </div>
+                                    )}
+                                </div>
+                            )
+                        }
+                    </form >
+                </div >
 
                 {/* Price Summary Sidebar */}
-                <div className="lg:col-span-1">
+                < div className="lg:col-span-1" >
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 sticky top-6">
                         <h2 className="text-lg font-semibold mb-4">₹ Price Summary</h2>
                         {!priceDetails ? (
@@ -873,8 +945,8 @@ export default function CreateBooking() {
                             </div>
                         )}
                     </div>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     );
 }

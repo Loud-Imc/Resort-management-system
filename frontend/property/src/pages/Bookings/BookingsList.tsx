@@ -61,7 +61,7 @@ export default function BookingsList() {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const invoiceRef = useRef<HTMLDivElement>(null);
 
-    const [startDate, setStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+    const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
 
     const handleOpenCheckIn = (booking: Booking) => {
@@ -390,10 +390,10 @@ export default function BookingsList() {
                                     <option value="CANCELLED">Cancelled</option>
                                 </select>
                             </div>
-                            {(startDate !== format(new Date(), 'yyyy-MM-dd') || endDate !== '' || statusFilter !== '') && (
+                            {(startDate !== '' || endDate !== '' || statusFilter !== '') && (
                                 <button
                                     onClick={() => {
-                                        setStartDate(format(new Date(), 'yyyy-MM-dd'));
+                                        setStartDate('');
                                         setEndDate('');
                                         setStatusFilter('');
                                         setSearchTerm('');
