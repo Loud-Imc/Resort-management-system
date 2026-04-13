@@ -13,7 +13,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-ui': ['lucide-react', 'clsx'],
+          'vendor-ui': ['lucide-react', 'clsx', 'tailwind-merge'],
           'vendor-utils': ['date-fns', 'jspdf', 'html-to-image', 'qrcode.react'],
           'vendor-query': ['@tanstack/react-query'],
         }
