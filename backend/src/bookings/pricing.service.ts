@@ -25,6 +25,7 @@ export interface PricingBreakdown {
     appliedCodeType?: 'COUPON' | 'REFERRAL' | 'NONE';
     referralPartnerId?: string;
     partialPaymentPct?: number;
+    isGstInclusive?: boolean;
 }
 
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -60,6 +61,8 @@ export class PricingService {
         groupSize?: number,
         requestedRoomCount: number = 1,
         generalCode?: string,
+        overrideTotal?: number,
+        isOverrideInclusive: boolean = true,
     ): Promise<PricingBreakdown> {
         console.log(`[PricingService] calculatePrice inputs - gen: ${generalCode} (${typeof generalCode}), coup: ${couponCode} (${typeof couponCode}), ref: ${referralCode} (${typeof referralCode})`);
         // Resolve generalCode if provided
@@ -122,13 +125,39 @@ export class PricingService {
         // Removed the strict groupSize > maxGroupCap validation because it incorrectly limits multi-room group bookings 
         // to a single room's capacity. Aggregate capacity is handled by AvailabilityService.
 
-        // 3. Calculate base price
+        // 3. Normalize prices if room type is GST inclusive
+        let effectiveBasePrice = Number(roomType.basePrice);
+        let effectiveExtraAdultPrice = Number(roomType.extraAdultPrice);
+        let effectiveExtraChildPrice = Number(roomType.extraChildPrice);
+
+        if (roomType.isGstInclusive) {
+            // Reverse-calculate components for base amount (per room per night)
+            const normalizedBase = await this.calculateReverseGST(effectiveBasePrice, 1, 1);
+            effectiveBasePrice = normalizedBase.baseAmount;
+
+            // Reverse-calculate extra adult price (treated as its own tariff per night)
+            if (effectiveExtraAdultPrice > 0) {
+                const normalizedAdult = await this.calculateReverseGST(effectiveExtraAdultPrice, 1, 1);
+                effectiveExtraAdultPrice = normalizedAdult.baseAmount;
+            }
+
+            // Reverse-calculate extra child price
+            if (effectiveExtraChildPrice > 0) {
+                const normalizedChild = await this.calculateReverseGST(effectiveExtraChildPrice, 1, 1);
+                effectiveExtraChildPrice = normalizedChild.baseAmount;
+            }
+        }
+
+        // 4. Calculate base price
         let baseAmount = 0;
         let extraAdultAmount = 0;
         let extraChildAmount = 0;
         let basePricePerNight = 0;
 
         if (isGroupBooking && groupSize) {
+            // ... (group booking logic stays same, using property-level prices which we current assume are exclusive)
+            // If the user wants property-level group prices to be inclusive too, we'd need another flag.
+            // For now focusing on RoomType prices as requested.
             if (!roomType.isAvailableForGroupBooking) {
                 console.warn(`[PricingService] Group booking attempted on non-group roomType: ${roomTypeId}`);
                 throw new BadRequestException('This room type is not available for group booking pool');
@@ -160,19 +189,19 @@ export class PricingService {
         } else {
             // Standard pricing (nights * base price for X rooms)
             const rooms = requestedRoomCount || 1;
-            basePricePerNight = Number(roomType.basePrice) * rooms;
+            basePricePerNight = effectiveBasePrice * rooms;
             baseAmount = basePricePerNight * numberOfNights;
 
             // 4. Calculate extra adult charges
             // Extra adults are charged when guest count exceeds combined rooms' maxAdults capacity
             const totalMaxAdults = Number(roomType.maxAdults) * rooms;
             const extraAdults = Math.max(0, adultsCount - totalMaxAdults);
-            extraAdultAmount = extraAdults * Number(roomType.extraAdultPrice) * numberOfNights;
+            extraAdultAmount = extraAdults * effectiveExtraAdultPrice * numberOfNights;
 
             // 5. Calculate extra child charges
             const totalMaxChildren = Number(roomType.maxChildren) * rooms;
             const extraChildren = Math.max(0, childrenCount - totalMaxChildren);
-            extraChildAmount = extraChildren * Number(roomType.extraChildPrice) * numberOfNights;
+            extraChildAmount = extraChildren * effectiveExtraChildPrice * numberOfNights;
         }
 
         // 6. Apply seasonal pricing rules if any
@@ -347,9 +376,78 @@ export class PricingService {
             appliedCodeType: referralCode ? 'REFERRAL' : (couponCode ? 'COUPON' : 'NONE') as 'REFERRAL' | 'COUPON' | 'NONE',
             referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode } }))?.id : undefined,
             partialPaymentPct: Number(await this.systemSettingsService.getSetting('PARTIAL_PAYMENT_PCT') || 33.33),
+            isGstInclusive: !!roomType.isGstInclusive,
         };
+
+        // --- MANAGE OVERRIDES ---
+        if (overrideTotal !== undefined && overrideTotal !== null) {
+            let finalOverrideBreakdown;
+            if (isOverrideInclusive) {
+                // Return total is forced to overrideTotal, reverse calculate base/tax
+                finalOverrideBreakdown = await this.calculateReverseGST(
+                    overrideTotal,
+                    numberOfNights,
+                    roomCount
+                );
+            } else {
+                // Return base is forced to overrideTotal, add tax on top
+                finalOverrideBreakdown = await this.calculateExclusiveGST(
+                    overrideTotal,
+                    numberOfNights,
+                    roomCount
+                );
+            }
+
+            result.baseAmount = finalOverrideBreakdown.baseAmount;
+            result.taxAmount = finalOverrideBreakdown.taxAmount;
+            result.totalAmount = result.baseAmount + result.taxAmount;
+            result.convertedTotal = Number((result.totalAmount * exchangeRate).toFixed(2));
+
+            // Zero out other components to keep breakdown clean for overrides
+            result.extraAdultAmount = 0;
+            result.extraChildAmount = 0;
+            result.offerDiscountAmount = 0;
+            result.couponDiscountAmount = 0;
+            result.referralDiscountAmount = 0;
+            result.discountAmount = 0;
+        }
+
         console.log(`[PricingService] Final result: total=${result.totalAmount}, type=${result.appliedCodeType}`);
         return result;
+    }
+
+    /**
+     * Calculate GST on top of a given Base amount.
+     * Used when an admin overrides the BASE price of a booking.
+     */
+    async calculateExclusiveGST(
+        overrideBase: number,
+        numberOfNights: number,
+        roomCount: number
+    ): Promise<{ baseAmount: number; taxAmount: number }> {
+        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+
+        // Target base per room per night
+        const basePerRoomPerNight = overrideBase / (numberOfNights * roomCount);
+
+        let targetTaxRate = 0.12; // default fallback
+
+        if (gstTiers && Array.isArray(gstTiers)) {
+            // Find which tier this base price falls into
+            for (const tier of gstTiers) {
+                if (basePerRoomPerNight >= tier.min && (tier.max === null || tier.max === undefined || basePerRoomPerNight <= tier.max)) {
+                    targetTaxRate = tier.rate / 100;
+                    break;
+                }
+            }
+        }
+
+        const exactTaxAmount = overrideBase * targetTaxRate;
+
+        return {
+            baseAmount: Number(overrideBase.toFixed(2)),
+            taxAmount: Number(exactTaxAmount.toFixed(2))
+        };
     }
 
     /**

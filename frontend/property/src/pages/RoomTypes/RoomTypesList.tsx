@@ -84,9 +84,14 @@ export default function RoomTypesList() {
                         <div className="p-5 flex-1 flex flex-col">
                             <div className="flex justify-between items-start mb-2">
                                 <h3 className="text-lg font-bold text-card-foreground group-hover:text-primary transition-colors">{type.name}</h3>
-                                <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
-                                    ₹{type.basePrice}
-                                </span>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+                                        ₹{type.basePrice}
+                                    </span>
+                                    {type.isGstInclusive && (
+                                        <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">GST Inclusive</span>
+                                    )}
+                                </div>
                             </div>
 
                             <p className="text-muted-foreground text-sm mb-4 line-clamp-2 flex-grow font-medium">

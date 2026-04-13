@@ -143,6 +143,7 @@ model RoomType {
   icalSyncs                  PropertyIcal[]
   reviews                    Review[]
   cancellationPolicy         CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  isGstInclusive             Boolean             @default(false)
   property                   Property            @relation(fields: [propertyId], references: [id])
   rooms                      Room[]
 

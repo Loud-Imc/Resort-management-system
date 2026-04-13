@@ -261,6 +261,10 @@ export class NotificationsService {
    * to prevent duplicates triggered by both verifyPayment and handlePaymentCaptured.
    */
   async broadcastNewBooking(booking: any) {
+    console.log(`[NotificationsService] [DEBUG] Booking properties:`, Object.keys(booking));
+    console.log(`[NotificationsService] [DEBUG] booking.property:`, !!booking.property);
+    console.log(`[NotificationsService] [DEBUG] booking.roomType:`, !!booking.roomType);
+    console.log(`[NotificationsService] [DEBUG] booking.user:`, !!booking.user);
     const isCPBooked = !!booking.channelPartnerId;
     const summary = `New Booking: ${booking.bookingNumber} at ${booking.property?.name}`;
 
@@ -626,6 +630,7 @@ export class NotificationsService {
   /**
    * Notify guest of Cancellation — Inbox + WhatsApp + Email
    */
+
   async notifyCancellation(booking: any) {
     if (booking.userId) {
       try {

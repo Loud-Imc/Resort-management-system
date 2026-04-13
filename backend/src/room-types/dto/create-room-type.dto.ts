@@ -110,4 +110,9 @@ export class CreateRoomTypeDto {
     @IsOptional()
     @Type(() => Number)
     groupMaxOccupancy?: number;
+
+    @ApiProperty({ example: false, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isGstInclusive?: boolean;
 }

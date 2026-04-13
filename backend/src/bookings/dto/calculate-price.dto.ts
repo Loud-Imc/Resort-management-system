@@ -68,4 +68,14 @@ export class CalculatePriceDto {
     @IsOptional()
     @Type(() => Number)
     roomCount?: number;
+
+    @ApiProperty({ example: 5000, required: false })
+    @IsOptional()
+    @Type(() => Number)
+    overrideTotal?: number;
+
+    @ApiProperty({ example: true, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isOverrideInclusive?: boolean;
 }

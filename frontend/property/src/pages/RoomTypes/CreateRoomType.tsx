@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -56,6 +56,7 @@ const roomTypeSchema = z.object({
     images: z.array(z.string()),
     isAvailableForGroupBooking: z.boolean(),
     groupMaxOccupancy: z.number().min(0).optional(),
+    isGstInclusive: z.boolean(),
 });
 
 type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
@@ -89,7 +90,7 @@ export default function CreateRoomType() {
             marketingBadgeType: 'POSITIVE', images: [],
             propertyId: selectedProperty?.id || '',
             isAvailableForGroupBooking: false,
-            groupMaxOccupancy: 0,
+            isGstInclusive: false,
         },
     });
 
@@ -120,6 +121,7 @@ export default function CreateRoomType() {
                 images: existingRoomType.images || [],
                 isAvailableForGroupBooking: existingRoomType.isAvailableForGroupBooking || false,
                 groupMaxOccupancy: existingRoomType.groupMaxOccupancy || 0,
+                isGstInclusive: existingRoomType.isGstInclusive || false,
             });
         }
     }, [existingRoomType, isEdit, reset]);
@@ -159,7 +161,7 @@ export default function CreateRoomType() {
         },
     });
 
-    const onSubmit = (data: RoomTypeFormData) => saveMutation.mutate(data);
+    const onSubmit: SubmitHandler<RoomTypeFormData> = (data) => saveMutation.mutate(data);
 
     const { data: policies = [] } = useQuery<CancellationPolicy[]>({
         queryKey: ['cancellationPolicies', selectedProperty?.id],
@@ -213,6 +215,13 @@ export default function CreateRoomType() {
                                 className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black"
                             />
                             {errors.basePrice && <p className="text-red-500 text-xs mt-1 font-bold">{errors.basePrice.message}</p>}
+                            <div className="mt-2 pl-1">
+                                <label className="inline-flex items-center cursor-pointer group">
+                                    <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
+                                    <div className="relative w-9 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+                                    <span className="ml-2 text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors uppercase tracking-wider">Price is inclusive of GST</span>
+                                </label>
+                            </div>
                         </div>
 
                         <div className="md:col-span-2">

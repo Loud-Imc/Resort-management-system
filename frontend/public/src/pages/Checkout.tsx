@@ -670,8 +670,8 @@ export default function Checkout() {
 
                                 <div className="border-t border-gray-100 pt-4 space-y-2">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">Base Room Charges</span>
-                                        <span>{formatPrice(effectivePricing?.baseAmount, selectedCurrency, rates) || '0'}</span>
+                                        <span className="text-gray-600">{effectivePricing?.isGstInclusive ? 'Room Charges (GST Inc.)' : 'Base Room Charges'}</span>
+                                        <span>{formatPrice(effectivePricing?.isGstInclusive ? (effectivePricing.baseAmount + effectivePricing.taxAmount) : effectivePricing?.baseAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
                                     {(effectivePricing?.extraAdultAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm">
@@ -691,18 +691,20 @@ export default function Checkout() {
                                             <span>-{formatPrice(effectivePricing.offerDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
-                                    <div className="flex justify-between text-sm group relative">
-                                        <div className="flex items-center gap-1.5 text-gray-600">
-                                            <span>Taxes</span>
-                                            <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
-                                                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                                                    GST is calculated per room per night based on the transaction value (0%, 12%, or 18% tiers).
+                                    {!effectivePricing?.isGstInclusive && (
+                                        <div className="flex justify-between text-sm group relative">
+                                            <div className="flex items-center gap-1.5 text-gray-600">
+                                                <span>Taxes</span>
+                                                <div className="group/info relative">
+                                                    <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                                                        GST is calculated per room per night based on the transaction value (0%, 12%, or 18% tiers).
+                                                    </div>
                                                 </div>
                                             </div>
+                                            <span>{formatPrice(effectivePricing?.taxAmount, selectedCurrency, rates) || '0'}</span>
                                         </div>
-                                        <span>{formatPrice(effectivePricing?.taxAmount, selectedCurrency, rates) || '0'}</span>
-                                    </div>
+                                    )}
 
                                     {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'COUPON' && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
@@ -719,7 +721,12 @@ export default function Checkout() {
                                     )}
 
                                     <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
-                                        <span className="text-lg font-bold text-gray-900">Total</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-lg font-bold text-gray-900">Total</span>
+                                            {effectivePricing?.isGstInclusive && (
+                                                <span className="text-[10px] text-green-600 font-bold uppercase tracking-tight">GST Inclusive</span>
+                                            )}
+                                        </div>
                                         <span className="text-2xl font-black text-primary-600">{formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
                                 </div>

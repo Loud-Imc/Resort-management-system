@@ -402,7 +402,8 @@ export class AvailabilityService {
                             pricePerNight: pricing.pricePerNight,
                             numberOfNights: pricing.numberOfNights,
                             isSoldOut: false,
-                            isGroupPackage: true
+                            isGroupPackage: true,
+                            isGstInclusive: pricing.isGstInclusive,
                         });
                     } catch (err) {
                         continue;
@@ -523,6 +524,7 @@ export class AvailabilityService {
                     pricePerNight: pricing.pricePerNight,
                     numberOfNights: pricing.numberOfNights,
                     isSoldOut: availableCount < rooms,
+                    isGstInclusive: pricing.isGstInclusive,
                 });
             }
         }

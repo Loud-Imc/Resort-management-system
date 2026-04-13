@@ -32,6 +32,7 @@ const bookingSchema = z.object({
     isGroupBooking: z.boolean().optional(),
     groupSize: z.number().optional(),
     overrideTotal: z.number().optional(),
+    isOverrideInclusive: z.boolean().optional(),
     overrideReason: z.string().optional(),
     paymentMethod: z.enum(['CASH', 'UPI', 'CARD', 'ONLINE', 'WALLET']),
     paymentOption: z.enum(['FULL', 'PARTIAL']),
@@ -91,6 +92,7 @@ export default function CreateBooking() {
             isGroupBooking: false,
             groupSize: undefined,
             overrideTotal: undefined,
+            isOverrideInclusive: true,
             overrideReason: '',
             paymentMethod: 'CASH',
             paymentOption: 'FULL',
@@ -179,6 +181,8 @@ export default function CreateBooking() {
                     groupSize: isGroup ? Number(values.groupSize) : undefined,
                     roomCount,
                     generalCode: values.appliedCode,
+                    overrideTotal: values.overrideTotal ? Number(values.overrideTotal) : undefined,
+                    isOverrideInclusive: values.isOverrideInclusive,
                 });
                 setPriceDetails(price);
             }
@@ -219,6 +223,7 @@ export default function CreateBooking() {
             roomId: data.selectedRoomIds && data.selectedRoomIds.length > 0 ? data.selectedRoomIds[0] : (data.roomId || undefined),
             selectedRoomIds: data.selectedRoomIds || undefined,
             overrideTotal: data.overrideTotal ? Number(data.overrideTotal) : undefined,
+            isOverrideInclusive: data.isOverrideInclusive,
             paymentMethod: data.isManualBooking ? data.paymentMethod : 'ONLINE',
             paidAmount: data.isManualBooking
                 ? (data.paymentOption === 'FULL'
@@ -618,8 +623,40 @@ export default function CreateBooking() {
                                         </div>
                                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-100 dark:border-gray-800 pt-6">
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Override Price (Optional)</label>
-                                                <input type="number" {...register('overrideTotal', { setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v) })} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all" placeholder="Set custom total" />
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Override Price (Optional)</label>
+                                                    <div className="flex bg-gray-100 dark:bg-gray-700 p-0.5 rounded-md">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setValue('isOverrideInclusive', true);
+                                                                if (watch('overrideTotal')) handleCheckAvailability();
+                                                            }}
+                                                            className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
+                                                        >
+                                                            Inc. GST
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setValue('isOverrideInclusive', false);
+                                                                if (watch('overrideTotal')) handleCheckAvailability();
+                                                            }}
+                                                            className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', !watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
+                                                        >
+                                                            Exc. GST
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    {...register('overrideTotal', {
+                                                        setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
+                                                        onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
+                                                    })}
+                                                    className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all font-bold"
+                                                    placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Reason for Override</label>

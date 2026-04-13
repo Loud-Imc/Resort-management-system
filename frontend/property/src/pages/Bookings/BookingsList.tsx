@@ -28,7 +28,11 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
-import { Banknote } from 'lucide-react';
+import { Banknote, Download } from 'lucide-react';
+import { useRef } from 'react';
+import jsPDF from 'jspdf';
+import { toPng } from 'html-to-image';
+import { BookingInvoice } from '../../components/bookings/BookingInvoice';
 
 const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
     AADHAR: { pattern: /^\d{12}$/, message: 'Aadhar must be exactly 12 digits', sample: 'e.g. 1234 5678 9012' },
@@ -51,6 +55,10 @@ export default function BookingsList() {
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI' | 'CARD' | 'OTHER'>('CASH');
     const [isRecordingPayment, setIsRecordingPayment] = useState(false);
     const [paymentNotes, setPaymentNotes] = useState('');
+    const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadBooking, setDownloadBooking] = useState<Booking | null>(null);
+    const [activeMenu, setActiveMenu] = useState<string | null>(null);
+    const invoiceRef = useRef<HTMLDivElement>(null);
 
     const handleOpenCheckIn = (booking: Booking) => {
         setCheckInBooking(booking);
@@ -182,6 +190,78 @@ export default function BookingsList() {
         },
         onError: () => toast.error('Failed to cancel booking'),
     });
+
+    const handleDownloadPDF = async (booking: Booking) => {
+        setDownloadBooking(booking);
+        setIsDownloading(true);
+
+        // Wait for state update and re-render
+        setTimeout(async () => {
+            if (!invoiceRef.current) {
+                setIsDownloading(false);
+                return;
+            }
+
+            const element = invoiceRef.current;
+            element.classList.add('pdf-capture-mode');
+
+            try {
+                const elementWidth = element.offsetWidth;
+                const elementHeight = element.offsetHeight;
+                console.log(`[DEBUG] Capturing element: ${elementWidth}x${elementHeight}`);
+
+                if (elementWidth === 0 || elementHeight === 0) {
+                    console.warn('[DEBUG] Element has 0 dimensions! Capture might fail.');
+                }
+
+                const dataUrl = await toPng(element, {
+                    width: 800,
+                    quality: 1,
+                    pixelRatio: 2,
+                    backgroundColor: '#ffffff',
+                    cacheBust: true,
+                    style: {
+                        borderRadius: '0',
+                        boxShadow: 'none',
+                        border: 'none',
+                    }
+                });
+
+                console.log('[DEBUG] PDF imgData start:', dataUrl.substring(0, 50));
+
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgWidth = 210;
+
+                // Helper to get image dimensions
+                const img = new Image();
+                img.src = dataUrl;
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    // Add timeout to prevent hang
+                    setTimeout(() => reject(new Error('Image load timeout')), 5000);
+                });
+
+                const imgHeight = (img.height * imgWidth) / img.width;
+                pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
+
+                const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
+                const fileName = balanceDue > 0
+                    ? `Invoice_Performa_${booking.bookingNumber}.pdf`
+                    : `Invoice_${booking.bookingNumber}.pdf`;
+
+                pdf.save(fileName);
+                toast.success('Invoice downloaded');
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                toast.error('Failed to generate PDF');
+            } finally {
+                element.classList.remove('pdf-capture-mode');
+                setIsDownloading(false);
+                setDownloadBooking(null);
+            }
+        }, 1000);
+    };
 
     const getStatusColor = (status: BookingStatus) => {
         switch (status) {
@@ -420,9 +500,46 @@ export default function BookingsList() {
                                                     </button>
                                                 )}
 
-                                                <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-90">
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </button>
+                                                <div className="relative">
+                                                    <button
+                                                        onClick={() => setActiveMenu(activeMenu === booking.id ? null : booking.id)}
+                                                        className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-90"
+                                                    >
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </button>
+                                                    {activeMenu === booking.id && (
+                                                        <>
+                                                            <div
+                                                                className="fixed inset-0 z-10"
+                                                                onClick={() => setActiveMenu(null)}
+                                                            ></div>
+                                                            <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg z-20 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setActiveMenu(null);
+                                                                        handleDownloadPDF(booking);
+                                                                    }}
+                                                                    disabled={isDownloading}
+                                                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                                                                >
+                                                                    {isDownloading && downloadBooking?.id === booking.id ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Download className="h-4 w-4" />
+                                                                    )}
+                                                                    Download Invoice
+                                                                </button>
+                                                                <Link
+                                                                    to={`/bookings/${booking.id}`}
+                                                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                    View Details
+                                                                </Link>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -803,6 +920,15 @@ export default function BookingsList() {
                             </div>
                         </form>
                     </div>
+                </div>
+            )}
+            {/* Hidden Invoice Component for PDF generation */}
+            {downloadBooking && (
+                <div className="fixed -left-[9999px] top-0 overflow-hidden pointer-events-none">
+                    <BookingInvoice
+                        ref={invoiceRef}
+                        booking={downloadBooking}
+                    />
                 </div>
             )}
         </>
