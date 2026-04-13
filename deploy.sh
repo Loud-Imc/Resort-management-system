@@ -9,6 +9,9 @@ set -e
 
 echo "🚀 Starting Deployment..."
 
+# Increase Node.js memory limit for build processes
+export NODE_OPTIONS="--max-old-space-size=4096"
+
 # 1. Update Codebase
 echo "📥 Syncing with GitHub (Hard Reset)..."
 # Ensure we are in the project root

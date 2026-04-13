@@ -56,6 +56,26 @@ export class BookingsController {
                 dto.groupSize
             );
 
+            // Fetch ALL available pool rooms for group-side manual selection
+            const groupPoolTypes = await (this.availabilityService as any).prisma.roomType.findMany({
+                where: { propertyId: dto.propertyId, isAvailableForGroupBooking: true }
+            });
+
+            for (const type of groupPoolTypes) {
+                const availableForType = await this.availabilityService.getAvailableRooms(
+                    type.id,
+                    new Date(dto.checkInDate),
+                    new Date(dto.checkOutDate)
+                );
+                roomList.push(...availableForType.map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    roomNumber: r.roomNumber,
+                    roomType: type.name,
+                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))
+                })));
+            }
+
             if (!isAvailable) {
                 const hasPool = await this.availabilityService.hasGroupPool(dto.propertyId);
                 groupUnavailableReason = hasPool ? 'CAPACITY_EXCEEDED' : 'NO_POOL_CONFIGURED';
@@ -190,13 +210,19 @@ export class BookingsController {
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
     ) {
+        const start = startDate ? new Date(startDate) : undefined;
+        if (start) start.setHours(0, 0, 0, 0);
+
+        const end = endDate ? new Date(endDate) : undefined;
+        if (end) end.setHours(23, 59, 59, 999);
+
         return this.bookingsService.findAll(req.user, {
             status,
             roomTypeId,
             propertyId,
             hasSettlement: hasSettlement === 'true' ? true : (hasSettlement === 'false' ? false : undefined),
-            checkInDate: startDate ? new Date(startDate) : undefined,
-            checkOutDate: endDate ? new Date(endDate) : undefined,
+            checkInDate: start,
+            checkOutDate: end,
         });
     }
 
