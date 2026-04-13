@@ -901,8 +901,8 @@ export class ReportsService {
                             {
                                 width: '*',
                                 stack: [
-                                    { text: 'ROUTE GUIDE', style: 'brandLogo' },
-                                    { text: 'Performance Analytics Report', style: 'brandSub' }
+                                    { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
+                                    { text: 'Performance Analytics Report', style: 'brandSub', margin: [0, 5, 0, 0] }
                                 ]
                             },
                             {
@@ -1121,5 +1121,227 @@ export class ReportsService {
             amount: b.totalAmount,
             createdAt: b.createdAt
         }));
+    }
+
+    async getGstReport(user: any, startDate: Date, endDate: Date, propertyId?: string) {
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (isGlobalAdmin) {
+            if (propertyId) propertyFilter.id = propertyId;
+        } else {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+            if (propertyId) propertyFilter.id = propertyId;
+        }
+
+        const bookings = await this.prisma.booking.findMany({
+            where: {
+                status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
+                confirmedAt: {
+                    gte: sDate,
+                    lte: eDate,
+                },
+                room: {
+                    property: propertyFilter
+                }
+            },
+            include: {
+                user: true,
+                room: {
+                    include: {
+                        property: true,
+                        roomType: true
+                    }
+                }
+            },
+            orderBy: {
+                confirmedAt: 'asc'
+            }
+        });
+
+        const reportData = bookings.map(b => {
+            const total = Number(b.totalAmount);
+            const tax = Number(b.taxAmount || 0);
+            const taxable = total - tax;
+
+            return {
+                id: b.id,
+                bookingNumber: b.bookingNumber,
+                date: b.confirmedAt,
+                guestName: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'Guest',
+                gstNumber: b.gstNumber || 'N/A',
+                propertyName: b.room?.property?.name || 'N/A',
+                roomType: b.room?.roomType?.name || 'N/A',
+                totalAmount: total,
+                taxableAmount: taxable,
+                taxAmount: tax,
+            };
+        });
+
+        const summary = {
+            totalVolume: reportData.reduce((sum, item) => sum + item.totalAmount, 0),
+            totalTaxable: reportData.reduce((sum, item) => sum + item.taxableAmount, 0),
+            totalTax: reportData.reduce((sum, item) => sum + item.taxAmount, 0),
+            bookingCount: reportData.length,
+        };
+
+        return {
+            summary,
+            details: reportData
+        };
+    }
+
+    async generateGstPdfReport(user: any, startDate: Date, endDate: Date, propertyId?: string): Promise<Buffer> {
+        const report = await this.getGstReport(user, startDate, endDate, propertyId);
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
+        let propertyName = "Global Network Analytics";
+        let propertyGst = "N/A";
+        if (propertyId) {
+            const property = await this.prisma.property.findUnique({ where: { id: propertyId } });
+            if (property) {
+                propertyName = property.name;
+                propertyGst = property.gstNumber || 'N/A';
+            }
+        }
+
+        const fonts = {
+            Roboto: {
+                normal: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Regular.ttf'),
+                bold: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Medium.ttf'),
+                italics: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Italic.ttf'),
+                bolditalics: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-MediumItalic.ttf')
+            }
+        };
+
+        const urlResolver = new URLResolver(virtualFs);
+        const printer = new PdfPrinter(fonts, virtualFs, urlResolver);
+
+        const docDefinition: any = {
+            pageSize: 'A4',
+            pageOrientation: 'landscape',
+            pageMargins: [40, 60, 40, 60],
+            content: [
+                {
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'GST COMPLIANCE REPORT', style: 'docTitle' },
+                                { text: propertyName, style: 'propertyName' },
+                                { text: `GSTIN: ${propertyGst}`, style: 'gstInfo' }
+                            ]
+                        },
+                        {
+                            width: 'auto',
+                            stack: [
+                                { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
+                                { text: `Period: ${sDate.toLocaleDateString()} - ${eDate.toLocaleDateString()}`, style: 'docPeriod', margin: [0, 5, 0, 0] }
+                            ],
+                            alignment: 'right'
+                        }
+                    ],
+                    margin: [0, 0, 0, 30]
+                },
+
+                // Summary Cards
+                {
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'TOTAL TAXABLE VALUE', style: 'kpiLabel' },
+                                { text: `₹${report.summary.totalTaxable.toLocaleString()}`, style: 'kpiValue' }
+                            ]
+                        },
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'TOTAL GST COLLECTED', style: 'kpiLabel' },
+                                { text: `₹${report.summary.totalTax.toLocaleString()}`, style: 'kpiValue', color: '#0d9488' }
+                            ]
+                        },
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'GROSS VOLUME', style: 'kpiLabel' },
+                                { text: `₹${report.summary.totalVolume.toLocaleString()}`, style: 'kpiValue' }
+                            ]
+                        }
+                    ],
+                    margin: [0, 0, 0, 40]
+                },
+
+                // Detailed Table
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: ['auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto'],
+                        body: [
+                            [
+                                { text: 'DATE', style: 'tableHeader' },
+                                { text: 'BOOKING #', style: 'tableHeader' },
+                                { text: 'GUEST NAME', style: 'tableHeader' },
+                                { text: 'GUEST GST', style: 'tableHeader' },
+                                { text: 'TAXABLE', style: 'tableHeader', alignment: 'right' },
+                                { text: 'GST (12%)', style: 'tableHeader', alignment: 'right' },
+                                { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }
+                            ],
+                            ...report.details.map(item => [
+                                { text: item.date ? new Date(item.date).toLocaleDateString() : 'N/A', style: 'tableCell' },
+                                { text: item.bookingNumber, style: 'tableCell' },
+                                { text: item.guestName, style: 'tableCell' },
+                                { text: item.gstNumber, style: 'tableCell' },
+                                { text: `₹${item.taxableAmount.toLocaleString()}`, style: 'tableCell', alignment: 'right' },
+                                { text: `₹${item.taxAmount.toLocaleString()}`, style: 'tableCell', alignment: 'right' },
+                                { text: `₹${item.totalAmount.toLocaleString()}`, style: 'tableCellBold', alignment: 'right' }
+                            ])
+                        ]
+                    },
+                    layout: {
+                        fillColor: (i) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null),
+                        hLineColor: () => '#e2e8f0',
+                    }
+                }
+            ],
+            footer: (currentPage, pageCount) => ({
+                columns: [
+                    { text: `Generated by Route Guide Analytics`, style: 'footer' },
+                    { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'footer' }
+                ],
+                margin: [40, 0, 40, 0]
+            }),
+            styles: {
+                brandLogo: { fontSize: 14, bold: true, color: '#227c8a' },
+                docTitle: { fontSize: 18, bold: true, color: '#0f172a' },
+                propertyName: { fontSize: 12, bold: true, color: '#1e293b', margin: [0, 5, 0, 0] },
+                gstInfo: { fontSize: 10, color: '#64748b' },
+                docPeriod: { fontSize: 10, color: '#64748b' },
+                kpiLabel: { fontSize: 8, bold: true, color: '#64748b', letterSpacing: 1 },
+                kpiValue: { fontSize: 16, bold: true, color: '#227c8a', margin: [0, 2, 0, 0] },
+                tableHeader: { fontSize: 9, bold: true, color: '#ffffff', margin: [0, 5, 0, 5] },
+                tableCell: { fontSize: 9, color: '#1e293b' },
+                tableCellBold: { fontSize: 9, bold: true, color: '#0f172a' },
+                footer: { fontSize: 8, color: '#cbd5e1' }
+            },
+            defaultStyle: { font: 'Roboto' }
+        };
+
+        const pdfDoc = await printer.createPdfKitDocument(docDefinition);
+        return new Promise((resolve, reject) => {
+            const chunks: any[] = [];
+            pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+            pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+            pdfDoc.on('error', (err: any) => reject(err));
+            pdfDoc.end();
+        });
     }
 }

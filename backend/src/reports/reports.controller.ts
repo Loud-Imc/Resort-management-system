@@ -191,4 +191,49 @@ export class ReportsController {
 
         return new StreamableFile(buffer);
     }
+
+    @Get('gst')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
+    @ApiOperation({ summary: 'Get detailed GST report' })
+    @ApiQuery({ name: 'startDate', required: true })
+    @ApiQuery({ name: 'endDate', required: true })
+    @ApiQuery({ name: 'propertyId', required: false })
+    getGstReport(
+        @Request() req,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        return this.reportsService.getGstReport(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId,
+        );
+    }
+
+    @Get('export/gst-pdf')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
+    @ApiOperation({ summary: 'Export GST report to PDF' })
+    async exportGstPdf(
+        @Request() req,
+        @Res({ passthrough: true }) res: Response,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        const buffer = await this.reportsService.generateGstPdfReport(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId,
+        );
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename=GST_Report_${startDate}_${endDate}.pdf`,
+        });
+
+        return new StreamableFile(buffer);
+    }
 }
