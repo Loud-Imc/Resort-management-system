@@ -218,9 +218,15 @@ export default function CreateRoomType() {
                             <div className="mt-2 pl-1">
                                 <label className="inline-flex items-center cursor-pointer group">
                                     <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
-                                    <div className="relative w-9 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+                                    <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${watch('isGstInclusive') ? 'bg-green-600' : 'bg-red-500'}`}></div>
                                     <span className="ml-2 text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors uppercase tracking-wider">Price is inclusive of GST</span>
                                 </label>
+                                {watch('isGstInclusive') && (
+                                    <p className="mt-1.5 text-[9px] text-gray-500 dark:text-gray-400 italic font-medium pl-1 animate-in fade-in slide-in-from-top-1 flex items-center gap-1">
+                                        <Info className="h-2.5 w-2.5 text-blue-500" />
+                                        When enabled, the Base Price is treated as the final amount including tax. The system back-calculates tax for reports.
+                                    </p>
+                                )}
                             </div>
                         </div>
 

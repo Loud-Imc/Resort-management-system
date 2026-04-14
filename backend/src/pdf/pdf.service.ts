@@ -49,8 +49,8 @@ export class PdfService {
             {
               width: '*',
               stack: [
-                { text: 'ROUTE GUIDE', style: 'brandLogo' },
-                { text: 'Travel | Discover | Belong', style: 'brandTagline' },
+                { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
+                { text: 'Travel | Discover | Belong', style: 'brandTagline', margin: [0, 5, 0, 0] },
               ],
             },
             {

@@ -8,6 +8,9 @@ set -e
 
 echo "🚀 Starting Staging Deployment..."
 
+# Increase Node.js memory limit for build processes
+export NODE_OPTIONS="--max-old-space-size=4096"
+
 # 1. Update Codebase from dev branch
 echo "📥 Syncing with GitHub (dev branch)..."
 cd "$(dirname "$0")"
