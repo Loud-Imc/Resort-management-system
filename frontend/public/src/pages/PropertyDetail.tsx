@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import {
     MapPin, Star, Phone, Mail, CheckCircle, ArrowLeft,
     Wifi, Car, Coffee, Dumbbell, Waves, Loader2,
-    Building2, Users, Maximize, BedDouble, Bath, ChevronRight, Clock, Info, Utensils,
+    Building2, Users, Maximize, BedDouble, Bath, ChevronRight, ChevronLeft, Clock, Info, Utensils,
     Tv, Trees, Sparkles, Lock, ConciergeBell, Ticket, Snowflake, Sunset, Mountain,
     AlertCircle, Calendar
 } from 'lucide-react';
@@ -46,6 +46,116 @@ const getFeatureIcon = (text: string) => {
 const toTitleCase = (str: string) => {
     if (!str) return '';
     return str.toLowerCase().replace(/\b\w/g, s => s.toUpperCase());
+};
+
+const RoomImageCarousel = ({ images, name }: { images: string[], name: string }) => {
+    const [activeIndex, setActiveIndex] = useState(0);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    if (!images || images.length === 0) {
+        return (
+            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                <Building2 className="h-10 w-10 text-gray-300" />
+            </div>
+        );
+    }
+
+    const next = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveIndex((prev) => (prev + 1) % images.length);
+    };
+
+    const prev = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveIndex((prev) => (prev - 1 + images.length) % images.length);
+    };
+
+    return (
+        <div className="space-y-3">
+            <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-sm group">
+                <img
+                    src={images[activeIndex]}
+                    alt={`${name} ${activeIndex + 1}`}
+                    className="w-full h-full object-cover transition-all duration-500"
+                />
+
+                {images.length > 1 && (
+                    <>
+                        <button
+                            onClick={prev}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={next}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
+                        <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md border border-white/10 z-10">
+                            {activeIndex + 1} / {images.length}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {images.length > 1 && (
+                <div
+                    ref={scrollRef}
+                    className="flex gap-2 overflow-x-auto pb-1 no-scrollbar snap-x"
+                >
+                    {images.map((img, idx) => (
+                        <button
+                            key={idx}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setActiveIndex(idx);
+                            }}
+                            className={clsx(
+                                "relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all snap-start",
+                                activeIndex === idx ? "border-primary-500 opacity-100 scale-105" : "border-transparent opacity-60 hover:opacity-100"
+                            )}
+                        >
+                            <img src={img} className="w-full h-full object-cover" alt="" />
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ExpandableList = ({ items, limit = 5 }: { items: React.ReactNode[], limit?: number }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    if (items.length <= limit) {
+        return <ul className="space-y-2.5">{items}</ul>;
+    }
+
+    return (
+        <div className="space-y-2.5">
+            <ul className="space-y-2.5">
+                {items.slice(0, isExpanded ? items.length : limit)}
+            </ul>
+            <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    setIsExpanded(!isExpanded);
+                }}
+                className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1 mt-1 transition-colors"
+            >
+                {isExpanded ? (
+                    <>Show Less <ChevronRight className="h-3 w-3 rotate-[-90deg]" /></>
+                ) : (
+                    <>View More ({items.length - limit} extra) <ChevronRight className="h-3 w-3 rotate-90" /></>
+                )}
+            </button>
+        </div>
+    );
 };
 
 export default function PropertyDetail() {
@@ -186,7 +296,7 @@ export default function PropertyDetail() {
         <div className="min-h-screen bg-gray-50 pt-16 pb-24 lg:pb-0">
 
             {/* Hero Image */}
-            <div className="relative h-[400px] md:h-[500px]">
+            <div className="relative h-[300px] md:h-[350px]">
                 {property.coverImage ? (
                     <img
                         src={property.coverImage}
@@ -244,24 +354,6 @@ export default function PropertyDetail() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-8">
-                        {/* Amenities */}
-                        {property.amenities.length > 0 && (
-                            <div className="bg-white rounded-xl shadow-sm p-6">
-                                <h2 className="text-xl font-bold text-gray-900 mb-4">Amenities</h2>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {property.amenities.map(amenity => {
-                                        return (
-                                            <div key={amenity} className="flex items-center gap-3 text-gray-700">
-                                                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600">
-                                                    {getFeatureIcon(amenity)}
-                                                </div>
-                                                <span>{amenity}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
                         {/* Available Accommodations */}
                         {property.roomTypes && property.roomTypes.length > 0 && (
                             <div id="accommodations" className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
@@ -476,26 +568,10 @@ export default function PropertyDetail() {
                                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                                                         {/* Left: Photos & Basic Info */}
                                                         <div className="md:col-span-1 space-y-4">
-                                                            <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-sm group">
-                                                                {roomType.images && roomType.images.length > 0 ? (
-                                                                    <img
-                                                                        src={roomType.images[0]}
-                                                                        alt={roomType.name}
-                                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                                                                        <Building2 className="h-10 w-10 text-gray-300" />
-                                                                    </div>
-                                                                )}
-                                                                <Link
-                                                                    to={`/properties/${property.slug}/rooms/${roomType.id}`}
-                                                                    className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1.5 border border-white/10 hover:bg-black/80 transition-colors"
-                                                                >
-                                                                    <span>{roomType.images?.length || 0} PHOTOS</span>
-                                                                    <ChevronRight className="h-2.5 w-2.5" />
-                                                                </Link>
-                                                            </div>
+                                                            <RoomImageCarousel
+                                                                images={roomType.images || []}
+                                                                name={roomType.name}
+                                                            />
 
                                                             <div className="space-y-1">
                                                                 <div className="flex items-start justify-between">
@@ -544,57 +620,53 @@ export default function PropertyDetail() {
                                                         <div className="md:col-span-2 space-y-4 border-l border-gray-100 pl-8">
                                                             <div className="space-y-3">
                                                                 <h4 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Room Highlights & Inclusions</h4>
-                                                                <ul className="space-y-2.5">
-                                                                    {roomType.cancellationPolicy ? (
-                                                                        <li className="flex items-start gap-2.5 text-sm text-green-700 font-medium bg-green-50/50 p-2 rounded-lg border border-green-100/50">
-                                                                            <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                                                                            <span>{roomType.cancellationPolicy}</span>
-                                                                        </li>
-                                                                    ) : (
-                                                                        <li className="flex items-start gap-2.5 text-sm text-gray-600">
-                                                                            <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                                                                            <span>Standard Cancellation Policy applies</span>
-                                                                        </li>
-                                                                    )}
-
-                                                                    {roomType.inclusions && roomType.inclusions.length > 0 ? (
-                                                                        roomType.inclusions.map((inclusion, idx) => (
-                                                                            <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                <ExpandableList
+                                                                    items={[
+                                                                        roomType.cancellationPolicy ? (
+                                                                            <li key="policy" className="flex items-start gap-2.5 text-sm text-green-700 font-medium bg-green-50/50 p-2 rounded-lg border border-green-100/50">
+                                                                                <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                                                <span>{roomType.cancellationPolicy}</span>
+                                                                            </li>
+                                                                        ) : (
+                                                                            <li key="policy" className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                                <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                                                <span>Standard Cancellation Policy applies</span>
+                                                                            </li>
+                                                                        ),
+                                                                        ...(roomType.inclusions?.map((inclusion, idx) => (
+                                                                            <li key={`inc-${idx}`} className="flex items-start gap-2.5 text-sm text-gray-700">
                                                                                 <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
                                                                                     {getFeatureIcon(inclusion)}
                                                                                 </div>
                                                                                 <span className="pt-0.5">{inclusion}</span>
                                                                             </li>
-                                                                        ))
-                                                                    ) : (
-                                                                        roomType.amenities.includes('Breakfast') && (
-                                                                            <li className="flex items-start gap-2.5 text-sm text-gray-700">
+                                                                        )) || []),
+                                                                        ...(!roomType.inclusions?.length && roomType.amenities.includes('Breakfast') ? [
+                                                                            <li key="breakfast" className="flex items-start gap-2.5 text-sm text-gray-700">
                                                                                 <div className="bg-primary-50 p-1.5 rounded-md text-primary-600">
                                                                                     <Utensils className="h-3.5 w-3.5" />
                                                                                 </div>
                                                                                 <span className="pt-0.5">Complimentary Breakfast included</span>
                                                                             </li>
-                                                                        )
-                                                                    )}
-
-                                                                    {roomType.highlights && roomType.highlights.length > 0 && roomType.highlights.map((highlight, idx) => (
-                                                                        <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-600">
-                                                                            <div className="bg-blue-50 p-1.5 rounded-md text-blue-500">
-                                                                                {getFeatureIcon(highlight)}
-                                                                            </div>
-                                                                            <span className="pt-0.5">{highlight}</span>
-                                                                        </li>
-                                                                    ))}
-
-                                                                    {(!roomType.highlights || roomType.highlights.length === 0) && (
-                                                                        <li className="flex items-start gap-2.5 text-sm text-gray-600">
-                                                                            <div className="bg-blue-50 p-1 rounded-md">
-                                                                                <Clock className="h-3 w-3 text-blue-500 shrink-0" />
-                                                                            </div>
-                                                                            <span>Early Check-In (subject to availability)</span>
-                                                                        </li>
-                                                                    )}
-                                                                </ul>
+                                                                        ] : []),
+                                                                        ...(roomType.highlights?.map((highlight, idx) => (
+                                                                            <li key={`high-${idx}`} className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                                <div className="bg-blue-50 p-1.5 rounded-md text-blue-500">
+                                                                                    {getFeatureIcon(highlight)}
+                                                                                </div>
+                                                                                <span className="pt-0.5">{highlight}</span>
+                                                                            </li>
+                                                                        )) || []),
+                                                                        ...(!roomType.highlights?.length ? [
+                                                                            <li key="early" className="flex items-start gap-2.5 text-sm text-gray-600">
+                                                                                <div className="bg-blue-50 p-1 rounded-md">
+                                                                                    <Clock className="h-3 w-3 text-blue-500 shrink-0" />
+                                                                                </div>
+                                                                                <span>Early Check-In (subject to availability)</span>
+                                                                            </li>
+                                                                        ] : [])
+                                                                    ]}
+                                                                />
                                                             </div>
 
                                                             <div className="pt-4 mt-4 border-t border-dashed border-gray-100">
@@ -722,6 +794,25 @@ export default function PropertyDetail() {
                                             className="w-full h-40 object-cover rounded-lg"
                                         />
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Amenities */}
+                        {property.amenities.length > 0 && (
+                            <div className="bg-white rounded-xl shadow-sm p-6">
+                                <h2 className="text-xl font-bold text-gray-900 mb-4">Amenities</h2>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {property.amenities.map(amenity => {
+                                        return (
+                                            <div key={amenity} className="flex items-center gap-3 text-gray-700">
+                                                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600">
+                                                    {getFeatureIcon(amenity)}
+                                                </div>
+                                                <span>{amenity}</span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -976,56 +1067,53 @@ export default function PropertyDetail() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (13+)</label>
-                                                <div className="relative">
-                                                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-                                                    <input
-                                                        type="number"
-                                                        value={adults}
-                                                        onChange={(e) => {
-                                                            const val = Math.max(1, parseInt(e.target.value) || 1);
-                                                            setAdults(val);
-                                                            if (isGroupBooking) setGroupSize(val + children);
-                                                        }}
-                                                        className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Children (6-12)</label>
-                                                <div className="relative">
-                                                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-                                                    <input
-                                                        type="number"
-                                                        value={children}
-                                                        onChange={(e) => {
-                                                            const val = Math.max(0, parseInt(e.target.value) || 0);
-                                                            setChildren(val);
-                                                            if (isGroupBooking) setGroupSize(adults + val);
-                                                        }}
-                                                        className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
-                                                    />
-                                                </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (13+)</label>
+                                            <div className="relative">
+                                                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                                                <input
+                                                    type="number"
+                                                    value={adults}
+                                                    onChange={(e) => {
+                                                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                        setAdults(val);
+                                                        if (isGroupBooking) setGroupSize(val + children);
+                                                    }}
+                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                />
                                             </div>
                                         </div>
-                                        {isGroupBooking && (
-                                            <div className="flex items-center justify-center gap-2 py-2 bg-primary-50 rounded-xl border border-primary-100 animate-in fade-in zoom-in-95 duration-300">
-                                                <span className="text-[9px] font-black text-primary-600 uppercase tracking-widest">Total Group Stay: {groupSize} Members</span>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Children (6-12)</label>
+                                            <div className="relative">
+                                                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                                                <input
+                                                    type="number"
+                                                    value={children}
+                                                    onChange={(e) => {
+                                                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                        setChildren(val);
+                                                        if (isGroupBooking) setGroupSize(adults + val);
+                                                    }}
+                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                />
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
+                                    {isGroupBooking && (
+                                        <div className="flex items-center justify-center gap-2 py-2 bg-primary-50 rounded-xl border border-primary-100 animate-in fade-in zoom-in-95 duration-300">
+                                            <span className="text-[9px] font-black text-primary-600 uppercase tracking-widest">Total Group Stay: {groupSize} Members</span>
+                                        </div>
+                                    )}
                                 </div>
-
-                                {loadingAvailability && (
-                                    <div className="flex items-center justify-center py-2 animate-in fade-in slide-in-from-top-1">
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" />
-                                        <span className="ml-2 text-[9px] font-black text-primary-600 uppercase tracking-widest">Updating Availability...</span>
-                                    </div>
-                                )}
                             </div>
+                            {loadingAvailability && (
+                                <div className="flex items-center justify-center py-2 animate-in fade-in slide-in-from-top-1">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" />
+                                    <span className="ml-2 text-[9px] font-black text-primary-600 uppercase tracking-widest">Updating Availability...</span>
+                                </div>
+                            )}
 
                             <button
                                 onClick={() => {
@@ -1063,45 +1151,45 @@ export default function PropertyDetail() {
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            {/* Mobile Sticky Selection Bar */}
-            {!checkIn || !checkOut ? (
-                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] z-50 animate-in slide-in-from-bottom-full duration-500">
-                    <div className="flex items-center justify-between gap-4 max-w-lg mx-auto">
-                        <div className="flex-1">
-                            <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-1">Reservation Info</p>
-                            <p className="text-xs text-gray-500 font-bold leading-tight">Select check-in/out dates to unlock availability.</p>
-                        </div>
-                        <button
-                            onClick={() => pickerRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                            className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary-500/20 active:scale-95"
-                        >
-                            Pick Dates
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 p-4 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] z-50">
-                    <div className="flex items-center justify-between gap-4 max-w-lg mx-auto">
-                        <div className="flex-1">
-                            <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-1">Your Selected Stay</p>
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-900">
-                                <span>{format(checkIn, 'MMM dd')} - {format(checkOut, 'MMM dd')}</span>
-                                <span className="text-gray-300">•</span>
-                                <span>{adults} Guests</span>
+                    {/* Mobile Sticky Selection Bar */}
+                    {!checkIn || !checkOut ? (
+                        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] z-50 animate-in slide-in-from-bottom-full duration-500">
+                            <div className="flex items-center justify-between gap-4 max-w-lg mx-auto">
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-1">Reservation Info</p>
+                                    <p className="text-xs text-gray-500 font-bold leading-tight">Select check-in/out dates to unlock availability.</p>
+                                </div>
+                                <button
+                                    onClick={() => pickerRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary-500/20 active:scale-95"
+                                >
+                                    Pick Dates
+                                </button>
                             </div>
                         </div>
-                        <button
-                            onClick={() => document.getElementById('accommodations')?.scrollIntoView({ behavior: 'smooth' })}
-                            className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary-500/20 active:scale-95"
-                        >
-                            See Rooms
-                        </button>
-                    </div>
+                    ) : (
+                        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 p-4 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] z-50">
+                            <div className="flex items-center justify-between gap-4 max-w-lg mx-auto">
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-1">Your Selected Stay</p>
+                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-900">
+                                        <span>{format(checkIn!, 'MMM dd')} - {format(checkOut!, 'MMM dd')}</span>
+                                        <span className="text-gray-300">•</span>
+                                        <span>{adults} Guests</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => document.getElementById('accommodations')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary-500/20 active:scale-95"
+                                >
+                                    See Rooms
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 }
