@@ -221,6 +221,7 @@ export default function CreateBooking() {
                 isGroupBooking: isGroup,
                 groupSize: isGroup ? Number(values.groupSize) : undefined,
                 propertyId: values.propertyId,
+                isAdmin: true,
             });
             setAvailability(avail);
 

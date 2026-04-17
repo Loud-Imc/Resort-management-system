@@ -34,4 +34,9 @@ export class CheckAvailabilityDto {
     @IsString()
     @IsOptional()
     propertyId?: string;
+
+    @ApiProperty({ example: false, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isAdmin?: boolean;
 }

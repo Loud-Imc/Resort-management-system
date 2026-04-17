@@ -120,6 +120,7 @@ export interface CheckAvailabilityDto {
     isGroupBooking?: boolean;
     groupSize?: number;
     propertyId?: string;
+    isAdmin?: boolean;
 }
 
 export interface CheckAvailabilityResult {
