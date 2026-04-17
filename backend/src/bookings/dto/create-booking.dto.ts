@@ -46,6 +46,16 @@ export class GuestInfoDto {
     @IsString()
     @IsOptional()
     idImage?: string;
+
+    @ApiProperty({ example: 'guest-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    id?: string;
+
+    @ApiProperty({ example: 'property-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    propertyId?: string;
 }
 
 export class CreateBookingDto {
