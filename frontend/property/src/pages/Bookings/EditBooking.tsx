@@ -24,6 +24,7 @@ const editBookingSchema = z.object({
     gstNumber: z.string().optional(),
     overrideTotal: z.number().optional(),
     guests: z.array(z.object({
+        id: z.string().optional(),
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
         email: z.string().email('Invalid email').optional().or(z.literal('')),
@@ -82,6 +83,7 @@ export default function EditBooking() {
                 gstNumber: (booking as any).gstNumber || '',
                 overrideTotal: Number(booking.totalAmount),
                 guests: (booking as any).guests?.map((g: any) => ({
+                    id: g.id,
                     firstName: g.firstName,
                     lastName: g.lastName,
                     email: g.email || '',
@@ -104,7 +106,9 @@ export default function EditBooking() {
             navigate(`/bookings/${id}`);
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to update booking');
+            console.error('[EditBooking] Update failed:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Failed to update booking';
+            toast.error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
         },
     });
 

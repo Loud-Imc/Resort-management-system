@@ -77,4 +77,11 @@ export class UsersController {
     async deleteMe(@Request() req) {
         return this.usersService.deleteUserAccount(req.user.id);
     }
+
+    @Delete(':id')
+    @Permissions(PERMISSIONS.USERS.DELETE)
+    @ApiOperation({ summary: 'Delete user account (Admin)' })
+    async remove(@Param('id') id: string) {
+        return this.usersService.deleteUserAccount(id);
+    }
 }
