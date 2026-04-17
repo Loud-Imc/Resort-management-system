@@ -39,11 +39,16 @@ const bookingSchema = z.object({
     paidAmount: z.number().optional(),
     isHistoricalEntry: z.boolean().optional(),
     transactionDate: z.string().optional(),
+    guestPhone: z.string().optional(),
+    whatsappNumber: z.string().optional(),
+    gstNumber: z.string().optional(),
+    specialRequests: z.string().optional(),
     guests: z.array(z.object({
         firstName: z.string().min(1, 'First name is required'),
         lastName: z.string().min(1, 'Last name is required'),
         email: z.string().email('Invalid email').optional().or(z.literal('')),
         phone: z.string().optional(),
+        whatsappNumber: z.string().optional(),
         age: z.number().optional(),
         idType: z.string().optional(),
         idNumber: z.string().optional(),
@@ -428,23 +433,43 @@ export default function CreateBooking() {
                                         )}
                                     </div>
                                 </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Promo or Referral Code (Optional)</label>
-                                    <div className="flex gap-2">
+                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GST Number (Optional)</label>
                                         <input
                                             type="text"
-                                            {...register('appliedCode')}
-                                            placeholder="GUEST10 or CP... (10 chars)"
-                                            className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase"
+                                            {...register('gstNumber')}
+                                            placeholder="Enter GSTIN"
+                                            className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase"
                                         />
-                                        <button
-                                            type="button"
-                                            onClick={handleCheckAvailability}
-                                            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-500"
-                                        >
-                                            Apply
-                                        </button>
                                     </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Promo or Referral Code</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                {...register('appliedCode')}
+                                                placeholder="GUEST10 or CP..."
+                                                className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleCheckAvailability}
+                                                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-500"
+                                            >
+                                                Apply
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Special Requests / Notes (Optional)</label>
+                                    <textarea
+                                        {...register('specialRequests')}
+                                        rows={2}
+                                        placeholder="Any special instructions or preferences?"
+                                        className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm p-3 text-sm"
+                                    />
                                 </div>
                                 <div className="md:col-span-2">
                                     <hr className="my-2 border-gray-100 dark:border-gray-700" />
@@ -627,6 +652,33 @@ export default function CreateBooking() {
                         {
                             availability?.available && (
                                 <>
+                                    {/* Primary Contact Information */}
+                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                            <Briefcase className="h-5 w-5 text-blue-600" /> Primary Contact Information
+                                        </h2>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary Phone Number</label>
+                                                <input
+                                                    type="text"
+                                                    {...register('guestPhone')}
+                                                    placeholder="Enter primary contact number"
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary WhatsApp Number (Optional)</label>
+                                                <input
+                                                    type="text"
+                                                    {...register('whatsappNumber')}
+                                                    placeholder="Enter WhatsApp number"
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                                         <div className="flex items-center justify-between mb-4">
                                             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -659,7 +711,10 @@ export default function CreateBooking() {
                                                             {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
                                                         </div>
                                                         <input {...register(`guests.${index}.email`)} type="email" placeholder="Email (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                        <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                            <input {...register(`guests.${index}.whatsappNumber`)} placeholder="WhatsApp (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
+                                                        </div>
                                                         <div className="relative">
                                                             <select {...register(`guests.${index}.idType`)} className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500")}>
                                                                 <option value="">-- ID Type (Optional) --</option>

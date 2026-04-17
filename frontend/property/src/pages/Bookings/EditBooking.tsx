@@ -19,6 +19,7 @@ const editBookingSchema = z.object({
     guestName: z.string().min(1, 'Guest name is required'),
     guestEmail: z.string().email('Invalid email').optional().or(z.literal('')),
     guestPhone: z.string().optional(),
+    whatsappNumber: z.string().optional(),
     specialRequests: z.string().optional(),
     gstNumber: z.string().optional(),
     overrideTotal: z.number().optional(),
@@ -27,6 +28,7 @@ const editBookingSchema = z.object({
         lastName: z.string().min(1, 'Last name is required'),
         email: z.string().email('Invalid email').optional().or(z.literal('')),
         phone: z.string().optional(),
+        whatsappNumber: z.string().optional(),
         idType: z.string().optional(),
         idNumber: z.string().optional(),
         idImage: z.string().optional(),
@@ -75,6 +77,7 @@ export default function EditBooking() {
                 guestName: `${booking.user?.firstName || ''} ${booking.user?.lastName || ''}`.trim(),
                 guestEmail: booking.user?.email || '',
                 guestPhone: (booking.user as any)?.phone || '',
+                whatsappNumber: (booking as any).whatsappNumber || '',
                 specialRequests: (booking as any).specialRequests || '',
                 gstNumber: (booking as any).gstNumber || '',
                 overrideTotal: Number(booking.totalAmount),
@@ -83,6 +86,7 @@ export default function EditBooking() {
                     lastName: g.lastName,
                     email: g.email || '',
                     phone: g.phone || '',
+                    whatsappNumber: g.whatsappNumber || '',
                     idType: g.idType || '',
                     idNumber: g.idNumber || '',
                     idImage: g.idImage || '',
@@ -187,6 +191,10 @@ export default function EditBooking() {
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Phone</label>
                                     <input type="text" {...register('guestPhone')} className="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-12 font-bold" />
                                 </div>
+                                <div className="col-span-2">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">WhatsApp Number</label>
+                                    <input type="text" {...register('whatsappNumber')} className="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-12 font-bold" placeholder="Optional" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -232,6 +240,13 @@ export default function EditBooking() {
                                         <div className="flex gap-2">
                                             <input {...register(`guests.${index}.firstName`)} placeholder="First" className="flex-1 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-10 text-sm font-bold" />
                                             <input {...register(`guests.${index}.lastName`)} placeholder="Last" className="flex-1 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-10 text-sm font-bold" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Guest Contact</label>
+                                        <div className="flex gap-2">
+                                            <input {...register(`guests.${index}.phone`)} placeholder="Phone" className="flex-1 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-10 text-[10px] font-bold" />
+                                            <input {...register(`guests.${index}.whatsappNumber`)} placeholder="WhatsApp" className="flex-1 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-10 text-[10px] font-bold" />
                                         </div>
                                     </div>
                                     <div>

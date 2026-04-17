@@ -617,6 +617,8 @@ export class BookingsService {
                         select: {
                             id: true,
                             email: true,
+                            phone: true,
+                            whatsappNumber: true,
                             firstName: true,
                             lastName: true,
                         },
@@ -1006,6 +1008,8 @@ export class BookingsService {
                     select: {
                         id: true,
                         email: true,
+                        phone: true,
+                        whatsappNumber: true,
                         firstName: true,
                         lastName: true,
                     },
@@ -1432,6 +1436,7 @@ export class BookingsService {
                     childrenCount: dto.childrenCount,
                     specialRequests: dto.specialRequests,
                     gstNumber: dto.gstNumber,
+                    whatsappNumber: dto.whatsappNumber,
                     // If total is overridden, update it
                     totalAmount: dto.overrideTotal !== undefined ? dto.overrideTotal : undefined,
                 },
@@ -1447,6 +1452,7 @@ export class BookingsService {
                         lastName: dto.guestName?.split(' ').slice(1).join(' '),
                         email: dto.guestEmail,
                         phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
+                        whatsappNumber: dto.whatsappNumber,
                     }
                 });
             }
@@ -1468,6 +1474,7 @@ export class BookingsService {
                                 idType: g.idType,
                                 idNumber: g.idNumber,
                                 idImage: g.idImage,
+                                whatsappNumber: g.whatsappNumber,
                             }
                         });
                     } else {

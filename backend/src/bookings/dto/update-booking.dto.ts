@@ -65,6 +65,11 @@ export class UpdateBookingDto {
     @IsOptional()
     guestPhone?: string;
 
+    @ApiProperty({ example: '+1234567890', required: false })
+    @IsString()
+    @IsOptional()
+    whatsappNumber?: string;
+
     @ApiProperty({ example: '27AAAAA0000A1Z5', required: false })
     @IsString()
     @IsOptional()
