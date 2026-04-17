@@ -649,11 +649,56 @@ export class UsersService {
         });
     }
 
+    async checkUserRelations(userId: string) {
+        const [
+            ownedProperties,
+            bookings,
+            agentBookings,
+            propertyStaff,
+            eventBookings,
+            createdEvents,
+            channelPartner,
+            propertyRequests,
+            manualPayments,
+            adjustments,
+            refunds,
+            reviews
+        ] = await Promise.all([
+            this.prisma.property.count({ where: { ownerId: userId } }),
+            this.prisma.booking.count({ where: { userId: userId } }),
+            this.prisma.booking.count({ where: { agentId: userId } }),
+            this.prisma.propertyStaff.count({ where: { userId: userId } }),
+            this.prisma.eventBooking.count({ where: { userId: userId } }),
+            this.prisma.event.count({ where: { createdById: userId } }),
+            this.prisma.channelPartner.count({ where: { userId: userId } }),
+            this.prisma.propertyRequest.count({ where: { requestedById: userId } }),
+            this.prisma.manualPaymentRequest.count({ where: { requestedById: userId } }),
+            this.prisma.financialAdjustmentRequest.count({ where: { requestedById: userId } }),
+            this.prisma.refundRequest.count({ where: { requestedById: userId } }),
+            this.prisma.review.count({ where: { userId: userId } }),
+        ]);
+
+        const dependencies: string[] = [];
+        if (ownedProperties > 0) dependencies.push(`${ownedProperties} owned properties`);
+        if (bookings > 0) dependencies.push(`${bookings} bookings`);
+        if (agentBookings > 0) dependencies.push(`${agentBookings} agent bookings`);
+        if (propertyStaff > 0) dependencies.push(`${propertyStaff} staff assignments`);
+        if (eventBookings > 0) dependencies.push(`${eventBookings} event bookings`);
+        if (createdEvents > 0) dependencies.push(`${createdEvents} created events`);
+        if (channelPartner > 0) dependencies.push(`channel partner profile`);
+        if (propertyRequests > 0) dependencies.push(`${propertyRequests} property requests`);
+        if (manualPayments > 0) dependencies.push(`${manualPayments} manual payment requests`);
+        if (adjustments > 0) dependencies.push(`${adjustments} financial adjustments`);
+        if (refunds > 0) dependencies.push(`${refunds} refund requests`);
+        if (reviews > 0) dependencies.push(`${reviews} reviews`);
+
+        return dependencies;
+    }
+
     async deleteUserAccount(userId: string) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             include: {
-                ownedProperties: true,
                 roles: {
                     include: {
                         role: true
@@ -666,33 +711,17 @@ export class UsersService {
             throw new NotFoundException('User not found');
         }
 
-        const isPropertyOwner = user.roles.some(ur => ur.role.name === 'PropertyOwner');
-        const isChannelPartner = user.roles.some(ur => ur.role.name === 'ChannelPartner');
-        const timestamp = new Date().getTime();
-        const anonymizedString = `deleted_${timestamp}`;
+        // Check for dependencies
+        const dependencies = await this.checkUserRelations(userId);
+        if (dependencies.length > 0) {
+            throw new BadRequestException(
+                `Cannot delete user account. The following related records must be removed first: ${dependencies.join(', ')}.`
+            );
+        }
 
-        // 2. Perform anonymization and deactivation
+        // Perform hard delete if no dependencies
         return this.prisma.$transaction(async (tx) => {
-            // Deactivate all owned properties
-            if (isPropertyOwner) {
-                await tx.property.updateMany({
-                    where: { ownerId: userId },
-                    data: {
-                        isActive: false,
-                        status: 'INACTIVE'
-                    }
-                });
-            }
-
-            // Deactivate channel partner record
-            if (isChannelPartner) {
-                await tx.channelPartner.update({
-                    where: { userId },
-                    data: { status: 'INACTIVE' }
-                });
-            }
-
-            // Remove roles
+            // Remove roles (not part of the dependency check as they are internal)
             await tx.userRole.deleteMany({
                 where: { userId }
             });
@@ -702,21 +731,14 @@ export class UsersService {
                 where: { userId }
             });
 
-            // Update user record with anonymized data
-            return tx.user.update({
-                where: { id: userId },
-                data: {
-                    email: user.email ? `${anonymizedString}@deleted.com` : null,
-                    phone: user.phone ? `deleted_${timestamp}` : null,
-                    firstName: 'Deleted',
-                    lastName: 'User',
-                    password: null,
-                    avatar: null,
-                    idNumber: null,
-                    whatsappNumber: null,
-                    isActive: false,
-                    fcmToken: null
-                }
+            // Delete audit logs
+            await tx.auditLog.deleteMany({
+                where: { userId }
+            });
+
+            // Finally, delete the user
+            return tx.user.delete({
+                where: { id: userId }
             });
         });
     }

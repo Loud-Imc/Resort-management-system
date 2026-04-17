@@ -246,23 +246,43 @@ export default function CreateRoomType() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Max Children</label>
-                            <input type="number" {...register('maxChildren', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all" />
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                                Max Children
+                                <div className="group/info relative">
+                                    <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 font-medium shadow-xl">
+                                        Total limit on children allowed in the room.
+                                    </div>
+                                </div>
+                            </label>
+                            <input type="number" {...register('maxChildren', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Extra Adult Price (₹)</label>
-                            <input type="number" {...register('extraAdultPrice', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all" />
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                                Extra Adult Price (₹)
+                            </label>
+                            <input type="number" {...register('extraAdultPrice', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Extra Child Price (₹)</label>
-                            <input type="number" {...register('extraChildPrice', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all" />
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                                Extra Child Price (₹)
+                            </label>
+                            <input type="number" {...register('extraChildPrice', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Free Children Count</label>
-                            <input type="number" {...register('freeChildrenCount', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all" />
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                                Free Children Count
+                                <div className="group/info relative">
+                                    <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 font-medium shadow-xl">
+                                        Number of children that stay for free. Extra children (up to Max Children) will be charged the "Extra Child Price".
+                                    </div>
+                                </div>
+                            </label>
+                            <input type="number" {...register('freeChildrenCount', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
                         </div>
 
                         <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">

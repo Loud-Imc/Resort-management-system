@@ -1437,8 +1437,8 @@ export class BookingsService {
                     specialRequests: dto.specialRequests,
                     gstNumber: dto.gstNumber,
                     whatsappNumber: dto.whatsappNumber,
-                    // If total is overridden, update it
-                    totalAmount: dto.overrideTotal !== undefined ? dto.overrideTotal : undefined,
+                    // If total is overridden, update it (protect against NaN)
+                    totalAmount: (dto.overrideTotal !== undefined && !isNaN(dto.overrideTotal)) ? dto.overrideTotal : undefined,
                 },
                 include: { guests: true }
             });
@@ -1450,7 +1450,7 @@ export class BookingsService {
                     data: {
                         firstName: dto.guestName?.split(' ')[0],
                         lastName: dto.guestName?.split(' ').slice(1).join(' '),
-                        email: dto.guestEmail,
+                        email: dto.guestEmail || undefined,
                         phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
                         whatsappNumber: dto.whatsappNumber,
                     }
@@ -1459,28 +1459,48 @@ export class BookingsService {
 
             // Update guests if provided
             if (dto.guests && dto.guests.length > 0) {
-                // Remove old guests and add new ones to be safe, or update existing by index/id
-                // For simplicity in manual edit, we'll try to update existing guest records
                 for (const g of dto.guests) {
-                    const existingGuest = updated.guests.find(eg => eg.email === g.email || eg.phone === g.phone);
-                    if (existingGuest) {
+                    const guestData = {
+                        firstName: g.firstName,
+                        lastName: g.lastName,
+                        email: g.email || null,
+                        phone: g.phone || null,
+                        whatsappNumber: g.whatsappNumber || null,
+                        idType: g.idType || null,
+                        idNumber: g.idNumber || null,
+                        idImage: g.idImage || null,
+                    };
+
+                    if ((g as any).id) {
+                        // Update existing guest by ID
                         await tx.bookingGuest.update({
-                            where: { id: existingGuest.id },
-                            data: {
-                                firstName: g.firstName,
-                                lastName: g.lastName,
-                                email: g.email,
-                                phone: g.phone,
-                                idType: g.idType,
-                                idNumber: g.idNumber,
-                                idImage: g.idImage,
-                                whatsappNumber: g.whatsappNumber,
-                            }
+                            where: { id: (g as any).id },
+                            data: guestData
                         });
+                    } else if (g.email || g.phone) {
+                        // Try matching by email or phone as fallback
+                        const existingGuest = updated.guests.find(eg =>
+                            (g.email && eg.email === g.email) || (g.phone && eg.phone === g.phone)
+                        );
+
+                        if (existingGuest) {
+                            await tx.bookingGuest.update({
+                                where: { id: existingGuest.id },
+                                data: guestData
+                            });
+                        } else {
+                            await tx.bookingGuest.create({
+                                data: {
+                                    ...guestData,
+                                    bookingId: id
+                                }
+                            });
+                        }
                     } else {
+                        // Create new guest if no ID and no contact info provided
                         await tx.bookingGuest.create({
                             data: {
-                                ...g,
+                                ...guestData,
                                 bookingId: id
                             }
                         });
