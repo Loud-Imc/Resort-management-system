@@ -374,30 +374,43 @@ export class BookingsService {
             // 7.1 For guest users, the user creation must be inside the transaction
             // 7.1 Resolve the booking user
             let finalBookingUserId = bookingUserId;
+
             const normalizedPhone = normalizePhone(createBookingDto.guestPhone) || null;
+
+            // Extract fallback info from guests array if top-level fields are missing (e.g. CP portal)
+            let effectiveEmail = lowercaseEmail;
+            let effectivePhone = normalizedPhone;
+            let effectiveName = createBookingDto.guestName;
+
+            if (guests && guests.length > 0) {
+                const g = guests[0];
+                if (!effectiveEmail && g.email) effectiveEmail = g.email.trim().toLowerCase();
+                if (!effectivePhone && g.phone) effectivePhone = normalizePhone(g.phone);
+                if (!effectiveName && (g.firstName || g.lastName)) effectiveName = `${g.firstName || ''} ${g.lastName || ''}`.trim();
+            }
 
             // If it's a manual booking or a guest checkout, we MUST find or create the guest user
             if (isManualBooking || userId === 'GUEST_USER') {
                 let guestUser = await tx.user.findFirst({
                     where: {
                         OR: [
-                            ...(lowercaseEmail ? [{ email: lowercaseEmail }] : []),
-                            ...(normalizedPhone ? [{ phone: normalizedPhone }] : [])
+                            ...(effectiveEmail ? [{ email: effectiveEmail }] : []),
+                            ...(effectivePhone ? [{ phone: effectivePhone }] : [])
                         ],
                     },
                 });
 
                 if (!guestUser) {
-                    console.log(`[BookingsService] [TX] Guest user not found for ${lowercaseEmail || normalizedPhone}. Creating...`);
+                    console.log(`[BookingsService] [TX] Guest user not found for ${effectiveEmail || effectivePhone}. Creating...`);
                     const customerRole = await tx.role.findFirst({ where: { name: 'Customer' } });
                     const roleId = customerRole ? customerRole.id : undefined;
 
                     guestUser = await tx.user.create({
                         data: {
-                            email: lowercaseEmail,
-                            firstName: createBookingDto.guestName?.split(' ')[0] || 'Guest',
-                            lastName: createBookingDto.guestName?.split(' ').slice(1).join(' ') || 'User',
-                            phone: normalizedPhone,
+                            email: effectiveEmail,
+                            firstName: effectiveName?.split(' ')[0] || 'Guest',
+                            lastName: effectiveName?.split(' ').slice(1).join(' ') || '',
+                            phone: effectivePhone,
                             whatsappNumber: createBookingDto.whatsappNumber,
                             password: await bcrypt.hash('GUEST_PASSWORD_PLACEHOLDER', 10),
                             createdById: userId !== 'GUEST_USER' ? userId : undefined,
@@ -408,6 +421,24 @@ export class BookingsService {
                             } : undefined
                         } as any
                     });
+                } else {
+                    // Update existing user profile if name is generic or it's a manual booking override
+                    const isGeneric = !guestUser.firstName || guestUser.firstName.toLowerCase() === 'guest';
+                    if ((isManualBooking || isGeneric) && effectiveName) {
+                        const first = effectiveName.split(' ')[0];
+                        const last = effectiveName.split(' ').slice(1).join(' ');
+
+                        await tx.user.update({
+                            where: { id: guestUser.id },
+                            data: {
+                                firstName: first || guestUser.firstName,
+                                lastName: (last !== undefined ? last : guestUser.lastName) || '',
+                                whatsappNumber: createBookingDto.whatsappNumber || guestUser.whatsappNumber,
+                                email: (effectiveEmail || guestUser.email) || undefined,
+                                phone: (effectivePhone || guestUser.phone) || undefined,
+                            }
+                        });
+                    }
                 }
                 finalBookingUserId = guestUser.id;
             } else {
@@ -415,9 +446,9 @@ export class BookingsService {
                 const currentUser = await tx.user.findUnique({ where: { id: userId } });
                 if (currentUser) {
                     const updateData: any = {};
-                    if (!currentUser.firstName) updateData.firstName = createBookingDto.guestName?.split(' ')[0];
-                    if (!currentUser.lastName) updateData.lastName = createBookingDto.guestName?.split(' ').slice(1).join(' ');
-                    if (!currentUser.email && lowercaseEmail) updateData.email = lowercaseEmail;
+                    if (!currentUser.firstName && effectiveName) updateData.firstName = effectiveName.split(' ')[0];
+                    if (!currentUser.lastName && effectiveName) updateData.lastName = effectiveName.split(' ').slice(1).join(' ');
+                    if (!currentUser.email && effectiveEmail) updateData.email = effectiveEmail;
                     if (!currentUser.whatsappNumber) updateData.whatsappNumber = createBookingDto.whatsappNumber;
 
                     if (Object.keys(updateData).length > 0) {
@@ -586,6 +617,8 @@ export class BookingsService {
                         select: {
                             id: true,
                             email: true,
+                            phone: true,
+                            whatsappNumber: true,
                             firstName: true,
                             lastName: true,
                         },
@@ -975,6 +1008,8 @@ export class BookingsService {
                     select: {
                         id: true,
                         email: true,
+                        phone: true,
+                        whatsappNumber: true,
                         firstName: true,
                         lastName: true,
                     },
@@ -1401,6 +1436,7 @@ export class BookingsService {
                     childrenCount: dto.childrenCount,
                     specialRequests: dto.specialRequests,
                     gstNumber: dto.gstNumber,
+                    whatsappNumber: dto.whatsappNumber,
                     // If total is overridden, update it
                     totalAmount: dto.overrideTotal !== undefined ? dto.overrideTotal : undefined,
                 },
@@ -1416,6 +1452,7 @@ export class BookingsService {
                         lastName: dto.guestName?.split(' ').slice(1).join(' '),
                         email: dto.guestEmail,
                         phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
+                        whatsappNumber: dto.whatsappNumber,
                     }
                 });
             }
@@ -1437,6 +1474,7 @@ export class BookingsService {
                                 idType: g.idType,
                                 idNumber: g.idNumber,
                                 idImage: g.idImage,
+                                whatsappNumber: g.whatsappNumber,
                             }
                         });
                     } else {
