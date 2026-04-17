@@ -46,9 +46,9 @@ export default function UsersList() {
     };
 
     const filteredUsers = users?.filter(user =>
-        user.firstName.toLowerCase().includes(search.toLowerCase()) ||
-        user.lastName.toLowerCase().includes(search.toLowerCase()) ||
-        user.email.toLowerCase().includes(search.toLowerCase())
+        (user.firstName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+        (user.lastName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+        (user.email?.toLowerCase() || '').includes(search.toLowerCase())
     );
 
     if (isLoading) {

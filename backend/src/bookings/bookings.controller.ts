@@ -36,12 +36,14 @@ export class BookingsController {
             dto.isGroupBooking,
             dto.groupSize,
             dto.propertyId,
+            dto.isAdmin,
         );
 
         const availableCount = await this.availabilityService.getAvailableRoomCount(
             dto.roomTypeId || '',
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
+            dto.isAdmin,
         );
 
         let allocationPreview: any[] = [];
@@ -65,7 +67,8 @@ export class BookingsController {
                 const availableForType = await this.availabilityService.getAvailableRooms(
                     type.id,
                     new Date(dto.checkInDate),
-                    new Date(dto.checkOutDate)
+                    new Date(dto.checkOutDate),
+                    dto.isAdmin
                 );
                 roomList.push(...availableForType.map(r => ({
                     id: r.id,
@@ -85,7 +88,8 @@ export class BookingsController {
             const availableRooms = await this.availabilityService.getAvailableRooms(
                 dto.roomTypeId,
                 new Date(dto.checkInDate),
-                new Date(dto.checkOutDate)
+                new Date(dto.checkOutDate),
+                dto.isAdmin
             );
             roomList = availableRooms.map(r => ({
                 id: r.id,

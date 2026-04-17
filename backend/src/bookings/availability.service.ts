@@ -21,13 +21,15 @@ export class AvailabilityService {
         isGroupBooking: boolean = false,
         groupSize?: number,
         propertyId?: string,
+        includeAllStatus: boolean = false,
     ): Promise<boolean> {
         if (isGroupBooking && groupSize && propertyId) {
             const allocated = await this.allocateRoomsForGroup(
                 propertyId,
                 checkInDate,
                 checkOutDate,
-                groupSize
+                groupSize,
+                includeAllStatus
             );
             return allocated.length > 0;
         }
@@ -38,6 +40,7 @@ export class AvailabilityService {
             roomTypeId,
             checkInDate,
             checkOutDate,
+            includeAllStatus
         );
         return availableRooms.length > 0;
     }
@@ -51,6 +54,7 @@ export class AvailabilityService {
         checkIn: Date,
         checkOut: Date,
         groupSize: number,
+        includeAllStatus: boolean = false,
     ) {
         // Find all RoomTypes in the Group Pool for this property
         const groupPoolTypes = await this.prisma.roomType.findMany({
@@ -67,7 +71,7 @@ export class AvailabilityService {
         // Find all available rooms across these types
         let allAvailableRooms: any[] = [];
         for (const type of groupPoolTypes) {
-            const availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut);
+            const availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut, includeAllStatus);
             allAvailableRooms.push(...availableForType.map(r => ({
                 ...r,
                 roomType: type,
@@ -109,6 +113,7 @@ export class AvailabilityService {
         roomTypeId: string,
         checkInDate: Date,
         checkOutDate: Date,
+        includeAllStatus: boolean = false,
     ) {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
@@ -120,9 +125,11 @@ export class AvailabilityService {
             where: {
                 roomTypeId,
                 isEnabled: true,
-                status: {
-                    in: ['AVAILABLE', 'OCCUPIED'],
-                },
+                ...(includeAllStatus ? {} : {
+                    status: {
+                        in: ['AVAILABLE', 'OCCUPIED'],
+                    },
+                }),
             },
         });
 
@@ -166,7 +173,7 @@ export class AvailabilityService {
                 AND: [
                     {
                         OR: [
-                            { status: { in: ['CONFIRMED', 'RESERVED', 'CHECKED_IN'] } },
+                            { status: { in: ['CONFIRMED', 'RESERVED', 'CHECKED_IN', 'CHECKED_OUT'] } },
                             {
                                 AND: [
                                     { status: 'PENDING_PAYMENT' },
@@ -249,11 +256,13 @@ export class AvailabilityService {
         roomTypeId: string,
         checkInDate: Date,
         checkOutDate: Date,
+        includeAllStatus: boolean = false,
     ): Promise<number> {
         const availableRooms = await this.getAvailableRooms(
             roomTypeId,
             checkInDate,
             checkOutDate,
+            includeAllStatus
         );
         return availableRooms.length;
     }
