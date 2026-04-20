@@ -6,6 +6,17 @@
 
 */
 -- AlterTable
-ALTER TABLE "offers" DROP COLUMN "discountPercentage",
-ADD COLUMN     "discountType" "DiscountType" NOT NULL DEFAULT 'PERCENTAGE',
-ADD COLUMN     "discountValue" DECIMAL(10,2) NOT NULL;
+ALTER TABLE "offers" ADD COLUMN "discountType" "DiscountType" NOT NULL DEFAULT 'PERCENTAGE';
+ALTER TABLE "offers" ADD COLUMN "discountValue" DECIMAL(10,2);
+
+-- Migrate data
+UPDATE "offers" SET "discountValue" = "discountPercentage";
+
+-- Handle potential nulls
+UPDATE "offers" SET "discountValue" = 0 WHERE "discountValue" IS NULL;
+
+-- Make NOT NULL
+ALTER TABLE "offers" ALTER COLUMN "discountValue" SET NOT NULL;
+
+-- Drop old column
+ALTER TABLE "offers" DROP COLUMN "discountPercentage";
