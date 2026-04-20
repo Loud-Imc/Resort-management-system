@@ -68,6 +68,8 @@ export interface Property {
     groupPricePerHead?: number;
     groupPriceAdult?: number;
     groupPriceChild?: number;
+    defaultCheckInTime?: string;
+    defaultCheckOutTime?: string;
     isRequest?: boolean;
     location?: string;
     details?: any;

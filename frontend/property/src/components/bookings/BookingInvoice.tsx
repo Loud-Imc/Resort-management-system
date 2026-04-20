@@ -118,14 +118,24 @@ export const BookingInvoice = forwardRef<HTMLDivElement, BookingInvoiceProps>(({
                                         <span className="text-[10px] text-gray-400 uppercase tracking-widest font-black">Check In</span>
                                         <div className="flex items-center gap-2 text-gray-800">
                                             <Calendar className="h-4 w-4 text-teal-500" />
-                                            <span className="font-bold">{format(new Date(booking.checkInDate), 'MMM d, yyyy')}</span>
+                                            <span className="font-bold">
+                                                {format(new Date(booking.checkInDate), 'MMM d, yyyy')}
+                                                {(booking as any).checkedInAt
+                                                    ? ` at ${format(new Date((booking as any).checkedInAt), 'hh:mm a')}`
+                                                    : ` at ${format(new Date(`2000-01-01T${property?.defaultCheckInTime || '14:00'}:00`), 'hh:mm a')}`}
+                                            </span>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
                                         <span className="text-[10px] text-gray-400 uppercase tracking-widest font-black">Check Out</span>
                                         <div className="flex items-center gap-2 text-gray-800">
                                             <Calendar className="h-4 w-4 text-teal-500" />
-                                            <span className="font-bold">{format(new Date(booking.checkOutDate), 'MMM d, yyyy')}</span>
+                                            <span className="font-bold">
+                                                {format(new Date(booking.checkOutDate), 'MMM d, yyyy')}
+                                                {(booking as any).checkedOutAt
+                                                    ? ` at ${format(new Date((booking as any).checkedOutAt), 'hh:mm a')}`
+                                                    : ` at ${format(new Date(`2000-01-01T${property?.defaultCheckOutTime || '11:00'}:00`), 'hh:mm a')}`}
+                                            </span>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
@@ -247,7 +257,7 @@ export const BookingInvoice = forwardRef<HTMLDivElement, BookingInvoiceProps>(({
                         <div className="grid grid-cols-2 gap-8">
                             <ul className="text-[11px] text-gray-500 space-y-2 list-disc pl-4 font-medium">
                                 <li>Please present a valid ID for all guests at check-in (Aadhar/Passport).</li>
-                                <li>Standard Check-in: 02:00 PM | Check-out: 11:00 AM.</li>
+                                <li>Standard Check-in: {format(new Date(`2000-01-01T${property?.defaultCheckInTime || '14:00'}:00`), 'hh:mm a')} | Check-out: {format(new Date(`2000-01-01T${property?.defaultCheckOutTime || '11:00'}:00`), 'hh:mm a')}.</li>
                                 <li>Early check-in is subject to room availability.</li>
                             </ul>
                             <ul className="text-[11px] text-gray-500 space-y-2 list-disc pl-4 font-medium">
