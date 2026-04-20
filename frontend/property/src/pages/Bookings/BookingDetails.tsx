@@ -186,7 +186,11 @@ const BookingDetails = () => {
                                 <div className="pl-1">
                                     <p className="text-2xl font-black text-foreground">{format(new Date(booking.checkInDate), 'dd MMM')}</p>
                                     <p className="text-sm font-bold text-muted-foreground">{format(new Date(booking.checkInDate), 'yyyy')}</p>
-                                    <p className="text-[11px] font-medium text-primary mt-1">Standard: 02:00 PM</p>
+                                    <p className="text-[11px] font-medium text-primary mt-1">
+                                        {(booking as any).checkedInAt
+                                            ? `Actual: ${format(new Date((booking as any).checkedInAt), 'hh:mm a')}`
+                                            : `Standard: ${format(new Date(`2000-01-01T${property?.defaultCheckInTime || '14:00'}:00`), 'hh:mm a')}`}
+                                    </p>
                                 </div>
                             </div>
 
@@ -208,7 +212,11 @@ const BookingDetails = () => {
                                 <div className="pr-1">
                                     <p className="text-2xl font-black text-foreground">{format(new Date(booking.checkOutDate), 'dd MMM')}</p>
                                     <p className="text-sm font-bold text-muted-foreground">{format(new Date(booking.checkOutDate), 'yyyy')}</p>
-                                    <p className="text-[11px] font-medium text-amber-600 mt-1">Standard: 11:00 AM</p>
+                                    <p className="text-[11px] font-medium text-amber-600 mt-1">
+                                        {(booking as any).checkedOutAt
+                                            ? `Actual: ${format(new Date((booking as any).checkedOutAt), 'hh:mm a')}`
+                                            : `Standard: ${format(new Date(`2000-01-01T${property?.defaultCheckOutTime || '11:00'}:00`), 'hh:mm a')}`}
+                                    </p>
                                 </div>
                             </div>
                         </div>

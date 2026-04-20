@@ -121,8 +121,8 @@ export class PricingService {
             (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
         );
 
-        if (numberOfNights <= 0) {
-            throw new BadRequestException('Check-out date must be after check-in date');
+        if (numberOfNights < 0) {
+            throw new BadRequestException('Check-out date cannot be before check-in date');
         }
 
         // For standard bookings: guests beyond maxAdults/maxChildren are permitted
@@ -190,23 +190,23 @@ export class PricingService {
                     basePricePerNight = adultPrice * groupSize;
                 }
             }
-            baseAmount = basePricePerNight * numberOfNights;
+            baseAmount = basePricePerNight * Math.max(1, numberOfNights);
         } else {
             // Standard pricing (nights * base price for X rooms)
             const rooms = requestedRoomCount || 1;
             basePricePerNight = effectiveBasePrice * rooms;
-            baseAmount = basePricePerNight * numberOfNights;
+            baseAmount = basePricePerNight * Math.max(1, numberOfNights);
 
             // 4. Calculate extra adult charges
             // Extra adults are charged when guest count exceeds combined rooms' maxAdults capacity
             const totalMaxAdults = Number(roomType.maxAdults) * rooms;
             const extraAdults = Math.max(0, adultsCount - totalMaxAdults);
-            extraAdultAmount = extraAdults * effectiveExtraAdultPrice * numberOfNights;
+            extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
 
             // 5. Calculate extra child charges
             const totalMaxChildren = Number(roomType.maxChildren) * rooms;
             const extraChildren = Math.max(0, childrenCount - totalMaxChildren);
-            extraChildAmount = extraChildren * effectiveExtraChildPrice * numberOfNights;
+            extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
         }
 
         // 6. Apply seasonal pricing rules if any
@@ -230,8 +230,9 @@ export class PricingService {
         const subtotalBeforeDiscounts = subtotal;
         let originalTaxAmount = 0;
         const gstTiersForOriginal = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
-        for (let i = 0; i < numberOfNights; i++) {
-            const subtotalThisNight = subtotalBeforeDiscounts / numberOfNights;
+        const originalEffectiveNights = Math.max(1, numberOfNights);
+        for (let i = 0; i < originalEffectiveNights; i++) {
+            const subtotalThisNight = subtotalBeforeDiscounts / originalEffectiveNights;
             if (isGroupBooking && groupSize) {
                 const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
                 const numberOfRooms = Math.ceil(groupSize / roomCapacity);
@@ -337,9 +338,10 @@ export class PricingService {
         let totalTaxAmount = 0;
 
         // Iterate through each night to handle seasonal pricing variations
-        for (let i = 0; i < numberOfNights; i++) {
+        const taxEffectiveNights = Math.max(1, numberOfNights);
+        for (let i = 0; i < taxEffectiveNights; i++) {
             // Per-night taxable amount (average across nights)
-            const subtotalThisNight = subtotal / numberOfNights;
+            const subtotalThisNight = subtotal / taxEffectiveNights;
 
             if (isGroupBooking && groupSize) {
                 // Split into rooms using room capacity, calculate GST per room

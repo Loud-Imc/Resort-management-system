@@ -57,6 +57,8 @@ export default function MyProperty() {
     const [groupPricePerHead, setGroupPricePerHead] = useState<number | ''>('');
     const [groupPriceAdult, setGroupPriceAdult] = useState<number | ''>('');
     const [groupPriceChild, setGroupPriceChild] = useState<number | ''>('');
+    const [defaultCheckInTime, setDefaultCheckInTime] = useState<string>('14:00');
+    const [defaultCheckOutTime, setDefaultCheckOutTime] = useState<string>('11:00');
     const [amenities, setAmenities] = useState<string[]>([]);
     const [newAmenity, setNewAmenity] = useState('');
     const [images, setImages] = useState<string[]>([]);
@@ -119,6 +121,8 @@ export default function MyProperty() {
                     groupPricePerHead: reqDetails.groupPricePerHead || '',
                     groupPriceAdult: reqDetails.groupPriceAdult || '',
                     groupPriceChild: reqDetails.groupPriceChild || '',
+                    defaultCheckInTime: reqDetails.defaultCheckInTime || '14:00',
+                    defaultCheckOutTime: reqDetails.defaultCheckOutTime || '11:00',
                     platformCommission: (selectedProperty as any).platformCommission || 10.00
                 };
                 setProperty(reqProperty as Property);
@@ -157,6 +161,8 @@ export default function MyProperty() {
         setGroupPricePerHead(p.groupPricePerHead ?? '');
         setGroupPriceAdult(p.groupPriceAdult ?? '');
         setGroupPriceChild(p.groupPriceChild ?? '');
+        setDefaultCheckInTime((p as any).defaultCheckInTime ?? '14:00');
+        setDefaultCheckOutTime((p as any).defaultCheckOutTime ?? '11:00');
     };
 
     const handleSave = async () => {
@@ -171,6 +177,8 @@ export default function MyProperty() {
                 groupPricePerHead: groupPricePerHead === '' ? null : Number(groupPricePerHead),
                 groupPriceAdult: groupPriceAdult === '' ? null : Number(groupPriceAdult),
                 groupPriceChild: groupPriceChild === '' ? null : Number(groupPriceChild),
+                defaultCheckInTime,
+                defaultCheckOutTime,
             };
 
             // Only include commission if platform admin
@@ -412,6 +420,10 @@ export default function MyProperty() {
                         onChange={setPhone} editMode={editMode} type="tel" />
                     <Field label="WhatsApp" icon={<Phone className="h-4 w-4" />} value={whatsappNumber}
                         onChange={setWhatsappNumber} editMode={editMode} type="tel" />
+                    <Field label="Check-In Time" icon={<Clock className="h-4 w-4" />} value={defaultCheckInTime}
+                        onChange={setDefaultCheckInTime} editMode={editMode} type="time" />
+                    <Field label="Check-Out Time" icon={<Clock className="h-4 w-4" />} value={defaultCheckOutTime}
+                        onChange={setDefaultCheckOutTime} editMode={editMode} type="time" />
                 </div>
 
                 <div className={clsx(
