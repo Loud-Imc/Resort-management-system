@@ -2,7 +2,18 @@
 @config "../tailwind.config.js";
 
 @layer base {
-  :root {
+  /* Disable number input arrows and scroll-wheel changes */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+:root {
     --background: 210 40% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;

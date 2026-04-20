@@ -24,6 +24,13 @@ export class CreateRoomTypeDto {
     @Type(() => Number)
     basePrice: number;
 
+    @ApiProperty({ example: 6000, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    @Type(() => Number)
+    originalPrice?: number;
+
     @ApiProperty({ example: 1000 })
     @IsNumber()
     @Min(0)

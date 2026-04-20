@@ -1,6 +1,17 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
+/* Disable number input arrows and scroll-wheel changes */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
 @layer base {
   body {
     @apply antialiased text-gray-900 bg-white;

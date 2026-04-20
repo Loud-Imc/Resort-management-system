@@ -35,6 +35,8 @@ import CalendarSync from './pages/Property/CalendarSync';
 import Notifications from './pages/Notifications';
 import AccountSettings from './pages/AccountSettings';
 import DeleteAccount from './pages/DeleteAccount';
+import OffersList from './pages/Marketing/OffersList';
+import CreateOffer from './pages/Marketing/CreateOffer';
 
 const queryClient = new QueryClient();
 
@@ -79,6 +81,11 @@ function App() {
                     <Route path="payments" element={<PaymentsList />} />
                     <Route path="financials" element={<Financials />} />
                     <Route path="booking-sources" element={<BookingSourcesList />} />
+
+                    {/* Marketing & Offers */}
+                    <Route path="marketing/offers" element={<OffersList />} />
+                    <Route path="marketing/offers/create" element={<CreateOffer />} />
+                    <Route path="marketing/offers/edit/:id" element={<CreateOffer />} />
 
                     {/* Team & Roles */}
                     <Route path="team" element={<StaffList />} />

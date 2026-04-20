@@ -400,14 +400,21 @@ async function main() {
         if (firstRoomType) {
             await prisma.offer.upsert({
                 where: { id: 'sample-offer-1' },
-                update: { roomTypeId: firstRoomType.id },
+                update: {
+                    roomTypes: {
+                        set: [{ id: firstRoomType.id }]
+                    }
+                },
                 create: {
                     id: 'sample-offer-1',
                     name: 'Inaugural Discount',
-                    discountPercentage: 15,
+                    discountType: 'PERCENTAGE',
+                    discountValue: 15,
                     startDate: new Date(),
                     endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                    roomTypeId: firstRoomType.id,
+                    roomTypes: {
+                        connect: [{ id: firstRoomType.id }]
+                    },
                     isActive: true
                 }
             });

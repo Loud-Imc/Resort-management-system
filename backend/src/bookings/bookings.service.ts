@@ -1016,6 +1016,15 @@ export class BookingsService {
                 },
                 bookingSource: true,
                 payments: true,
+                roomBlocks: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                }
             },
         });
 
@@ -1522,6 +1531,36 @@ export class BookingsService {
         });
     }
 
+    async getDeleteDependencies(id: string, user: any) {
+        const booking = await this.prisma.booking.findUnique({
+            where: { id },
+            include: {
+                guests: true,
+                payments: true,
+                income: true,
+                propertySettlement: true,
+                cpTransactions: true,
+                manualPaymentRequests: true,
+                review: true,
+                roomBlocks: true,
+            }
+        });
+
+        if (!booking) throw new NotFoundException('Booking not found');
+
+        return {
+            guests: booking.guests.length,
+            payments: booking.payments.length,
+            income: booking.income.length,
+            settlements: booking.propertySettlement ? 1 : 0,
+            cpTransactions: booking.cpTransactions.length,
+            manualPaymentRequests: booking.manualPaymentRequests.length,
+            reviews: booking.review ? 1 : 0,
+            roomBlocks: booking.roomBlocks.length,
+            isManual: booking.isManualBooking
+        };
+    }
+
     async remove(id: string, user: any) {
         const booking = await this.findOne(id, user);
 
@@ -1530,7 +1569,11 @@ export class BookingsService {
         }
 
         return this.prisma.$transaction(async (tx) => {
-            // Delete related records
+            // Delete related records in specific order to avoid constraint issues
+            await tx.propertySettlement.deleteMany({ where: { bookingId: id } });
+            await tx.cPTransaction.deleteMany({ where: { bookingId: id } });
+            await tx.manualPaymentRequest.deleteMany({ where: { bookingId: id } });
+            await tx.review.deleteMany({ where: { bookingId: id } });
             await tx.income.deleteMany({ where: { bookingId: id } });
             await tx.payment.deleteMany({ where: { bookingId: id } });
             await tx.bookingGuest.deleteMany({ where: { bookingId: id } });

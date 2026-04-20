@@ -65,4 +65,9 @@ export const bookingsService = {
         const { data } = await api.delete<{ message: string; id: string }>(`/bookings/${id}`);
         return data;
     },
+
+    getDeleteDependencies: async (id: string) => {
+        const { data } = await api.get<any>(`/bookings/${id}/delete-dependencies`);
+        return data;
+    },
 };

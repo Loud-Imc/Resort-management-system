@@ -254,9 +254,16 @@ export default function RoomDetail() {
                                 </div>
                                 <div className="bg-primary-50 rounded-2xl p-6 text-right border border-primary-100">
                                     <p className="text-gray-500 text-xs font-bold uppercase mb-1">Starting from</p>
-                                    <div className="flex items-baseline justify-end gap-1">
-                                        <span className="text-3xl font-black text-primary-700">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
-                                        <span className="text-gray-500 text-sm font-medium">/ night</span>
+                                    <div className="flex flex-col items-end gap-1">
+                                        {roomType.originalPrice && roomType.originalPrice > roomType.basePrice && (
+                                            <span className="text-sm text-gray-400 line-through decoration-red-400">
+                                                {formatPrice(roomType.originalPrice, selectedCurrency, rates)}
+                                            </span>
+                                        )}
+                                        <div className="flex items-baseline justify-end gap-1">
+                                            <span className="text-3xl font-black text-primary-700">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
+                                            <span className="text-gray-500 text-sm font-medium">/ night</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -416,7 +423,27 @@ export default function RoomDetail() {
                                         <div className="space-y-3 py-4 border-y border-gray-50">
                                             <div className="flex justify-between text-gray-500 text-sm font-medium">
                                                 <span>{roomType.isGstInclusive ? 'Room Charges (GST Inc.)' : 'Base Price (1 Night)'}</span>
-                                                <span className="text-gray-900">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
+                                                <div className="text-right flex flex-col items-end">
+                                                    {Number(roomType.offerDiscountAmount) > 0 ? (
+                                                        <>
+                                                            <span className="text-xs text-gray-400 line-through decoration-red-400">
+                                                                {formatPrice(roomType.basePrice, selectedCurrency, rates)}
+                                                            </span>
+                                                            <span className="text-gray-900 font-bold text-orange-600">
+                                                                {formatPrice(roomType.discountedPricePerNight || roomType.basePrice, selectedCurrency, rates)}
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {roomType.originalPrice && roomType.originalPrice > roomType.basePrice && (
+                                                                <span className="text-xs text-gray-400 line-through decoration-red-400">
+                                                                    {formatPrice(roomType.originalPrice, selectedCurrency, rates)}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-gray-900">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                             {!roomType.isGstInclusive && (
                                                 <div className="flex justify-between text-gray-500 text-[10px] font-bold uppercase tracking-tight italic">
@@ -426,7 +453,9 @@ export default function RoomDetail() {
                                             )}
                                             <div className="flex justify-between text-gray-900 font-black text-lg pt-2">
                                                 <span>{roomType.isGstInclusive ? 'Total Price' : 'Subtotal'}</span>
-                                                <span className="text-primary-600">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
+                                                <span className={clsx(Number(roomType.offerDiscountAmount) > 0 ? "text-orange-600" : "text-primary-600")}>
+                                                    {formatPrice(roomType.discountedPricePerNight || roomType.basePrice, selectedCurrency, rates)}
+                                                </span>
                                             </div>
                                             {roomType.isGstInclusive && (
                                                 <div className="text-[10px] text-green-600 font-bold uppercase tracking-tight text-right -mt-1">

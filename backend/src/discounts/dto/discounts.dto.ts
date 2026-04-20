@@ -1,5 +1,6 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEnum, IsNumber, IsOptional, IsDateString, Min } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { PartialType } from '@nestjs/mapped-types';
+import { IsString, IsNotEmpty, IsEnum, IsNumber, IsOptional, IsDateString, Min, IsArray, ArrayNotEmpty } from 'class-validator';
 
 export enum DiscountType {
     PERCENTAGE = 'PERCENTAGE',
@@ -55,6 +56,7 @@ export class UpdateCouponDto extends PartialType(CreateCouponDto) { }
 
 export class CreateOfferDto {
     @ApiProperty({ example: 'Inaugural Offer' })
+    @IsOptional()
     @IsString()
     @IsNotEmpty()
     name: string;
@@ -64,23 +66,33 @@ export class CreateOfferDto {
     @IsOptional()
     description?: string;
 
+    @ApiProperty({ enum: DiscountType, example: DiscountType.PERCENTAGE })
+    @IsEnum(DiscountType)
+    @IsOptional()
+    discountType?: DiscountType;
+
     @ApiProperty({ example: 15 })
+    @IsOptional()
     @IsNumber()
     @Min(0)
-    discountPercentage: number;
+    discountValue: number;
 
     @ApiProperty({ example: '2026-02-10T00:00:00Z' })
+    @IsOptional()
     @IsDateString()
     startDate: string;
 
     @ApiProperty({ example: '2026-03-10T23:59:59Z' })
+    @IsOptional()
     @IsDateString()
     endDate: string;
 
-    @ApiProperty({ example: 'room-type-uuid' })
-    @IsString()
-    @IsNotEmpty()
-    roomTypeId: string;
+    @ApiProperty({ example: ['room-type-uuid-1', 'room-type-uuid-2'] })
+    @IsOptional()
+    @IsArray()
+    @ArrayNotEmpty()
+    @IsString({ each: true })
+    roomTypeIds: string[];
 
     @ApiProperty({ example: true })
     @IsOptional()

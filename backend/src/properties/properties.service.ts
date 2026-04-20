@@ -732,7 +732,39 @@ export class PropertiesService {
             throw new NotFoundException('Property not found');
         }
 
-        return property;
+        // Map offers to virtual fields for frontend strikethrough
+        const propertyWithOffers = {
+            ...property,
+            roomTypes: property.roomTypes.map(rt => {
+                const activeOffer = rt.offers?.[0];
+                let offerDiscountAmount = 0;
+                let discountedPricePerNight = Number(rt.basePrice);
+
+                if (activeOffer) {
+                    if (activeOffer.discountType === 'PERCENTAGE') {
+                        offerDiscountAmount = (Number(rt.basePrice) * Number(activeOffer.discountValue)) / 100;
+                    } else {
+                        offerDiscountAmount = Number(activeOffer.discountValue);
+                    }
+                    discountedPricePerNight = Number(rt.basePrice) - offerDiscountAmount;
+                }
+
+                // Sync with public portal tax logic (12% GST fallback if not inclusive)
+                if (!rt.isGstInclusive) {
+                    const taxRate = 0.12; // Standard 12% GST
+                    discountedPricePerNight = discountedPricePerNight * (1 + taxRate);
+                    offerDiscountAmount = offerDiscountAmount * (1 + taxRate);
+                }
+
+                return {
+                    ...rt,
+                    offerDiscountAmount,
+                    discountedPricePerNight: Number(discountedPricePerNight.toFixed(2)),
+                };
+            }),
+        };
+
+        return propertyWithOffers;
     }
 
     async findById(id: string, requestUser?: any) {

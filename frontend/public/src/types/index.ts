@@ -3,6 +3,7 @@ export interface RoomType {
     name: string;
     description: string;
     basePrice: number;
+    originalPrice?: number;
     capacity: number;
     maxAdults: number;
     maxChildren: number;
@@ -17,12 +18,15 @@ export interface RoomType {
     marketingBadgeType?: string;
     totalPrice?: number;
     baseAmount?: number;
+    offerDiscountAmount?: number;
     taxAmount?: number;
     taxRate?: number;
     extraAdultAmount?: number;
     extraChildAmount?: number;
     pricePerNight?: number;
+    discountedPricePerNight?: number;
     numberOfNights?: number;
+    targetCurrency?: string;
     activeOffer?: any;
     offers?: any[];
     isSoldOut?: boolean;
@@ -33,6 +37,7 @@ export interface RoomType {
     groupMaxOccupancy?: number;
     groupPricePerHead?: number;
     isGstInclusive?: boolean;
+    offerName?: string;
 }
 
 export interface BookingSearchParams {

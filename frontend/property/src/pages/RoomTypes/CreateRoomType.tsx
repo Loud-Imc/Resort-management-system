@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
 import { useProperty } from '../../context/PropertyContext';
 import ImageUpload from '../../components/ImageUpload';
-import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag } from 'lucide-react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../types/room';
@@ -39,6 +39,7 @@ const roomTypeSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().optional(),
     basePrice: z.number().min(0, 'Price must be positive'),
+    originalPrice: z.number().optional().nullable(),
     maxAdults: z.number().min(1, 'At least 1 adult'),
     maxChildren: z.number().min(0),
     isPubliclyVisible: z.boolean(),
@@ -57,6 +58,14 @@ const roomTypeSchema = z.object({
     isAvailableForGroupBooking: z.boolean(),
     groupMaxOccupancy: z.number().min(0).optional(),
     isGstInclusive: z.boolean(),
+}).refine(data => {
+    if (data.originalPrice && data.originalPrice <= data.basePrice) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Original price (MRP) must be higher than base price",
+    path: ["originalPrice"]
 });
 
 type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
@@ -81,7 +90,9 @@ export default function CreateRoomType() {
         resolver: zodResolver(roomTypeSchema),
         defaultValues: {
             isPubliclyVisible: true,
-            basePrice: 0, maxAdults: 2, maxChildren: 0,
+            basePrice: 0,
+            originalPrice: null,
+            maxAdults: 2, maxChildren: 0,
             extraAdultPrice: 0, extraChildPrice: 0, freeChildrenCount: 0,
             amenities: [], highlights: [], inclusions: [],
             cancellationPolicy: '',
@@ -104,6 +115,7 @@ export default function CreateRoomType() {
                 name: existingRoomType.name,
                 description: existingRoomType.description || '',
                 basePrice: Number(existingRoomType.basePrice),
+                originalPrice: existingRoomType.originalPrice ? Number(existingRoomType.originalPrice) : null,
                 maxAdults: existingRoomType.maxAdults,
                 maxChildren: existingRoomType.maxChildren,
                 isPubliclyVisible: existingRoomType.isPubliclyVisible,
@@ -227,6 +239,45 @@ export default function CreateRoomType() {
                                         When enabled, the Base Price is treated as the final amount including tax. The system back-calculates tax for reports.
                                     </p>
                                 )}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                                Market Price (Static Strikethrough) (₹)
+                                <div className="group/info relative">
+                                    <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 font-medium shadow-xl">
+                                        Fixed strikethrough price (MRP) shown on website. For time-bound festival deals, use "Offers & Marketing".
+                                    </div>
+                                </div>
+                            </label>
+                            <input
+                                type="number"
+                                {...register('originalPrice', { valueAsNumber: true })}
+                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black placeholder:font-bold"
+                                placeholder="e.g. 6000"
+                            />
+                            {errors.originalPrice && <p className="text-red-500 text-xs mt-1 font-bold">{errors.originalPrice.message}</p>}
+                        </div>
+
+                        {/* Offers & Marketing Section */}
+                        <div className="md:col-span-1 p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30 rounded-2xl flex items-start gap-3">
+                            <div className="p-2 bg-white dark:bg-orange-900/20 rounded-xl shadow-sm border border-orange-100 dark:border-orange-800">
+                                <Tag className="h-5 w-5 text-orange-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-black text-orange-900 dark:text-orange-400 uppercase tracking-wider mb-0.5">Dynamic Festival Pricing</h3>
+                                <p className="text-[10px] text-orange-700 dark:text-orange-500 font-medium leading-relaxed mb-2">
+                                    Schedule time-bound discounts for festivals or weekends. These will automatically override the base price.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/marketing/offers')}
+                                    className="text-[10px] font-black uppercase tracking-widest text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-all"
+                                >
+                                    Manage Scheduled Offers <ArrowLeft className="h-3 w-3 rotate-180" />
+                                </button>
                             </div>
                         </div>
 

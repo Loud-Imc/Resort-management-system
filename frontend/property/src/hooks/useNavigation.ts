@@ -13,7 +13,8 @@ import {
     Briefcase,
     Shield,
     Building2,
-    RefreshCw
+    RefreshCw,
+    Tag
 } from 'lucide-react';
 
 export function useNavigation() {
@@ -64,6 +65,10 @@ export function useNavigation() {
 
             ...(hasPermission('reports.viewFinancial') ? [
                 { icon: DollarSign, label: 'Financials', path: '/financials' },
+            ] : []),
+
+            ...(hasPermission('marketing.read') ? [
+                { icon: Tag, label: 'Offers & Marketing', path: '/marketing/offers' },
             ] : []),
 
             ...(hasPermission('bookingSources.read') ? [

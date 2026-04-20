@@ -119,6 +119,7 @@ model RoomType {
   description                String?
   amenities                  String[]
   basePrice                  Decimal             @db.Decimal(10, 2)
+  originalPrice              Decimal?            @db.Decimal(10, 2)
   extraAdultPrice            Decimal             @db.Decimal(10, 2)
   extraChildPrice            Decimal             @db.Decimal(10, 2)
   freeChildrenCount          Int                 @default(0)
@@ -152,17 +153,17 @@ model RoomType {
 }
 
 model Offer {
-  id                 String   @id @default(uuid())
-  name               String
-  description        String?
-  discountPercentage Decimal  @db.Decimal(5, 2)
-  startDate          DateTime
-  endDate            DateTime
-  isActive           Boolean  @default(true)
-  roomTypeId         String
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  roomType           RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  id            String       @id @default(uuid())
+  name          String
+  description   String?
+  discountType  DiscountType @default(PERCENTAGE)
+  discountValue Decimal      @db.Decimal(10, 2)
+  startDate     DateTime
+  endDate       DateTime
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  roomTypes     RoomType[]
 
   @@map("offers")
 }

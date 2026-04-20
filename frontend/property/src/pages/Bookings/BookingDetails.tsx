@@ -15,11 +15,14 @@ import {
     Mail,
     Phone,
     Clock,
-    House
+    House,
+    X,
+    Receipt
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { BookingInvoice } from '../../components/bookings/BookingInvoice';
+import type { Booking } from '../../types/booking';
 import { useRef } from 'react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -34,7 +37,9 @@ const BookingDetails = () => {
         queryKey: ['booking', id],
         queryFn: () => bookingsService.getById(id!),
         enabled: !!id,
-    });
+    }) as { data: Booking | undefined, isLoading: boolean, error: any };
+
+    const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
 
     if (isLoading) {
         return (
@@ -213,34 +218,64 @@ const BookingDetails = () => {
                     <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 shadow-sm">
                         <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-8 flex items-center gap-3">
                             <House className="h-4 w-4 text-primary" />
-                            Accommodation Details
+                            Accommodation Breakdown
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="flex items-start gap-6">
-                                <div className="h-20 w-20 rounded-3xl bg-muted overflow-hidden">
-                                    {roomType?.images?.[0] ? (
-                                        <img src={roomType.images[0]} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center"><House className="h-8 w-8 text-muted-foreground" /></div>
-                                    )}
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{roomType?.name}</p>
-                                    <p className="text-xl font-black text-foreground mb-2">Room Unit {booking.room?.roomNumber}</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full font-bold text-muted-foreground">{booking.adultsCount} Adults</span>
-                                        <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full font-bold text-muted-foreground">{booking.childrenCount} Children</span>
+                        <div className="space-y-6">
+                            {/* Primary Room */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
+                                <div className="flex items-start gap-6">
+                                    <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
+                                        {roomType?.images?.[0] ? (
+                                            <img src={roomType.images[0]} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center"><House className="h-6 w-6 text-muted-foreground" /></div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{roomType?.name}</p>
+                                        <p className="text-lg font-black text-foreground">Room Unit {booking.room?.roomNumber}</p>
+                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Primary Accommodation</p>
                                     </div>
                                 </div>
-                            </div>
-                            <div className="p-6 bg-muted/30 rounded-3xl border border-border/50 space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <MapPin className="h-4 w-4 text-primary" />
-                                    <p className="text-xs font-bold text-foreground">{property?.name}</p>
+                                <div className="flex flex-wrap gap-2 md:justify-end">
+                                    <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.adultsCount} Adults</span>
+                                    <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.childrenCount} Children</span>
                                 </div>
-                                <p className="text-[11px] text-muted-foreground font-medium leading-relaxed italic">
-                                    {property?.address}, {property?.city}, {property?.state}
-                                </p>
+                            </div>
+
+                            {/* Linked Rooms (Blocks) */}
+                            {booking.roomBlocks?.map((block: any) => (
+                                <div key={block.id} className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
+                                    <div className="flex items-start gap-6">
+                                        <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
+                                            {block.room?.roomType?.images?.[0] ? (
+                                                <img src={block.room.roomType.images[0]} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center"><House className="h-6 w-6 text-muted-foreground" /></div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{block.room?.roomType?.name}</p>
+                                            <p className="text-lg font-black text-foreground">Room Unit {block.room?.roomNumber}</p>
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Additional Room</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 md:justify-end">
+                                        <span className="text-[10px] px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full font-bold uppercase tracking-widest border border-emerald-100 italic">Blocked for Group</span>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <div className="pt-4 mt-4 border-t border-border/30">
+                                <div className="flex items-center gap-3 px-4">
+                                    <MapPin className="h-4 w-4 text-primary" />
+                                    <div>
+                                        <p className="text-xs font-bold text-foreground">{property?.name}</p>
+                                        <p className="text-[10px] text-muted-foreground font-medium">
+                                            {property?.address}, {property?.city}, {property?.state}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -342,9 +377,12 @@ const BookingDetails = () => {
                                 )}
                             </div>
 
-                            {/* Payment History Link button? Placeholder */}
+                            {/* Payment History Link button */}
                             <div className="pt-4 overflow-hidden rounded-2xl">
-                                <div className="bg-primary/5 p-4 flex items-center justify-between group cursor-pointer hover:bg-primary/10 transition-colors">
+                                <div
+                                    onClick={() => setIsTransactionsOpen(true)}
+                                    className="bg-primary/5 p-4 flex items-center justify-between group cursor-pointer hover:bg-primary/10 transition-colors"
+                                >
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-white rounded-xl shadow-sm">
                                             <CreditCard className="h-4 w-4 text-primary" />
@@ -358,6 +396,76 @@ const BookingDetails = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Transactions Modal */}
+            {isTransactionsOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-card w-full max-w-2xl rounded-[2.5rem] border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-8 border-b border-border flex items-center justify-between bg-muted/30">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+                                    <Receipt className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Transaction History</h2>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Payments for Booking #{booking.bookingNumber}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsTransactionsOpen(false)}
+                                className="p-2 hover:bg-muted rounded-xl transition-colors"
+                            >
+                                <X className="h-6 w-6 text-muted-foreground" />
+                            </button>
+                        </div>
+                        <div className="p-8 max-h-[60vh] overflow-y-auto space-y-4">
+                            {!booking.payments || booking.payments.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <CreditCard className="h-12 w-12 text-muted/30 mx-auto mb-4" />
+                                    <p className="text-muted-foreground font-bold">No transactions found for this booking.</p>
+                                </div>
+                            ) : (
+                                booking.payments.map((payment: any, idx: number) => (
+                                    <div key={payment.id} className="p-6 bg-muted/20 rounded-3xl border border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-10 w-10 rounded-full bg-background border border-border flex items-center justify-center font-black text-xs">
+                                                {idx + 1}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-foreground">₹{Number(payment.amount).toLocaleString()}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${payment.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-600' :
+                                                        payment.status === 'PENDING' ? 'bg-amber-500/10 text-amber-600' :
+                                                            'bg-red-500/10 text-red-600'
+                                                        }`}>
+                                                        {payment.status}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground font-bold italic">{payment.paymentMethod || 'Razorpay'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Date & Time</p>
+                                            <p className="text-xs font-bold text-foreground">
+                                                {payment.paymentDate ? format(new Date(payment.paymentDate), 'PPp') : format(new Date(payment.createdAt), 'PPp')}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )
+                                )
+                            )}
+                        </div>
+                        <div className="p-6 bg-muted/30 border-t border-border flex justify-end">
+                            <button
+                                onClick={() => setIsTransactionsOpen(false)}
+                                className="px-8 py-3 bg-foreground text-background rounded-2xl font-black uppercase tracking-widest text-[10px] hover:shadow-lg transition-all active:scale-95"
+                            >
+                                Close Window
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Hidden component for capturing PDF */}
             <div className="fixed -left-[9999px] top-0 pointer-events-none overflow-hidden" style={{ width: '800px' }}>

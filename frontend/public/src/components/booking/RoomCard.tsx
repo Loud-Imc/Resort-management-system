@@ -29,7 +29,25 @@ export default function RoomCard({ room, onBook }: RoomCardProps) {
                     <div className="flex justify-between items-start mb-2">
                         <h3 className="text-xl font-bold text-gray-900">{room.name}</h3>
                         <div className="text-right">
-                            <span className="text-2xl font-bold text-primary-700">{formatPrice(room.basePrice, selectedCurrency, rates)}</span>
+                            {Number(room.offerDiscountAmount) > 0 ? (
+                                <>
+                                    <span className="text-sm text-gray-500 line-through block mb-0.5">
+                                        {formatPrice(room.basePrice, selectedCurrency, rates)}
+                                    </span>
+                                    <span className="text-2xl font-bold text-orange-600">
+                                        {formatPrice(room.discountedPricePerNight || room.basePrice, selectedCurrency, rates)}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    {room.originalPrice && room.originalPrice > room.basePrice && (
+                                        <span className="text-sm text-gray-500 line-through block mb-0.5">
+                                            {formatPrice(room.originalPrice, selectedCurrency, rates)}
+                                        </span>
+                                    )}
+                                    <span className="text-2xl font-bold text-primary-700">{formatPrice(room.basePrice, selectedCurrency, rates)}</span>
+                                </>
+                            )}
                             <span className="text-sm text-gray-500 block">/night</span>
                         </div>
                     </div>

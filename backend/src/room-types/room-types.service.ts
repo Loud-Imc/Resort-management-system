@@ -26,6 +26,14 @@ export class RoomTypesService {
         });
     }
 
+    private validatePricing(basePrice: number, originalPrice?: number) {
+        if (originalPrice !== undefined && originalPrice !== null) {
+            if (originalPrice <= basePrice) {
+                throw new BadRequestException('Original price (MRP) must be higher than the base price');
+            }
+        }
+    }
+
     async create(createRoomTypeDto: CreateRoomTypeDto, requestUser?: any) {
         if (requestUser) {
             const property = await this.prisma.property.findUnique({
@@ -41,6 +49,8 @@ export class RoomTypesService {
                 throw new ForbiddenException('You do not have permission to add room types to this property');
             }
         }
+
+        this.validatePricing(createRoomTypeDto.basePrice, createRoomTypeDto.originalPrice);
 
         try {
             const { cancellationPolicy, cancellationPolicyId, ...rest } = createRoomTypeDto;
@@ -151,6 +161,12 @@ export class RoomTypesService {
     async update(id: string, updateRoomTypeDto: UpdateRoomTypeDto, requestUser?: any) {
         try {
             const existing = await this.findOne(id, requestUser);
+
+            const basePrice = updateRoomTypeDto.basePrice !== undefined ? updateRoomTypeDto.basePrice : Number((existing as any).basePrice);
+            const originalPrice = updateRoomTypeDto.originalPrice !== undefined ? updateRoomTypeDto.originalPrice : ((existing as any).originalPrice ? Number((existing as any).originalPrice) : undefined);
+
+            this.validatePricing(basePrice, originalPrice);
+
             const { cancellationPolicy, cancellationPolicyId, ...rest } = updateRoomTypeDto;
 
             const data: any = {
