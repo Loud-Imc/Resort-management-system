@@ -88,26 +88,37 @@ export class DiscountsService {
     // ============================================
 
     async createOffer(user: any, data: CreateOfferDto) {
-        // Verify room type exists and user has access
-        const roomType = await this.prisma.roomType.findUnique({
-            where: { id: data.roomTypeId },
+        const { roomTypeIds, ...offerData } = data;
+
+        // Verify room types exist and user has access
+        const roomTypes = await this.prisma.roomType.findMany({
+            where: { id: { in: roomTypeIds } },
             include: { property: true }
         });
 
-        if (!roomType) throw new NotFoundException('Room type not found');
+        if (roomTypes.length !== roomTypeIds.length) {
+            throw new NotFoundException('Some room types were not found');
+        }
 
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
-        if (!isGlobalAdmin && roomType.property.ownerId !== user.id) {
-            throw new ForbiddenException('You do not have permission to add offers to this room type');
+        // Check if user has access to ALL selected room types
+        if (!isGlobalAdmin) {
+            const unauthorized = roomTypes.find(rt => rt.property.ownerId !== user.id);
+            if (unauthorized) {
+                throw new ForbiddenException('You do not have permission to add offers to some of the selected room types');
+            }
         }
 
         return this.prisma.offer.create({
             data: {
-                ...data,
-                startDate: new Date(data.startDate),
-                endDate: new Date(data.endDate),
+                ...offerData,
+                startDate: new Date(offerData.startDate),
+                endDate: new Date(offerData.endDate),
+                roomTypes: {
+                    connect: roomTypeIds.map(id => ({ id }))
+                }
             }
         });
     }
@@ -118,16 +129,16 @@ export class DiscountsService {
 
         if (isGlobalAdmin) {
             return this.prisma.offer.findMany({
-                include: { roomType: { include: { property: true } } },
+                include: { roomTypes: { include: { property: true } } },
                 orderBy: { createdAt: 'desc' }
             });
         }
 
         return this.prisma.offer.findMany({
             where: {
-                roomType: { property: { ownerId: user.id } }
+                roomTypes: { some: { property: { ownerId: user.id } } }
             },
-            include: { roomType: { include: { property: true } } },
+            include: { roomTypes: { include: { property: true } } },
             orderBy: { createdAt: 'desc' }
         });
     }
@@ -135,7 +146,7 @@ export class DiscountsService {
     async findOneOffer(id: string, user: any) {
         const offer = await this.prisma.offer.findUnique({
             where: { id },
-            include: { roomType: { include: { property: true } } }
+            include: { roomTypes: { include: { property: true } } }
         });
 
         if (!offer) throw new NotFoundException('Offer not found');
@@ -143,21 +154,29 @@ export class DiscountsService {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
-        if (!isGlobalAdmin && offer.roomType.property.ownerId !== user.id) {
-            throw new ForbiddenException('Access denied');
+        if (!isGlobalAdmin) {
+            const isOwner = offer.roomTypes.some(rt => rt.property.ownerId === user.id);
+            if (!isOwner) {
+                throw new ForbiddenException('Access denied');
+            }
         }
 
         return offer;
     }
 
     async updateOffer(id: string, user: any, data: UpdateOfferDto) {
+        const { roomTypeIds, ...offerData } = data;
         await this.findOneOffer(id, user);
+
         return this.prisma.offer.update({
             where: { id },
             data: {
-                ...data,
-                startDate: data.startDate ? new Date(data.startDate) : undefined,
-                endDate: data.endDate ? new Date(data.endDate) : undefined,
+                ...offerData,
+                startDate: offerData.startDate ? new Date(offerData.startDate) : undefined,
+                endDate: offerData.endDate ? new Date(offerData.endDate) : undefined,
+                roomTypes: roomTypeIds ? {
+                    set: roomTypeIds.map(id => ({ id }))
+                } : undefined
             }
         });
     }

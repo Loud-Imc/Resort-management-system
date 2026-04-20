@@ -335,7 +335,7 @@ export class AvailabilityService {
                     ],
                     isActive: true,
                     status: PropertyStatus.APPROVED,
-                    categoryId: categoryId || undefined,
+                    categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
                     ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
                     ...(location && {
                         OR: [
@@ -404,6 +404,7 @@ export class AvailabilityService {
                                 _count: property._count,
                             },
                             availableCount: 1,
+                            originalPrice: (delegateType as any).originalPrice,
                             totalPrice: pricing.convertedTotal,
                             baseAmount: pricing.baseAmount,
                             taxAmount: pricing.taxAmount,
@@ -459,7 +460,7 @@ export class AvailabilityService {
                 property: {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
-                    categoryId: categoryId || undefined,
+                    categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
                     ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
                     ...(location && {
                         OR: [
@@ -499,7 +500,8 @@ export class AvailabilityService {
                     undefined,
                     currency,
                     false,
-                    undefined
+                    undefined,
+                    rooms
                 );
 
                 results.push({
@@ -526,11 +528,16 @@ export class AvailabilityService {
                         _count: type.property._count,
                     },
                     availableCount,
+                    originalPrice: pricing.originalConvertedTotal > pricing.convertedTotal ? pricing.originalConvertedTotal : (type as any).originalPrice,
                     totalPrice: pricing.convertedTotal,
                     baseAmount: pricing.baseAmount,
+                    offerDiscountAmount: pricing.offerDiscountAmount,
                     taxAmount: pricing.taxAmount,
                     taxRate: pricing.taxRate,
                     pricePerNight: pricing.pricePerNight,
+                    discountedPricePerNight: pricing.numberOfNights > 0
+                        ? (pricing.totalAmount - pricing.taxAmount) / pricing.numberOfNights
+                        : pricing.pricePerNight,
                     numberOfNights: pricing.numberOfNights,
                     isSoldOut: availableCount < rooms,
                     isGstInclusive: pricing.isGstInclusive,

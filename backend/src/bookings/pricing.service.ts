@@ -11,6 +11,7 @@ export interface PricingBreakdown {
     referralDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
+    originalTotal: number;
     numberOfNights: number;
     pricePerNight: number;
     taxRate: number;
@@ -19,6 +20,7 @@ export interface PricingBreakdown {
     targetCurrency: string;
     exchangeRate: number;
     convertedTotal: number;
+    originalConvertedTotal: number;
     // Group Booking
     roomCount?: number;
     // Code Detection Info
@@ -111,8 +113,11 @@ export class PricingService {
 
         // 2. Calculate number of nights
         const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
-        const numberOfNights = Math.ceil(
+        checkOut.setHours(0, 0, 0, 0);
+
+        const numberOfNights = Math.round(
             (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
         );
 
@@ -212,10 +217,6 @@ export class PricingService {
         );
 
         let subtotal = baseAmount + extraAdultAmount + extraChildAmount;
-        console.log("baseAmount", baseAmount);
-        console.log("extraAdultAmount", extraAdultAmount);
-        console.log("extraChildAmount", extraChildAmount);
-        console.log("subtotal *****123", subtotal);
         if (pricingRule) {
             if (pricingRule.adjustmentType === 'PERCENTAGE') {
                 const adjustment = (subtotal * Number(pricingRule.adjustmentValue)) / 100;
@@ -225,10 +226,29 @@ export class PricingService {
             }
         }
 
+        // CAPTURE ORIGINAL SUBTOTAL (Pre-offer/coupon/referral)
+        const subtotalBeforeDiscounts = subtotal;
+        let originalTaxAmount = 0;
+        const gstTiersForOriginal = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        for (let i = 0; i < numberOfNights; i++) {
+            const subtotalThisNight = subtotalBeforeDiscounts / numberOfNights;
+            if (isGroupBooking && groupSize) {
+                const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
+                const numberOfRooms = Math.ceil(groupSize / roomCapacity);
+                const roomTariffThisNight = subtotalThisNight / numberOfRooms;
+                for (let r = 0; r < numberOfRooms; r++) {
+                    originalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiersForOriginal);
+                }
+            } else {
+                originalTaxAmount += this.calculateTaxForTariff(subtotalThisNight, gstTiersForOriginal);
+            }
+        }
+        const originalTotal = subtotalBeforeDiscounts + originalTaxAmount;
+
         // 7. Check for active Room Type Offers (Direct Discounts)
         const activeOffer = await this.prisma.offer.findFirst({
             where: {
-                roomTypeId,
+                roomTypes: { some: { id: roomTypeId } },
                 isActive: true,
                 startDate: { lte: checkOutDate },
                 endDate: { gte: checkInDate },
@@ -237,7 +257,12 @@ export class PricingService {
 
         let offerDiscountAmount = 0;
         if (activeOffer) {
-            offerDiscountAmount = (subtotal * Number(activeOffer.discountPercentage)) / 100;
+            const offer = activeOffer as any;
+            if (offer.discountType === 'PERCENTAGE') {
+                offerDiscountAmount = (subtotal * Number(offer.discountValue)) / 100;
+            } else {
+                offerDiscountAmount = Number(offer.discountValue);
+            }
             subtotal -= offerDiscountAmount;
         }
 
@@ -363,6 +388,7 @@ export class PricingService {
             referralDiscountAmount: Number(referralDiscountAmount.toFixed(2)),
             discountAmount: Number((offerDiscountAmount + couponDiscountAmount + referralDiscountAmount).toFixed(2)),
             totalAmount: Number(totalAmount.toFixed(2)),
+            originalTotal: Number(originalTotal.toFixed(2)),
             numberOfNights,
             pricePerNight: basePricePerNight,
             taxRate: Math.round(taxRate),
@@ -370,6 +396,7 @@ export class PricingService {
             targetCurrency,
             exchangeRate,
             convertedTotal: Number((totalAmount * exchangeRate).toFixed(2)),
+            originalConvertedTotal: Number((originalTotal * exchangeRate).toFixed(2)),
             roomCount,
             // Transparency: inform the consumer whether the cap was enforced
             ...(capApplied && { discountCapApplied: true, discountCapPct: maxDiscountFraction * 100 }),

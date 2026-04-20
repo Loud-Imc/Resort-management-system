@@ -279,6 +279,15 @@ export class BookingsController {
         return this.bookingsService.findOne(id, req.user);
     }
 
+    @Get(':id/delete-dependencies')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.DELETE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get booking deletion dependencies' })
+    getDeleteDependencies(@Param('id') id: string, @Request() req) {
+        return this.bookingsService.getDeleteDependencies(id, req.user);
+    }
+
     @Post(':id/check-in')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.BOOKINGS.CHECK_IN)

@@ -23,6 +23,15 @@ export interface BookingGuest {
     idImage?: string;
 }
 
+export interface BookingPayment {
+    id: string;
+    amount: number;
+    status: string;
+    paymentMethod?: string;
+    paymentDate?: string;
+    createdAt: string;
+}
+
 export interface Booking {
     id: string;
     bookingNumber: string;
@@ -79,6 +88,7 @@ export interface Booking {
     exchangeRate: number;
     isGroupBooking: boolean;
     groupSize?: number;
+    payments?: BookingPayment[];
     createdAt: string;
 }
 

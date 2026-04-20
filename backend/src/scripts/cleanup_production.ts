@@ -81,7 +81,7 @@ async function cleanProdDb() {
         await prisma.bookingGuest.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
         await prisma.roomBlock.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
         await prisma.propertySettlement.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
-        
+
         // ManualPaymentRequests? If any exist
         try {
             // @ts-ignore
@@ -89,7 +89,7 @@ async function cleanProdDb() {
                 // @ts-ignore
                 await prisma.manualPaymentRequest.deleteMany({ where: { bookingId: { in: deleteBookingIds } } });
             }
-        } catch (e) {}
+        } catch (e) { }
 
         console.log("Done.");
 
@@ -107,7 +107,7 @@ async function cleanProdDb() {
     console.log("Done.");
 
     process.stdout.write("Deleting Rooms, RoomTypes, Features... ");
-    await prisma.offer.deleteMany({ where: { roomType: { propertyId: { in: deletePropertyIds } } } });
+    await prisma.offer.deleteMany({ where: { roomTypes: { some: { propertyId: { in: deletePropertyIds } } } } });
     await prisma.pricingRule.deleteMany({ where: { roomType: { propertyId: { in: deletePropertyIds } } } });
     await prisma.roomBlock.deleteMany({ where: { room: { propertyId: { in: deletePropertyIds } } } });
     await prisma.room.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
@@ -117,13 +117,13 @@ async function cleanProdDb() {
     process.stdout.write("Deleting remaining isolated property data (Expenses, Staff, Calendar, etc)... ");
     await prisma.expense.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     await prisma.expenseCategory.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
-    
+
     // @ts-ignore
     if (prisma.propertyRequest) {
         // @ts-ignore
         await prisma.propertyRequest.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     }
-    
+
     await prisma.propertyStaff.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     await prisma.role.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
     await prisma.propertyIcal.deleteMany({ where: { propertyId: { in: deletePropertyIds } } });
@@ -155,7 +155,7 @@ async function cleanProdDb() {
         where: { roles: { some: { role: { name: 'SuperAdmin' } } } },
         select: { id: true }
     });
-    
+
     const wayanadUsers = await prisma.user.findMany({
         where: {
             OR: [
@@ -188,12 +188,12 @@ async function cleanProdDb() {
             if (prisma.financialAdjustmentRequest) await prisma.financialAdjustmentRequest.deleteMany({ where: { OR: [{ requestedById: { in: userIdsToDelete } }, { approvedById: { in: userIdsToDelete } }] } });
             // @ts-ignore
             if (prisma.paymentReconciliation) await prisma.paymentReconciliation.deleteMany({ where: { OR: [{ makerId: { in: userIdsToDelete } }, { checkerId: { in: userIdsToDelete } }] } });
-        } catch (e) {}
+        } catch (e) { }
 
         await prisma.user.deleteMany({ where: { id: { in: userIdsToDelete } } });
         console.log("Done.");
     } else {
-         console.log("No extra users found to delete.");
+        console.log("No extra users found to delete.");
     }
 
     console.log(`\n🎉 DATABASE CLEANUP SUCCESSFUL! All waste properties, CPs, and test users deleted.`);

@@ -61,6 +61,11 @@ export default function BookingsList() {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const invoiceRef = useRef<HTMLDivElement>(null);
 
+    // Deletion Modal State
+    const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
+    const [dependencies, setDependencies] = useState<any>(null);
+    const [isLoadingDeps, setIsLoadingDeps] = useState(false);
+
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
 
@@ -207,6 +212,19 @@ export default function BookingsList() {
         },
         onError: () => toast.error('Failed to cancel booking'),
     });
+
+    const handleOpenDelete = async (booking: Booking) => {
+        setDeletingBooking(booking);
+        setIsLoadingDeps(true);
+        try {
+            const deps = await bookingsService.getDeleteDependencies(booking.id);
+            setDependencies(deps);
+        } catch (error) {
+            toast.error('Failed to fetch dependencies');
+        } finally {
+            setIsLoadingDeps(false);
+        }
+    };
 
     const deleteMutation = useMutation({
         mutationFn: (id: string) => bookingsService.delete(id),
@@ -599,9 +617,7 @@ export default function BookingsList() {
                                                                         <button
                                                                             onClick={() => {
                                                                                 setActiveMenu(null);
-                                                                                if (confirm('Are you sure you want to PERMANENTLY delete this booking? This action cannot be undone and will remove all associated payment and guest records.')) {
-                                                                                    deleteMutation.mutate(booking.id);
-                                                                                }
+                                                                                handleOpenDelete(booking);
                                                                             }}
                                                                             className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/5 transition-colors"
                                                                         >
@@ -997,6 +1013,107 @@ export default function BookingsList() {
                         </div>
                     )
                 }
+
+                {/* Delete Booking Safety Modal */}
+                {deletingBooking && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl">
+                        <div className="bg-card w-full max-w-lg rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-border/50 overflow-hidden animate-in fade-in zoom-in duration-300">
+                            <div className="relative p-6 border-b border-border/50 bg-gradient-to-br from-destructive/10 via-transparent to-transparent">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-destructive text-destructive-foreground rounded-2xl shadow-lg rotate-3">
+                                            <Trash2 className="h-6 w-6" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-black tracking-tight text-foreground">Delete Booking</h2>
+                                            <p className="text-xs text-muted-foreground font-medium">
+                                                Booking: <span className="text-destructive font-bold">{deletingBooking.bookingNumber}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setDeletingBooking(null);
+                                            setDependencies(null);
+                                        }}
+                                        className="p-2 hover:bg-muted rounded-xl transition-all"
+                                    >
+                                        <X className="h-5 w-5 text-muted-foreground" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-6 space-y-6">
+                                {isLoadingDeps ? (
+                                    <div className="flex flex-col items-center justify-center py-12 gap-4">
+                                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                        <p className="text-sm font-medium text-muted-foreground">Analyzing related data...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-4 flex gap-3">
+                                            <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+                                            <p className="text-sm text-destructive font-medium leading-relaxed">
+                                                Warning: This action is permanent. All associated records listed below will be deleted to maintain database integrity.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Associated Records to be Removed:</h3>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {[
+                                                    { label: 'Guests', count: dependencies?.guests },
+                                                    { label: 'Payments', count: dependencies?.payments },
+                                                    { label: 'Incomes', count: dependencies?.income },
+                                                    { label: 'Settlements', count: dependencies?.settlements },
+                                                    { label: 'CP Transactions', count: dependencies?.cpTransactions },
+                                                    { label: 'Payment Requests', count: dependencies?.manualPaymentRequests },
+                                                    { label: 'Reviews', count: dependencies?.reviews },
+                                                    { label: 'Room Blocks', count: dependencies?.roomBlocks },
+                                                ].map((item, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/30">
+                                                        <span className="text-xs font-bold text-foreground">{item.label}</span>
+                                                        <span className={`text-xs font-black ${item.count > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                                            {item.count || 0}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button
+                                                onClick={() => {
+                                                    setDeletingBooking(null);
+                                                    setDependencies(null);
+                                                }}
+                                                className="flex-1 px-4 py-2.5 rounded-xl border border-border font-bold text-sm hover:bg-muted transition-colors"
+                                            >
+                                                Keep Booking
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    deleteMutation.mutate(deletingBooking.id, {
+                                                        onSuccess: () => {
+                                                            setDeletingBooking(null);
+                                                            setDependencies(null);
+                                                        }
+                                                    });
+                                                }}
+                                                disabled={deleteMutation.isPending}
+                                                className="flex-1 bg-destructive text-destructive-foreground px-4 py-2.5 rounded-xl font-bold text-sm hover:hover:bg-destructive/90 transition-all shadow-lg shadow-destructive/20 active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                Confirm Deletion
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Hidden Invoice Component for PDF generation */}
                 {
                     downloadBooking && (
