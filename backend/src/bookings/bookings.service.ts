@@ -1201,6 +1201,7 @@ export class BookingsService {
             data: {
                 status: 'CHECKED_OUT',
                 checkedOutAt: new Date(),
+                checkOutDate: new Date(), // Release the room for others immediately
             },
             include: {
                 room: true,

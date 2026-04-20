@@ -512,6 +512,8 @@ model Property {
   groupPricePerHead           Decimal?             @db.Decimal(10, 2)
   groupPriceAdult             Decimal?             @db.Decimal(10, 2)
   groupPriceChild             Decimal?             @db.Decimal(10, 2)
+  defaultCheckInTime          String               @default("14:00")
+  defaultCheckOutTime         String               @default("11:00")
   bookings                    Booking[]
   cancellationPolicies        CancellationPolicy[] @relation("PropertyPolicies")
   events                      Event[]
