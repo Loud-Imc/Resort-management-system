@@ -1,68 +1,99 @@
 #!/bin/bash
 
 # ==============================================================================
-# Resort Management System - Monorepo Deployment Script
+# Resort Management System - Optimized Monorepo Deployment Script
 # ==============================================================================
 
 # Exit on error
 set -e
 
-echo "🚀 Starting Deployment..."
+echo "🚀 Starting Optimized Deployment..."
+START_TIME=$(date +%s)
 
 # Increase Node.js memory limit for build processes
 export NODE_OPTIONS="--max-old-space-size=4096"
 
-# 1. Update Codebase
-echo "📥 Syncing with GitHub (Hard Reset)..."
 # Ensure we are in the project root
 cd "$(dirname "$0")"
+
+# 1. Capture current state for change detection
+PREV_COMMIT=$(git rev-parse HEAD)
+
+echo "📥 Syncing with GitHub (Hard Reset)..."
 git fetch origin main
 git reset --hard origin/main
 
-# 2. Deploy Backend
-echo "🏗️ Building Backend..."
-cd backend
-npm install
+CURRENT_COMMIT=$(git rev-parse HEAD)
 
-npx prisma generate
-npx prisma migrate deploy
-npm run build
-echo "🔄 Restarting Backend Service..."
-# Check if the process is already running
-if pm2 describe resort-api > /dev/null; then
-    echo "🔄 Reloading Backend Service (Zero Downtime)..."
-    pm2 reload resort-api --update-env
+# Helper function to check for changes in a directory
+has_changes() {
+    local dir=$1
+    if [ "$PREV_COMMIT" == "$CURRENT_COMMIT" ]; then
+        return 1 # No changes if commits are same
+    fi
+    git diff --name-only "$PREV_COMMIT" "$CURRENT_COMMIT" | grep -q "^$dir"
+}
+
+# 2. Deploy Backend
+if has_changes "backend/"; then
+    echo "🏗️ Backend changes detected. Building Backend..."
+    cd backend
+    npm install
+    npx prisma generate
+    npx prisma migrate deploy
+    npm run build
+    
+    echo "🔄 Restarting Backend Service..."
+    if pm2 describe resort-api > /dev/null; then
+        echo "🔄 Reloading Backend Service (Zero Downtime)..."
+        pm2 reload resort-api --update-env
+    else
+        echo "🚀 Starting Backend Service..."
+        NODE_ENV=production pm2 start dist/main.js --name "resort-api"
+    fi
+    pm2 save
+    cd ..
 else
-    echo "🚀 Starting Backend Service..."
-    NODE_ENV=production pm2 start dist/main.js --name "resort-api"
+    echo "⏭️ No changes in backend. Skipping backend build."
 fi
 
-# Save the process list to ensure it restarts on server reboot
-pm2 save
-cd ..
-
-# 3. Deploy Frontends
-# Map folder names to subdomain prefixes
+# 3. Deploy Frontends in Parallel
 FRONTENDS=("admin" "public" "channel-partner" "property")
-# Mapping for folder -> subdomain/directory naming
-declare -A APP_MAP
-APP_MAP["admin"]="admin"
-APP_MAP["public"]="public"
-APP_MAP["channel-partner"]="channel-partner"
-APP_MAP["property"]="property"
+BUILD_PIDS=()
+CHANGED_FRONTENDS=()
 
-# Path on the server as seen in Nginx config
-WEB_ROOT="/var/www/Resort-management-system"
-
+echo "🔍 Checking for frontend changes..."
 for APP in "${FRONTENDS[@]}"; do
-    echo "🏗️ Building $APP Frontend..."
-    cd "frontend/$APP"
-    npm install
-    npm run build
-    # No copy needed because Nginx points directly to the dist folders inside the repo
-    cd ../..
+    if has_changes "frontend/$APP"; then
+        echo "✅ Changes detected in $APP. Adding to build queue..."
+        CHANGED_FRONTENDS+=("$APP")
+    else
+        echo "⏭️ No changes in $APP. Skipping."
+    fi
 done
 
+if [ ${#CHANGED_FRONTENDS[@]} -gt 0 ]; then
+    echo "🏗️ Building changed frontends in parallel: ${CHANGED_FRONTENDS[*]}"
+    for APP in "${CHANGED_FRONTENDS[@]}"; do
+        (
+            echo "  🛠️ Building $APP..."
+            cd "frontend/$APP"
+            npm install > /dev/null 2>&1
+            npm run build > /dev/null 2>&1
+            echo "  ✨ $APP build complete."
+        ) &
+        BUILD_PIDS+=($!)
+    done
 
+    # Wait for all background builds to finish
+    for pid in "${BUILD_PIDS[@]}"; do
+        wait "$pid" || { echo "❌ A frontend build failed!"; exit 1; }
+    done
+else
+    echo "⏭️ No frontend changes detected. Skipping all frontend builds."
+fi
 
-echo "✅ Deployment Complete!"
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+echo "✅ Deployment Complete in ${DURATION}s!"
