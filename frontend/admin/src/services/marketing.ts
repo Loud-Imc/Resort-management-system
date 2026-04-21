@@ -12,6 +12,8 @@ export interface PartnerLevel {
     name: string;
     minPoints: number;
     commissionRate: number;
+    pointsPerUnit: number;
+    unitAmount: number;
     description?: string;
     createdAt?: string;
     updatedAt?: string;

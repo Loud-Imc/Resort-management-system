@@ -675,6 +675,8 @@ model PartnerLevel {
   name           String   @unique
   minPoints      Int      @unique
   commissionRate Decimal  @db.Decimal(5, 2)
+  pointsPerUnit  Int      @default(1)
+  unitAmount     Int      @default(100)
   description    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

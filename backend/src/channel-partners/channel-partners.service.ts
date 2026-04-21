@@ -49,8 +49,8 @@ export class ChannelPartnersService {
         // Generate unique referral code if new
         let referralCode = existing?.referralCode;
         if (!referralCode) {
-             const userObj = await this.prisma.user.findUnique({ where: { id: userId } });
-             referralCode = await this.getUniqueReferralCode(userObj?.firstName || dto?.authorizedPersonName || 'PART');
+            const userObj = await this.prisma.user.findUnique({ where: { id: userId } });
+            referralCode = await this.getUniqueReferralCode(userObj?.firstName || dto?.authorizedPersonName || 'PART');
         }
         const commissionSetting = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE');
         const defaultCommissionRate = commissionSetting ?? 10;
@@ -80,7 +80,7 @@ export class ChannelPartnersService {
                 create: {
                     userId,
                     referralCode,
-                    overrideCommissionRate: Number(defaultCommissionRate),
+                    overrideCommissionRate: null, // Default to null to use dynamic Tiers
                     partnerType: dto?.partnerType || 'INDIVIDUAL',
                     status: ChannelPartnerStatus.PENDING,
                     organizationName: dto?.organizationName,
@@ -98,7 +98,7 @@ export class ChannelPartnersService {
                     authorizedPersonName: dto?.authorizedPersonName,
                     aadhaarImage: dto?.aadhaarImage,
                     licenceImage: dto?.licenceImage,
-                    overrideCommissionRate: existing?.overrideCommissionRate ?? Number(defaultCommissionRate),
+                    overrideCommissionRate: existing?.overrideCommissionRate ?? null,
                 },
                 include: {
                     user: {
@@ -282,11 +282,11 @@ export class ChannelPartnersService {
     private async getUniqueReferralCode(firstName: string): Promise<string> {
         const cleanName = (firstName || 'PART').replace(/[^a-zA-Z]/g, '');
         const prefix = cleanName.padEnd(4, 'X').slice(0, 4).toUpperCase();
-        
+
         const latestCPs = await this.prisma.channelPartner.findMany({
             select: { referralCode: true }
         });
-        
+
         let maxSeq = 100;
         for (const cp of latestCPs) {
             const match = cp.referralCode.match(/^[A-Z]{4}(\d+)$/);
@@ -297,10 +297,10 @@ export class ChannelPartnersService {
                 }
             }
         }
-        
+
         let nextSeq = maxSeq + 1;
         let referralCode = `${prefix}${nextSeq}`;
-        
+
         let exists = await this.prisma.channelPartner.findUnique({
             where: { referralCode },
         });
@@ -414,14 +414,43 @@ export class ChannelPartnersService {
         ]);
 
         const activePoints = await this.getActivePoints(cp.id);
+        const currentLevel = await this.getCurrentLevel(cp.id);
+        const nextLevel = await this.prisma.partnerLevel.findFirst({
+            where: { minPoints: { gt: activePoints } },
+            orderBy: { minPoints: 'asc' },
+        });
+
+        // Resolve effective rate
+        const effectiveRate = await this.getCommissionRate({ channelPartnerId: cp.id });
+
+        // Tier-specific Loyalty Config (falls back to Standard defaults)
+        const pointsPerUnit = currentLevel?.pointsPerUnit ?? 1;
+        const unitAmount = currentLevel?.unitAmount ?? 100;
+        const payoutFrequency = await this.systemSettingsService.getSetting('PAYOUT_FREQUENCY') || 'Monthly';
 
         return {
             id: cp.id,
             referralCode: cp.referralCode,
-            commissionRate: Number(cp.overrideCommissionRate || 0),
+            commissionRate: effectiveRate.rate,
+            commissionSource: effectiveRate.source,
             overrideCommissionRate: cp.overrideCommissionRate,
             totalPoints: cp.totalPoints,
             activePoints,
+            currentLevel: currentLevel ? {
+                name: currentLevel.name,
+                commissionRate: Number(currentLevel.commissionRate),
+                minPoints: currentLevel.minPoints
+            } : null,
+            nextLevel: nextLevel ? {
+                name: nextLevel.name,
+                minPoints: nextLevel.minPoints,
+                commissionRate: Number(nextLevel.commissionRate)
+            } : null,
+            loyaltySettings: {
+                pointsPerUnit: Number(pointsPerUnit),
+                unitAmount: Number(unitAmount)
+            },
+            payoutFrequency,
             availablePoints: cp.availablePoints,
             pendingPoints: cp.pendingPoints,
             totalEarnings: cp.totalEarnings,
@@ -453,15 +482,13 @@ export class ChannelPartnersService {
         });
 
         if (existingTransaction) {
-            this.logger.log(`Commission already exists(status: ${existingTransaction.status}) for booking ${bookingId}.Skipping.`);
+            this.logger.log(`Commission already exists (status: ${existingTransaction.status}) for booking ${bookingId}. Skipping.`);
             return null;
         }
 
         const cp = await client.channelPartner.findUnique({
             where: { id: channelPartnerId },
         });
-
-        if (!cp || cp.status !== ChannelPartnerStatus.APPROVED) return null;
 
         const booking = await client.booking.findUnique({
             where: { id: bookingId }
@@ -470,12 +497,15 @@ export class ChannelPartnersService {
         if (!booking) return null;
 
         const commission = Number(booking.cpCommission) || 0;
-        const pointsPerUnit = await this.systemSettingsService.getSetting('LOYALTY_POINTS_PER_UNIT') || 1;
-        const unitAmount = await this.systemSettingsService.getSetting('LOYALTY_UNIT_AMOUNT') || 100;
+        const currentLevel = await this.getCurrentLevel(channelPartnerId);
+
+        // Use tier-specific conversion or fallback to baseline
+        const pointsPerUnit = currentLevel?.pointsPerUnit ?? 1;
+        const unitAmount = currentLevel?.unitAmount ?? 100;
 
         // Validation & Safety
         if (unitAmount <= 0) {
-            this.logger.error(`Invalid LOYALTY_UNIT_AMOUNT: ${unitAmount}. Falling back to 100.`);
+            this.logger.error(`Invalid unitAmount: ${unitAmount} for level ${currentLevel?.name}. Falling back to 100.`);
         }
         const safeUnitAmount = unitAmount > 0 ? unitAmount : 100;
         const safePointsPerUnit = pointsPerUnit >= 0 ? pointsPerUnit : 0;
@@ -620,11 +650,21 @@ export class ChannelPartnersService {
             this.prisma.channelPartner.count({ where }),
         ]);
 
-        return {
-            data: cps.map(cp => ({
+        const enhancedData = await Promise.all(cps.map(async (cp) => {
+            const currentLevel = await this.getCurrentLevel(cp.id);
+            const rateResult = await this.getCommissionRate({ channelPartnerId: cp.id });
+
+            return {
                 ...cp,
-                commissionRate: Number(cp.overrideCommissionRate || 0)
-            })),
+                currentLevel: currentLevel ? { name: currentLevel.name, commissionRate: Number(currentLevel.commissionRate) } : null,
+                commissionRate: rateResult.rate,
+                commissionSource: rateResult.source,
+                manualRate: cp.overrideCommissionRate !== null ? Number(cp.overrideCommissionRate) : null
+            };
+        }));
+
+        return {
+            data: enhancedData,
             meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
         };
     }
@@ -687,12 +727,23 @@ export class ChannelPartnersService {
         ]);
 
         const activePoints = await this.getActivePoints(cp.id);
+        const currentLevel = await this.getCurrentLevel(cp.id);
+        const nextLevel = await this.prisma.partnerLevel.findFirst({
+            where: { minPoints: { gt: activePoints } },
+            orderBy: { minPoints: 'asc' },
+        });
+
+        const rateResult = await this.getCommissionRate({ channelPartnerId: cp.id });
 
         return {
             data: {
                 ...cp,
-                commissionRate: Number(cp.overrideCommissionRate || 0),
+                currentLevel: currentLevel ? { name: currentLevel.name, commissionRate: Number(currentLevel.commissionRate) } : null,
+                nextLevel: nextLevel ? { name: nextLevel.name, minPoints: nextLevel.minPoints } : null,
                 activePoints,
+                commissionRate: rateResult.rate,
+                commissionSource: rateResult.source,
+                manualRate: cp.overrideCommissionRate !== null ? Number(cp.overrideCommissionRate) : null,
                 pendingBalance: Number(cp.totalEarnings) - Number(cp.paidOut),
                 totalReferrals,
                 confirmedReferrals,
@@ -753,16 +804,23 @@ export class ChannelPartnersService {
 
         if (!cp) throw new NotFoundException('Channel Partner not found');
 
-        // Priority 1: CP Override
-        if (cp.overrideCommissionRate !== null) {
-            return { rate: Number(cp.overrideCommissionRate), source: 'CP override' };
-        }
-
-        // Priority 2: Active Partner Level (Tier)
+        // Priority 1: Partner Level (Tier) - High Priority Growth
         // Resolves tier based on rolling 12-month performance
         const level = await this.getCurrentLevel(cp.id);
         if (level) {
-            return { rate: Number(level.commissionRate), source: `Tier (${level.name})` };
+            // If they have an override, we only use it if it's HIGHER than the tier (Strict benefit logic)
+            const tierRate = Number(level.commissionRate);
+            const overrideRate = cp.overrideCommissionRate !== null ? Number(cp.overrideCommissionRate) : 0;
+
+            if (overrideRate > tierRate) {
+                return { rate: overrideRate, source: 'CP override (Higher than Tier)' };
+            }
+            return { rate: tierRate, source: `Tier (${level.name})` };
+        }
+
+        // Priority 2: CP Specific Override (if no Tier or if Override is higher)
+        if (cp.overrideCommissionRate !== null) {
+            return { rate: Number(cp.overrideCommissionRate), source: 'CP specific rate' };
         }
 
         // Priority 3: Property Standard Rate
@@ -775,9 +833,8 @@ export class ChannelPartnersService {
             }
         }
 
-        // Priority 4: Global Default
-        const defaultRate = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE') || 10;
-        return { rate: Number(defaultRate), source: 'Global' };
+        // Priority 4: Hardcoded Safety Baseline
+        return { rate: 10, source: 'System Baseline' };
     }
 
     /**

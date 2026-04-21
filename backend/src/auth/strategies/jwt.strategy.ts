@@ -18,22 +18,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     async validate(payload: any) {
-        const user = await this.usersService.findOne(payload.sub);
+        // Optimized: Uses lightweight lookup and returns null instead of throwing NotFoundException
+        const user = await this.usersService.findByIdForAuth(payload.sub);
 
         if (!user || !user.isActive) {
-            throw new UnauthorizedException();
+            // Throw specific UnauthorizedException for auth failures (results in 401 instead of 404)
+            throw new UnauthorizedException('Authentication invalid or user inactive');
         }
 
         return {
             id: user.id,
             email: user.email,
-            propertyId: (user as any).propertyId, // Adjust if propertyId is nested or differently named
+            propertyId: (user as any).propertyId,
             roles: user.roles.map(ur => ur.role.name),
             permissions: user.roles.flatMap(ur =>
                 ur.role.permissions.map(rp => rp.permission.name)
             ),
-            ownedProperties: (user as any).ownedProperties || [],
-            propertyStaff: (user as any).propertyStaff || [],
+            ownedProperties: user.ownedProperties || [],
+            propertyStaff: user.propertyStaff || [],
         };
     }
 }

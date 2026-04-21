@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     Users, Loader2, CheckCircle, XCircle, DollarSign, Percent,
-    Eye, X, Calendar, ArrowRight, TrendingUp, Hash, Search, Filter
+    Eye, X, Calendar, ArrowRight, TrendingUp, Hash, Search, Filter, Award
 } from 'lucide-react';
 import { channelPartnerService } from '../../services/channel-partners';
 import { financialsService } from '../../services/financials';
@@ -265,6 +265,7 @@ export default function CPList() {
                         <thead className="bg-muted/50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Partner</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Tier</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Referral Code</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Comm. Rate</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Cust. Disc.</th>
@@ -286,165 +287,192 @@ export default function CPList() {
                                 filteredPartners.map(partner => {
                                     return (
                                         <tr key={partner.id} className="hover:bg-muted/30">
-                                        <td className="px-6 py-4">
-                                            <div>
-                                                <div className="font-medium text-foreground">
-                                                    {partner.user?.firstName} {partner.user?.lastName}
+                                            <td className="px-6 py-4">
+                                                <div>
+                                                    <div className="font-medium text-foreground">
+                                                        {partner.user?.firstName} {partner.user?.lastName}
+                                                    </div>
+                                                    <div className="text-sm text-muted-foreground">{partner.user?.email}</div>
                                                 </div>
-                                                <div className="text-sm text-muted-foreground">{partner.user?.email}</div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="font-mono bg-muted px-2 py-1 rounded text-sm text-foreground border border-border">
-                                                {partner.referralCode}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {editingId === partner.id ? (
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="number"
-                                                        value={newRate}
-                                                        onChange={(e) => setNewRate(e.target.value)}
-                                                        className="w-20 px-2 py-1 border border-input rounded bg-background text-foreground"
-                                                        min="0"
-                                                        max="100"
-                                                        step="0.5"
-                                                    />
-                                                    <button
-                                                        onClick={() => handleUpdateRate(partner.id)}
-                                                        className="text-green-600 hover:text-green-700"
-                                                    >
-                                                        <CheckCircle className="h-5 w-5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { setEditingId(null); setNewRate(''); }}
-                                                        className="text-muted-foreground hover:text-foreground"
-                                                    >
-                                                        <XCircle className="h-5 w-5" />
-                                                    </button>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    {partner.currentLevel ? (
+                                                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${partner.currentLevel.minPoints === 0
+                                                                ? 'bg-slate-100 text-slate-700'
+                                                                : 'bg-purple-100 text-purple-700'
+                                                            }`}>
+                                                            <Award className="h-3 w-3" />
+                                                            {partner.currentLevel.name}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-full">
+                                                            Standard
+                                                        </span>
+                                                    )}
                                                 </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => { setEditingId(partner.id); setNewRate(partner.commissionRate.toString()); }}
-                                                    className="flex items-center gap-1 text-foreground hover:text-primary transition-colors"
-                                                >
-                                                    <Percent className="h-4 w-4 text-blue-500" />
-                                                    {partner.commissionRate}%
-                                                </button>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {editingDiscountId === partner.id ? (
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="number"
-                                                        value={newDiscountRate}
-                                                        onChange={(e) => setNewDiscountRate(e.target.value)}
-                                                        className="w-20 px-2 py-1 border border-input rounded bg-background text-foreground"
-                                                        min="0"
-                                                        max="100"
-                                                        step="0.5"
-                                                    />
-                                                    <button
-                                                        onClick={() => handleUpdateDiscountRate(partner.id)}
-                                                        className="text-green-600 hover:text-green-700"
-                                                    >
-                                                        <CheckCircle className="h-5 w-5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { setEditingDiscountId(null); setNewDiscountRate(''); }}
-                                                        className="text-muted-foreground hover:text-foreground"
-                                                    >
-                                                        <XCircle className="h-5 w-5" />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => { setEditingDiscountId(partner.id); setNewDiscountRate((partner.referralDiscountRate || 0).toString()); }}
-                                                    className="flex items-center gap-1 text-foreground hover:text-primary transition-colors"
-                                                >
-                                                    <Percent className="h-4 w-4 text-green-500" />
-                                                    {partner.referralDiscountRate || 0}%
-                                                </button>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1 text-foreground font-bold">
-                                                <DollarSign className="h-4 w-4 text-primary" />
-                                                ₹{partner.walletBalance?.toLocaleString() || 0}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1 text-foreground">
-                                                <DollarSign className="h-4 w-4 text-green-600" />
-                                                ₹{partner.totalEarnings.toLocaleString()}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="font-medium text-foreground">{partner._count?.referrals || 0}</span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 text-xs rounded-full ${partner.status === 'APPROVED'
-                                                ? 'bg-green-100 text-green-700'
-                                                : partner.status === 'PENDING'
-                                                    ? 'bg-amber-100 text-amber-700'
-                                                    : 'bg-red-100 text-red-700'
-                                                }`}>
-                                                {partner.status.charAt(0) + partner.status.slice(1).toLowerCase()}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        setAdjustPartner(partner);
-                                                        setIsAdjustModalOpen(true);
-                                                    }}
-                                                    className="text-xs bg-primary-50 text-primary-600 px-2 py-1 rounded hover:bg-primary-100 font-bold"
-                                                    title="Adjust Wallet"
-                                                >
-                                                    Wallet
-                                                </button>
-                                                <button
-                                                    onClick={() => openPartnerDetails(partner.id)}
-                                                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                                    title="View Details"
-                                                >
-                                                    <Eye className="h-4 w-4" /> View
-                                                </button>
-                                                {partner.status === 'PENDING' ? (
-                                                    <div className="flex gap-1">
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="font-mono bg-muted px-2 py-1 rounded text-sm text-foreground border border-border">
+                                                    {partner.referralCode}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {editingId === partner.id ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="number"
+                                                            value={newRate}
+                                                            onChange={(e) => setNewRate(e.target.value)}
+                                                            className="w-20 px-2 py-1 border border-input rounded bg-background text-foreground"
+                                                            min="0"
+                                                            max="100"
+                                                            step="0.5"
+                                                        />
                                                         <button
-                                                            onClick={() => handleUpdateStatus(partner.id, 'APPROVED')}
-                                                            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                                                            onClick={() => handleUpdateRate(partner.id)}
+                                                            className="text-green-600 hover:text-green-700"
                                                         >
-                                                            Approve
+                                                            <CheckCircle className="h-5 w-5" />
                                                         </button>
                                                         <button
-                                                            onClick={() => handleUpdateStatus(partner.id, 'REJECTED')}
-                                                            className="text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                                                            onClick={() => { setEditingId(null); setNewRate(''); }}
+                                                            className="text-muted-foreground hover:text-foreground"
                                                         >
-                                                            Reject
+                                                            <XCircle className="h-5 w-5" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="group relative w-fit">
+                                                        <button
+                                                            onClick={() => { setEditingId(partner.id); setNewRate((partner.manualRate || partner.commissionRate).toString()); }}
+                                                            className="flex items-center gap-1 text-foreground hover:text-primary transition-colors font-bold"
+                                                        >
+                                                            <Percent className={`h-4 w-4 ${partner.commissionSource?.includes('Tier') ? 'text-purple-500' : 'text-blue-500'}`} />
+                                                            {partner.commissionRate}%
+                                                        </button>
+                                                        {partner.commissionSource && (
+                                                            <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-10 w-max bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                                                                Source: {partner.commissionSource}
+                                                                {partner.manualRate !== null && partner.manualRate !== partner.commissionRate && (
+                                                                    <><br />Manual Rate: {partner.manualRate}% (Ignored)</>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {editingDiscountId === partner.id ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="number"
+                                                            value={newDiscountRate}
+                                                            onChange={(e) => setNewDiscountRate(e.target.value)}
+                                                            className="w-20 px-2 py-1 border border-input rounded bg-background text-foreground"
+                                                            min="0"
+                                                            max="100"
+                                                            step="0.5"
+                                                        />
+                                                        <button
+                                                            onClick={() => handleUpdateDiscountRate(partner.id)}
+                                                            className="text-green-600 hover:text-green-700"
+                                                        >
+                                                            <CheckCircle className="h-5 w-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setEditingDiscountId(null); setNewDiscountRate(''); }}
+                                                            className="text-muted-foreground hover:text-foreground"
+                                                        >
+                                                            <XCircle className="h-5 w-5" />
                                                         </button>
                                                     </div>
                                                 ) : (
                                                     <button
-                                                        onClick={() => handleToggleActive(partner)}
-                                                        className={`text-sm ${partner.status === 'APPROVED'
-                                                            ? 'text-red-600 hover:text-red-700'
-                                                            : 'text-green-600 hover:text-green-700'
-                                                            }`}
+                                                        onClick={() => { setEditingDiscountId(partner.id); setNewDiscountRate((partner.referralDiscountRate || 0).toString()); }}
+                                                        className="flex items-center gap-1 text-foreground hover:text-primary transition-colors"
                                                     >
-                                                        {partner.status === 'APPROVED' ? 'Disable' : 'Enable'}
+                                                        <Percent className="h-4 w-4 text-green-500" />
+                                                        {partner.referralDiscountRate || 0}%
                                                     </button>
                                                 )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1 text-foreground font-bold">
+                                                    <DollarSign className="h-4 w-4 text-primary" />
+                                                    ₹{partner.walletBalance?.toLocaleString() || 0}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1 text-foreground">
+                                                    <DollarSign className="h-4 w-4 text-green-600" />
+                                                    ₹{partner.totalEarnings.toLocaleString()}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="font-medium text-foreground">{partner._count?.referrals || 0}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 text-xs rounded-full ${partner.status === 'APPROVED'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : partner.status === 'PENDING'
+                                                        ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-red-100 text-red-700'
+                                                    }`}>
+                                                    {partner.status.charAt(0) + partner.status.slice(1).toLowerCase()}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            setAdjustPartner(partner);
+                                                            setIsAdjustModalOpen(true);
+                                                        }}
+                                                        className="text-xs bg-primary-50 text-primary-600 px-2 py-1 rounded hover:bg-primary-100 font-bold"
+                                                        title="Adjust Wallet"
+                                                    >
+                                                        Wallet
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openPartnerDetails(partner.id)}
+                                                        className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye className="h-4 w-4" /> View
+                                                    </button>
+                                                    {partner.status === 'PENDING' ? (
+                                                        <div className="flex gap-1">
+                                                            <button
+                                                                onClick={() => handleUpdateStatus(partner.id, 'APPROVED')}
+                                                                className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                                                            >
+                                                                Approve
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleUpdateStatus(partner.id, 'REJECTED')}
+                                                                className="text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleToggleActive(partner)}
+                                                            className={`text-sm ${partner.status === 'APPROVED'
+                                                                ? 'text-red-600 hover:text-red-700'
+                                                                : 'text-green-600 hover:text-green-700'
+                                                                }`}
+                                                        >
+                                                            {partner.status === 'APPROVED' ? 'Disable' : 'Enable'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -480,8 +508,18 @@ export default function CPList() {
                                 <div className="p-6 space-y-6">
                                     {/* Partner Info Row */}
                                     <div className="flex flex-wrap gap-3">
+                                        {selectedPartner.currentLevel && (
+                                            <span className="flex items-center gap-1 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-bold border border-purple-200">
+                                                <Award className="h-4 w-4" />
+                                                {selectedPartner.currentLevel.name} Tier
+                                            </span>
+                                        )}
                                         <InfoBadge icon={<Hash className="h-3.5 w-3.5" />} label="Referral Code" value={selectedPartner.referralCode} />
-                                        <InfoBadge icon={<Percent className="h-3.5 w-3.5 text-blue-500" />} label="Commission" value={`${selectedPartner.commissionRate}%`} />
+                                        <InfoBadge
+                                            icon={<Percent className={`h-3.5 w-3.5 ${selectedPartner.commissionSource?.includes('Tier') ? 'text-purple-500' : 'text-blue-500'}`} />}
+                                            label="Commission"
+                                            value={`${selectedPartner.commissionRate}% ${selectedPartner.commissionSource ? `(${selectedPartner.commissionSource})` : ''}`}
+                                        />
                                         <InfoBadge icon={<Percent className="h-3.5 w-3.5 text-green-500" />} label="Customer Discount" value={`${selectedPartner.referralDiscountRate || 0}%`} />
                                         <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${selectedPartner.status === 'APPROVED'
                                             ? 'bg-green-100 text-green-700'
@@ -542,6 +580,30 @@ export default function CPList() {
                                             </p>
                                         </div>
                                     </div>
+
+                                    {/* Tier Progress */}
+                                    {selectedPartner.nextLevel && (
+                                        <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h3 className="text-sm font-bold text-purple-900 flex items-center gap-2">
+                                                    <TrendingUp className="h-4 w-4" />
+                                                    Tier Milestone
+                                                </h3>
+                                                <span className="text-xs font-bold text-purple-700 bg-white px-2 py-0.5 rounded-full border border-purple-200">
+                                                    Target: {selectedPartner.nextLevel.minPoints} pts
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-purple-800 mb-3 font-medium">
+                                                Only <span className="font-bold">{(selectedPartner.nextLevel.minPoints - (selectedPartner.activePoints || 0)).toLocaleString()}</span> more pts to reach <span className="font-bold underline">{selectedPartner.nextLevel.name}</span>!
+                                            </p>
+                                            <div className="w-full bg-purple-200 rounded-full h-2 overflow-hidden shadow-inner">
+                                                <div
+                                                    className="bg-purple-600 h-full transition-all duration-1000 shadow-sm"
+                                                    style={{ width: `${Math.min(100, ((selectedPartner.activePoints || 0) / selectedPartner.nextLevel.minPoints) * 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* KYC Documents */}
                                     {(selectedPartner.aadhaarImage || selectedPartner.licenceImage) && (

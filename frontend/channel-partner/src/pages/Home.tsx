@@ -22,6 +22,21 @@ interface DashboardStats {
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     walletBalance?: number;
     registrationFeePaid?: boolean;
+    payoutFrequency?: string;
+    currentLevel?: {
+        name: string;
+        commissionRate: number;
+        minPoints: number;
+    } | null;
+    nextLevel?: {
+        name: string;
+        minPoints: number;
+        commissionRate: number;
+    } | null;
+    loyaltySettings?: {
+        pointsPerUnit: number;
+        unitAmount: number;
+    };
 }
 
 const Home: React.FC = () => {
@@ -184,26 +199,46 @@ const Home: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                         <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Performance Dashboard</h1>
-                        {stats?.registrationFeePaid && (
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                                padding: '0.4rem 0.8rem',
-                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                color: '#ffffff',
-                                borderRadius: '20px',
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
-                                animation: 'pulse 2s infinite'
-                            }}>
-                                <Check size={14} strokeWidth={3} />
-                                VERIFIED PARTNER
-                            </div>
-                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {stats?.registrationFeePaid && (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.8rem',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: '#ffffff',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
+                                }}>
+                                    <Check size={14} strokeWidth={3} />
+                                    VERIFIED
+                                </div>
+                            )}
+                            {stats?.currentLevel && (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.8rem',
+                                    background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                                    color: '#ffffff',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                }}>
+                                    <Star size={14} fill="currentColor" />
+                                    {stats.currentLevel.name} TIER
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <p style={{ color: 'var(--text-dim)' }}>Monitor your earnings, points, and referral progress.</p>
                 </div>
@@ -306,6 +341,7 @@ const Home: React.FC = () => {
                     icon={TrendingUp}
                 />
             </div>
+            {/* ... (header and stats cards remain the same) */}
 
             <div style={{ gridTemplateColumns: '1fr 380px', display: 'grid', gap: '1.5rem' }}>
                 <div className="glass-pane" style={{ padding: '2rem' }}>
@@ -318,28 +354,57 @@ const Home: React.FC = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <ProgressBar
-                        label="Growth Progress"
+                        label={stats?.nextLevel ? `Progress to ${stats.nextLevel.name}` : "Highest Tier Reached"}
                         current={stats?.totalPoints || 0}
-                        target={5000} // This should eventually be dynamic based on levels
+                        target={stats?.nextLevel?.minPoints || stats?.totalPoints || 0}
                     />
 
-                    <div className="glass-pane" style={{ padding: '1.5rem' }}>
-                        <h4 style={{ marginBottom: '1rem' }}>Tier Benefits</h4>
-                        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                            <li style={{ fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-dim)' }}>Commission Rate</span>
-                                <span style={{ fontWeight: 600 }}>{stats?.commissionRate}%</span>
-                            </li>
-                            <li style={{ fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-dim) ' }}>Points per ₹100</span>
-                                <span style={{ fontWeight: 600, color: 'var(--primary-teal)' }}>1 pt</span>
-                            </li>
+                    <div className="glass-pane" style={{ padding: '1.5rem', background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
+                            <h4 style={{ margin: 0 }}>Tier Comparison</h4>
+                            <div style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '4px', fontWeight: 600 }}>
+                                {stats?.payoutFrequency || 'Monthly'} Payouts
+                            </div>
+                        </div>
 
-                            <li style={{ fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-dim)' }}>Payout Frequency</span>
-                                <span style={{ fontWeight: 600, color: '#10b981' }}>Monthly</span>
-                            </li>
-                        </ul>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Current Benefits */}
+                            <div style={{ padding: '1rem', background: 'rgba(8, 71, 78, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-teal)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-teal)', textTransform: 'uppercase' }}>Active Benefits</span>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>{stats?.currentLevel?.name || 'Standard'} Tier</span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                        <span style={{ color: 'var(--text-dim)' }}>Commission Rate</span>
+                                        <span style={{ fontWeight: 700 }}>{stats?.commissionRate}%</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                        <span style={{ color: 'var(--text-dim)' }}>Point Multiplier</span>
+                                        <span style={{ fontWeight: 600 }}>{stats?.loyaltySettings?.pointsPerUnit || 1} pt / ₹{stats?.loyaltySettings?.unitAmount || 100}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Next Tier Preview */}
+                            {stats?.nextLevel && (
+                                <div style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.03)', borderRadius: 'var(--radius-md)', border: '1px dashed #f59e0b', position: 'relative', opacity: 0.8 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase' }}>Next: {stats.nextLevel.name}</span>
+                                        <TrendingUp size={14} color="#d97706" />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                            <span style={{ color: 'var(--text-dim)' }}>Unlock Rate</span>
+                                            <span style={{ fontWeight: 700, color: '#d97706' }}>{stats.nextLevel.commissionRate}%*</span>
+                                        </div>
+                                    </div>
+                                    <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '0.6rem', fontStyle: 'italic' }}>
+                                        * Reach {stats.nextLevel.minPoints.toLocaleString()} points to unlock.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

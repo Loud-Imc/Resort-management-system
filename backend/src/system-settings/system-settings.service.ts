@@ -60,6 +60,11 @@ export class SystemSettingsService implements OnModuleInit {
                 key: 'PARTIAL_PAYMENT_PCT',
                 value: 33.33,
                 description: 'The percentage of the total amount required for a partial payment booking advance.'
+            },
+            {
+                key: 'PAYOUT_FREQUENCY',
+                value: 'Monthly',
+                description: 'Global payout frequency for Channel Partners (e.g., Weekly, Monthly).'
             }
         ];
 

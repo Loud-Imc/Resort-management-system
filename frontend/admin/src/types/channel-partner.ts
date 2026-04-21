@@ -8,6 +8,7 @@ export interface ChannelPartner {
     commissionRate: number;
     referralDiscountRate: number;
     totalPoints: number;
+    activePoints: number;
     availablePoints: number;
     totalEarnings: number;
     paidOut: number;
@@ -26,6 +27,13 @@ export interface ChannelPartner {
     aadhaarImage?: string;
     licenceImage?: string;
     registrationFeePaid?: boolean;
+    currentLevel?: {
+        name: string;
+        commissionRate: number;
+        minPoints: number;
+    } | null;
+    commissionSource?: string;
+    manualRate?: number | null;
     _count?: {
         referrals: number;
     };
@@ -101,5 +109,9 @@ export interface CPPartnerDetails extends ChannelPartner {
     totalReferrals: number;
     confirmedReferrals: number;
     thisMonthReferrals: number;
+    nextLevel?: {
+        name: string;
+        minPoints: number;
+    } | null;
     referralBookings: CPReferralBooking[];
 }

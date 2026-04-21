@@ -470,7 +470,54 @@ async function main() {
     }
     console.log('✅ Expense categories seeded');
 
-    console.log('\n🎉 Database re-seeded with 4 properties and rooms!');
+    // --- PARTNER Tiers ---
+    // Clean up existing tiers to ensure unique constraints on minPoints don't block the seed
+    await prisma.partnerLevel.deleteMany({});
+
+    const partnerLevels = [
+        { name: 'Standard', minPoints: 0, commissionRate: 10.0, pointsPerUnit: 1, unitAmount: 100, description: 'Baseline tier for all new partners' },
+        { name: 'Bronze', minPoints: 1000, commissionRate: 10.5, pointsPerUnit: 1, unitAmount: 100, description: 'Basic tier with increased commission' },
+        { name: 'Silver', minPoints: 2500, commissionRate: 11.0, pointsPerUnit: 1, unitAmount: 100, description: 'Advanced tier with better rates' },
+        { name: 'Gold', minPoints: 5000, commissionRate: 12.0, pointsPerUnit: 1, unitAmount: 100, description: 'Premium tier for high performers' },
+        { name: 'Platinum', minPoints: 10000, commissionRate: 15.0, pointsPerUnit: 1, unitAmount: 100, description: 'Elite tier with maximum rewards' },
+    ];
+
+    for (const level of partnerLevels) {
+        await prisma.partnerLevel.upsert({
+            where: { name: level.name },
+            update: level,
+            create: level,
+        });
+    }
+    console.log('✅ Partner tiers seeded');
+
+    // --- SYSTEM SETTINGS ---
+    // Cleanup redundant legacy settings
+    await prisma.globalSetting.deleteMany({
+        where: {
+            key: {
+                in: ['LOYALTY_POINTS_PER_UNIT', 'LOYALTY_UNIT_AMOUNT', 'DEFAULT_COMMISSION_RATE']
+            }
+        }
+    });
+
+    const systemSettings = [
+        { key: 'PAYOUT_FREQUENCY', value: 'Monthly', description: 'Default commission payout frequency' },
+    ];
+
+    for (const setting of systemSettings) {
+        await prisma.globalSetting.upsert({
+            where: { key: setting.key },
+            update: {
+                value: setting.value,
+                description: setting.description,
+            },
+            create: setting,
+        });
+    }
+    console.log('✅ System settings seeded');
+
+    console.log('\n🎉 Database re-seeded with 4 properties, rooms, and loyalty system!');
 }
 
 main()
