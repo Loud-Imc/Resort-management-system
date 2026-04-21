@@ -231,17 +231,19 @@ export class PricingService {
         let originalTaxAmount = 0;
         const gstTiersForOriginal = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
         const originalEffectiveNights = Math.max(1, numberOfNights);
+
+        // Consolidate room count for accurate GST slab calculation
+        const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
+        const calculatedRoomCount = (isGroupBooking && groupSize)
+            ? (requestedRoomCount || Math.ceil(groupSize / roomCapacity))
+            : (requestedRoomCount || 1);
+        const finalRoomCount = Math.max(1, calculatedRoomCount);
+
         for (let i = 0; i < originalEffectiveNights; i++) {
             const subtotalThisNight = subtotalBeforeDiscounts / originalEffectiveNights;
-            if (isGroupBooking && groupSize) {
-                const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
-                const numberOfRooms = Math.ceil(groupSize / roomCapacity);
-                const roomTariffThisNight = subtotalThisNight / numberOfRooms;
-                for (let r = 0; r < numberOfRooms; r++) {
-                    originalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiersForOriginal);
-                }
-            } else {
-                originalTaxAmount += this.calculateTaxForTariff(subtotalThisNight, gstTiersForOriginal);
+            const roomTariffThisNight = subtotalThisNight / finalRoomCount;
+            for (let r = 0; r < finalRoomCount; r++) {
+                originalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiersForOriginal);
             }
         }
         const originalTotal = subtotalBeforeDiscounts + originalTaxAmount;
@@ -342,20 +344,11 @@ export class PricingService {
         for (let i = 0; i < taxEffectiveNights; i++) {
             // Per-night taxable amount (average across nights)
             const subtotalThisNight = subtotal / taxEffectiveNights;
+            const roomTariffThisNight = subtotalThisNight / finalRoomCount;
 
-            if (isGroupBooking && groupSize) {
-                // Split into rooms using room capacity, calculate GST per room
-                const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
-                const numberOfRooms = Math.ceil(groupSize / roomCapacity);
-                const roomTariffThisNight = subtotalThisNight / numberOfRooms;
-
-                // Apply GST slab separately for each room
-                for (let r = 0; r < numberOfRooms; r++) {
-                    totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
-                }
-            } else {
-                // Standard booking: single room tariff per night
-                totalTaxAmount += this.calculateTaxForTariff(subtotalThisNight, gstTiers);
+            // Apply GST slab separately for each room
+            for (let r = 0; r < finalRoomCount; r++) {
+                totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
             }
         }
 
@@ -373,12 +366,8 @@ export class PricingService {
             exchangeRate = await this.currenciesService.convert(1, baseCurrency, targetCurrency);
         }
 
-        // Calculate estimated room count for group bookings
-        let roomCount = 1;
-        if (isGroupBooking && groupSize) {
-            const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
-            roomCount = Math.ceil(groupSize / roomCapacity);
-        }
+        // The consolidated roomCount used for pricing/tax logic
+        const roomCount = finalRoomCount;
 
         const result = {
             baseAmount: Number(baseAmount.toFixed(2)),

@@ -116,9 +116,15 @@ export class AvailabilityService {
         includeAllStatus: boolean = false,
     ) {
         const checkIn = new Date(checkInDate);
-        checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
-        checkOut.setHours(0, 0, 0, 0);
+
+        // For same-day availability checks, we don't normalize to start-of-day 
+        // to allow booking a room immediately after someone else checked out.
+        // However, we want to ensure we don't miss accidental overlaps if input times are weird.
+        if (checkIn.getTime() === checkOut.getTime()) {
+            // Same day: ensure it spans a bit of time for the query
+            checkOut.setHours(23, 59, 59, 999);
+        }
 
         // Get all enabled rooms of this type
         const allRooms = await this.prisma.room.findMany({
@@ -173,7 +179,7 @@ export class AvailabilityService {
                 AND: [
                     {
                         OR: [
-                            { status: { in: ['CONFIRMED', 'RESERVED', 'CHECKED_IN', 'CHECKED_OUT'] } },
+                            { status: { in: ['CONFIRMED', 'RESERVED', 'CHECKED_IN'] } }, // Removed CHECKED_OUT
                             {
                                 AND: [
                                     { status: 'PENDING_PAYMENT' },
