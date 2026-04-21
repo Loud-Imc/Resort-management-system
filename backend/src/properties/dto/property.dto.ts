@@ -142,7 +142,18 @@ export class CreatePropertyDto {
     @ApiProperty({ example: 400, description: 'Group price per child' })
     @IsOptional()
     @IsNumber()
+    @Min(0)
     groupPriceChild?: number;
+
+    @ApiProperty({ example: '14:00', description: 'Default property check-in time' })
+    @IsOptional()
+    @IsString()
+    defaultCheckInTime?: string;
+
+    @ApiProperty({ example: '11:00', description: 'Default property check-out time' })
+    @IsOptional()
+    @IsString()
+    defaultCheckOutTime?: string;
 }
 
 export class UpdatePropertyDto {
@@ -276,6 +287,14 @@ export class UpdatePropertyDto {
     @IsNumber()
     @Min(0)
     groupPriceChild?: number;
+
+    @IsOptional()
+    @IsString()
+    defaultCheckInTime?: string;
+
+    @IsOptional()
+    @IsString()
+    defaultCheckOutTime?: string;
 }
 
 export class PropertyQueryDto {
