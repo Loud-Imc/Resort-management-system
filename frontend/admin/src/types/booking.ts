@@ -64,6 +64,7 @@ export interface Booking {
     guests: BookingGuest[];
     isGroupBooking: boolean;
     groupSize?: number;
+    createdBy?: string;
     createdAt: string;
 }
 

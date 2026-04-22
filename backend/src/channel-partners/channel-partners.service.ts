@@ -467,6 +467,61 @@ export class ChannelPartnersService {
         };
     }
 
+    // Record pending commission (called when Online booking is CONFIRMED but before check-in)
+    async recordPendingCommission(bookingId: string, tx?: Prisma.TransactionClient) {
+        const client = tx || this.prisma;
+
+        const booking = await client.booking.findUnique({
+            where: { id: bookingId },
+            include: { channelPartner: true }
+        });
+
+        if (!booking || !booking.channelPartnerId) return null;
+
+        // Check if already recorded (idempotency)
+        const existing = await client.cPTransaction.findUnique({
+            where: {
+                bookingId_type: {
+                    bookingId,
+                    type: 'COMMISSION'
+                }
+            }
+        });
+        if (existing) return existing;
+
+        const commission = Number(booking.cpCommission) || 0;
+        const currentLevel = await this.getCurrentLevel(booking.channelPartnerId);
+
+        const pointsPerUnit = currentLevel?.pointsPerUnit ?? 1;
+        const unitAmount = currentLevel?.unitAmount ?? 100;
+        const safeUnitAmount = unitAmount > 0 ? unitAmount : 100;
+
+        const points = Math.floor(Number(booking.commissionableAmount) / safeUnitAmount) * pointsPerUnit;
+
+        // Update partner pending stats
+        await client.channelPartner.update({
+            where: { id: booking.channelPartnerId },
+            data: {
+                pendingEarnings: { increment: commission },
+                pendingPoints: { increment: points },
+            }
+        });
+
+        // Create PENDING transaction
+        return client.cPTransaction.create({
+            data: {
+                type: 'COMMISSION',
+                status: 'PENDING',
+                amount: commission,
+                points,
+                description: `Pending commission for booking ${booking.bookingNumber} (Online)`,
+                channelPartnerId: booking.channelPartnerId,
+                bookingId,
+                isPrepaid: false,
+            }
+        });
+    }
+
     // Process referral commission (initially as PENDING on payment)
     async processReferralCommission(bookingId: string, channelPartnerId: string, bookingAmount: number, tx?: Prisma.TransactionClient, triggerSource?: 'MANUAL_CHECKIN' | 'AUTO_FINALIZATION' | 'DELAYED_PAYMENT') {
         const client = tx || this.prisma;
@@ -479,15 +534,6 @@ export class ChannelPartnersService {
                     type: 'COMMISSION'
                 }
             }
-        });
-
-        if (existingTransaction) {
-            this.logger.log(`Commission already exists (status: ${existingTransaction.status}) for booking ${bookingId}. Skipping.`);
-            return null;
-        }
-
-        const cp = await client.channelPartner.findUnique({
-            where: { id: channelPartnerId },
         });
 
         const booking = await client.booking.findUnique({
@@ -517,6 +563,34 @@ export class ChannelPartnersService {
         const isPrepaid = booking.paymentMethod === ('WALLET' as any);
 
         try {
+            if (existingTransaction && existingTransaction.status === 'PENDING') {
+                // Transition from PENDING to FINALIZED
+                await client.channelPartner.update({
+                    where: { id: channelPartnerId },
+                    data: {
+                        pendingEarnings: { decrement: existingTransaction.amount },
+                        pendingPoints: { decrement: existingTransaction.points },
+                        totalEarnings: { increment: existingTransaction.amount },
+                        totalPoints: { increment: existingTransaction.points },
+                        availablePoints: { increment: existingTransaction.points },
+                    },
+                });
+
+                return await client.cPTransaction.update({
+                    where: { id: existingTransaction.id },
+                    data: {
+                        status: 'FINALIZED',
+                        description: `Commission finalized for booking ${booking.bookingNumber} [${triggerSource || 'CHECKIN'}]`,
+                    },
+                });
+            }
+
+            // --- Original Direct Allocation Logic (for Wallet or bookings missed by Pending flow) ---
+            if (existingTransaction) {
+                this.logger.log(`Commission already exists (status: ${existingTransaction.status}) for booking ${bookingId}. Skipping.`);
+                return null;
+            }
+
             await client.channelPartner.update({
                 where: { id: channelPartnerId },
                 data: {

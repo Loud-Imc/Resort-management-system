@@ -264,6 +264,7 @@ model Booking {
   gstNumber               String?
   isHistoricalEntry       Boolean                @default(false)
   transactionDate         DateTime?
+  createdBy               String?
   auditLogs               AuditLog[]
   guests                  BookingGuest[]
   agent                   User?                  @relation("AgentBookings", fields: [agentId], references: [id])

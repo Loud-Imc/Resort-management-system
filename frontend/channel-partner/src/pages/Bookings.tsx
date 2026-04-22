@@ -1,21 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import PremiumTable from '../components/PremiumTable';
-import { BadgeCheck, Clock, MapPin, XCircle, Loader2 } from 'lucide-react';
+import { BadgeCheck, Clock, MapPin, XCircle, Loader2, Eye } from 'lucide-react';
 import api from '../services/api';
+import BookingDetailDrawer from '../components/BookingDetailDrawer';
 
 interface Booking {
     id: string;
+    bookingNumber?: string;
     guestName: string;
     property: string;
     checkIn: string;
     checkOut: string;
     status: string;
     amount: string;
+    paymentStatus?: string;
+    commissionAmount?: number;
+    pointsEarned?: number;
+    roomType?: string;
 }
 
 const Bookings: React.FC = () => {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     useEffect(() => {
         const fetchBookings = async () => {
@@ -23,12 +31,17 @@ const Bookings: React.FC = () => {
                 const response: any = await api.get('/channel-partners/me');
                 const mappedData = response.referrals.map((ref: any) => ({
                     id: ref.id,
+                    bookingNumber: ref.bookingNumber,
                     guestName: ref.user ? `${ref.user.firstName} ${ref.user.lastName}` : 'Guest',
                     property: ref.property?.name || 'N/A',
                     checkIn: new Date(ref.checkInDate).toLocaleDateString(),
                     checkOut: new Date(ref.checkOutDate).toLocaleDateString(),
                     status: ref.status,
                     amount: `₹${Number(ref.totalAmount || 0).toLocaleString()}`,
+                    paymentStatus: ref.paymentStatus,
+                    commissionAmount: Number(ref.cpCommission || 0),
+                    pointsEarned: Number(ref.cpPoints || 0),
+                    roomType: ref.roomType?.name || ref.room?.roomType?.name || 'Standard Room',
                 }));
                 setBookings(mappedData);
             } catch (error) {
@@ -40,6 +53,11 @@ const Bookings: React.FC = () => {
 
         fetchBookings();
     }, []);
+
+    const openDetails = (booking: Booking) => {
+        setSelectedBooking(booking);
+        setIsDrawerOpen(true);
+    };
 
     const columns = [
         { header: 'Guest Name', accessor: 'guestName' as keyof Booking },
@@ -89,6 +107,31 @@ const Bookings: React.FC = () => {
             }
         },
         { header: 'Total Amount', accessor: 'amount' as keyof Booking, align: 'right' as const },
+        {
+            header: 'Actions',
+            accessor: (item: Booking) => (
+                <button
+                    onClick={() => openDetails(item)}
+                    style={{
+                        padding: '0.5rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'white',
+                        color: 'var(--primary-teal)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                    }}
+                    className="hover-scale"
+                    title="View Details"
+                >
+                    <Eye size={18} />
+                </button>
+            ),
+            align: 'center' as const
+        }
     ];
 
     if (isLoading) {
@@ -119,6 +162,12 @@ const Bookings: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <BookingDetailDrawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                booking={selectedBooking}
+            />
         </div>
     );
 };

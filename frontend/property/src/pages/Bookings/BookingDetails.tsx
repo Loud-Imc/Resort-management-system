@@ -149,9 +149,18 @@ const BookingDetails = () => {
                                     {booking.status.replace('_', ' ')}
                                 </span>
                             </h1>
-                            <p className="text-muted-foreground font-medium flex items-center gap-2 mt-1">
-                                Created on {format(new Date(booking.createdAt), 'PPP')} at {format(new Date(booking.createdAt), 'p')}
-                            </p>
+                            <div className="flex flex-col gap-1 mt-1">
+                                <p className="text-muted-foreground font-medium flex items-center gap-2">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    Created on {format(new Date(booking.createdAt), 'PPP')} at {format(new Date(booking.createdAt), 'p')}
+                                </p>
+                                {booking.createdBy && (
+                                    <p className="text-primary font-bold text-[11px] flex items-center gap-2 uppercase tracking-wider">
+                                        <ShieldCheck className="h-3.5 w-3.5" />
+                                        Created By: {booking.createdBy}
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

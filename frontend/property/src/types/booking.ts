@@ -89,6 +89,7 @@ export interface Booking {
     isGroupBooking: boolean;
     groupSize?: number;
     payments?: BookingPayment[];
+    createdBy?: string;
     createdAt: string;
 }
 

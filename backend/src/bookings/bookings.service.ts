@@ -12,6 +12,8 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PdfService } from '../pdf/pdf.service';
+import { MailService } from '../mail/mail.service';
 import { Cron } from '@nestjs/schedule';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 
@@ -27,6 +29,8 @@ export class BookingsService {
         private paymentsService: PaymentsService,
         private notificationsService: NotificationsService,
         private systemSettings: SystemSettingsService,
+        private pdfService: PdfService,
+        private mailService: MailService,
     ) { }
 
     /**
@@ -63,6 +67,21 @@ export class BookingsService {
 
         let isAuthorizedStaff = false;
         const userId = user?.id || 'GUEST_USER';
+
+        // Determine who is creating this booking for audit purposes
+        let createdBy = 'Public Portal';
+        if (user) {
+            const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || user.id;
+            if (user.roles?.includes('SuperAdmin') || user.roles?.includes('Admin')) {
+                createdBy = `Admin: ${userName}`;
+            } else if (user.roles?.includes('ChannelPartner')) {
+                createdBy = `Channel Partner: ${userName}`;
+            } else if (user.roles?.includes('PropertyOwner') || user.roles?.includes('PropertyStaff')) {
+                createdBy = `Property Staff: ${userName}`;
+            } else {
+                createdBy = `Guest: ${userName}`;
+            }
+        }
 
         if (user && user.id) {
             const roles = user.roles || [];
@@ -557,6 +576,7 @@ export class BookingsService {
                     isManualBooking,
                     isHistoricalEntry,
                     transactionDate: transactionDate ? new Date(transactionDate) : null,
+                    createdBy,
                     paymentOption: isHistoricalEntry ? 'FULL' : (createBookingDto.paymentOption || 'FULL'),
                     status: isHistoricalEntry && checkOut < new Date()
                         ? 'CHECKED_OUT'
@@ -1826,5 +1846,81 @@ export class BookingsService {
                 this.logger.error(`[Commission][AUTO_FINALIZATION] Failed for ${booking.bookingNumber}: ${error.message}`);
             }
         }
+    }
+    /**
+     * Generate invoice PDF for a booking
+     */
+    async generateInvoice(id: string, type: 'GUEST' | 'PARTNER' = 'GUEST') {
+        const booking = await this.prisma.booking.findUnique({
+            where: { id },
+            include: {
+                user: true,
+                property: {
+                    include: {
+                        owner: true,
+                    },
+                },
+                roomType: true,
+                channelPartner: {
+                    include: {
+                        user: true,
+                    },
+                },
+            },
+        });
+
+        if (!booking) {
+            throw new NotFoundException(`Booking with ID ${id} not found`);
+        }
+
+        return this.pdfService.generateBookingConfirmation(booking, type);
+    }
+
+    /**
+     * Send invoice to guest or partner
+     */
+    async sendInvoice(id: string, type: 'GUEST' | 'PARTNER', method: 'EMAIL' | 'WHATSAPP') {
+        const booking = await this.prisma.booking.findUnique({
+            where: { id },
+            include: {
+                user: true,
+                property: true,
+                roomType: true,
+                channelPartner: {
+                    include: {
+                        user: true,
+                    },
+                },
+            },
+        });
+
+        if (!booking) {
+            throw new NotFoundException(`Booking with ID ${id} not found`);
+        }
+
+        const pdfBuffer = await this.pdfService.generateBookingConfirmation(booking, type);
+        const filename = `${type === 'PARTNER' ? 'Agency' : 'Guest'}_Invoice_${booking.bookingNumber}.pdf`;
+
+        if (method === 'EMAIL') {
+            const recipientEmail = type === 'GUEST' ? booking.user.email : booking.channelPartner?.user?.email;
+            if (!recipientEmail) {
+                throw new BadRequestException(`Recipient email not found for ${type}`);
+            }
+
+            await this.mailService.sendBookingConfirmation(booking, {
+                filename,
+                content: pdfBuffer,
+            });
+        } else if (method === 'WHATSAPP') {
+            const recipientPhone = type === 'GUEST' ? (booking.whatsappNumber || booking.user.phone) : booking.channelPartner?.user?.phone;
+            if (!recipientPhone) {
+                throw new BadRequestException(`Recipient phone not found for ${type}`);
+            }
+
+            const message = `Hello ${booking.user?.firstName || 'Guest'}, here is your ${type === 'GUEST' ? 'Booking Confirmation' : 'Agency Invoice'} for your stay at ${booking.property?.name || 'our resort'}. Booking #: ${booking.bookingNumber}`;
+            await this.notificationsService.sendWhatsApp(recipientPhone, message);
+        }
+
+        return { success: true, message: `Invoice sent via ${method}` };
     }
 }

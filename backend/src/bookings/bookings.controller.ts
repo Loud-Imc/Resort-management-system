@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, Request, Ip, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, Request, Ip, Delete, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { BookingsService } from './bookings.service';
@@ -269,6 +269,56 @@ export class BookingsController {
     @ApiOperation({ summary: 'Get booking by ID (Public)' })
     findOnePublic(@Param('id') id: string) {
         return this.bookingsService.findOnePublic(id);
+    }
+
+    @Get('ping')
+    @ApiOperation({ summary: 'Diagnostic ping' })
+    ping() {
+        return { status: 'ok', timestamp: new Date().toISOString() };
+    }
+
+    @Get('invoice/:id/:type')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @ApiOperation({ summary: 'Get booking invoice PDF' })
+    async getInvoice(
+        @Param('id') id: string,
+        @Param('type') type: 'GUEST' | 'PARTNER',
+        @Request() req: any,
+        @Res() res: any,
+    ) {
+        // Enforce permissions: Only CP, Admin, or Property Staff can access partner invoices
+        if (type === 'PARTNER') {
+            const user = req.user;
+            const roles = user.roles || [];
+            const isAuthorized = roles.some((r: string) =>
+                ['SuperAdmin', 'Admin', 'ChannelPartner', 'PropertyOwner', 'PropertyStaff'].includes(r)
+            );
+            if (!isAuthorized) {
+                throw new ForbiddenException('You are not authorized to view partner invoices');
+            }
+        }
+
+        const buffer = await this.bookingsService.generateInvoice(id, type);
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="${type}_Invoice_${id}.pdf"`,
+            'Content-Length': buffer.length,
+        });
+
+        res.end(buffer);
+    }
+
+    @Post('invoice/:id/:type/send')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @ApiOperation({ summary: 'Send invoice to guest/partner' })
+    async sendInvoice(
+        @Param('id') id: string,
+        @Param('type') type: 'GUEST' | 'PARTNER',
+        @Body('method') method: 'EMAIL' | 'WHATSAPP',
+        @Request() req: any,
+    ) {
+        return this.bookingsService.sendInvoice(id, type, method);
     }
 
     @Get(':id')

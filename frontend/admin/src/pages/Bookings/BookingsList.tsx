@@ -286,9 +286,15 @@ export default function BookingsList() {
                                             <div className="text-sm font-medium text-primary">
                                                 {booking.bookingNumber}
                                             </div>
-                                            <div className="text-xs text-muted-foreground">
+                                            <div className="text-[10px] text-muted-foreground mt-0.5 font-bold uppercase tracking-tight">
                                                 {booking.isManualBooking ? 'Manual' : 'Online'}
                                             </div>
+                                            {booking.createdBy && (
+                                                <div className="mt-1 flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10 w-fit uppercase tracking-tighter">
+                                                    <ShieldCheck className="h-2.5 w-2.5" />
+                                                    By: {booking.createdBy}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-foreground">
@@ -428,11 +434,19 @@ export default function BookingsList() {
                                     </div>
                                     <div>
                                         <h2 className="text-2xl font-black tracking-tight text-foreground">Verification Center</h2>
-                                        <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-                                            Booking: <span className="text-primary font-bold">{checkInBooking.bookingNumber}</span>
-                                            <span className="w-1 h-1 rounded-full bg-border" />
-                                            Required for security compliance
-                                        </p>
+                                        <div className="flex flex-col gap-1">
+                                            <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                                                Booking: <span className="text-primary font-bold">{checkInBooking.bookingNumber}</span>
+                                                <span className="w-1 h-1 rounded-full bg-border" />
+                                                Required for security compliance
+                                            </p>
+                                            {checkInBooking.createdBy && (
+                                                <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest flex items-center gap-1.5">
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                    Origin: {checkInBooking.createdBy}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <button
@@ -738,7 +752,8 @@ export default function BookingsList() {
                         </form>
                     </div>
                 </div>
-            )}
+            )
+            }
         </>
     );
 }

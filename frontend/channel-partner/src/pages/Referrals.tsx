@@ -1,25 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import PremiumTable from '../components/PremiumTable';
-import { BadgeCheck, Clock, XCircle, ExternalLink } from 'lucide-react';
+import { BadgeCheck, Clock, XCircle, Eye } from 'lucide-react';
 import api from '../services/api';
+import BookingDetailDrawer from '../components/BookingDetailDrawer';
 
 interface Referral {
     id: string;
+    bookingNumber?: string;
     guestName: string;
     status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'PENDING_PAYMENT';
     paymentStatus: 'UNPAID' | 'PARTIAL' | 'FULL';
     date: string;
+    checkIn: string;
+    checkOut: string;
+    property: string;
     commission: string;
+    commissionAmount: number;
     paidAmount: number;
     totalAmount: number;
     points: number;
     isGroupBooking: boolean;
     groupSize?: number;
+    roomType?: string;
 }
 
 const Referrals: React.FC = () => {
     const [referrals, setReferrals] = useState<Referral[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedBooking, setSelectedBooking] = useState<Referral | null>(null);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     useEffect(() => {
         const fetchReferrals = async () => {
@@ -27,16 +36,22 @@ const Referrals: React.FC = () => {
                 const response: any = await api.get('/channel-partners/me');
                 const mappedData = response.referrals.map((ref: any) => ({
                     id: ref.id,
+                    bookingNumber: ref.bookingNumber,
                     guestName: ref.user ? `${ref.user.firstName} ${ref.user.lastName}` : 'Guest',
                     status: ref.status,
                     paymentStatus: ref.paymentStatus,
                     paidAmount: Number(ref.paidAmount || 0),
                     totalAmount: Number(ref.totalAmount || 0),
                     date: new Date(ref.createdAt).toLocaleDateString(),
+                    checkIn: new Date(ref.checkInDate).toLocaleDateString(),
+                    checkOut: new Date(ref.checkOutDate).toLocaleDateString(),
+                    property: ref.property?.name || 'N/A',
                     commission: `₹${Number(ref.cpCommission || 0).toLocaleString()}`,
-                    points: Math.floor(Number(ref.totalAmount || 0) / 100),
+                    commissionAmount: Number(ref.cpCommission || 0),
+                    points: Number(ref.cpPoints || 0),
                     isGroupBooking: ref.isGroupBooking || false,
                     groupSize: ref.groupSize,
+                    roomType: ref.roomType?.name || ref.room?.roomType?.name || 'Standard Room',
                 }));
                 setReferrals(mappedData);
             } catch (error) {
@@ -48,6 +63,11 @@ const Referrals: React.FC = () => {
 
         fetchReferrals();
     }, []);
+
+    const openDetails = (referral: Referral) => {
+        setSelectedBooking(referral);
+        setIsDrawerOpen(true);
+    };
 
     const columns = [
         {
@@ -143,9 +163,25 @@ const Referrals: React.FC = () => {
         { header: 'Points', accessor: 'points' as keyof Referral, align: 'center' as const },
         {
             header: 'Actions',
-            accessor: () => (
-                <button style={{ background: 'none', color: 'var(--text-dim)' }} className="glass-pane-hover">
-                    <ExternalLink size={18} />
+            accessor: (item: Referral) => (
+                <button
+                    onClick={() => openDetails(item)}
+                    style={{
+                        padding: '0.5rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'white',
+                        color: 'var(--primary-teal)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                    }}
+                    className="hover-scale"
+                    title="Explore Details"
+                >
+                    <Eye size={18} />
                 </button>
             ),
             align: 'right' as const
@@ -180,6 +216,17 @@ const Referrals: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <BookingDetailDrawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                booking={selectedBooking ? {
+                    ...selectedBooking,
+                    amount: `₹${selectedBooking.totalAmount.toLocaleString()}`,
+                    commissionAmount: selectedBooking.commissionAmount,
+                    pointsEarned: selectedBooking.points,
+                } : null}
+            />
         </div>
     );
 };
