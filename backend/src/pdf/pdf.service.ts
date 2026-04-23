@@ -9,23 +9,61 @@ export class PdfService {
   private pdfmakeManager: any;
 
   constructor() {
+    // Better path resolution relative to this file
+    const fontsPath = path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto');
+    
     const fonts = {
       Roboto: {
-        normal: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Regular.ttf'),
-        bold: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Medium.ttf'),
-        italics: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Italic.ttf'),
-        bolditalics: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-MediumItalic.ttf'),
+        normal: path.join(fontsPath, 'Roboto-Regular.ttf'),
+        bold: path.join(fontsPath, 'Roboto-Medium.ttf'),
+        italics: path.join(fontsPath, 'Roboto-Italic.ttf'),
+        bolditalics: path.join(fontsPath, 'Roboto-MediumItalic.ttf'),
       },
     };
+    
     this.pdfmakeManager = PdfPrinter;
     this.pdfmakeManager.setFonts(fonts);
+
+    // Set URL access policy for pdfmake 0.3.x to allow base64 images
+    try {
+      this.pdfmakeManager.setUrlAccessPolicy((url: string) => {
+        return url.startsWith('data:');
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to set URL access policy: ${e.message}`);
+    }
+  }
+
+  private getLogoBase64(): string | null {
+    const possiblePaths = [
+      path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'),
+      path.join(process.cwd(), 'dist', 'assets', 'Route-guide.png'),
+      path.join(__dirname, '..', 'assets', 'Route-guide.png')
+    ];
+
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          return fs.readFileSync(p).toString('base64');
+        } catch (e) {
+          this.logger.error(`Error reading logo at ${p}: ${e.message}`);
+        }
+      }
+    }
+    return null;
   }
 
   async generateBookingConfirmation(booking: any, recipientType: 'GUEST' | 'PARTNER' = 'GUEST'): Promise<Buffer> {
-    console.log(`[PdfService] [DEBUG] Processing ${recipientType} invoice for booking ${booking.bookingNumber}`);
+    console.log(`[PdfService] [DEBUG] Incoming Booking Data:`, JSON.stringify(booking, null, 2));
+    console.log(`[PdfService] [DEBUG] Recipient Type: ${recipientType}`);
+
     const property = booking.property || booking.room?.property;
     const roomType = booking.roomType;
     const user = booking.user;
+
+    console.log(`[PdfService] [DEBUG] Extracted Property:`, property?.name);
+    console.log(`[PdfService] [DEBUG] Extracted RoomType:`, roomType?.name);
+    console.log(`[PdfService] [DEBUG] Extracted User:`, user?.firstName);
 
     const isPartner = recipientType === 'PARTNER';
 
@@ -36,7 +74,13 @@ export class PdfService {
     // Calculation Logic for Invoices
     const totalAmount = Number(booking.totalAmount || 0);
     const cpCommission = Number(booking.cpCommission || 0);
+    const cpDiscount = Number(booking.cpDiscount || 0);
+    const offerDiscountAmount = Number(booking.offerDiscountAmount || 0);
+    const couponDiscountAmount = Number(booking.couponDiscountAmount || 0);
+    const paidAmount = Number(booking.paidAmount || 0);
     const netInvestment = totalAmount - cpCommission;
+
+    console.log(`[PdfService] [DEBUG] Values - Total: ${totalAmount}, Commission: ${cpCommission}, Net: ${netInvestment}`);
 
     const docDefinition: any = {
       content: [
@@ -46,10 +90,16 @@ export class PdfService {
             {
               width: '*',
               stack: [
-                {
-                  image: `data:image/png;base64,${fs.readFileSync(path.join(process.cwd(), 'src', 'assets', 'Route-guide.png')).toString('base64')}`,
-                  width: 120
-                },
+                (() => {
+                  const logoBase64 = this.getLogoBase64();
+                  if (logoBase64) {
+                    return {
+                      image: `data:image/png;base64,${logoBase64}`,
+                      width: 120
+                    };
+                  }
+                  return { text: 'Route Guide', style: 'brandLogo' };
+                })(),
                 { text: 'Travel | Discover | Belong', style: 'brandTagline', margin: [0, 5, 0, 0] },
               ],
             },
@@ -57,7 +107,7 @@ export class PdfService {
               width: 'auto',
               stack: [
                 { text: isPartner ? 'AGENCY INVOICE' : 'BOOKING CONFIRMATION', style: 'docTitle' },
-                { text: `ID: #${booking.bookingNumber}`, style: 'bookingId' },
+                { text: `ID: #${booking.bookingNumber || 'N/A'}`, style: 'bookingId' },
                 { text: `Date: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate' },
               ],
               alignment: 'right',
@@ -73,7 +123,7 @@ export class PdfService {
             body: [
               [
                 {
-                  text: booking.status === 'CONFIRMED' ? 'RESERVATION CONFIRMED' : booking.status.replace('_', ' '),
+                  text: (booking.status || 'PENDING').replace('_', ' '),
                   style: 'statusBanner',
                   fillColor: booking.status === 'CONFIRMED' ? '#227c8a' : '#333333',
                 },
@@ -91,15 +141,15 @@ export class PdfService {
               width: '*',
               stack: [
                 { text: 'GUEST DETAILS', style: 'sectionHeader' },
-                { text: `${user.firstName} ${user.lastName || ''}`, style: 'guestName' },
-                { text: user.email, style: 'guestInfo' },
-                { text: user.phone || 'N/A', style: 'guestInfo' },
+                { text: `${user?.firstName || 'Guest'} ${user?.lastName || ''}`, style: 'guestName' },
+                { text: user?.email || 'N/A', style: 'guestInfo' },
+                { text: user?.phone || 'N/A', style: 'guestInfo' },
                 ...(booking.gstNumber ? [{ text: `GST: ${booking.gstNumber}`, style: 'guestInfo' }] : []),
                 { text: '\n' },
                 { text: 'PROPERTY', style: 'sectionHeader' },
-                { text: property.name, style: 'propertyName' },
-                { text: property.address, style: 'propertyAddress' },
-                { text: `${property.city}, ${property.state}`, style: 'propertyAddress' },
+                { text: property?.name || 'Property Name', style: 'propertyName' },
+                { text: property?.address || 'Address not available', style: 'propertyAddress' },
+                { text: `${property?.city || ''}, ${property?.state || ''}`, style: 'propertyAddress' },
               ],
             },
             {
@@ -115,8 +165,8 @@ export class PdfService {
                         { border: [false, false, false, false], text: 'CHECK-OUT', style: 'stayLabel' },
                       ],
                       [
-                        { border: [false, false, false, false], text: new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), style: 'stayDate' },
-                        { border: [false, false, false, false], text: new Date(booking.checkOutDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), style: 'stayDate' },
+                        { border: [false, false, false, false], text: booking.checkInDate ? new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
+                        { border: [false, false, false, false], text: booking.checkOutDate ? new Date(booking.checkOutDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
                       ],
                       [
                         { border: [false, false, false, false], text: '2:00 PM', style: 'stayTime' },
@@ -127,9 +177,9 @@ export class PdfService {
                 },
                 { text: '\n' },
                 { text: 'ACCOMMODATION', style: 'sectionHeader' },
-                { text: roomType.name, style: 'roomName' },
-                { text: `${booking.adultsCount} Adults, ${booking.childrenCount} Children`, style: 'guestCount' },
-                { text: `${booking.numberOfNights} Night(s)`, style: 'guestCount' },
+                { text: roomType?.name || 'Room Type', style: 'roomName' },
+                { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },
+                { text: `${booking.numberOfNights || 0} Night(s)`, style: 'guestCount' },
               ],
             },
           ],

@@ -1861,6 +1861,11 @@ export class BookingsService {
                     },
                 },
                 roomType: true,
+                room: {
+                    include: {
+                        property: true,
+                    },
+                },
                 channelPartner: {
                     include: {
                         user: true,

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import PremiumTable from '../components/PremiumTable';
 import { BadgeCheck, Clock, XCircle, Eye } from 'lucide-react';
 import api from '../services/api';
-import BookingDetailDrawer from '../components/BookingDetailDrawer';
+import BookingDetailModal from '../components/BookingDetailModal';
 
 interface Referral {
     id: string;
@@ -217,7 +217,7 @@ const Referrals: React.FC = () => {
                 )}
             </div>
 
-            <BookingDetailDrawer
+            <BookingDetailModal
                 isOpen={isDrawerOpen}
                 onClose={() => setIsDrawerOpen(false)}
                 booking={selectedBooking ? {

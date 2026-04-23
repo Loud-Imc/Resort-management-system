@@ -360,13 +360,22 @@ export class ChannelPartnersService {
                         checkInDate: true,
                         checkOutDate: true,
                         property: {
-                            select: { name: true }
+                            select: { name: true, images: true, city: true }
                         },
                         user: {
                             select: { firstName: true, lastName: true }
                         },
                         paidAmount: true,
-                        paymentStatus: true
+                        paymentStatus: true,
+                        paymentMethod: true,
+                        baseAmount: true,
+                        taxAmount: true,
+                        extraAdultAmount: true,
+                        extraChildAmount: true,
+                        offerDiscountAmount: true,
+                        cpDiscount: true,
+                        room: { select: { roomType: { select: { name: true } } } },
+                        guests: true,
                     },
                 },
                 transactions: {
@@ -777,10 +786,19 @@ export class ChannelPartnersService {
                         select: { firstName: true, lastName: true, email: true },
                     },
                     property: {
-                        select: { id: true, name: true },
+                        select: { id: true, name: true, images: true, city: true },
                     },
                     paidAmount: true,
-                    paymentStatus: true
+                    paymentStatus: true,
+                    paymentMethod: true,
+                    baseAmount: true,
+                    taxAmount: true,
+                    extraAdultAmount: true,
+                    extraChildAmount: true,
+                    offerDiscountAmount: true,
+                    cpDiscount: true,
+                    room: { select: { roomType: { select: { name: true } } } },
+                    guests: true,
                 },
             }),
             this.prisma.booking.count({ where: { channelPartnerId: id } }),

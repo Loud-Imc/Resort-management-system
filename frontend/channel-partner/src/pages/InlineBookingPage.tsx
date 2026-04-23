@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Search, Calendar, Users, ChevronRight, CreditCard,
     Wallet, CheckCircle, Loader2, ArrowLeft, Star,
     FileText, Download, Eye, Mail, MessageSquare, X
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import { toCanvas } from 'html-to-image';
 import api from '../services/api';
 import { formatPrice } from '../utils/currency';
+import type { InvoiceData } from '../utils/generateInvoicePdf';
+import CPInvoiceTemplate from '../components/CPInvoiceTemplate';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import BookingResultsGrid from '../components/booking/BookingResultsGrid';
 import RoomSelectionCard from '../components/booking/RoomSelectionCard';
@@ -74,8 +78,8 @@ const InlineBookingPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [properties, setProperties] = useState<Property[]>([]);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-    const [checkIn, setCheckIn] = useState('');
-    const [checkOut, setCheckOut] = useState('');
+    const [checkIn, setCheckIn] = useState(new Date().toISOString().split('T')[0]);
+    const [checkOut, setCheckOut] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
     const [adults, setAdults] = useState(2);
     const [children, setChildren] = useState(0);
     const [isGroupBooking, setIsGroupBooking] = useState(false);
@@ -103,6 +107,8 @@ const InlineBookingPage: React.FC = () => {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isSending, setIsSending] = useState<{ [key: string]: boolean }>({});
     const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+    const [invoiceCaptureData, setInvoiceCaptureData] = useState<{ data: InvoiceData; type: 'GUEST' | 'PARTNER' } | null>(null);
+    const invoiceRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         api.get('/channel-partners/me/stats').then((s: any) => setCpStats(s));
@@ -130,36 +136,100 @@ const InlineBookingPage: React.FC = () => {
         }
     };
 
+    const getBookingInvoiceData = (): InvoiceData => {
+        // Use pricing from state if available (most accurate breakdown), fallback to booking response
+        const p = pricing || booking;
+        const total = Number(p?.totalAmount || serverTotal || 0);
+        const comm = Math.round(total * commissionRate / 100);
+
+        return {
+            bookingNumber: booking?.bookingNumber || p?.bookingId,
+            guestName: guests[0] ? `${guests[0].firstName} ${guests[0].lastName}`.trim() : 'Guest',
+            property: selectedProperty?.name || booking?.property?.name || 'N/A',
+            propertyImage: selectedProperty?.images?.[0] || booking?.property?.images?.[0] || booking?.room?.property?.images?.[0],
+            city: `${selectedProperty?.city || booking?.property?.city || ''}`,
+            checkIn: checkIn ? new Date(checkIn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+            checkOut: checkOut ? new Date(checkOut).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+            nights,
+            adults,
+            children,
+            status: booking?.status || 'CONFIRMED',
+            roomType: selectedRoom?.name || booking?.roomType?.name || booking?.room?.roomType?.name,
+            paymentMethod,
+            baseAmount: Number(p?.baseAmount || total),
+            taxAmount: Number(p?.taxAmount || 0),
+            extraAdultAmount: Number(p?.extraAdultAmount || 0),
+            extraChildAmount: Number(p?.extraChildAmount || 0),
+            offerDiscountAmount: Number(p?.offerDiscountAmount || 0),
+            referralDiscountAmount: Number(p?.cpDiscount || p?.referralDiscountAmount || 0),
+            commissionAmount: comm,
+            commissionRate,
+            discountRate,
+            grossTotal: total,
+            partnerNetPayable: total - comm,
+        };
+    };
+
+    const captureInvoice = async (type: 'GUEST' | 'PARTNER'): Promise<string> => {
+        // Mount template in hidden div, then capture
+        const data = getBookingInvoiceData();
+        setInvoiceCaptureData({ data, type });
+
+        // Wait for the DOM update
+        await new Promise(res => setTimeout(res, 300));
+
+        const element = invoiceRef.current;
+        if (!element) throw new Error('Invoice element not mounted');
+
+        const canvas = await toCanvas(element, {
+            quality: 1,
+            pixelRatio: 2,
+            backgroundColor: '#ffffff',
+            cacheBust: true,
+        });
+
+        setInvoiceCaptureData(null); // hide after capture
+        return canvas.toDataURL('image/png');
+    };
+
     const handlePreviewInvoice = async (type: 'GUEST' | 'PARTNER') => {
         if (!booking?.id) return;
         setPreviewType(type);
         setShowPreview(true);
         setPreviewUrl(null);
+
         try {
-            const response = await api.get(`/bookings/invoice/${booking.id}/${type}`, {
-                responseType: 'blob'
-            });
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const imgData = await captureInvoice(type);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgWidth = 210;
+            const temp = new Image();
+            temp.src = imgData;
+            await new Promise(r => { temp.onload = r; });
+            const imgHeight = (temp.height * imgWidth) / temp.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            const blob = pdf.output('blob');
+            const url = window.URL.createObjectURL(blob);
             setPreviewUrl(url);
         } catch (err) {
-            console.error('Failed to preview invoice:', err);
-            setError('Failed to load PDF preview.');
+            console.error('Preview generation failed:', err);
+            setError('Failed to generate preview.');
+            setShowPreview(false);
         }
     };
 
     const handleDownloadInvoice = async (type: 'GUEST' | 'PARTNER') => {
         if (!booking?.id) return;
         try {
-            const response = await api.get(`/bookings/invoice/${booking.id}/${type}`, {
-                responseType: 'blob'
-            });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `${type === 'PARTNER' ? 'Agency' : 'Guest'}_Invoice_${booking.bookingNumber}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            const imgData = await captureInvoice(type);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgWidth = 210;
+            const temp = new Image();
+            temp.src = imgData;
+            await new Promise(r => { temp.onload = r; });
+            const imgHeight = (temp.height * imgWidth) / temp.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            const fileName = `${type === 'PARTNER' ? 'Agency' : 'Guest'}_Invoice_${booking.bookingNumber || 'Booking'}.pdf`;
+            pdf.save(fileName);
         } catch (err) {
             console.error('Failed to download invoice:', err);
             setError('Failed to download invoice.');
@@ -170,14 +240,47 @@ const InlineBookingPage: React.FC = () => {
         if (!booking?.id) return;
         const key = `${type}-${method}`;
         setIsSending(prev => ({ ...prev, [key]: true }));
-        setSendSuccess(null);
+
         try {
-            await api.post(`/bookings/invoice/${booking.id}/${type}/send`, { method });
-            setSendSuccess(`Invoice sent successfully to ${type === 'GUEST' ? 'Guest' : 'Partner'} via ${method}!`);
-            setTimeout(() => setSendSuccess(null), 5000);
+            // 1. Always generate & download the PDF first so they can attach it
+            await handleDownloadInvoice(type);
+
+            const guestName = guests[0] ? `${guests[0].firstName} ${guests[0].lastName}`.trim() : 'Guest';
+            const guestEmail = guests[0]?.email || '';
+            const guestPhone = (guests[0]?.phone || '').replace(/\D/g, '');
+            const propertyName = selectedProperty?.name || 'the property';
+            const bookingRef = booking?.bookingNumber || booking?.id;
+            const dates = `${checkIn} → ${checkOut}`;
+
+            const message =
+                `Hello ${guestName},\n\n` +
+                `Your booking at *${propertyName}* is confirmed! 🎉\n\n` +
+                `📋 *Booking Reference:* ${bookingRef}\n` +
+                `📅 *Dates:* ${dates}\n` +
+                `🛏 *Room:* ${selectedRoom?.name || 'N/A'}\n\n` +
+                `The invoice PDF has been downloaded — please find it attached.\n\n` +
+                `Thank you for choosing us!`;
+
+            if (method === 'WHATSAPP') {
+                const encoded = encodeURIComponent(message);
+                const waUrl = guestPhone
+                    ? `https://wa.me/${guestPhone}?text=${encoded}`
+                    : `https://wa.me/?text=${encoded}`;
+                window.open(waUrl, '_blank');
+            } else {
+                const subject = encodeURIComponent(`Booking Confirmation – ${bookingRef} | ${propertyName}`);
+                const body = encodeURIComponent(message);
+                const mailUrl = guestEmail
+                    ? `mailto:${guestEmail}?subject=${subject}&body=${body}`
+                    : `mailto:?subject=${subject}&body=${body}`;
+                window.open(mailUrl, '_blank');
+            }
+
+            setSendSuccess(`Invoice downloaded and ${method === 'WHATSAPP' ? 'WhatsApp' : 'Email'} opened. Please attach the PDF before sending!`);
+            setTimeout(() => setSendSuccess(null), 6000);
         } catch (err) {
             console.error('Failed to send invoice:', err);
-            setError('Failed to send invoice. Please try again.');
+            setError('Something went wrong. Please try again.');
         } finally {
             setIsSending(prev => ({ ...prev, [key]: false }));
         }
@@ -253,6 +356,35 @@ const InlineBookingPage: React.FC = () => {
 
     const commission = Math.round(serverTotal * commissionRate / 100);
     const afterDiscount = serverTotal; // Total already includes referral discount from backend
+    
+    /*
+    ## Calculation Logic Example
+
+    Based on your requirement, here is exactly how the numbers will be calculated and labeled:
+
+    ### 1. Guest Invoice Example
+    | Description | Calculation | Result |
+    | :--- | :--- | :--- |
+    | Accommodation – Standard Room (1 night) : | Base Price | **₹6,000** |
+    | Government Tax & GST : | + Tax amount | **₹684** |
+    | Partner Network Discount (5%) : | - 5% Discount | **-₹300** |
+    | **Grand Total** | **(6000 + 684 - 300)** | **₹6,384** |
+
+    ---
+
+    ### 2. Agency Invoice Example
+    | Description | Calculation | Result |
+    | :--- | :--- | :--- |
+    | Accommodation – Standard Room (1 night) : | Base Price | **₹6,000** |
+    | Government Tax & GST : | + Tax amount | **₹684** |
+    | Partner Network Discount (5%) : | - 5% Discount | **-₹300** |
+    | Instant Agency Commission (10%) : | - 10% of total | **-₹638** |
+    | **Net Payable (After Commission)** | **(6384 - 638)** | **₹5,746** |
+
+    > [!IMPORTANT]
+    > The Guest Invoice stops at **₹6,384**. The Agency Invoice continues to subtract the commission to show the final **₹5,746** settlement amount.
+    */
+
     const afterWallet = afterDiscount - commission;
 
     const amountToPay = paymentMethod === 'WALLET' ? afterWallet : afterDiscount;
@@ -387,6 +519,26 @@ const InlineBookingPage: React.FC = () => {
             width: '100%',
             padding: '1rem'
         }}>
+            {/* Hidden Invoice Template for DOM capture */}
+            <div
+                ref={invoiceRef}
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    zIndex: -50,
+                    pointerEvents: 'none',
+                    opacity: invoiceCaptureData ? 1 : 0,
+                }}
+            >
+                {invoiceCaptureData && (
+                    <CPInvoiceTemplate
+                        data={invoiceCaptureData.data}
+                        type={invoiceCaptureData.type}
+                    />
+                )}
+            </div>
+
             {/* Sticky Header Container */}
             <div style={{
                 position: 'sticky',
@@ -1076,8 +1228,8 @@ const InlineBookingPage: React.FC = () => {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '3rem' }}>
                         {/* Agency Invoice Card */}
-                        <div className="glass-pane hover-scale" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem', color: 'var(--text-dim)' }}>
+                        <div className="glass-pane hover-scale" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid rgba(99,102,241,0.25)' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem', color: '#6366f1' }}>
                                 <FileText size={24} />
                             </div>
                             <h3 style={{ fontWeight: 800, fontSize: '1.3rem', marginBottom: '0.75rem' }}>Agency Invoice</h3>
@@ -1088,15 +1240,13 @@ const InlineBookingPage: React.FC = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <button
                                     onClick={() => handlePreviewInvoice('PARTNER')}
-                                    style={{ padding: '0.85rem', borderRadius: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer' }}
-                                    className="hover:bg-white/10"
+                                    style={{ padding: '0.85rem', borderRadius: '0.75rem', background: 'rgba(99,102,241,0.1)', border: '1.5px solid #6366f1', color: '#6366f1', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', transition: 'all 0.2s' }}
                                 >
                                     <Eye size={16} /> Preview
                                 </button>
                                 <button
                                     onClick={() => handleDownloadInvoice('PARTNER')}
-                                    style={{ padding: '0.85rem', borderRadius: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer' }}
-                                    className="hover:bg-white/10"
+                                    style={{ padding: '0.85rem', borderRadius: '0.75rem', background: '#6366f1', border: '1.5px solid #6366f1', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', transition: 'all 0.2s' }}
                                 >
                                     <Download size={16} /> Download
                                 </button>
