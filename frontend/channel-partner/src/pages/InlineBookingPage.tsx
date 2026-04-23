@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Search, Calendar, Users, ChevronRight, CreditCard,
     Wallet, CheckCircle, Loader2, ArrowLeft, Star,
-    FileText, Download, Eye, Send, Mail, MessageSquare, X
+    FileText, Download, Eye, Mail, MessageSquare, X
 } from 'lucide-react';
 import api from '../services/api';
 import { formatPrice } from '../utils/currency';
