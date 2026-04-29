@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     ChevronLeft, ChevronRight, Users, Maximize,
     Sparkles, BedDouble, CheckCircle,
-    Wifi, Tv, Coffee, Waves, Snowflake, Car, Bath, Utensils
+    Wifi, Tv, Coffee, Waves, Snowflake, Car, Bath, Utensils, Clock
 } from 'lucide-react';
 import { formatPrice } from '../../utils/currency';
 
@@ -105,14 +105,14 @@ const RoomImageCarousel: React.FC<{ images: (string | Image)[], name: string }> 
 
 const RoomSelectionCard: React.FC<{
     room: RoomType,
-    onSelectIndex?: (room: RoomType) => void,
     onSelect: (room: RoomType) => void,
+    onShowDetails?: (room: RoomType) => void,
     isSelected: boolean,
     nights: number,
     guests: number,
     isGroupBooking?: boolean,
     currency?: string
-}> = ({ room, onSelect, isSelected, nights, guests, isGroupBooking, currency = 'INR' }) => {
+}> = ({ room, onSelect, onShowDetails, isSelected, nights, guests, isGroupBooking, currency = 'INR' }) => {
     const isSoldOut = room.isSoldOut || (room.availableCount !== undefined && room.availableCount === 0);
 
     return (
@@ -126,7 +126,7 @@ const RoomSelectionCard: React.FC<{
                 opacity: isSoldOut ? 0.75 : 1,
                 position: 'relative'
             }}
-            onClick={() => !isSoldOut && onSelect(room)}
+            onClick={() => !isSoldOut && (onShowDetails ? onShowDetails(room) : onSelect(room))}
         >
             {isSoldOut && (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(1px)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -166,6 +166,23 @@ const RoomSelectionCard: React.FC<{
                                 <Maximize size={16} color="#0d9488" />
                                 {room.size || 280} SQ.FT
                             </div>
+                            {room.availableCount !== undefined && room.availableCount > 0 && (
+                                <div style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.5rem', 
+                                    fontSize: '12px', 
+                                    fontWeight: 900, 
+                                    color: room.availableCount < 3 ? '#ef4444' : '#10b981',
+                                    background: room.availableCount < 3 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '2rem',
+                                    marginLeft: 'auto'
+                                }}>
+                                    <Clock size={14} />
+                                    {room.availableCount} {room.availableCount === 1 ? 'ROOM' : 'ROOMS'} LEFT
+                                </div>
+                            )}
                         </div>
 
                         {/* Amenities Grid */}

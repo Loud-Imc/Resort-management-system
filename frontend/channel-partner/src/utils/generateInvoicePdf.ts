@@ -30,6 +30,11 @@ export interface InvoiceData {
   // Final totals
   grossTotal: number;          // Total before commission (what guest pays)
   partnerNetPayable: number;   // Total after commission (what CP actually pays on wallet)
+  
+  // Partial payment support
+  paymentOption?: 'FULL' | 'PARTIAL';
+  paidAmount?: number;
+  balanceAmount?: number;
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -238,14 +243,14 @@ function buildDoc(data: InvoiceData, type: 'GUEST' | 'PARTNER'): jsPDF {
   }
 
   // Commission row: PARTNER only
-  if (isPartner && (data.commissionAmount || 0) > 0) {
+  if (isPartner && (data.commissionAmount || 0) > 0 && data.paymentOption !== 'PARTIAL') {
     const cRate = data.commissionRate ? ` (${data.commissionRate}%)` : '';
     drawRow(`Instant Agency Commission${cRate}`, `-${fmt(data.commissionAmount!)}`, '#ef4444');
   }
 
   // ── Grand Total ───────────────────────────────────────────────────────────
-  const finalAmount = isPartner ? data.partnerNetPayable : data.grossTotal;
-  const totalLabel = isPartner ? 'Net Payable (After Commission)' : 'Grand Total';
+  const finalAmount = (isPartner && data.paymentOption !== 'PARTIAL') ? data.partnerNetPayable : data.grossTotal;
+  const totalLabel = (isPartner && data.paymentOption !== 'PARTIAL') ? 'Net Payable (After Commission)' : 'Grand Total';
 
   y += 2;
   setFill('#f0fdf4');
@@ -260,11 +265,35 @@ function buildDoc(data: InvoiceData, type: 'GUEST' | 'PARTNER'): jsPDF {
   doc.setFontSize(13);
   setColor('#0d9488');
   doc.text(fmt(finalAmount), pageW - margin - 4, y + 9, { align: 'right' });
-  y += 22;
+  y += 18;
+
+  // --- Partial Payment Breakdown ---
+  if (data.paymentOption === 'PARTIAL') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    setColor('#64748b');
+    doc.text('SETTLEMENT DETAILS', margin, y);
+    y += 6;
+
+    drawRow('Advance Amount Paid', fmt(data.paidAmount || 0), '#0d9488', true);
+    drawRow('Remaining Balance (Due at Property)', fmt(data.balanceAmount || 0), '#ef4444', true);
+    
+    if (isPartner) {
+        y += 2;
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        setColor('#64748b');
+        doc.text('* Agency commission will be credited to wallet after full settlement.', margin + 4, y);
+        y += 8;
+    }
+  }
+  y += 4;
 
   // ── Payment Method Badge ──────────────────────────────────────────────────
   if (data.paymentMethod) {
-    const badge = data.paymentMethod === 'WALLET' ? '💳 Wallet Payment — Commission deducted upfront' : '💳 Digital Payment (Razorpay)';
+    const badge = data.paymentMethod === 'WALLET' 
+        ? (data.paymentOption === 'PARTIAL' ? '💳 Wallet Payment — Advance Paid' : '💳 Wallet Payment — Commission deducted upfront') 
+        : '💳 Digital Payment (Razorpay)';
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     setColor('#64748b');

@@ -483,11 +483,19 @@ export class BookingsService {
             // 7.2 Deduct from wallet if applicable
             let walletTxId: string | undefined;
             if (createBookingDto.paymentMethod === 'WALLET' && channelPartnerId) {
-                const totalToCollect = finalTotal - cpCommission;
+                let totalToCollect = finalTotal - cpCommission;
+                
+                // If it's a partial payment from wallet, we only deduct the percentage amount
+                // Note: Commission is usually deferred for partial payments, so we deduct the raw percentage of the total
+                if (createBookingDto.paymentOption === 'PARTIAL') {
+                    const partialPct = await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33;
+                    totalToCollect = Math.round((finalTotal * Number(partialPct)) / 100);
+                }
+
                 walletTxId = await this.channelPartnersService.deductWalletBalance(
                     channelPartnerId,
                     totalToCollect,
-                    `Inline booking ${bookingNumber}`,
+                    `Inline booking ${bookingNumber}${createBookingDto.paymentOption === 'PARTIAL' ? ' (Advance)' : ''}`,
                     undefined,
                     tx
                 );
@@ -504,7 +512,7 @@ export class BookingsService {
                 for (const room of roomsToLock) {
                     await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${room.id} FOR UPDATE`;
                     const isStillAvailable = await this.availabilityService.isRoomAvailable(
-                        room.id, checkIn, checkOut, tx
+                        room.id, checkIn, checkOut, undefined, tx
                     );
                     if (!isStillAvailable) {
                         throw new BadRequestException(
@@ -518,7 +526,7 @@ export class BookingsService {
                 for (const room of roomsToLock) {
                     await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${room.id} FOR UPDATE`;
                     const isStillAvailable = await this.availabilityService.isRoomAvailable(
-                        room.id, checkIn, checkOut, tx
+                        room.id, checkIn, checkOut, undefined, tx
                     );
                     if (!isStillAvailable) {
                         throw new BadRequestException(
@@ -596,10 +604,21 @@ export class BookingsService {
                     couponId,
                     couponCode: couponId ? couponCode : null, // Store the code string
                     paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
-                        ? (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? 0 : finalTotal))
+                        ? (paidAmountInput !== undefined ? Number(paidAmountInput) : 
+                            (createBookingDto.paymentOption === 'PARTIAL' 
+                                ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) 
+                                : finalTotal))
                         : 0,
                     paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
-                        ? ((paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? 0 : finalTotal)) >= finalTotal - 0.01 ? 'FULL' : (Number(paidAmountInput) > 0 ? 'PARTIAL' : 'UNPAID'))
+                        ? (
+                            (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : finalTotal)) >= finalTotal - 0.01 
+                            ? 'FULL' 
+                            : (
+                                (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : 0)) > 0 
+                                ? 'PARTIAL' 
+                                : 'UNPAID'
+                              )
+                          )
                         : 'UNPAID',
                     confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? effectiveCreatedAt : null,
                     paymentMethod: createBookingDto.paymentMethod as any,
@@ -690,18 +709,21 @@ export class BookingsService {
                             where: {
                                 channelPartnerId,
                                 type: 'WALLET_PAYMENT' as any,
-                                description: `Inline booking ${bookingNumber}`,
+                                description: `Inline booking ${bookingNumber}${createBookingDto.paymentOption === 'PARTIAL' ? ' (Advance)' : ''}`,
                                 bookingId: null
                             },
                             data: { bookingId: newBooking.id }
                         });
+
+                        // Record commission upfront for transparency/audit (status PENDING, isPrepaid true)
+                        await this.channelPartnersService.recordPendingCommission(newBooking.id, tx, true);
 
                         // Create payment record
                         const paymentRecord = await tx.payment.create({
                             data: {
                                 createdAt: effectiveCreatedAt,
                                 updatedAt: effectiveCreatedAt,
-                                amount: finalPaidAmount - cpCommission, // For wallet, we deduct CP commission at source
+                                amount: createBookingDto.paymentOption === 'PARTIAL' ? finalPaidAmount : (finalPaidAmount - cpCommission), // Only subtract commission at source for full payments
                                 status: 'PAID',
                                 paymentMethod: 'WALLET',
                                 paymentDate: effectiveCreatedAt,

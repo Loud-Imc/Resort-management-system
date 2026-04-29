@@ -313,7 +313,7 @@ const Bookings: React.FC = () => {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
             {/* Hidden Invoice Template for DOM capture */}
             <div
                 ref={invoiceRef}

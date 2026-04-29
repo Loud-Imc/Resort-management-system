@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import StatsCard from '../components/StatsCard';
 import ProgressBar from '../components/ProgressBar';
-import { DollarSign, Star, TrendingUp, Handshake, Copy, Check, Wallet, ExternalLink } from 'lucide-react';
+import WalletTopUpModal from '../components/WalletTopUpModal';
+import { DollarSign, Star, TrendingUp, Handshake, Copy, Check, Wallet, ExternalLink, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 
@@ -43,6 +44,7 @@ const Home: React.FC = () => {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [isTopUpOpen, setIsTopUpOpen] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const fetchStats = async () => {
@@ -308,11 +310,42 @@ const Home: React.FC = () => {
                             <Wallet size={20} />
                         </div>
                     </div>
-                    <h3 className="text-premium-gradient" style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                        ₹{Number(stats?.walletBalance || 0).toLocaleString()}
-                    </h3>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>Available for bookings</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                        <div>
+                            <h3 className="text-premium-gradient" style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                                ₹{Number(stats?.walletBalance || 0).toLocaleString()}
+                            </h3>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>Available for bookings</p>
+                        </div>
+                        <button 
+                            onClick={() => setIsTopUpOpen(true)}
+                            style={{ 
+                                background: 'var(--primary-teal)', 
+                                color: '#fff', 
+                                border: 'none', 
+                                padding: '0.5rem 1rem', 
+                                borderRadius: '0.75rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.75rem', 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                boxShadow: '0 4px 12px rgba(8, 71, 78, 0.2)',
+                                transition: 'all 0.2s'
+                            }}
+                            className="hover:scale-105 active:scale-95"
+                        >
+                            <Plus size={14} /> Add Funds
+                        </button>
+                    </div>
                 </div>
+
+                <WalletTopUpModal 
+                    isOpen={isTopUpOpen} 
+                    onClose={() => setIsTopUpOpen(false)} 
+                    onSuccess={() => fetchStats()} 
+                />
 
                 <StatsCard
                     title="Total Earnings"

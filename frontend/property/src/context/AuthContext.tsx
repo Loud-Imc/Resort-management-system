@@ -10,6 +10,7 @@ interface AuthContextType {
     register: (data: any) => Promise<void>;
     registerProperty: (data: any) => Promise<void>;
     logout: () => void;
+    updateUser: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,8 +25,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const storedUser = localStorage.getItem('property_user');
 
         if (token && storedUser) {
-            setUser(JSON.parse(storedUser));
-            setIsAuthenticated(true);
+            try {
+                const userData = JSON.parse(storedUser);
+                
+                // Self-healing: If roles are stored as objects (corrupted data), flatten them
+                if (userData.roles && Array.isArray(userData.roles) && userData.roles.length > 0 && typeof userData.roles[0] !== 'string') {
+                    userData.roles = userData.roles.map((r: any) => typeof r === 'string' ? r : r.role?.name).filter(Boolean);
+                    localStorage.setItem('property_user', JSON.stringify(userData));
+                }
+                
+                setUser(userData);
+                setIsAuthenticated(true);
+            } catch (e) {
+                console.error('Error parsing stored user:', e);
+                logout();
+            }
         }
         setIsLoading(false);
     }, []);
@@ -52,9 +66,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setIsAuthenticated(false);
     };
+    
+    const updateUser = (userData: Partial<User>) => {
+        if (user) {
+            // Ensure roles are always flattened if they come from a raw Prisma response
+            const roles = userData.roles && Array.isArray(userData.roles)
+                ? userData.roles.map((r: any) => typeof r === 'string' ? r : r.role?.name).filter(Boolean)
+                : userData.roles;
+
+            const updatedUser = { 
+                ...user, 
+                ...userData,
+                ...(roles ? { roles } : {}) 
+            };
+            localStorage.setItem('property_user', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+        }
+    };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, registerProperty, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, registerProperty, logout, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

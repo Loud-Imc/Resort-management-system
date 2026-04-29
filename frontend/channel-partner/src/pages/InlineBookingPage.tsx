@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     Search, Calendar, Users, ChevronRight, CreditCard,
     Wallet, CheckCircle, Loader2, ArrowLeft, Star,
-    FileText, Download, Eye, Mail, MessageSquare, X
+    FileText, Download, Eye, Mail, MessageSquare, X,
+    Maximize, Bath, Wifi, Utensils, Clock,
+    ShieldCheck, Building2, Tv, Coffee, Waves, Snowflake,
+    ChevronLeft, MapPin, Plus
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { toCanvas } from 'html-to-image';
@@ -13,6 +16,7 @@ import CPInvoiceTemplate from '../components/CPInvoiceTemplate';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import BookingResultsGrid from '../components/booking/BookingResultsGrid';
 import RoomSelectionCard from '../components/booking/RoomSelectionCard';
+import WalletTopUpModal from '../components/WalletTopUpModal';
 
 // --- Types ---
 export interface Property {
@@ -66,6 +70,18 @@ interface CPStats {
         pointsPerUnit: number;
         unitAmount: number;
     };
+    totalPoints: number;
+    activePoints: number;
+    currentLevel?: {
+        name: string;
+        minPoints: number;
+        commissionRate: number;
+    } | null;
+    nextLevel?: {
+        name: string;
+        minPoints: number;
+        commissionRate: number;
+    } | null;
 }
 
 type PaymentMethod = 'WALLET' | 'ONLINE';
@@ -88,6 +104,7 @@ const InlineBookingPage: React.FC = () => {
     // Step 2 Rooms
     const [availableRoomsMap, setAvailableRoomsMap] = useState<Record<string, RoomType[]>>({});
     const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
+    const [viewingRoomDetails, setViewingRoomDetails] = useState<RoomType | null>(null);
     const [guests, setGuests] = useState<{ firstName: string; lastName: string; email?: string; phone?: string; idType?: string; idNumber?: string; idImage?: string }[]>([]);
 
     // Server-side pricing
@@ -96,10 +113,12 @@ const InlineBookingPage: React.FC = () => {
 
     // Step 3
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
+    const [paymentOption, setPaymentOption] = useState<'FULL' | 'PARTIAL'>('FULL');
     const [cpStats, setCpStats] = useState<CPStats | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [booking, setBooking] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isTopUpOpen, setIsTopUpOpen] = useState(false);
 
     // PDF & Send States
     const [showPreview, setShowPreview] = useState(false);
@@ -110,8 +129,21 @@ const InlineBookingPage: React.FC = () => {
     const [invoiceCaptureData, setInvoiceCaptureData] = useState<{ data: InvoiceData; type: 'GUEST' | 'PARTNER' } | null>(null);
     const invoiceRef = useRef<HTMLDivElement>(null);
 
+    const fetchCPStats = async () => {
+        try {
+            const s: any = await api.get('/channel-partners/me/stats');
+            setCpStats(s);
+        } catch (err) {
+            console.error('Error fetching CP stats:', err);
+        }
+    };
+
     useEffect(() => {
-        api.get('/channel-partners/me/stats').then((s: any) => setCpStats(s));
+        window.scrollTo(0, 0);
+    }, [step, selectedProperty, viewingRoomDetails]);
+
+    useEffect(() => {
+        fetchCPStats();
     }, []);
 
     // Initialize guest with at least one entry
@@ -167,6 +199,9 @@ const InlineBookingPage: React.FC = () => {
             discountRate,
             grossTotal: total,
             partnerNetPayable: total - comm,
+            paymentOption,
+            paidAmount: amountToPay,
+            balanceAmount: total - amountToPay,
         };
     };
 
@@ -356,7 +391,7 @@ const InlineBookingPage: React.FC = () => {
 
     const commission = Math.round(serverTotal * commissionRate / 100);
     const afterDiscount = serverTotal; // Total already includes referral discount from backend
-    
+
     /*
     ## Calculation Logic Example
 
@@ -367,7 +402,7 @@ const InlineBookingPage: React.FC = () => {
     | :--- | :--- | :--- |
     | Accommodation – Standard Room (1 night) : | Base Price | **₹6,000** |
     | Government Tax & GST : | + Tax amount | **₹684** |
-    | Partner Network Discount (5%) : | - 5% Discount | **-₹300** |
+    | Guest Discount(5%) : | - 5% Discount | **-₹300** |
     | **Grand Total** | **(6000 + 684 - 300)** | **₹6,384** |
 
     ---
@@ -377,7 +412,7 @@ const InlineBookingPage: React.FC = () => {
     | :--- | :--- | :--- |
     | Accommodation – Standard Room (1 night) : | Base Price | **₹6,000** |
     | Government Tax & GST : | + Tax amount | **₹684** |
-    | Partner Network Discount (5%) : | - 5% Discount | **-₹300** |
+    | Guest Discount(5%) : | - 5% Discount | **-₹300** |
     | Instant Agency Commission (10%) : | - 10% of total | **-₹638** |
     | **Net Payable (After Commission)** | **(6384 - 638)** | **₹5,746** |
 
@@ -387,7 +422,14 @@ const InlineBookingPage: React.FC = () => {
 
     const afterWallet = afterDiscount - commission;
 
-    const amountToPay = paymentMethod === 'WALLET' ? afterWallet : afterDiscount;
+    const partialPct = pricing?.partialPaymentPct || 33.33;
+    const advanceAmount = Math.round(serverTotal * partialPct / 100);
+
+    // For wallet partial, we just pay the advance amount. 
+    // Commission is usually deferred until full payment in partial mode.
+    const amountToPay = paymentMethod === 'WALLET'
+        ? (paymentOption === 'PARTIAL' ? advanceAmount : afterWallet)
+        : (paymentOption === 'PARTIAL' ? advanceAmount : afterDiscount);
 
     // Fetch server-side pricing when a room is selected
     const fetchPricing = async (room: any) => {
@@ -417,6 +459,7 @@ const InlineBookingPage: React.FC = () => {
     const handleRoomSelect = (room: any) => {
         setSelectedRoom(room);
         fetchPricing(room);
+        setStep(3); // Advance directly to Guest Details/Payment
     };
 
     // Step 3: Submit booking
@@ -455,6 +498,7 @@ const InlineBookingPage: React.FC = () => {
                 })),
                 referralCode: cpStats?.referralCode,
                 paymentMethod,
+                paymentOption,
                 currency: selectedProperty?.currency || 'INR',
             });
 
@@ -514,10 +558,7 @@ const InlineBookingPage: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: '2rem',
-            maxWidth: '1100px',
-            margin: '0 auto',
             width: '100%',
-            padding: '1rem'
         }}>
             {/* Hidden Invoice Template for DOM capture */}
             <div
@@ -559,6 +600,8 @@ const InlineBookingPage: React.FC = () => {
                             if (booking) {
                                 setBooking(null);
                                 setStep(1);
+                            } else if (viewingRoomDetails) {
+                                setViewingRoomDetails(null);
                             } else if (step === 2 && selectedProperty) {
                                 setSelectedProperty(null);
                             } else {
@@ -786,63 +829,37 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    {(availableRoomsMap[selectedProperty.id] || []).map((rt) => (
-                                        <RoomSelectionCard
-                                            key={rt.id}
-                                            room={rt as any}
+                                    {viewingRoomDetails ? (
+                                        <RoomDetailView
+                                            room={viewingRoomDetails}
+                                            property={selectedProperty}
+                                            pricing={pricing}
+                                            isPricingLoading={isPricingLoading}
+                                            onBack={() => setViewingRoomDetails(null)}
                                             onSelect={handleRoomSelect}
-                                            isSelected={selectedRoom?.id === rt.id}
-                                            nights={nights}
-                                            guests={adults + children}
-                                            isGroupBooking={isGroupBooking}
-                                            currency={selectedProperty.currency}
                                         />
-                                    ))}
+                                    ) : (
+                                        (availableRoomsMap[selectedProperty.id] || []).map((rt) => (
+                                            <RoomSelectionCard
+                                                key={rt.id}
+                                                room={rt as any}
+                                                onSelect={handleRoomSelect}
+                                                onShowDetails={(r) => {
+                                                    setViewingRoomDetails(r);
+                                                    fetchPricing(r); // Pre-fetch pricing while viewing details
+                                                }}
+                                                isSelected={selectedRoom?.id === rt.id}
+                                                nights={nights}
+                                                guests={adults + children}
+                                                isGroupBooking={isGroupBooking}
+                                                currency={selectedProperty.currency}
+                                            />
+                                        ))
+                                    )}
                                 </div>
                             </div>
 
-                            {selectedRoom && (
-                                <div className="animate-in slide-in-from-bottom-8 duration-500 sticky bottom-8 z-30">
-                                    <div className="glass-pane" style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--primary-teal)' }}>
-                                        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-                                            <div>
-                                                <p style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Selected Room</p>
-                                                <p style={{ fontWeight: 800, fontSize: '1.2rem', color: '#fff' }}>{selectedRoom.name}</p>
-                                            </div>
-                                            <div style={{ height: '30px', width: '1px', background: 'var(--border-glass)' }} />
-                                            <div>
-                                                <p style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Estimated Total</p>
-                                                {isPricingLoading ? (
-                                                    <Loader2 size={24} className="animate-spin text-teal-400" />
-                                                ) : (
-                                                    <p style={{ fontWeight: 900, fontSize: '1.4rem', color: 'var(--primary-teal)' }}>
-                                                        {formatPrice(serverTotal, selectedProperty.currency)}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <button
-                                            disabled={isPricingLoading || !pricing}
-                                            onClick={() => setStep(3)}
-                                            style={{
-                                                padding: '1rem 2.5rem',
-                                                background: 'var(--primary-teal)',
-                                                color: '#fff',
-                                                border: 'none',
-                                                borderRadius: '1rem',
-                                                fontWeight: 800,
-                                                fontSize: '1rem',
-                                                cursor: 'pointer',
-                                                boxShadow: '0 10px 20px rgba(20, 184, 166, 0.2)',
-                                                transition: 'all 0.3s'
-                                            }}
-                                            className="hover:scale-105 active:scale-95"
-                                        >
-                                            Continue to Guest Details
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Sticky confirmation bar removed to streamline flow */}
                         </div>
                     )}
                 </div>
@@ -889,7 +906,7 @@ const InlineBookingPage: React.FC = () => {
                                                         setGuests(newGuests);
                                                     }}
                                                     placeholder="First Name"
-                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none' }}
+                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
                                                 />
                                             </div>
                                             <div>
@@ -903,7 +920,7 @@ const InlineBookingPage: React.FC = () => {
                                                         setGuests(newGuests);
                                                     }}
                                                     placeholder="Last Name"
-                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none' }}
+                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
                                                 />
                                             </div>
                                         </div>
@@ -920,7 +937,7 @@ const InlineBookingPage: React.FC = () => {
                                                         setGuests(newGuests);
                                                     }}
                                                     placeholder="email@example.com"
-                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none' }}
+                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
                                                 />
                                             </div>
                                             <div>
@@ -934,7 +951,7 @@ const InlineBookingPage: React.FC = () => {
                                                         setGuests(newGuests);
                                                     }}
                                                     placeholder="Phone Number"
-                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none' }}
+                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
                                                 />
                                             </div>
                                         </div>
@@ -969,7 +986,7 @@ const InlineBookingPage: React.FC = () => {
                                                         setGuests(newGuests);
                                                     }}
                                                     placeholder="Identification Number"
-                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none' }}
+                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
                                                 />
                                             </div>
                                         </div>
@@ -1025,14 +1042,42 @@ const InlineBookingPage: React.FC = () => {
                                             <p style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>Partner Wallet</p>
                                             <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
                                                 Commission deducted upfront. Balance: <span style={{ color: '#d97706', fontWeight: 800 }}>{formatPrice(cpStats?.walletBalance ?? 0, 'INR')}</span>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setIsTopUpOpen(true);
+                                                    }}
+                                                    style={{
+                                                        marginLeft: '1rem',
+                                                        background: 'rgba(8, 71, 78, 0.1)',
+                                                        color: 'var(--primary-teal)',
+                                                        border: '1px solid var(--border-teal)',
+                                                        padding: '0.2rem 0.6rem',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 800,
+                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.3rem'
+                                                    }}
+                                                >
+                                                    <Plus size={10} /> Add Funds
+                                                </button>
                                             </p>
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f59e0b' }}>{formatPrice(afterWallet, selectedProperty?.currency || 'INR')}</div>
-                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 800 }}>Net Payable</p>
+                                        <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f59e0b' }}>{formatPrice(paymentOption === 'PARTIAL' ? advanceAmount : afterWallet, selectedProperty?.currency || 'INR')}</div>
+                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 800 }}>{paymentOption === 'PARTIAL' ? 'Net Advance' : 'Net Payable'}</p>
                                     </div>
                                 </div>
+
+                                <WalletTopUpModal
+                                    isOpen={isTopUpOpen}
+                                    onClose={() => setIsTopUpOpen(false)}
+                                    onSuccess={() => fetchCPStats()}
+                                />
                             </div>
 
                             <div
@@ -1058,15 +1103,50 @@ const InlineBookingPage: React.FC = () => {
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--primary-teal)' }}>{formatPrice(afterDiscount, selectedProperty?.currency || 'INR')}</div>
-                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 800 }}>Total Amount</p>
+                                        <div style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--primary-teal)' }}>{formatPrice(paymentOption === 'PARTIAL' ? advanceAmount : afterDiscount, selectedProperty?.currency || 'INR')}</div>
+                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 800 }}>{paymentOption === 'PARTIAL' ? 'Advance Amount' : 'Total Amount'}</p>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Partial Payment Toggle */}
+                            <div className="glass-pane" style={{ marginTop: '2rem', padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px dashed var(--border-glass)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(20,184,166,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-teal)' }}>
+                                        <CheckCircle size={20} />
+                                    </div>
+                                    <div>
+                                        <p style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)' }}>Payment Option</p>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{paymentOption === 'PARTIAL' ? `Pay ${partialPct}% advance now and balance at property` : 'Secure your stay with full upfront payment'}</p>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '0.3rem', borderRadius: '0.75rem', border: '1px solid var(--border-glass)' }}>
+                                    <button
+                                        onClick={() => setPaymentOption('FULL')}
+                                        style={{
+                                            padding: '0.5rem 1rem', borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', border: 'none', transition: 'all 0.2s',
+                                            background: paymentOption === 'FULL' ? 'var(--primary-teal)' : 'transparent',
+                                            color: paymentOption === 'FULL' ? '#fff' : 'var(--text-dim)'
+                                        }}
+                                    >
+                                        Full
+                                    </button>
+                                    <button
+                                        onClick={() => setPaymentOption('PARTIAL')}
+                                        style={{
+                                            padding: '0.5rem 1rem', borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', border: 'none', transition: 'all 0.2s',
+                                            background: paymentOption === 'PARTIAL' ? 'var(--primary-teal)' : 'transparent',
+                                            color: paymentOption === 'PARTIAL' ? '#fff' : 'var(--text-dim)'
+                                        }}
+                                    >
+                                        Advance
+                                    </button>
                                 </div>
                             </div>
 
                             <button
                                 onClick={handleBook}
-                                disabled={isSubmitting || (paymentMethod === 'WALLET' && (cpStats?.walletBalance ?? 0) < afterWallet)}
+                                disabled={isSubmitting || (paymentMethod === 'WALLET' && (cpStats?.walletBalance ?? 0) < (paymentOption === 'PARTIAL' ? advanceAmount : afterWallet))}
                                 style={{
                                     width: '100%', marginTop: '2.5rem', padding: '1.25rem',
                                     background: 'var(--primary-teal)',
@@ -1082,7 +1162,7 @@ const InlineBookingPage: React.FC = () => {
                                 {isSubmitting ? 'Finalizing Luxury Stay...' : `Confirm & Pay ${formatPrice(amountToPay, selectedProperty?.currency || 'INR')}`}
                             </button>
 
-                            {paymentMethod === 'WALLET' && (cpStats?.walletBalance ?? 0) < afterWallet && (
+                            {paymentMethod === 'WALLET' && (cpStats?.walletBalance ?? 0) < (paymentOption === 'PARTIAL' ? advanceAmount : afterWallet) && (
                                 <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                                     <p style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 700 }}>
@@ -1093,23 +1173,47 @@ const InlineBookingPage: React.FC = () => {
                         </div>
 
                         {/* Loyalty Prediction */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 2rem', background: 'rgba(20,184,166,0.05)', borderRadius: '1.5rem', border: '1px dashed rgba(20,184,166,0.3)', position: 'relative', overflow: 'hidden' }}>
-                            <div style={{ position: 'absolute', top: 0, right: 0, padding: '0.5rem 1rem', background: 'var(--primary-teal)', color: '#fff', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', borderRadius: '0 0 0 1rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem 2rem', background: 'rgba(20,184,166,0.05)', borderRadius: '1.5rem', border: '1px dashed rgba(20,184,166,0.3)', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ position: 'absolute', top: 0, right: 0, padding: '0.4rem 1rem', background: 'var(--primary-teal)', color: '#fff', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', borderRadius: '0 0 0 1rem' }}>
                                 Partner Reward
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(20,184,166,0.1)' }} className="flex items-center justify-center">
-                                    <Star size={20} color="var(--primary-teal)" fill="var(--primary-teal)" />
+
+                            {/* Commission */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(16,185,129,0.1)' }} className="flex items-center justify-center">
+                                        <Wallet size={20} color="#10b981" />
+                                    </div>
+                                    <div>
+                                        <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>Agency Commission ({commissionRate}%)</span>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.1rem' }}>{paymentOption === 'PARTIAL' ? 'Credited after full payment settlement' : 'Instant wallet settlement'}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>Loyalty Growth</span>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.1rem' }}>Points credited post-stay verification</p>
+                                <div style={{ textAlign: 'right' }}>
+                                    <p style={{ fontWeight: 900, color: '#10b981', fontSize: '1.5rem', letterSpacing: '-0.02em' }}>
+                                        +{formatPrice(commission, selectedProperty?.currency || 'INR')}
+                                    </p>
                                 </div>
                             </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <p style={{ fontWeight: 900, color: 'var(--primary-teal)', fontSize: '1.5rem', letterSpacing: '-0.02em' }}>
-                                    +{Math.floor((serverTotal / (cpStats?.loyaltySettings?.unitAmount || 100)) * (cpStats?.loyaltySettings?.pointsPerUnit || 1))} Points
-                                </p>
+
+                            <div style={{ height: '1px', background: 'rgba(20,184,166,0.1)' }} />
+
+                            {/* Loyalty Points */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(20,184,166,0.1)' }} className="flex items-center justify-center">
+                                        <Star size={20} color="var(--primary-teal)" fill="var(--primary-teal)" />
+                                    </div>
+                                    <div>
+                                        <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>Loyalty Growth</span>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.1rem' }}>Points credited post-stay verification</p>
+                                    </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                    <p style={{ fontWeight: 900, color: 'var(--primary-teal)', fontSize: '1.5rem', letterSpacing: '-0.02em' }}>
+                                        +{Math.floor((serverTotal / (cpStats?.loyaltySettings?.unitAmount || 100)) * (cpStats?.loyaltySettings?.pointsPerUnit || 1))} Points
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1150,12 +1254,12 @@ const InlineBookingPage: React.FC = () => {
 
                                 {serverReferralDiscount > 0 && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 700 }}>
-                                        <span>Partner Network Discount ({discountRate}%)</span>
+                                        <span>Guest Discount({discountRate}%)</span>
                                         <span>-{formatPrice(serverReferralDiscount, selectedProperty?.currency || 'INR')}</span>
                                     </div>
                                 )}
 
-                                {paymentMethod === 'WALLET' && (
+                                {paymentMethod === 'WALLET' && paymentOption === 'FULL' && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f59e0b', fontWeight: 700, padding: '0.5rem 0', borderTop: '1px dashed var(--border-glass)', borderBottom: '1px dashed var(--border-glass)' }}>
                                         <span>Instant Commission ({commissionRate}%)</span>
                                         <span>-{formatPrice(commission, selectedProperty?.currency || 'INR')}</span>
@@ -1165,7 +1269,7 @@ const InlineBookingPage: React.FC = () => {
                                 <div style={{ borderTop: '1px solid var(--border-glass)', marginTop: '0.75rem', paddingTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                                     <div>
                                         <p style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-dim)' }}>Grand Total</p>
-                                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-teal)' }}>Net Investment</span>
+                                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-teal)' }}>{paymentOption === 'PARTIAL' ? 'Advance Deposit' : 'Net Investment'}</span>
                                     </div>
                                     <span style={{ fontWeight: 900, fontSize: '1.8rem', color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
                                         {formatPrice(amountToPay, selectedProperty?.currency || 'INR')}
@@ -1204,18 +1308,61 @@ const InlineBookingPage: React.FC = () => {
 
             {/* ===== CONFIRMATION HUB ===== */}
             {booking && step === 3 && (
-                <div className="animate-in fade-in slide-in-from-bottom-5 duration-700" style={{ maxWidth: '900px', margin: '0 auto', width: '100%' }}>
-                    {/* Hero Section */}
-                    <div className="glass-pane" style={{ padding: '4rem 2rem', textAlign: 'center', background: 'linear-gradient(135deg, rgba(20,184,166,0.05) 0%, rgba(8,71,78,0.05) 100%)', border: '1px solid rgba(20,184,166,0.2)', marginBottom: '2rem', position: 'relative' }}>
-                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(20,184,166,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', border: '1px solid rgba(20,184,166,0.3)' }}>
-                            <CheckCircle size={40} color="var(--primary-teal)" />
-                        </div>
-                        <h2 style={{ fontWeight: 900, marginBottom: '0.5rem', fontSize: '2.5rem', letterSpacing: '-0.03em' }}>Reservation Finalized!</h2>
-                        <p style={{ color: 'var(--text-dim)', fontSize: '1.1rem', marginBottom: '1.5rem' }}>Your booking at <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{selectedProperty?.name}</span> is confirmed.</p>
+                <div className="animate-in fade-in slide-in-from-bottom-5 duration-700" style={{ width: '100%' }}>
+                    {/* Hero Section - Upgraded to Full Summary */}
+                    <div className="glass-pane" style={{ padding: '3rem', background: 'linear-gradient(135deg, rgba(20,184,166,0.05) 0%, rgba(8,71,78,0.05) 100%)', border: '1px solid rgba(20,184,166,0.2)', marginBottom: '2rem', position: 'relative', overflow: 'hidden' }}>
+                        {/* Decorative background icon */}
+                        <CheckCircle size={200} color="var(--primary-teal)" style={{ position: 'absolute', top: '-40px', right: '-40px', opacity: 0.03, transform: 'rotate(-15deg)' }} />
 
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '0.6rem 1.5rem', borderRadius: '1rem', border: '1px solid var(--border-glass)' }}>
-                            <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Booking ID:</span>
-                            <span style={{ color: 'var(--primary-teal)', fontWeight: 900, fontSize: '1.2rem' }}>{booking.bookingNumber}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '3rem' }}>
+                            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(20,184,166,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', border: '1px solid rgba(20,184,166,0.3)' }}>
+                                <CheckCircle size={40} color="var(--primary-teal)" />
+                            </div>
+                            <h2 style={{ fontWeight: 900, marginBottom: '0.5rem', fontSize: '2.5rem', letterSpacing: '-0.03em' }}>Reservation Finalized!</h2>
+                            <p style={{ color: 'var(--text-dim)', fontSize: '1.1rem', marginBottom: '1.5rem' }}>Your luxury stay at <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{selectedProperty?.name}</span> is confirmed.</p>
+
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(0,0,0,0.03)', padding: '0.6rem 1.5rem', borderRadius: '1rem', border: '1px solid var(--border-glass)' }}>
+                                <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Booking ID:</span>
+                                <span style={{ color: 'var(--primary-teal)', fontWeight: 900, fontSize: '1.2rem' }}>{booking.bookingNumber}</span>
+                            </div>
+                        </div>
+
+                        {/* Booking Details Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', background: '#fff', padding: '2rem', borderRadius: '1.5rem', border: '1px solid var(--border-glass)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Room Type</p>
+                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{selectedRoom?.name || 'Standard Room'}</p>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Check-In</p>
+                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{checkIn ? new Date(checkIn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</p>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Check-Out</p>
+                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{checkOut ? new Date(checkOut).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</p>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Guests</p>
+                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{adults} Adults, {children} Child</p>
+                            </div>
+
+                            {/* Full width bottom row for financial summary */}
+                            <div style={{ gridColumn: 'span 4', height: '1px', background: 'var(--border-glass)', margin: '0.5rem 0' }} />
+
+                            <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(20,184,166,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Star size={20} color="var(--primary-teal)" fill="var(--primary-teal)" />
+                                </div>
+                                <div>
+                                    <p style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)' }}>+{Math.floor((serverTotal / (cpStats?.loyaltySettings?.unitAmount || 100)) * (cpStats?.loyaltySettings?.pointsPerUnit || 1))} Points Earned</p>
+                                    <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 600 }}>Will be credited post-stay</p>
+                                </div>
+                            </div>
+
+                            <div style={{ gridColumn: 'span 2', textAlign: 'right' }}>
+                                <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>Amount Paid ({paymentOption === 'PARTIAL' ? 'Advance' : 'Full'})</p>
+                                <p style={{ fontWeight: 900, color: 'var(--primary-teal)', fontSize: '1.6rem', letterSpacing: '-0.02em' }}>{formatPrice(amountToPay, selectedProperty?.currency || 'INR')}</p>
+                            </div>
                         </div>
                     </div>
 
@@ -1377,6 +1524,255 @@ const InlineBookingPage: React.FC = () => {
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// --- RoomDetailView Component ---
+const RoomDetailView: React.FC<{
+    room: RoomType;
+    property: Property | null;
+    pricing: any;
+    isPricingLoading: boolean;
+    onBack: () => void;
+    onSelect: (room: RoomType) => void;
+}> = ({ room, property, pricing, isPricingLoading, onBack, onSelect }) => {
+    const [activeImage, setActiveImage] = useState(0);
+    const images = room.images || [];
+
+    const getImageUrl = (image: string | { url: string } | undefined): string => {
+        if (!image) return '';
+        const url = typeof image === 'string' ? image : image.url;
+        if (url.startsWith('http')) return url;
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        return url.startsWith('/') ? `${apiBase}${url}` : `${apiBase}/${url}`;
+    };
+
+    const getFeatureIcon = (text: string) => {
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes('wifi')) return <Wifi size={16} />;
+        if (lowerText.includes('breakfast') || lowerText.includes('meal')) return <Utensils size={16} />;
+        if (lowerText.includes('tv')) return <Tv size={16} />;
+        if (lowerText.includes('coffee')) return <Coffee size={16} />;
+        if (lowerText.includes('pool')) return <Waves size={16} />;
+        if (lowerText.includes('ac')) return <Snowflake size={16} />;
+        return <CheckCircle size={16} />;
+    };
+
+    return (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <button
+                    onClick={onBack}
+                    className="glass-pane"
+                    style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.5rem', 
+                        padding: '0.6rem 1.2rem', 
+                        borderRadius: '1rem', 
+                        fontWeight: 800, 
+                        fontSize: '0.85rem',
+                        color: 'var(--text-main)',
+                        cursor: 'pointer',
+                        border: '1px solid var(--border-glass)',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <ArrowLeft size={16} /> Back to Rooms
+                </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+
+                    {/* Gallery Card */}
+                    <div className="glass-pane" style={{ borderRadius: '2rem', overflow: 'hidden', background: '#0a0a0a' }}>
+                        <div style={{ position: 'relative', aspectRatio: '21/9', background: '#000' }}>
+                            {images.length > 0 ? (
+                                <img
+                                    src={getImageUrl(images[activeImage])}
+                                    alt={room.name}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                            ) : (
+                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.2)' }}>
+                                    <Building2 size={60} />
+                                </div>
+                            )}
+
+                            {images.length > 1 && (
+                                <>
+                                    <button
+                                        onClick={() => setActiveImage(prev => (prev - 1 + images.length) % images.length)}
+                                        style={{ position: 'absolute', left: '1.5rem', top: '50%', transform: 'translateY(-50%)', width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                    >
+                                        <ChevronLeft size={24} />
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveImage(prev => (prev + 1) % images.length)}
+                                        style={{ position: 'absolute', right: '1.5rem', top: '50%', transform: 'translateY(-50%)', width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                    >
+                                        <ChevronRight size={24} />
+                                    </button>
+                                </>
+                            )}
+
+                            <div style={{ position: 'absolute', bottom: '1.5rem', right: '1.5rem', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', color: '#fff', fontSize: '11px', fontWeight: 900, padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                {activeImage + 1} / {images.length} ROOM PHOTOS
+                            </div>
+                        </div>
+
+                        {/* Thumbnail Bar */}
+                        <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', display: 'flex', gap: '0.75rem', overflowX: 'auto' }}>
+                            {images.map((img, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setActiveImage(i)}
+                                    style={{ width: '80px', height: '50px', borderRadius: '8px', overflow: 'hidden', border: activeImage === i ? '2px solid var(--primary-teal)' : '2px solid transparent', flexShrink: 0, transition: 'all 0.2s', opacity: activeImage === i ? 1 : 0.6 }}
+                                >
+                                    <img src={getImageUrl(img)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Room Info Header */}
+                    <div className="glass-pane" style={{ padding: '2.5rem', borderRadius: '2rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-teal)', fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1rem' }}>
+                            <Building2 size={16} /> LUXURY ACCOMMODATION
+                        </div>
+                        <h2 style={{ fontSize: '2.2rem', fontWeight: 900, marginBottom: '1.5rem', letterSpacing: '-0.02em' }}>{room.name}</h2>
+
+                        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '2rem' }}>
+                            <div style={{ padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.03)', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700 }}>
+                                <Maximize size={16} color="var(--primary-teal)" /> {room.size || 280} sq.ft
+                            </div>
+                            <div style={{ padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.03)', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700 }}>
+                                <Users size={16} color="var(--primary-teal)" /> {room.maxAdults} Adults + {room.maxChildren} Child
+                            </div>
+                            <div style={{ padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.03)', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700 }}>
+                                <Bath size={16} color="var(--primary-teal)" /> Private Bath
+                            </div>
+                            {room.availableCount !== undefined && room.availableCount > 0 && (
+                                <div style={{
+                                    padding: '0.5rem 1rem',
+                                    background: room.availableCount < 3 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                                    borderRadius: '1rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 900,
+                                    color: room.availableCount < 3 ? '#ef4444' : '#10b981',
+                                    border: room.availableCount < 3 ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)'
+                                }}>
+                                    <Clock size={16} />
+                                    {room.availableCount} {room.availableCount === 1 ? 'Room' : 'Rooms'} Left
+                                </div>
+                            )}
+                        </div>
+
+                        <p style={{ fontSize: '1.1rem', color: 'var(--text-dim)', lineHeight: 1.6, fontStyle: 'italic', borderLeft: '4px solid var(--primary-teal)', paddingLeft: '1.5rem' }}>
+                            {room.description || "Experience unparalleled comfort and style in our signature accommodation, designed for discerning travelers."}
+                        </p>
+                    </div>
+
+                    {/* Features Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                        <div className="glass-pane" style={{ padding: '2rem', borderRadius: '2rem' }}>
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 900, marginBottom: '1.5rem' }}>
+                                <Star size={20} color="#f59e0b" fill="#f59e0b" /> Highlights & Inclusions
+                            </h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div style={{ padding: '1rem', background: 'rgba(16,185,129,0.05)', borderRadius: '1rem', border: '1px solid rgba(16,185,129,0.1)', display: 'flex', gap: '0.75rem' }}>
+                                    <ShieldCheck size={20} color="#10b981" />
+                                    <div>
+                                        <p style={{ fontWeight: 800, fontSize: '0.85rem', color: '#065f46' }}>Cancellation Policy</p>
+                                        <p style={{ fontSize: '0.75rem', color: '#047857' }}>Free cancellation until 24 hours before check-in.</p>
+                                    </div>
+                                </div>
+                                {['Breakfast Included', 'Welcome Drink', 'Free Wi-Fi'].map((item, i) => (
+                                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dim)' }}>
+                                        <div style={{ width: '28px', height: '28px', background: 'rgba(8,71,78,0.05)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-teal)' }}>
+                                            {getFeatureIcon(item)}
+                                        </div>
+                                        {item}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="glass-pane" style={{ padding: '2rem', borderRadius: '2rem' }}>
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 900, marginBottom: '1.5rem' }}>
+                                <Wifi size={20} color="var(--primary-teal)" /> Room Amenities
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                {(room.amenities || ['Safe Box', 'Telephone', 'Wardrobe', 'Desk & Chair']).map((item, i) => (
+                                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+                                        <CheckCircle size={14} color="#10b981" /> {item}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Side: Price Details Sticky */}
+                <div style={{ position: 'sticky', top: '150px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div className="glass-pane" style={{ padding: '2rem', borderRadius: '2rem', boxShadow: '0 20px 40px rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h4 style={{ fontWeight: 900, fontSize: '1.1rem' }}>Price Details</h4>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 900, color: 'var(--primary-teal)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>BEST PRICE MATCH</span>
+                        </div>
+
+                        <div style={{ padding: '1.5rem 0', borderTop: '1px solid rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.03)', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+                                <span>Room Charges (GST Inc.)</span>
+                                <span>{formatPrice(room.totalPrice || room.basePrice, property?.currency || 'INR')}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                                <span>Total Price</span>
+                                <span style={{ color: 'var(--primary-teal)' }}>{formatPrice(pricing?.totalAmount || room.totalPrice || room.basePrice, property?.currency || 'INR')}</span>
+                            </div>
+                            <p style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 900, textAlign: 'right', textTransform: 'uppercase' }}>GST INCLUSIVE</p>
+                        </div>
+
+                        <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)', padding: '1rem', borderRadius: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+                            <Star size={20} color="#f59e0b" fill="#f59e0b" style={{ flexShrink: 0 }} />
+                            <div>
+                                <p style={{ fontSize: '0.85rem', fontWeight: 900, color: '#92400e' }}>Highly Rated</p>
+                                <p style={{ fontSize: '0.7rem', color: '#b45309', fontWeight: 600 }}>Partner network guests love this room for its comfort.</p>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => onSelect(room)}
+                            disabled={isPricingLoading}
+                            style={{ width: '100%', padding: '1.25rem', background: 'var(--primary-teal)', color: '#fff', fontWeight: 900, borderRadius: '1.25rem', boxShadow: '0 10px 20px rgba(8,71,78,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer' }}
+                        >
+                            {isPricingLoading ? <Loader2 size={18} className="animate-spin" /> : 'COMPLETE BOOKING'}
+                        </button>
+                    </div>
+
+                    <div className="glass-pane" style={{ padding: '2rem', borderRadius: '2rem', background: 'var(--primary-teal)', color: '#fff' }}>
+                        <h4 style={{ fontWeight: 900, fontSize: '1.1rem', marginBottom: '1rem' }}>Property Location</h4>
+                        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                            <MapPin size={20} style={{ flexShrink: 0 }} />
+                            <p style={{ fontSize: '0.85rem', opacity: 0.8, lineHeight: 1.5 }}>{property?.city}, {property?.state}</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <div style={{ flex: 1, padding: '0.75rem', background: 'rgba(255,255,255,0.1)', borderRadius: '1rem', textAlign: 'center' }}>
+                                <p style={{ fontSize: '0.6rem', fontWeight: 800, opacity: 0.6, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Check-in</p>
+                                <p style={{ fontSize: '0.85rem', fontWeight: 900 }}>12:00 PM</p>
+                            </div>
+                            <div style={{ flex: 1, padding: '0.75rem', background: 'rgba(255,255,255,0.1)', borderRadius: '1rem', textAlign: 'center' }}>
+                                <p style={{ fontSize: '0.6rem', fontWeight: 800, opacity: 0.6, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Check-out</p>
+                                <p style={{ fontSize: '0.85rem', fontWeight: 900 }}>11:00 AM</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

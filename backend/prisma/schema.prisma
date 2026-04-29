@@ -950,13 +950,15 @@ model PropertyRequest {
 
 model OneTimePassword {
   id        String   @id @default(uuid())
-  phone     String
+  phone     String?
+  email     String?
   code      String
   type      String
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   @@index([phone, type])
+  @@index([email, type])
   @@map("one_time_passwords")
 }
 

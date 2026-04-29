@@ -36,7 +36,11 @@ backend/generated/
 # Frontend Specific (Monorepo Paths)
 frontend/admin/dist/
 frontend/public/dist/
+frontend/property/dist/
+frontend/channel-partner/dist/
 
-# Logs
+# Logs & Debug Output
 *.log
 logs/
+tiers_output.txt
+backend/pdf_debug.log

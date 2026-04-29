@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
@@ -13,9 +13,8 @@ import { propertyApi } from '../services/properties';
 import { bookingService } from '../services/booking';
 import { reviewService, Review, ReviewStats } from '../services/reviews';
 import { Property, RoomType } from '../types';
-import { useCurrency } from '../context/CurrencyContext';
 import { useSearch } from '../context/SearchContext';
-import { formatPrice } from '../utils/currency';
+import { PriceDisplay } from '../components/common/PriceDisplay';
 import DatePicker from 'react-datepicker';
 import { format, addDays, differenceInDays } from 'date-fns';
 import "react-datepicker/dist/react-datepicker.css";
@@ -142,7 +141,6 @@ const RoomImageCarousel = ({ images, name }: { images: string[], name: string })
 export default function PropertyDetail() {
     const { slug } = useParams();
     const navigate = useNavigate();
-    const { selectedCurrency, rates } = useCurrency();
     const pickerRef = useRef<HTMLDivElement>(null);
 
     const {
@@ -274,7 +272,7 @@ export default function PropertyDetail() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 pt-16 pb-24 lg:pb-0">
+        <div className="min-h-screen bg-gray-50 pt-16 pb-8 lg:pb-0">
 
             {/* Hero Image */}
             <div className="relative h-[300px] md:h-[350px]">
@@ -438,12 +436,12 @@ export default function PropertyDetail() {
                                                                         </div>
                                                                         <div className="flex flex-col items-end">
                                                                             {groupStay.originalPrice && Number(groupStay.originalPrice) > Number(groupStay.totalPrice) && (
-                                                                                <div className="text-gray-400 text-sm line-through decoration-red-400/30 mb-0.5">
-                                                                                    {formatPrice(Number(groupStay.originalPrice), selectedCurrency, rates)}
+                                                                                <div className="text-gray-500 font-medium line-through decoration-red-500 decoration-1 mb-0.5">
+                                                                                    <PriceDisplay amount={Number(groupStay.originalPrice)} />
                                                                                 </div>
                                                                             )}
                                                                             <div className={clsx("text-4xl font-black leading-none", Number(groupStay.offerDiscountAmount) > 0 ? "text-orange-600" : "text-gray-900")}>
-                                                                                {formatPrice(groupStay.totalPrice, selectedCurrency, rates)}
+                                                                                <PriceDisplay amount={groupStay.totalPrice} />
                                                                             </div>
                                                                             <div className="text-[10px] text-gray-500 font-bold mt-1">
                                                                                 {groupStay.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
@@ -454,15 +452,16 @@ export default function PropertyDetail() {
                                                                     <div className="flex flex-row md:flex-col justify-between items-center md:items-end w-full">
                                                                         <div className="text-left md:text-right">
                                                                             <div className="text-3xl font-black text-gray-900 leading-none">
-                                                                                {formatPrice(property.groupPriceAdult || property.groupPricePerHead || 0, selectedCurrency, rates)}
+                                                                                <PriceDisplay amount={property.groupPriceAdult || property.groupPricePerHead || 0} />
                                                                             </div>
                                                                             <div className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Per Adult / Night</div>
                                                                         </div>
                                                                         {property.groupPriceChild && (
                                                                             <div className="md:mt-4 md:pt-4 md:border-t border-gray-100 text-right shrink-0">
-                                                                                <div className="text-lg font-black text-primary-600">
-                                                                                    {formatPrice(property.groupPriceChild, selectedCurrency, rates)}
-                                                                                </div>
+                                                                                <PriceDisplay
+                                                                                    amount={property.groupPriceChild}
+                                                                                    className="text-lg font-black text-primary-600"
+                                                                                />
                                                                                 <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Per Child / Night</div>
                                                                             </div>
                                                                         )}
@@ -646,12 +645,12 @@ export default function PropertyDetail() {
                                                                     {availabilityInfo?.totalPrice ? (
                                                                         <div className="flex flex-col items-end">
                                                                             {availabilityInfo.originalPrice && Number(availabilityInfo.originalPrice) > Number(availabilityInfo.totalPrice) && (
-                                                                                <span className="text-gray-400 text-sm line-through decoration-red-400/30">
-                                                                                    {formatPrice(Number(availabilityInfo.originalPrice), selectedCurrency, rates)}
+                                                                                <span className="text-base text-gray-500 font-medium line-through decoration-red-500 decoration-1">
+                                                                                    <PriceDisplay amount={Number(availabilityInfo.originalPrice)} />
                                                                                 </span>
                                                                             )}
                                                                             <div className={clsx("text-4xl font-black leading-none", Number(availabilityInfo.offerDiscountAmount) > 0 ? "text-orange-600" : "text-gray-900")}>
-                                                                                {formatPrice(availabilityInfo.totalPrice, selectedCurrency, rates)}
+                                                                                <PriceDisplay amount={availabilityInfo.totalPrice} />
                                                                             </div>
                                                                             <div className="text-[10px] text-gray-500 font-bold mt-1">
                                                                                 {availabilityInfo.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
@@ -660,12 +659,12 @@ export default function PropertyDetail() {
                                                                     ) : (
                                                                         <div className="flex flex-col items-end">
                                                                             {((roomType.originalPrice && roomType.originalPrice > roomType.basePrice) || (roomType.discountedPricePerNight && roomType.basePrice > roomType.discountedPricePerNight)) && (
-                                                                                <span className="text-gray-400 text-sm line-through decoration-red-400/30">
-                                                                                    {formatPrice((roomType.originalPrice || roomType.basePrice) * (nights || 1), selectedCurrency, rates)}
+                                                                                <span className="text-gray-400 text-sm line-through decoration-red-500 decoration-1">
+                                                                                    <PriceDisplay amount={(roomType.originalPrice || roomType.basePrice) * (nights || 1)} />
                                                                                 </span>
                                                                             )}
                                                                             <div className={clsx("text-4xl font-black leading-none", Number(roomType.offerDiscountAmount) > 0 ? "text-orange-600" : "text-gray-900")}>
-                                                                                {formatPrice((roomType.discountedPricePerNight || roomType.basePrice) * (nights || 1), selectedCurrency, rates)}
+                                                                                <PriceDisplay amount={(roomType.discountedPricePerNight || roomType.basePrice) * (nights || 1)} />
                                                                             </div>
                                                                             <div className="text-[10px] text-gray-500 font-bold mt-1">
                                                                                 {roomType.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
@@ -692,7 +691,7 @@ export default function PropertyDetail() {
                                                                         to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=false` : '#'}
                                                                         className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-xl shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
-                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Reserve Room'}
+                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Book Now'}
                                                                         <ChevronRight className="h-4 w-4" />
                                                                     </Link>
                                                                 )}

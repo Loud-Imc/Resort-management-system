@@ -129,7 +129,7 @@ const Register: React.FC = () => {
                         src={logo}
                         alt="Route Guide"
                         style={{
-                            height: '100px',
+                            height: '64px',
                             width: 'auto',
                             objectFit: 'contain'
                         }}

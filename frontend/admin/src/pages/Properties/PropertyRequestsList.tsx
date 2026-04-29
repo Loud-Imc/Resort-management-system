@@ -76,7 +76,9 @@ export default function PropertyRequestsList() {
     const filteredRequests = requests.filter(request => {
         const matchesSearch =
             request.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            request.ownerEmail.toLowerCase().includes(searchTerm.toLowerCase());
+            request.ownerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            request.ownerPhone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            request.details?.propertyPhone?.toLowerCase().includes(searchTerm.toLowerCase());
 
         const matchesStatus = statusFilter === 'ALL' || request.status === statusFilter;
 
@@ -106,7 +108,7 @@ export default function PropertyRequestsList() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
                         type="text"
-                        placeholder="Search by property name or owner email..."
+                        placeholder="Search by name, email or phone..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 px-4 py-2 border border-border bg-background text-foreground rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-sm"

@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { MapPin, Star, Users, CheckCircle } from 'lucide-react';
 import { Property, PropertyType } from '../types';
+import { PriceDisplay } from './common/PriceDisplay';
 
 const propertyTypeLabels: Record<PropertyType, string> = {
     RESORT: 'Resort',
@@ -113,9 +114,10 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                                     Starting Package
                                 </p>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-xl font-black text-gray-900">
-                                        ₹{(property.groupPriceAdult || property.groupPricePerHead || property.minPrice)?.toLocaleString()}
-                                    </span>
+                                    <PriceDisplay 
+                                        amount={property.groupPriceAdult || property.groupPricePerHead || property.minPrice} 
+                                        className="text-xl font-black text-gray-900" 
+                                    />
                                     <span className="text-[10px] text-gray-500 font-bold">
                                         / person + GST
                                     </span>

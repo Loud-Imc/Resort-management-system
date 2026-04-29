@@ -244,7 +244,7 @@ const CPInvoiceTemplate = React.forwardRef<HTMLDivElement, Props>(({ data, type,
               {
                 label: `Instant Agency Commission${data.commissionRate ? ` (${data.commissionRate}%)` : ''} :`,
                 value: `-${fmt(data.commissionAmount)}`,
-                show: isPartner && (data.commissionAmount || 0) > 0,
+                show: isPartner && (data.commissionAmount || 0) > 0 && data.paymentOption !== 'PARTIAL',
               },
             ].filter(r => r.show).map((row, i) => (
               <div key={i} style={{
@@ -269,12 +269,31 @@ const CPInvoiceTemplate = React.forwardRef<HTMLDivElement, Props>(({ data, type,
               marginTop: '12px',
             }}>
               <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
-                {isPartner ? 'Net Payable (After Commission) :' : 'Grand Total :'}
+                {isPartner && data.paymentOption !== 'PARTIAL' ? 'Net Payable (After Commission) :' : 'Grand Total :'}
               </span>
               <span style={{ fontWeight: 900, fontSize: '18px', color: '#0f172a' }}>
-                {fmt(finalTotal)}
+                {fmt(data.paymentOption === 'PARTIAL' ? data.grossTotal : finalTotal)}
               </span>
             </div>
+
+            {/* Partial Settlement Details */}
+            {data.paymentOption === 'PARTIAL' && (
+              <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px dashed #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '13px' }}>
+                  <span style={{ color: '#0d9488', fontWeight: 700 }}>Advance Amount Paid :</span>
+                  <span style={{ fontWeight: 800, color: '#0d9488' }}>{fmt(data.paidAmount)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '13px' }}>
+                  <span style={{ color: '#ef4444', fontWeight: 700 }}>Balance Due at Property :</span>
+                  <span style={{ fontWeight: 800, color: '#ef4444' }}>{fmt(data.balanceAmount)}</span>
+                </div>
+                {isPartner && (
+                  <div style={{ fontSize: '10px', color: '#94a3b8', fontStyle: 'italic', marginTop: '6px' }}>
+                    * Agency commission will be credited to wallet after full settlement.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Payment method badge */}
             {data.paymentMethod && (
@@ -285,9 +304,11 @@ const CPInvoiceTemplate = React.forwardRef<HTMLDivElement, Props>(({ data, type,
                 padding: '10px 14px',
                 fontSize: '11px',
                 color: '#64748b',
-                marginTop: '8px',
+                marginTop: '12px',
               }}>
-                💳 {data.paymentMethod === 'WALLET' ? 'Paid via Partner Wallet — Commission deducted upfront' : 'Paid via Online Payment (Razorpay)'}
+                💳 {data.paymentMethod === 'WALLET' 
+                    ? (data.paymentOption === 'PARTIAL' ? 'Paid via Partner Wallet — Advance Paid' : 'Paid via Partner Wallet — Commission deducted upfront') 
+                    : 'Paid via Online Payment (Razorpay)'}
               </div>
             )}
           </div>

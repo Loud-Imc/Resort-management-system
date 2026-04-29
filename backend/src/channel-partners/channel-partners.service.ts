@@ -350,32 +350,15 @@ export class ChannelPartnersService {
                 referrals: {
                     take: 50,
                     orderBy: { createdAt: 'desc' },
-                    select: {
-                        id: true,
-                        bookingNumber: true,
-                        totalAmount: true,
-                        cpCommission: true,
-                        createdAt: true,
-                        status: true,
-                        checkInDate: true,
-                        checkOutDate: true,
-                        property: {
-                            select: { name: true, images: true, city: true }
-                        },
-                        user: {
-                            select: { firstName: true, lastName: true }
-                        },
-                        paidAmount: true,
-                        paymentStatus: true,
-                        paymentMethod: true,
-                        baseAmount: true,
-                        taxAmount: true,
-                        extraAdultAmount: true,
-                        extraChildAmount: true,
-                        offerDiscountAmount: true,
-                        cpDiscount: true,
+                    include: {
+                        property: { select: { name: true, images: true, city: true } },
+                        user: { select: { firstName: true, lastName: true } },
                         room: { select: { roomType: { select: { name: true } } } },
                         guests: true,
+                        cpTransactions: {
+                            where: { type: 'COMMISSION' },
+                            select: { points: true }
+                        }
                     },
                 },
                 transactions: {
@@ -389,18 +372,35 @@ export class ChannelPartnersService {
             throw new NotFoundException('You are not registered as a Channel Partner');
         }
 
-        return cp;
-    }
+        // Convert to plain object to ensure successful spread/serialization
+        const plainCP = JSON.parse(JSON.stringify(cp));
 
-    // Get CP dashboard stats
-    async getStats(userId: string) {
-        const cp = await this.prisma.channelPartner.findUnique({
-            where: { userId },
+        // Map cpTransactions to a flat cpPoints field for the frontend
+        const mappedReferrals = (plainCP.referrals || []).map((ref: any) => {
+            const points = ref.cpTransactions?.[0]?.points || 0;
+            const { cpTransactions, ...rest } = ref;
+            return {
+                ...rest,
+                cpPoints: points
+            };
         });
 
-        if (!cp) {
-            throw new NotFoundException('You are not registered as a Channel Partner');
-        }
+        return {
+            ...plainCP,
+            referrals: mappedReferrals,
+            _fixApplied: "CPPoints_v2"
+        };
+    }
+
+// Get CP dashboard stats
+async getStats(userId: string) {
+    const cp = await this.prisma.channelPartner.findUnique({
+        where: { userId },
+    });
+
+    if (!cp) {
+        throw new NotFoundException('You are not registered as a Channel Partner');
+    }
 
         const [totalReferrals, confirmedReferrals, thisMonthReferrals] = await Promise.all([
             this.prisma.booking.count({
@@ -473,11 +473,15 @@ export class ChannelPartnersService {
             referralDiscountRate: cp.referralDiscountRate,
             walletBalance: cp.walletBalance,
             registrationFeePaid: cp.registrationFeePaid,
+            bankName: cp.bankName,
+            accountNumber: cp.accountNumber,
+            ifscCode: cp.ifscCode,
+            accountHolderName: cp.accountHolderName,
         };
     }
 
-    // Record pending commission (called when Online booking is CONFIRMED but before check-in)
-    async recordPendingCommission(bookingId: string, tx?: Prisma.TransactionClient) {
+    // Record pending commission (called when Online or Wallet booking is CONFIRMED but before check-in)
+    async recordPendingCommission(bookingId: string, tx?: Prisma.TransactionClient, isPrepaid = false) {
         const client = tx || this.prisma;
 
         const booking = await client.booking.findUnique({
@@ -511,7 +515,8 @@ export class ChannelPartnersService {
         await client.channelPartner.update({
             where: { id: booking.channelPartnerId },
             data: {
-                pendingEarnings: { increment: commission },
+                // For wallet/prepaid, money is already realized as discount, so don't increment pendingEarnings
+                ...(!isPrepaid && { pendingEarnings: { increment: commission } }),
                 pendingPoints: { increment: points },
             }
         });
@@ -523,10 +528,12 @@ export class ChannelPartnersService {
                 status: 'PENDING',
                 amount: commission,
                 points,
-                description: `Pending commission for booking ${booking.bookingNumber} (Online)`,
+                description: isPrepaid 
+                    ? `Pending commission for booking ${booking.bookingNumber} (Prepaid via Wallet)`
+                    : `Pending commission for booking ${booking.bookingNumber} (Online)`,
                 channelPartnerId: booking.channelPartnerId,
                 bookingId,
-                isPrepaid: false,
+                isPrepaid: isPrepaid,
             }
         });
     }
@@ -773,32 +780,19 @@ export class ChannelPartnersService {
                 where: { channelPartnerId: id },
                 orderBy: { createdAt: 'desc' },
                 take: 50,
-                select: {
-                    id: true,
-                    bookingNumber: true,
-                    totalAmount: true,
-                    cpCommission: true,
-                    status: true,
-                    checkInDate: true,
-                    checkOutDate: true,
-                    createdAt: true,
+                include: {
                     user: {
                         select: { firstName: true, lastName: true, email: true },
                     },
                     property: {
                         select: { id: true, name: true, images: true, city: true },
                     },
-                    paidAmount: true,
-                    paymentStatus: true,
-                    paymentMethod: true,
-                    baseAmount: true,
-                    taxAmount: true,
-                    extraAdultAmount: true,
-                    extraChildAmount: true,
-                    offerDiscountAmount: true,
-                    cpDiscount: true,
                     room: { select: { roomType: { select: { name: true } } } },
                     guests: true,
+                    cpTransactions: {
+                        where: { type: 'COMMISSION' },
+                        select: { points: true }
+                    },
                 },
             }),
             this.prisma.booking.count({ where: { channelPartnerId: id } }),
@@ -818,6 +812,16 @@ export class ChannelPartnersService {
             }),
         ]);
 
+        // Map cpTransactions to cpPoints
+        const mappedReferrals = referralBookings.map((ref: any) => {
+            const points = ref.cpTransactions?.[0]?.points || 0;
+            const { cpTransactions, ...rest } = ref;
+            return {
+                ...rest,
+                cpPoints: points
+            };
+        });
+
         const activePoints = await this.getActivePoints(cp.id);
         const currentLevel = await this.getCurrentLevel(cp.id);
         const nextLevel = await this.prisma.partnerLevel.findFirst({
@@ -829,7 +833,7 @@ export class ChannelPartnersService {
 
         return {
             data: {
-                ...cp,
+                ...JSON.parse(JSON.stringify(cp)),
                 currentLevel: currentLevel ? { name: currentLevel.name, commissionRate: Number(currentLevel.commissionRate) } : null,
                 nextLevel: nextLevel ? { name: nextLevel.name, minPoints: nextLevel.minPoints } : null,
                 activePoints,
@@ -840,7 +844,8 @@ export class ChannelPartnersService {
                 totalReferrals,
                 confirmedReferrals,
                 thisMonthReferrals,
-                referralBookings,
+                referralBookings: mappedReferrals,
+                _fixApplied: "CPPointsAdmin_v2"
             }
         };
     }
@@ -1455,6 +1460,11 @@ export class ChannelPartnersService {
 
         if (!cp) throw new NotFoundException('Channel partner profile not found');
         if (cp.status !== 'APPROVED') throw new ForbiddenException('Only approved partners can request payouts');
+
+        // Validation: Verify bank details are present before payout
+        if (!cp.accountNumber || !cp.bankName || !cp.ifscCode) {
+            throw new BadRequestException('Bank account details are missing. Please update your profile in Payout Settings before requesting a payout.');
+        }
 
         if (Number(cp.walletBalance) < amount) {
             throw new BadRequestException(`Insufficient wallet balance. Available: ₹${Number(cp.walletBalance).toLocaleString()}`);

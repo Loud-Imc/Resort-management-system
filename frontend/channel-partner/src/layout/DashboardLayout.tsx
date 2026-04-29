@@ -16,6 +16,7 @@ import api from '../services/api';
 
 import logo from '../assets/routeguide.svg';
 import NotificationBell from '../components/NotificationBell';
+import ProgressBar from '../components/ProgressBar';
 
 const navItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/' },
@@ -32,10 +33,12 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
     const navigate = useNavigate();
     const location = useLocation();
     const [status, setStatus] = React.useState<string | null>(null);
+    const [stats, setStats] = React.useState<any>(null);
 
     React.useEffect(() => {
         api.get('/channel-partners/me/stats').then((res: any) => {
             setStatus(res.status);
+            setStats(res);
         }).catch(() => {
             setStatus('INACTIVE');
         });
@@ -135,33 +138,52 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
             <main style={{ flex: 1, marginLeft: '280px', padding: '2rem 3rem' }}>
                 <header style={{
                     display: 'flex',
-                    justifyContent: 'flex-end',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     marginBottom: '3rem',
                     gap: '2rem'
                 }}>
-                    <NotificationBell />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ textAlign: 'right' }}>
-                            <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{user?.firstName} {user?.lastName}</p>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--primary-teal)' }}>Partner Network</p>
-                        </div>
+                    <div style={{ flex: 1 }}>
+                        {location.pathname !== '/' && stats && (
+                            <div style={{ 
+                                maxWidth: '280px',
+                                background: 'rgba(184, 134, 11, 0.05)',
+                                padding: '0.6rem 1rem',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(184, 134, 11, 0.15)'
+                            }}>
+                                <ProgressBar
+                                    variant="compact"
+                                    colorScheme="gold"
+                                    label={stats.nextLevel ? `To ${stats.nextLevel.name}` : "Max Tier"}
+                                    current={stats.activePoints || 0}
+                                    target={stats.nextLevel?.minPoints || stats.activePoints || 0}
+                                />
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                        <NotificationBell />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ textAlign: 'right' }}>
+                                <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{user?.firstName} {user?.lastName}</p>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--primary-teal)' }}>Partner Network</p>
+                            </div>
 
-                        <div className="glass-pane" style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 700,
-                            color: '#ffffff',
-                            boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)'
-                        }}>
-
-
-                            {user?.firstName?.[0]}
+                            <div className="glass-pane" style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                color: '#ffffff',
+                                boxShadow: '0 4px 10px rgba(8, 71, 78, 0.2)'
+                            }}>
+                                {user?.firstName?.[0]}
+                            </div>
                         </div>
                     </div>
                 </header>
