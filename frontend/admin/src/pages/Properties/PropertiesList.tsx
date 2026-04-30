@@ -138,7 +138,7 @@ export default function PropertiesList() {
                 <div className="flex flex-col sm:flex-row gap-4">
                     <input
                         type="text"
-                        placeholder="Search by name, city..."
+                        placeholder="Search by name, city, phone..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSearch()}

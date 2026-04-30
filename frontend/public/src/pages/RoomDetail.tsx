@@ -11,16 +11,14 @@ import {
 import { roomTypeApi } from '../services/roomTypes';
 import { propertyApi } from '../services/properties';
 import { reviewService } from '../services/reviews';
-import { useCurrency } from '../context/CurrencyContext';
 import { useSearch } from '../context/SearchContext';
-import { formatPrice } from '../utils/currency';
+import { PriceDisplay } from '../components/common/PriceDisplay';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 
 export default function RoomDetail() {
     const { slug, roomTypeId } = useParams();
     const navigate = useNavigate();
-    const { selectedCurrency, rates } = useCurrency();
     const { checkIn, checkOut, adults, children, isGroupBooking } = useSearch();
     const [activeImage, setActiveImage] = useState(0);
 
@@ -256,12 +254,15 @@ export default function RoomDetail() {
                                     <p className="text-gray-500 text-xs font-bold uppercase mb-1">Starting from</p>
                                     <div className="flex flex-col items-end gap-1">
                                         {roomType.originalPrice && roomType.originalPrice > roomType.basePrice && (
-                                            <span className="text-sm text-gray-400 line-through decoration-red-400">
-                                                {formatPrice(roomType.originalPrice, selectedCurrency, rates)}
+                                            <span className="text-base text-gray-500 font-medium line-through decoration-red-500 decoration-1">
+                                                <PriceDisplay amount={roomType.originalPrice} />
                                             </span>
                                         )}
                                         <div className="flex items-baseline justify-end gap-1">
-                                            <span className="text-3xl font-black text-primary-700">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
+                                            <PriceDisplay
+                                                amount={roomType.basePrice}
+                                                className="text-3xl font-black text-primary-700"
+                                            />
                                             <span className="text-gray-500 text-sm font-medium">/ night</span>
                                         </div>
                                     </div>
@@ -426,21 +427,22 @@ export default function RoomDetail() {
                                                 <div className="text-right flex flex-col items-end">
                                                     {Number(roomType.offerDiscountAmount) > 0 ? (
                                                         <>
-                                                            <span className="text-xs text-gray-400 line-through decoration-red-400">
-                                                                {formatPrice(roomType.basePrice, selectedCurrency, rates)}
+                                                            <span className="text-sm text-gray-500 font-medium line-through decoration-red-500 decoration-1">
+                                                                <PriceDisplay amount={roomType.basePrice} />
                                                             </span>
-                                                            <span className="text-gray-900 font-bold text-orange-600">
-                                                                {formatPrice(roomType.discountedPricePerNight || roomType.basePrice, selectedCurrency, rates)}
-                                                            </span>
+                                                            <PriceDisplay
+                                                                amount={roomType.discountedPricePerNight || roomType.basePrice}
+                                                                className="text-gray-900 font-bold text-orange-600"
+                                                            />
                                                         </>
                                                     ) : (
                                                         <>
                                                             {roomType.originalPrice && roomType.originalPrice > roomType.basePrice && (
-                                                                <span className="text-xs text-gray-400 line-through decoration-red-400">
-                                                                    {formatPrice(roomType.originalPrice, selectedCurrency, rates)}
+                                                                <span className="text-sm text-gray-500 font-medium line-through decoration-red-500 decoration-1">
+                                                                    <PriceDisplay amount={roomType.originalPrice} />
                                                                 </span>
                                                             )}
-                                                            <span className="text-gray-900">{formatPrice(roomType.basePrice, selectedCurrency, rates)}</span>
+                                                            <PriceDisplay amount={roomType.basePrice} className="text-gray-900" />
                                                         </>
                                                     )}
                                                 </div>
@@ -453,9 +455,10 @@ export default function RoomDetail() {
                                             )}
                                             <div className="flex justify-between text-gray-900 font-black text-lg pt-2">
                                                 <span>{roomType.isGstInclusive ? 'Total Price' : 'Subtotal'}</span>
-                                                <span className={clsx(Number(roomType.offerDiscountAmount) > 0 ? "text-orange-600" : "text-primary-600")}>
-                                                    {formatPrice(roomType.discountedPricePerNight || roomType.basePrice, selectedCurrency, rates)}
-                                                </span>
+                                                <PriceDisplay
+                                                    amount={roomType.discountedPricePerNight || roomType.basePrice}
+                                                    className={clsx(Number(roomType.offerDiscountAmount) > 0 ? "text-orange-600" : "text-primary-600")}
+                                                />
                                             </div>
                                             {roomType.isGstInclusive && (
                                                 <div className="text-[10px] text-green-600 font-bold uppercase tracking-tight text-right -mt-1">

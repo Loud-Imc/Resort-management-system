@@ -16,6 +16,14 @@ export class CreatePartnerLevelDto {
     @IsString()
     @IsOptional()
     description?: string;
+
+    @IsInt()
+    @Min(0)
+    pointsPerUnit: number;
+
+    @IsInt()
+    @Min(1)
+    unitAmount: number;
 }
 
 export class UpdatePartnerLevelDto {
@@ -36,6 +44,16 @@ export class UpdatePartnerLevelDto {
     @IsString()
     @IsOptional()
     description?: string;
+
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    pointsPerUnit?: number;
+
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    unitAmount?: number;
 }
 
 export class CreateRewardDto {

@@ -879,4 +879,73 @@ export class MailService {
             console.error('[MailService] Error sending review request:', error);
         }
     }
+
+    async sendPasswordResetOtp(email: string, otp: string) {
+        console.log(`[MailService] Sending password reset OTP to ${email}`);
+        const from = this.configService.get('EMAIL_FROM');
+        const subject = `Reset Your Password - Verification Code: ${otp}`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f1f8fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+              .wrapper { width: 100%; table-layout: fixed; background-color: #f1f8fa; padding-bottom: 40px; }
+              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #093f4a; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(9, 63, 74, 0.05); }
+              .header { background-color: #093f4a; padding: 40px 20px; text-align: center; }
+              .logo-text { color: #f1f8fa; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
+              .hero { padding: 40px 40px 20px 40px; text-align: center; }
+              .hero h1 { font-size: 28px; margin: 0; color: #227c8a; font-weight: 800; }
+              .hero p { font-size: 16px; color: #62a1b1; margin-top: 10px; }
+              .content { padding: 0 40px 40px 40px; text-align: center; }
+              .otp-box { background-color: #f1f8fa; border-radius: 12px; padding: 30px; margin: 30px 0; border: 2px dashed #227c8a; display: inline-block; }
+              .otp-code { font-size: 48px; font-weight: 800; color: #093f4a; letter-spacing: 10px; margin: 0; }
+              .note { font-size: 13px; color: #95c2ce; margin-top: 20px; line-height: 1.6; }
+              .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #95c2ce; border-top: 1px solid #f1f8fa; }
+          </style>
+      </head>
+      <body>
+          <div class="wrapper">
+              <table class="main" width="100%" align="center">
+                  <tr>
+                      <td class="header">
+                          <div class="logo-text">ROUTE GUIDE</div>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="hero">
+                          <h1>Password Reset</h1>
+                          <p>We received a request to reset your password. Use the verification code below to proceed.</p>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="content">
+                          <div class="otp-box">
+                              <div class="otp-code">${otp}</div>
+                          </div>
+                          <p class="note">
+                              This code will expire in 10 minutes. If you did not request a password reset, you can safely ignore this email.
+                          </p>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="footer">
+                          <p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p>
+                      </td>
+                  </tr>
+              </table>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            await this.transporter.sendMail({ from, to: email, subject, html });
+            console.log(`[MailService] Password reset OTP sent to ${email}`);
+        } catch (error) {
+            console.error('[MailService] Error sending password reset OTP:', error);
+        }
+    }
 }

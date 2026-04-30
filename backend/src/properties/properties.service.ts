@@ -594,6 +594,8 @@ export class PropertiesService {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
                     { city: { contains: search, mode: 'insensitive' } },
+                    { phone: { contains: search, mode: 'insensitive' } },
+                    { owner: { phone: { contains: search, mode: 'insensitive' } } },
                     { description: { contains: search, mode: 'insensitive' } },
                 ],
             }),
@@ -660,8 +662,11 @@ export class PropertiesService {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
                     { city: { contains: search, mode: 'insensitive' } },
+                    { phone: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } },
                     { description: { contains: search, mode: 'insensitive' } },
                     { owner: { email: { contains: search, mode: 'insensitive' } } },
+                    { owner: { phone: { contains: search, mode: 'insensitive' } } },
                 ],
             }),
         };

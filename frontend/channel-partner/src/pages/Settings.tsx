@@ -2,12 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { User, Shield, CreditCard, Bell, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { useSearchParams } from 'react-router-dom';
 
 type TabType = 'profile' | 'payout' | 'security' | 'notifications';
 
 const Settings: React.FC = () => {
     const { } = useAuth(); // Profile data is fetched from the API hook below
+    const [searchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState<TabType>('profile');
+
+    useEffect(() => {
+        const tab = searchParams.get('tab') as TabType;
+        if (tab && ['profile', 'payout', 'security', 'notifications'].includes(tab)) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);

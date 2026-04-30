@@ -501,6 +501,32 @@ export class UsersService {
         return user;
     }
 
+    /**
+     * Optimized lookup for JWT Strategy to avoid heavy relationship loading
+     */
+    async findByIdForAuth(id: string) {
+        return this.prisma.user.findUnique({
+            where: { id },
+            include: {
+                roles: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                ownedProperties: { select: { id: true } },
+                propertyStaff: { select: { propertyId: true } },
+            },
+        });
+    }
+
     async findByEmail(email: string) {
         console.log(`[UsersService] Searching for user by email: ${email}`);
         const user = await this.prisma.user.findUnique({

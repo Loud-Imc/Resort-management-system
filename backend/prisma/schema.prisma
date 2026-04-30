@@ -264,6 +264,7 @@ model Booking {
   gstNumber               String?
   isHistoricalEntry       Boolean                @default(false)
   transactionDate         DateTime?
+  createdBy               String?
   auditLogs               AuditLog[]
   guests                  BookingGuest[]
   agent                   User?                  @relation("AgentBookings", fields: [agentId], references: [id])
@@ -675,6 +676,8 @@ model PartnerLevel {
   name           String   @unique
   minPoints      Int      @unique
   commissionRate Decimal  @db.Decimal(5, 2)
+  pointsPerUnit  Int      @default(1)
+  unitAmount     Int      @default(100)
   description    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -947,13 +950,15 @@ model PropertyRequest {
 
 model OneTimePassword {
   id        String   @id @default(uuid())
-  phone     String
+  phone     String?
+  email     String?
   code      String
   type      String
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   @@index([phone, type])
+  @@index([email, type])
   @@map("one_time_passwords")
 }
 

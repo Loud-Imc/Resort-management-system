@@ -163,13 +163,37 @@ export class AvailabilityService {
      */
     async isRoomAvailable(
         roomId: string,
-        checkInDate: Date,
-        checkOutDate: Date,
-        prismaClient?: any,
+        checkIn: Date | string,
+        checkOut: Date | string,
+        excludeBookingId?: string,
+        prismaClient?: any
     ): Promise<boolean> {
         const db = prismaClient || this.prisma;
 
-        // Check for overlapping bookings
+        // 1. Fetch Room and check basic status
+        const room = await db.room.findUnique({
+            where: { id: roomId },
+            select: { id: true, isEnabled: true, status: true }
+        });
+
+        if (!room || !room.isEnabled) return false;
+
+        // Strict Status Blocks: If room is Maintenance or Blocked, it cannot be booked at all.
+        if (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') {
+            return false;
+        }
+
+        const checkInDate = new Date(checkIn);
+        const checkOutDate = new Date(checkOut);
+
+        // Smart "Today" check: If the booking starts today or earlier, and the room is currently OCCUPIED,
+        // it means there's a guest physically there (or manual status override).
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (checkIn <= todayStr && room.status === 'OCCUPIED') {
+            return false;
+        }
+
+        // 2. Check for overlapping bookings
         const thirtyMinutesAgo = new Date();
         thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
@@ -179,11 +203,11 @@ export class AvailabilityService {
                 AND: [
                     {
                         OR: [
-                            { status: { in: ['CONFIRMED', 'RESERVED', 'CHECKED_IN'] } }, // Removed CHECKED_OUT
+                            { status: { in: ['CONFIRMED', 'CHECKED_IN'] } }, 
                             {
                                 AND: [
                                     { status: 'PENDING_PAYMENT' },
-                                    { createdAt: { gte: thirtyMinutesAgo } } // Only block if it's recent (last 30 mins)
+                                    { createdAt: { gte: thirtyMinutesAgo } } // Blocks for 30 minutes to allow payment
                                 ]
                             }
                         ]
@@ -214,6 +238,7 @@ export class AvailabilityService {
                         ]
                     }
                 ],
+                NOT: excludeBookingId ? { id: excludeBookingId } : undefined,
             },
         });
 
@@ -221,7 +246,7 @@ export class AvailabilityService {
             return false;
         }
 
-        // Check for room blocks
+        // 3. Check for room blocks
         const overlappingBlocks = await db.roomBlock.findMany({
             where: {
                 roomId,

@@ -1,45 +1,86 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as path from 'path';
-const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
-// Handle case sensitivity: Linux has 'Printer.js', Windows has 'printer.js'
-let PdfPrinter: any;
-try {
-  PdfPrinter = require(path.join(pdfmakeDir, 'js', 'Printer'));
-} catch {
-  PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer'));
-}
+import * as fs from 'fs';
+const PdfPrinter = require('pdfmake');
 
 @Injectable()
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
-  private printer: any;
+  private pdfmakeManager: any;
 
   constructor() {
+    // Better path resolution relative to this file
+    const fontsPath = path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto');
+    
     const fonts = {
       Roboto: {
-        normal: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Regular.ttf'),
-        bold: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Medium.ttf'),
-        italics: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-Italic.ttf'),
-        bolditalics: path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto', 'Roboto-MediumItalic.ttf'),
+        normal: path.join(fontsPath, 'Roboto-Regular.ttf'),
+        bold: path.join(fontsPath, 'Roboto-Medium.ttf'),
+        italics: path.join(fontsPath, 'Roboto-Italic.ttf'),
+        bolditalics: path.join(fontsPath, 'Roboto-MediumItalic.ttf'),
       },
     };
-    const PrinterConstruct = PdfPrinter.default || PdfPrinter;
-    this.printer = new PrinterConstruct(fonts);
+    
+    this.pdfmakeManager = PdfPrinter;
+    this.pdfmakeManager.setFonts(fonts);
+
+    // Set URL access policy for pdfmake 0.3.x to allow base64 images
+    try {
+      this.pdfmakeManager.setUrlAccessPolicy((url: string) => {
+        return url.startsWith('data:');
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to set URL access policy: ${e.message}`);
+    }
   }
 
-  async generateBookingConfirmation(booking: any): Promise<Buffer> {
-    console.log(`[PdfService] [DEBUG] Processing booking ${booking.bookingNumber}`);
+  private getLogoBase64(): string | null {
+    const possiblePaths = [
+      path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'),
+      path.join(process.cwd(), 'dist', 'assets', 'Route-guide.png'),
+      path.join(__dirname, '..', 'assets', 'Route-guide.png')
+    ];
+
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          return fs.readFileSync(p).toString('base64');
+        } catch (e) {
+          this.logger.error(`Error reading logo at ${p}: ${e.message}`);
+        }
+      }
+    }
+    return null;
+  }
+
+  async generateBookingConfirmation(booking: any, recipientType: 'GUEST' | 'PARTNER' = 'GUEST'): Promise<Buffer> {
+    console.log(`[PdfService] [DEBUG] Incoming Booking Data:`, JSON.stringify(booking, null, 2));
+    console.log(`[PdfService] [DEBUG] Recipient Type: ${recipientType}`);
+
     const property = booking.property || booking.room?.property;
     const roomType = booking.roomType;
     const user = booking.user;
+
+    console.log(`[PdfService] [DEBUG] Extracted Property:`, property?.name);
+    console.log(`[PdfService] [DEBUG] Extracted RoomType:`, roomType?.name);
+    console.log(`[PdfService] [DEBUG] Extracted User:`, user?.firstName);
+
+    const isPartner = recipientType === 'PARTNER';
 
     if (!property) console.error(`[PdfService] [ERROR] property is undefined for booking ${booking.bookingNumber}`);
     if (!roomType) console.error(`[PdfService] [ERROR] roomType is undefined for booking ${booking.bookingNumber}`);
     if (!user) console.error(`[PdfService] [ERROR] user is undefined for booking ${booking.bookingNumber}`);
 
-    if (!property || !roomType || !user) {
-      console.log(`[PdfService] [DEBUG] Available keys in booking:`, Object.keys(booking));
-    }
+    // Calculation Logic for Invoices
+    const totalAmount = Number(booking.totalAmount || 0);
+    const cpCommission = Number(booking.cpCommission || 0);
+    const cpDiscount = Number(booking.cpDiscount || 0);
+    const offerDiscountAmount = Number(booking.offerDiscountAmount || 0);
+    const couponDiscountAmount = Number(booking.couponDiscountAmount || 0);
+    const paidAmount = Number(booking.paidAmount || 0);
+    const netInvestment = totalAmount - cpCommission;
+
+    console.log(`[PdfService] [DEBUG] Values - Total: ${totalAmount}, Commission: ${cpCommission}, Net: ${netInvestment}`);
 
     const docDefinition: any = {
       content: [
@@ -49,15 +90,24 @@ export class PdfService {
             {
               width: '*',
               stack: [
-                { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
+                (() => {
+                  const logoBase64 = this.getLogoBase64();
+                  if (logoBase64) {
+                    return {
+                      image: `data:image/png;base64,${logoBase64}`,
+                      width: 120
+                    };
+                  }
+                  return { text: 'Route Guide', style: 'brandLogo' };
+                })(),
                 { text: 'Travel | Discover | Belong', style: 'brandTagline', margin: [0, 5, 0, 0] },
               ],
             },
             {
               width: 'auto',
               stack: [
-                { text: 'BOOKING CONFIRMATION', style: 'docTitle' },
-                { text: `ID: #${booking.bookingNumber}`, style: 'bookingId' },
+                { text: isPartner ? 'AGENCY INVOICE' : 'BOOKING CONFIRMATION', style: 'docTitle' },
+                { text: `ID: #${booking.bookingNumber || 'N/A'}`, style: 'bookingId' },
                 { text: `Date: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate' },
               ],
               alignment: 'right',
@@ -73,7 +123,7 @@ export class PdfService {
             body: [
               [
                 {
-                  text: booking.status === 'CONFIRMED' ? 'RESERVATION CONFIRMED' : booking.status.replace('_', ' '),
+                  text: (booking.status || 'PENDING').replace('_', ' '),
                   style: 'statusBanner',
                   fillColor: booking.status === 'CONFIRMED' ? '#227c8a' : '#333333',
                 },
@@ -91,15 +141,15 @@ export class PdfService {
               width: '*',
               stack: [
                 { text: 'GUEST DETAILS', style: 'sectionHeader' },
-                { text: `${user.firstName} ${user.lastName || ''}`, style: 'guestName' },
-                { text: user.email, style: 'guestInfo' },
-                { text: user.phone || 'N/A', style: 'guestInfo' },
+                { text: `${user?.firstName || 'Guest'} ${user?.lastName || ''}`, style: 'guestName' },
+                { text: user?.email || 'N/A', style: 'guestInfo' },
+                { text: user?.phone || 'N/A', style: 'guestInfo' },
                 ...(booking.gstNumber ? [{ text: `GST: ${booking.gstNumber}`, style: 'guestInfo' }] : []),
                 { text: '\n' },
                 { text: 'PROPERTY', style: 'sectionHeader' },
-                { text: property.name, style: 'propertyName' },
-                { text: property.address, style: 'propertyAddress' },
-                { text: `${property.city}, ${property.state}`, style: 'propertyAddress' },
+                { text: property?.name || 'Property Name', style: 'propertyName' },
+                { text: property?.address || 'Address not available', style: 'propertyAddress' },
+                { text: `${property?.city || ''}, ${property?.state || ''}`, style: 'propertyAddress' },
               ],
             },
             {
@@ -115,8 +165,8 @@ export class PdfService {
                         { border: [false, false, false, false], text: 'CHECK-OUT', style: 'stayLabel' },
                       ],
                       [
-                        { border: [false, false, false, false], text: new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), style: 'stayDate' },
-                        { border: [false, false, false, false], text: new Date(booking.checkOutDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), style: 'stayDate' },
+                        { border: [false, false, false, false], text: booking.checkInDate ? new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
+                        { border: [false, false, false, false], text: booking.checkOutDate ? new Date(booking.checkOutDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
                       ],
                       [
                         { border: [false, false, false, false], text: '2:00 PM', style: 'stayTime' },
@@ -127,9 +177,9 @@ export class PdfService {
                 },
                 { text: '\n' },
                 { text: 'ACCOMMODATION', style: 'sectionHeader' },
-                { text: roomType.name, style: 'roomName' },
-                { text: `${booking.adultsCount} Adults, ${booking.childrenCount} Children`, style: 'guestCount' },
-                { text: `${booking.numberOfNights} Night(s)`, style: 'guestCount' },
+                { text: roomType?.name || 'Room Type', style: 'roomName' },
+                { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },
+                { text: `${booking.numberOfNights || 0} Night(s)`, style: 'guestCount' },
               ],
             },
           ],
@@ -137,7 +187,7 @@ export class PdfService {
         },
 
         // Payment Table
-        { text: 'PAYMENT SUMMARY', style: 'sectionHeader', margin: [0, 0, 0, 10] },
+        { text: isPartner ? 'SETTLEMENT SUMMARY' : 'PAYMENT SUMMARY', style: 'sectionHeader', margin: [0, 0, 0, 10] },
         {
           table: {
             headerRows: 1,
@@ -148,28 +198,46 @@ export class PdfService {
                 { text: 'Amount', style: 'tableHeader', alignment: 'right' },
               ],
               [
-                { text: 'Booking Charges', style: 'tableCell' },
+                { text: 'Accommodation Charges', style: 'tableCell' },
                 { text: `₹${Number(booking.baseAmount || 0).toLocaleString()}`, style: 'tableCell', alignment: 'right' },
               ],
               [
                 { text: 'Taxes & Service Fees', style: 'tableCell' },
                 { text: `₹${Number(booking.taxAmount || 0).toLocaleString()}`, style: 'tableCell', alignment: 'right' },
               ],
+              ...(booking.offerDiscountAmount > 0 ? [[
+                { text: 'Seasonal Offer Discount', style: 'tableCell', color: '#22c55e' },
+                { text: `-₹${Number(booking.offerDiscountAmount).toLocaleString()}`, style: 'tableCell', alignment: 'right', color: '#22c55e' },
+              ]] : []),
               ...(booking.couponDiscountAmount > 0 ? [[
-                { text: `Discount (${booking.couponCode || 'PROMO'})`, style: 'tableCell', color: '#22c55e' },
+                { text: `Promotional Discount (${booking.couponCode || 'COUPON'})`, style: 'tableCell', color: '#22c55e' },
                 { text: `-₹${Number(booking.couponDiscountAmount).toLocaleString()}`, style: 'tableCell', alignment: 'right', color: '#22c55e' },
               ]] : []),
+              ...(booking.cpDiscount > 0 ? [[
+                { text: 'Partner Network Discount', style: 'tableCell', color: '#22c55e' },
+                { text: `-₹${Number(booking.cpDiscount).toLocaleString()}`, style: 'tableCell', alignment: 'right', color: '#22c55e' },
+              ]] : []),
               [
-                { text: 'Total Net Amount', style: 'tableTotalLabel' },
-                { text: `₹${Number(booking.totalAmount).toLocaleString()}`, style: 'tableTotalValue', alignment: 'right' },
+                { text: 'Grand Total', style: 'tableTotalLabel' },
+                { text: `₹${totalAmount.toLocaleString()}`, style: 'tableTotalValue', alignment: 'right' },
               ],
+              ...(isPartner ? [
+                [
+                  { text: 'Instant Commission', style: 'tableCell', color: '#ef4444' },
+                  { text: `-₹${cpCommission.toLocaleString()}`, style: 'tableCell', alignment: 'right', color: '#ef4444' },
+                ],
+                [
+                  { text: 'Net Investment', style: 'tableTotalLabel', color: '#227c8a' },
+                  { text: `₹${netInvestment.toLocaleString()}`, style: 'tableTotalValue', alignment: 'right', color: '#227c8a' },
+                ]
+              ] : []),
               [
                 { text: 'Total Amount Paid', style: 'tablePaidLabel' },
                 { text: `₹${Number(booking.paidAmount).toLocaleString()}`, style: 'tablePaidValue', alignment: 'right' },
               ],
               [
                 { text: 'Remaining Balance (Due at Check-in)', style: 'tableBalanceLabel' },
-                { text: `₹${(Number(booking.totalAmount) - Number(booking.paidAmount)).toLocaleString()}`, style: 'tableBalanceValue', alignment: 'right' },
+                { text: `₹${Math.max(0, (isPartner ? netInvestment : totalAmount) - Number(booking.paidAmount)).toLocaleString()}`, style: 'tableBalanceValue', alignment: 'right' },
               ],
             ],
           },
@@ -254,18 +322,12 @@ export class PdfService {
       defaultStyle: { font: 'Roboto' },
     };
 
-    return new Promise(async (resolve, reject) => {
-      try {
-        const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
-        const chunks: any[] = [];
-        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
-        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-        pdfDoc.on('error', (err: any) => reject(err));
-        pdfDoc.end();
-      } catch (error) {
-        this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
-        reject(error);
-      }
-    });
+    try {
+      const pdfDoc = this.pdfmakeManager.createPdf(docDefinition);
+      return await pdfDoc.getBuffer();
+    } catch (error) {
+      this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }

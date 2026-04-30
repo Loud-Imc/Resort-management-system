@@ -49,8 +49,8 @@ export class ChannelPartnersService {
         // Generate unique referral code if new
         let referralCode = existing?.referralCode;
         if (!referralCode) {
-             const userObj = await this.prisma.user.findUnique({ where: { id: userId } });
-             referralCode = await this.getUniqueReferralCode(userObj?.firstName || dto?.authorizedPersonName || 'PART');
+            const userObj = await this.prisma.user.findUnique({ where: { id: userId } });
+            referralCode = await this.getUniqueReferralCode(userObj?.firstName || dto?.authorizedPersonName || 'PART');
         }
         const commissionSetting = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE');
         const defaultCommissionRate = commissionSetting ?? 10;
@@ -80,7 +80,7 @@ export class ChannelPartnersService {
                 create: {
                     userId,
                     referralCode,
-                    overrideCommissionRate: Number(defaultCommissionRate),
+                    overrideCommissionRate: null, // Default to null to use dynamic Tiers
                     partnerType: dto?.partnerType || 'INDIVIDUAL',
                     status: ChannelPartnerStatus.PENDING,
                     organizationName: dto?.organizationName,
@@ -98,7 +98,7 @@ export class ChannelPartnersService {
                     authorizedPersonName: dto?.authorizedPersonName,
                     aadhaarImage: dto?.aadhaarImage,
                     licenceImage: dto?.licenceImage,
-                    overrideCommissionRate: existing?.overrideCommissionRate ?? Number(defaultCommissionRate),
+                    overrideCommissionRate: existing?.overrideCommissionRate ?? null,
                 },
                 include: {
                     user: {
@@ -282,11 +282,11 @@ export class ChannelPartnersService {
     private async getUniqueReferralCode(firstName: string): Promise<string> {
         const cleanName = (firstName || 'PART').replace(/[^a-zA-Z]/g, '');
         const prefix = cleanName.padEnd(4, 'X').slice(0, 4).toUpperCase();
-        
+
         const latestCPs = await this.prisma.channelPartner.findMany({
             select: { referralCode: true }
         });
-        
+
         let maxSeq = 100;
         for (const cp of latestCPs) {
             const match = cp.referralCode.match(/^[A-Z]{4}(\d+)$/);
@@ -297,10 +297,10 @@ export class ChannelPartnersService {
                 }
             }
         }
-        
+
         let nextSeq = maxSeq + 1;
         let referralCode = `${prefix}${nextSeq}`;
-        
+
         let exists = await this.prisma.channelPartner.findUnique({
             where: { referralCode },
         });
@@ -350,23 +350,15 @@ export class ChannelPartnersService {
                 referrals: {
                     take: 50,
                     orderBy: { createdAt: 'desc' },
-                    select: {
-                        id: true,
-                        bookingNumber: true,
-                        totalAmount: true,
-                        cpCommission: true,
-                        createdAt: true,
-                        status: true,
-                        checkInDate: true,
-                        checkOutDate: true,
-                        property: {
-                            select: { name: true }
-                        },
-                        user: {
-                            select: { firstName: true, lastName: true }
-                        },
-                        paidAmount: true,
-                        paymentStatus: true
+                    include: {
+                        property: { select: { name: true, images: true, city: true } },
+                        user: { select: { firstName: true, lastName: true } },
+                        room: { select: { roomType: { select: { name: true } } } },
+                        guests: true,
+                        cpTransactions: {
+                            where: { type: 'COMMISSION' },
+                            select: { points: true }
+                        }
                     },
                 },
                 transactions: {
@@ -380,18 +372,35 @@ export class ChannelPartnersService {
             throw new NotFoundException('You are not registered as a Channel Partner');
         }
 
-        return cp;
-    }
+        // Convert to plain object to ensure successful spread/serialization
+        const plainCP = JSON.parse(JSON.stringify(cp));
 
-    // Get CP dashboard stats
-    async getStats(userId: string) {
-        const cp = await this.prisma.channelPartner.findUnique({
-            where: { userId },
+        // Map cpTransactions to a flat cpPoints field for the frontend
+        const mappedReferrals = (plainCP.referrals || []).map((ref: any) => {
+            const points = ref.cpTransactions?.[0]?.points || 0;
+            const { cpTransactions, ...rest } = ref;
+            return {
+                ...rest,
+                cpPoints: points
+            };
         });
 
-        if (!cp) {
-            throw new NotFoundException('You are not registered as a Channel Partner');
-        }
+        return {
+            ...plainCP,
+            referrals: mappedReferrals,
+            _fixApplied: "CPPoints_v2"
+        };
+    }
+
+// Get CP dashboard stats
+async getStats(userId: string) {
+    const cp = await this.prisma.channelPartner.findUnique({
+        where: { userId },
+    });
+
+    if (!cp) {
+        throw new NotFoundException('You are not registered as a Channel Partner');
+    }
 
         const [totalReferrals, confirmedReferrals, thisMonthReferrals] = await Promise.all([
             this.prisma.booking.count({
@@ -414,14 +423,43 @@ export class ChannelPartnersService {
         ]);
 
         const activePoints = await this.getActivePoints(cp.id);
+        const currentLevel = await this.getCurrentLevel(cp.id);
+        const nextLevel = await this.prisma.partnerLevel.findFirst({
+            where: { minPoints: { gt: activePoints } },
+            orderBy: { minPoints: 'asc' },
+        });
+
+        // Resolve effective rate
+        const effectiveRate = await this.getCommissionRate({ channelPartnerId: cp.id });
+
+        // Tier-specific Loyalty Config (falls back to Standard defaults)
+        const pointsPerUnit = currentLevel?.pointsPerUnit ?? 1;
+        const unitAmount = currentLevel?.unitAmount ?? 100;
+        const payoutFrequency = await this.systemSettingsService.getSetting('PAYOUT_FREQUENCY') || 'Monthly';
 
         return {
             id: cp.id,
             referralCode: cp.referralCode,
-            commissionRate: Number(cp.overrideCommissionRate || 0),
+            commissionRate: effectiveRate.rate,
+            commissionSource: effectiveRate.source,
             overrideCommissionRate: cp.overrideCommissionRate,
             totalPoints: cp.totalPoints,
             activePoints,
+            currentLevel: currentLevel ? {
+                name: currentLevel.name,
+                commissionRate: Number(currentLevel.commissionRate),
+                minPoints: currentLevel.minPoints
+            } : null,
+            nextLevel: nextLevel ? {
+                name: nextLevel.name,
+                minPoints: nextLevel.minPoints,
+                commissionRate: Number(nextLevel.commissionRate)
+            } : null,
+            loyaltySettings: {
+                pointsPerUnit: Number(pointsPerUnit),
+                unitAmount: Number(unitAmount)
+            },
+            payoutFrequency,
             availablePoints: cp.availablePoints,
             pendingPoints: cp.pendingPoints,
             totalEarnings: cp.totalEarnings,
@@ -435,7 +473,69 @@ export class ChannelPartnersService {
             referralDiscountRate: cp.referralDiscountRate,
             walletBalance: cp.walletBalance,
             registrationFeePaid: cp.registrationFeePaid,
+            bankName: cp.bankName,
+            accountNumber: cp.accountNumber,
+            ifscCode: cp.ifscCode,
+            accountHolderName: cp.accountHolderName,
         };
+    }
+
+    // Record pending commission (called when Online or Wallet booking is CONFIRMED but before check-in)
+    async recordPendingCommission(bookingId: string, tx?: Prisma.TransactionClient, isPrepaid = false) {
+        const client = tx || this.prisma;
+
+        const booking = await client.booking.findUnique({
+            where: { id: bookingId },
+            include: { channelPartner: true }
+        });
+
+        if (!booking || !booking.channelPartnerId) return null;
+
+        // Check if already recorded (idempotency)
+        const existing = await client.cPTransaction.findUnique({
+            where: {
+                bookingId_type: {
+                    bookingId,
+                    type: 'COMMISSION'
+                }
+            }
+        });
+        if (existing) return existing;
+
+        const commission = Number(booking.cpCommission) || 0;
+        const currentLevel = await this.getCurrentLevel(booking.channelPartnerId);
+
+        const pointsPerUnit = currentLevel?.pointsPerUnit ?? 1;
+        const unitAmount = currentLevel?.unitAmount ?? 100;
+        const safeUnitAmount = unitAmount > 0 ? unitAmount : 100;
+
+        const points = Math.floor(Number(booking.commissionableAmount) / safeUnitAmount) * pointsPerUnit;
+
+        // Update partner pending stats
+        await client.channelPartner.update({
+            where: { id: booking.channelPartnerId },
+            data: {
+                // For wallet/prepaid, money is already realized as discount, so don't increment pendingEarnings
+                ...(!isPrepaid && { pendingEarnings: { increment: commission } }),
+                pendingPoints: { increment: points },
+            }
+        });
+
+        // Create PENDING transaction
+        return client.cPTransaction.create({
+            data: {
+                type: 'COMMISSION',
+                status: 'PENDING',
+                amount: commission,
+                points,
+                description: isPrepaid 
+                    ? `Pending commission for booking ${booking.bookingNumber} (Prepaid via Wallet)`
+                    : `Pending commission for booking ${booking.bookingNumber} (Online)`,
+                channelPartnerId: booking.channelPartnerId,
+                bookingId,
+                isPrepaid: isPrepaid,
+            }
+        });
     }
 
     // Process referral commission (initially as PENDING on payment)
@@ -452,17 +552,6 @@ export class ChannelPartnersService {
             }
         });
 
-        if (existingTransaction) {
-            this.logger.log(`Commission already exists(status: ${existingTransaction.status}) for booking ${bookingId}.Skipping.`);
-            return null;
-        }
-
-        const cp = await client.channelPartner.findUnique({
-            where: { id: channelPartnerId },
-        });
-
-        if (!cp || cp.status !== ChannelPartnerStatus.APPROVED) return null;
-
         const booking = await client.booking.findUnique({
             where: { id: bookingId }
         });
@@ -470,12 +559,15 @@ export class ChannelPartnersService {
         if (!booking) return null;
 
         const commission = Number(booking.cpCommission) || 0;
-        const pointsPerUnit = await this.systemSettingsService.getSetting('LOYALTY_POINTS_PER_UNIT') || 1;
-        const unitAmount = await this.systemSettingsService.getSetting('LOYALTY_UNIT_AMOUNT') || 100;
+        const currentLevel = await this.getCurrentLevel(channelPartnerId);
+
+        // Use tier-specific conversion or fallback to baseline
+        const pointsPerUnit = currentLevel?.pointsPerUnit ?? 1;
+        const unitAmount = currentLevel?.unitAmount ?? 100;
 
         // Validation & Safety
         if (unitAmount <= 0) {
-            this.logger.error(`Invalid LOYALTY_UNIT_AMOUNT: ${unitAmount}. Falling back to 100.`);
+            this.logger.error(`Invalid unitAmount: ${unitAmount} for level ${currentLevel?.name}. Falling back to 100.`);
         }
         const safeUnitAmount = unitAmount > 0 ? unitAmount : 100;
         const safePointsPerUnit = pointsPerUnit >= 0 ? pointsPerUnit : 0;
@@ -487,6 +579,34 @@ export class ChannelPartnersService {
         const isPrepaid = booking.paymentMethod === ('WALLET' as any);
 
         try {
+            if (existingTransaction && existingTransaction.status === 'PENDING') {
+                // Transition from PENDING to FINALIZED
+                await client.channelPartner.update({
+                    where: { id: channelPartnerId },
+                    data: {
+                        pendingEarnings: { decrement: existingTransaction.amount },
+                        pendingPoints: { decrement: existingTransaction.points },
+                        totalEarnings: { increment: existingTransaction.amount },
+                        totalPoints: { increment: existingTransaction.points },
+                        availablePoints: { increment: existingTransaction.points },
+                    },
+                });
+
+                return await client.cPTransaction.update({
+                    where: { id: existingTransaction.id },
+                    data: {
+                        status: 'FINALIZED',
+                        description: `Commission finalized for booking ${booking.bookingNumber} [${triggerSource || 'CHECKIN'}]`,
+                    },
+                });
+            }
+
+            // --- Original Direct Allocation Logic (for Wallet or bookings missed by Pending flow) ---
+            if (existingTransaction) {
+                this.logger.log(`Commission already exists (status: ${existingTransaction.status}) for booking ${bookingId}. Skipping.`);
+                return null;
+            }
+
             await client.channelPartner.update({
                 where: { id: channelPartnerId },
                 data: {
@@ -620,11 +740,21 @@ export class ChannelPartnersService {
             this.prisma.channelPartner.count({ where }),
         ]);
 
-        return {
-            data: cps.map(cp => ({
+        const enhancedData = await Promise.all(cps.map(async (cp) => {
+            const currentLevel = await this.getCurrentLevel(cp.id);
+            const rateResult = await this.getCommissionRate({ channelPartnerId: cp.id });
+
+            return {
                 ...cp,
-                commissionRate: Number(cp.overrideCommissionRate || 0)
-            })),
+                currentLevel: currentLevel ? { name: currentLevel.name, commissionRate: Number(currentLevel.commissionRate) } : null,
+                commissionRate: rateResult.rate,
+                commissionSource: rateResult.source,
+                manualRate: cp.overrideCommissionRate !== null ? Number(cp.overrideCommissionRate) : null
+            };
+        }));
+
+        return {
+            data: enhancedData,
             meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
         };
     }
@@ -650,23 +780,19 @@ export class ChannelPartnersService {
                 where: { channelPartnerId: id },
                 orderBy: { createdAt: 'desc' },
                 take: 50,
-                select: {
-                    id: true,
-                    bookingNumber: true,
-                    totalAmount: true,
-                    cpCommission: true,
-                    status: true,
-                    checkInDate: true,
-                    checkOutDate: true,
-                    createdAt: true,
+                include: {
                     user: {
                         select: { firstName: true, lastName: true, email: true },
                     },
                     property: {
-                        select: { id: true, name: true },
+                        select: { id: true, name: true, images: true, city: true },
                     },
-                    paidAmount: true,
-                    paymentStatus: true
+                    room: { select: { roomType: { select: { name: true } } } },
+                    guests: true,
+                    cpTransactions: {
+                        where: { type: 'COMMISSION' },
+                        select: { points: true }
+                    },
                 },
             }),
             this.prisma.booking.count({ where: { channelPartnerId: id } }),
@@ -686,18 +812,40 @@ export class ChannelPartnersService {
             }),
         ]);
 
+        // Map cpTransactions to cpPoints
+        const mappedReferrals = referralBookings.map((ref: any) => {
+            const points = ref.cpTransactions?.[0]?.points || 0;
+            const { cpTransactions, ...rest } = ref;
+            return {
+                ...rest,
+                cpPoints: points
+            };
+        });
+
         const activePoints = await this.getActivePoints(cp.id);
+        const currentLevel = await this.getCurrentLevel(cp.id);
+        const nextLevel = await this.prisma.partnerLevel.findFirst({
+            where: { minPoints: { gt: activePoints } },
+            orderBy: { minPoints: 'asc' },
+        });
+
+        const rateResult = await this.getCommissionRate({ channelPartnerId: cp.id });
 
         return {
             data: {
-                ...cp,
-                commissionRate: Number(cp.overrideCommissionRate || 0),
+                ...JSON.parse(JSON.stringify(cp)),
+                currentLevel: currentLevel ? { name: currentLevel.name, commissionRate: Number(currentLevel.commissionRate) } : null,
+                nextLevel: nextLevel ? { name: nextLevel.name, minPoints: nextLevel.minPoints } : null,
                 activePoints,
+                commissionRate: rateResult.rate,
+                commissionSource: rateResult.source,
+                manualRate: cp.overrideCommissionRate !== null ? Number(cp.overrideCommissionRate) : null,
                 pendingBalance: Number(cp.totalEarnings) - Number(cp.paidOut),
                 totalReferrals,
                 confirmedReferrals,
                 thisMonthReferrals,
-                referralBookings,
+                referralBookings: mappedReferrals,
+                _fixApplied: "CPPointsAdmin_v2"
             }
         };
     }
@@ -753,16 +901,23 @@ export class ChannelPartnersService {
 
         if (!cp) throw new NotFoundException('Channel Partner not found');
 
-        // Priority 1: CP Override
-        if (cp.overrideCommissionRate !== null) {
-            return { rate: Number(cp.overrideCommissionRate), source: 'CP override' };
-        }
-
-        // Priority 2: Active Partner Level (Tier)
+        // Priority 1: Partner Level (Tier) - High Priority Growth
         // Resolves tier based on rolling 12-month performance
         const level = await this.getCurrentLevel(cp.id);
         if (level) {
-            return { rate: Number(level.commissionRate), source: `Tier (${level.name})` };
+            // If they have an override, we only use it if it's HIGHER than the tier (Strict benefit logic)
+            const tierRate = Number(level.commissionRate);
+            const overrideRate = cp.overrideCommissionRate !== null ? Number(cp.overrideCommissionRate) : 0;
+
+            if (overrideRate > tierRate) {
+                return { rate: overrideRate, source: 'CP override (Higher than Tier)' };
+            }
+            return { rate: tierRate, source: `Tier (${level.name})` };
+        }
+
+        // Priority 2: CP Specific Override (if no Tier or if Override is higher)
+        if (cp.overrideCommissionRate !== null) {
+            return { rate: Number(cp.overrideCommissionRate), source: 'CP specific rate' };
         }
 
         // Priority 3: Property Standard Rate
@@ -775,9 +930,8 @@ export class ChannelPartnersService {
             }
         }
 
-        // Priority 4: Global Default
-        const defaultRate = await this.systemSettingsService.getSetting('DEFAULT_COMMISSION_RATE') || 10;
-        return { rate: Number(defaultRate), source: 'Global' };
+        // Priority 4: Hardcoded Safety Baseline
+        return { rate: 10, source: 'System Baseline' };
     }
 
     /**
@@ -1306,6 +1460,11 @@ export class ChannelPartnersService {
 
         if (!cp) throw new NotFoundException('Channel partner profile not found');
         if (cp.status !== 'APPROVED') throw new ForbiddenException('Only approved partners can request payouts');
+
+        // Validation: Verify bank details are present before payout
+        if (!cp.accountNumber || !cp.bankName || !cp.ifscCode) {
+            throw new BadRequestException('Bank account details are missing. Please update your profile in Payout Settings before requesting a payout.');
+        }
 
         if (Number(cp.walletBalance) < amount) {
             throw new BadRequestException(`Insufficient wallet balance. Available: ₹${Number(cp.walletBalance).toLocaleString()}`);

@@ -1,6 +1,7 @@
 import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, Loader2, CreditCard, Download, Send } from 'lucide-react';
 import api from '../services/api';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface Transaction {
     id: string;
@@ -16,8 +17,10 @@ const WALLET_TYPES = ['WALLET_TOPUP', 'PAYOUT', 'WALLET_PAYMENT', 'REFUND'];
 const COMMISSION_TYPES = ['COMMISSION'];
 
 const Wallet2Page: React.FC = () => {
+    const navigate = useNavigate();
     const [walletBalance, setWalletBalance] = useState<number>(0);
     const [pendingEarnings, setPendingEarnings] = useState<number>(0);
+    const [stats, setStats] = useState<any>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [topUpAmount, setTopUpAmount] = useState<number>(1000);
@@ -34,14 +37,15 @@ const Wallet2Page: React.FC = () => {
     const loadData = async () => {
         try {
             setIsLoading(true);
-            const [stats, txs]: any = await Promise.all([
+            const [statsData, txs]: any = await Promise.all([
                 api.get('/channel-partners/me/stats'),
                 api.get('/channel-partners/me/transactions'),
             ]);
-            setWalletBalance(Number(stats.walletBalance || 0));
-            setPendingEarnings(Number(stats.pendingBalance || 0));
+            setStats(statsData);
+            setWalletBalance(Number(statsData.walletBalance || 0));
+            setPendingEarnings(Number(statsData.pendingBalance || 0));
             setTransactions(txs || []);
-            setPayoutAmount(Math.floor(Number(stats.walletBalance || 0)));
+            setPayoutAmount(Math.floor(Number(statsData.walletBalance || 0)));
         } catch (err: any) {
             setError('Failed to load wallet data');
         } finally {
@@ -66,6 +70,11 @@ const Wallet2Page: React.FC = () => {
     };
 
     const handleRequestPayout = async () => {
+        if (!stats?.accountNumber || !stats?.bankName || !stats?.ifscCode) {
+            setError('Bank details are missing. Please complete your profile in Settings before requesting a payout.');
+            return;
+        }
+
         if (payoutAmount < 100) {
             setError('Minimum payout request is ₹100');
             return;
@@ -145,8 +154,25 @@ const Wallet2Page: React.FC = () => {
             </div>
 
             {error && (
-                <div style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-md)', color: '#ef4444', fontWeight: 600 }}>
-                    {error}
+                <div style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-md)', color: '#ef4444', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{error}</span>
+                    {error.includes('Bank details') && (
+                        <button
+                            onClick={() => navigate('/settings?tab=payout')}
+                            style={{
+                                background: '#ef4444',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: 700
+                            }}
+                        >
+                            Complete Profile
+                        </button>
+                    )}
                 </div>
             )}
             {success && (

@@ -1,12 +1,17 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from '../users/users.service';
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
-import { normalizePhone } from '../common/utils/phone';
-
 import { FirebaseService } from './firebase.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { RequestOtpDto } from './dto/request-otp.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResetPasswordOtpDto } from './dto/reset-password-otp.dto';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { UsersService } from 'src/users/users.service';
+import { JwtService } from '@nestjs/jwt';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { normalizePhone } from 'src/common/utils/phone';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +19,9 @@ export class AuthService {
         private usersService: UsersService,
         private jwtService: JwtService,
         private firebaseService: FirebaseService,
+        private prisma: PrismaService,
+        private mailService: MailService,
+        private notificationsService: NotificationsService,
     ) { }
 
     async register(registerDto: RegisterDto) {
@@ -151,5 +159,131 @@ export class AuthService {
 
     async validateUser(userId: string) {
         return this.usersService.findOne(userId);
+    }
+
+    async requestPasswordReset(dto: RequestOtpDto) {
+        const identifier = dto.identifier.trim();
+        let user = await this.usersService.findByEmail(identifier);
+        let normalizedPhone = '';
+
+        if (!user) {
+            normalizedPhone = normalizePhone(identifier);
+            if (normalizedPhone) {
+                user = await this.usersService.findByPhone(normalizedPhone);
+            }
+        }
+
+        if (!user) {
+            // To prevent user enumeration, we return success even if user not found
+            // but in a controlled environment like this, we might want to be explicit
+            throw new NotFoundException('No account found with this email or phone number');
+        }
+
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Clear any existing reset OTPs for this identifier
+        await (this.prisma as any).oneTimePassword.deleteMany({
+            where: {
+                OR: [
+                    { email: user.email },
+                    { phone: user.phone }
+                ],
+                type: 'PASSWORD_RESET'
+            }
+        });
+
+        // Save new OTP
+        await (this.prisma as any).oneTimePassword.create({
+            data: {
+                email: user.email,
+                phone: user.phone,
+                code,
+                type: 'PASSWORD_RESET',
+                expiresAt
+            }
+        });
+
+        // Send OTP via Email
+        if (user.email) {
+            await this.mailService.sendPasswordResetOtp(user.email, code);
+        }
+
+        // Send OTP via SMS
+        if (user.phone) {
+            const message = `Your password reset verification code for Route Guide is ${code}. It expires in 10 minutes.`;
+            await this.notificationsService.sendSMS(user.phone, message, { otp: code });
+        }
+
+        return {
+            message: 'Verification code sent to your registered email and phone number',
+            identifier: user.email || user.phone
+        };
+    }
+
+    async verifyOtp(dto: VerifyOtpDto) {
+        const identifier = dto.identifier.trim();
+        const normalizedPhone = normalizePhone(identifier);
+
+        const otp = await (this.prisma as any).oneTimePassword.findFirst({
+            where: {
+                OR: [
+                    { email: identifier },
+                    { phone: normalizedPhone || identifier }
+                ],
+                code: dto.code,
+                type: 'PASSWORD_RESET',
+                expiresAt: { gte: new Date() }
+            }
+        });
+
+        if (!otp) {
+            throw new BadRequestException('Invalid or expired verification code');
+        }
+
+        return { success: true, message: 'OTP verified successfully' };
+    }
+
+    async resetPasswordWithOtp(dto: ResetPasswordOtpDto) {
+        const identifier = dto.identifier.trim();
+        const normalizedPhone = normalizePhone(identifier);
+
+        const otp = await (this.prisma as any).oneTimePassword.findFirst({
+            where: {
+                OR: [
+                    { email: identifier },
+                    { phone: normalizedPhone || identifier }
+                ],
+                code: dto.code,
+                type: 'PASSWORD_RESET',
+                expiresAt: { gte: new Date() }
+            }
+        });
+
+        if (!otp) {
+            throw new BadRequestException('Invalid or expired verification code');
+        }
+
+        let user = await this.usersService.findByEmail(otp.email || identifier);
+        if (!user && otp.phone) {
+            user = await this.usersService.findByPhone(otp.phone);
+        }
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { password: hashedPassword }
+        });
+
+        // Delete OTP after successful reset
+        await (this.prisma as any).oneTimePassword.delete({
+            where: { id: otp.id }
+        });
+
+        return { success: true, message: 'Password has been reset successfully' };
     }
 }

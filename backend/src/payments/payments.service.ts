@@ -466,6 +466,11 @@ export class PaymentsService {
                         undefined,
                         'DELAYED_PAYMENT'
                     );
+                } else if (refreshedBooking.channelPartnerId &&
+                    refreshedBooking.status === 'CONFIRMED' &&
+                    refreshedBooking.paymentStatus === 'FULL') {
+                    // Record PENDING commission for confirmed future bookings
+                    await this.channelPartnersService.recordPendingCommission(refreshedBooking.id);
                 }
             }
         }
@@ -678,6 +683,12 @@ export class PaymentsService {
 
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
+
+                if (refreshedBooking.channelPartnerId &&
+                    refreshedBooking.status === 'CONFIRMED' &&
+                    refreshedBooking.paymentStatus === 'FULL') {
+                    await this.channelPartnersService.recordPendingCommission(refreshedBooking.id);
+                }
             }
         }
     }
