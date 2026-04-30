@@ -117,6 +117,7 @@ model RoomType {
   id                         String              @id @default(uuid())
   name                       String
   description                String?
+  size                       Int?
   amenities                  String[]
   basePrice                  Decimal             @db.Decimal(10, 2)
   originalPrice              Decimal?            @db.Decimal(10, 2)
@@ -515,6 +516,7 @@ model Property {
   groupPriceChild             Decimal?             @db.Decimal(10, 2)
   defaultCheckInTime          String               @default("14:00")
   defaultCheckOutTime         String               @default("11:00")
+  isGroupGstInclusive         Boolean              @default(false)
   bookings                    Booking[]
   cancellationPolicies        CancellationPolicy[] @relation("PropertyPolicies")
   events                      Event[]
@@ -1132,6 +1134,7 @@ enum AdjustmentType {
 enum RedemptionStatus {
   PENDING
   SHIPPED
+  DISPATCHED
   DELIVERED
   CANCELLED
   REQUESTED
@@ -1139,6 +1142,7 @@ enum RedemptionStatus {
   PROCESSING
   PAID
   FAILED
+  REJECTED
 }
 
 enum BannerType {

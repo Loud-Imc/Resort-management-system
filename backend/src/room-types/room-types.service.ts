@@ -167,7 +167,7 @@ export class RoomTypesService {
 
             this.validatePricing(basePrice, originalPrice);
 
-            const { cancellationPolicy, cancellationPolicyId, ...rest } = updateRoomTypeDto;
+            const { cancellationPolicy, cancellationPolicyId, propertyId, ...rest } = updateRoomTypeDto;
 
             const data: any = {
                 ...rest,

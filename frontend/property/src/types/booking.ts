@@ -21,6 +21,7 @@ export interface BookingGuest {
     idType?: string;
     idNumber?: string;
     idImage?: string;
+    whatsappNumber?: string;
 }
 
 export interface BookingPayment {
@@ -53,6 +54,7 @@ export interface Booking {
     extraChildAmount?: number;
     status: BookingStatus;
     specialRequests?: string;
+    whatsappNumber?: string;
     isManualBooking: boolean;
     roomId: string;
     room: {
@@ -69,6 +71,7 @@ export interface Booking {
         lastName: string;
         email: string;
         phone?: string;
+        whatsappNumber?: string;
     };
     bookingSourceId?: string;
     agentId?: string;
@@ -122,6 +125,10 @@ export interface CreateBookingDto {
     bookingSourceId?: string;
     overrideTotal?: number;
     overrideReason?: string;
+    whatsappNumber?: string;
+    gstNumber?: string;
+    isHistoricalEntry?: boolean;
+    transactionDate?: string;
 }
 
 export interface CheckAvailabilityDto {

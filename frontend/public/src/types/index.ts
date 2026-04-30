@@ -7,7 +7,7 @@ export interface RoomType {
     capacity: number;
     maxAdults: number;
     maxChildren: number;
-    size?: number;
+    size?: number | null;
     amenities: string[];
     images: string[];
     highlights?: string[];
@@ -145,6 +145,7 @@ export interface Property {
     groupPricePerHead?: number;
     groupPriceAdult?: number;
     groupPriceChild?: number;
+    isGroupGstInclusive?: boolean;
 }
 
 export interface PropertySearchParams {

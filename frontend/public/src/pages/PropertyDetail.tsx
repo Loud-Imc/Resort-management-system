@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
@@ -491,7 +491,7 @@ export default function PropertyDetail() {
                                                                         to={checkIn && checkOut ? `/book?roomId=${groupStay.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=true&groupSize=${groupSize}` : '#'}
                                                                         className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-xl shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
-                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Reserve Group Stay'}
+                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Book Group Stay'}
                                                                         <ChevronRight className="h-4 w-4" />
                                                                     </Link>
                                                                 )}

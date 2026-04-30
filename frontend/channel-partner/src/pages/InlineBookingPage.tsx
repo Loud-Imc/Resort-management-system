@@ -42,13 +42,13 @@ export interface Property {
 export interface RoomType {
     id: string;
     name: string;
+    size?: number | null;
     description?: string;
     basePrice: number;
     totalPrice?: number;
     originalPrice?: number;
     maxAdults: number;
     maxChildren: number;
-    size?: number;
     images?: (string | { url: string })[];
     amenities?: string[];
     availableCount?: number;
@@ -58,6 +58,7 @@ export interface RoomType {
     isGstInclusive?: boolean;
     marketingBadgeText?: string;
     marketingBadgeType?: 'POSITIVE' | 'WARNING' | 'NEGATIVE' | 'URGENT';
+    isGroupPackage?: boolean;
 }
 
 interface CPStats {
@@ -557,7 +558,7 @@ const InlineBookingPage: React.FC = () => {
         <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '2rem',
+            gap: 'var(--section-padding)',
             width: '100%',
         }}>
             {/* Hidden Invoice Template for DOM capture */}
@@ -581,7 +582,7 @@ const InlineBookingPage: React.FC = () => {
             </div>
 
             {/* Sticky Header Container */}
-            <div style={{
+            <div className="booking-sticky-header" style={{
                 position: 'sticky',
                 top: 0,
                 zIndex: 100,
@@ -593,6 +594,16 @@ const InlineBookingPage: React.FC = () => {
                 flexDirection: 'column',
                 gap: '1.5rem'
             }}>
+                <style>{`
+                    @media (max-width: 768px) {
+                        .booking-sticky-header {
+                            margin-left: calc(-1 * var(--section-padding));
+                            margin-right: calc(-1 * var(--section-padding));
+                            padding-left: var(--section-padding) !important;
+                            padding-right: var(--section-padding) !important;
+                        }
+                    }
+                `}</style>
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     {step > 1 && step < 4 && ( // Fixed condition to handle success state booking object
@@ -612,7 +623,7 @@ const InlineBookingPage: React.FC = () => {
                         </button>
                     )}
                     <div>
-                        <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Book a Stay</h1>
+                        <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, lineHeight: 1.2 }}>Book a Stay</h1>
                         <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Book a property for your guest — discount applied automatically.</p>
                     </div>
                 </div>
@@ -678,7 +689,7 @@ const InlineBookingPage: React.FC = () => {
                             />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
                                     <Calendar size={14} /> Check-In
@@ -705,7 +716,7 @@ const InlineBookingPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
                                     <Users size={14} /> Adults (13+)
@@ -837,6 +848,8 @@ const InlineBookingPage: React.FC = () => {
                                             isPricingLoading={isPricingLoading}
                                             onBack={() => setViewingRoomDetails(null)}
                                             onSelect={handleRoomSelect}
+                                            isGroupBooking={isGroupBooking}
+                                            groupSize={adults + children}
                                         />
                                     ) : (
                                         (availableRoomsMap[selectedProperty.id] || []).map((rt) => (
@@ -865,9 +878,24 @@ const InlineBookingPage: React.FC = () => {
                 </div>
             )}
 
+            {/* Responsive styles for multi-column layouts */}
+            <style>{`
+                @media (max-width: 900px) {
+                    .step3-grid { grid-template-columns: 1fr !important; }
+                    .step3-sidebar { position: static !important; }
+                    .confirm-grid { grid-template-columns: repeat(2, 1fr) !important; }
+                    .confirm-span4 { grid-column: span 2 !important; }
+                    .invoice-grid { grid-template-columns: 1fr !important; }
+                    .roomdetail-grid { grid-template-columns: 1fr !important; }
+                    .roomdetail-sidebar { position: static !important; }
+                    .roomdetail-features { grid-template-columns: 1fr !important; }
+                    .specs-pills { flex-wrap: wrap !important; gap: 0.75rem !important; }
+                }
+            `}</style>
+
             {/* ===== STEP 3: PAYMENT & SUMMARY ===== */}
             {step === 3 && !booking && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: '2.5rem', alignItems: 'start' }} className="animate-fade-in">
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: '2.5rem', alignItems: 'start' }} className="animate-fade-in step3-grid">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                         <div className="glass-pane" style={{ padding: '2.5rem' }}>
                             <h3 style={{ marginBottom: '2rem', fontWeight: 800, fontSize: '1.4rem' }}>Guest Details</h3>
@@ -1181,7 +1209,7 @@ const InlineBookingPage: React.FC = () => {
                             {/* Commission */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(16,185,129,0.1)' }} className="flex items-center justify-center">
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                         <Wallet size={20} color="#10b981" />
                                     </div>
                                     <div>
@@ -1201,7 +1229,7 @@ const InlineBookingPage: React.FC = () => {
                             {/* Loyalty Points */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(20,184,166,0.1)' }} className="flex items-center justify-center">
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(20,184,166,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                         <Star size={20} color="var(--primary-teal)" fill="var(--primary-teal)" />
                                     </div>
                                     <div>
@@ -1219,7 +1247,7 @@ const InlineBookingPage: React.FC = () => {
                     </div>
 
                     {/* Right side summary column - STICKY */}
-                    <div style={{ position: 'sticky', top: '160px', alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div className="step3-sidebar" style={{ position: 'sticky', top: '160px', alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         <div className="glass-pane" style={{ padding: '1.75rem' }}>
                             <h4 style={{ marginBottom: '1.25rem', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--text-dim)', borderBottom: '1px solid var(--border-glass)', paddingBottom: '0.75rem' }}>Investment Summary</h4>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.95rem' }}>
@@ -1328,7 +1356,7 @@ const InlineBookingPage: React.FC = () => {
                         </div>
 
                         {/* Booking Details Grid */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', background: '#fff', padding: '2rem', borderRadius: '1.5rem', border: '1px solid var(--border-glass)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
+                        <div className="confirm-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', background: '#fff', padding: '2rem', borderRadius: '1.5rem', border: '1px solid var(--border-glass)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Room Type</p>
                                 <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{selectedRoom?.name || 'Standard Room'}</p>
@@ -1347,9 +1375,9 @@ const InlineBookingPage: React.FC = () => {
                             </div>
 
                             {/* Full width bottom row for financial summary */}
-                            <div style={{ gridColumn: 'span 4', height: '1px', background: 'var(--border-glass)', margin: '0.5rem 0' }} />
+                            <div className="confirm-span4" style={{ gridColumn: 'span 4', height: '1px', background: 'var(--border-glass)', margin: '0.5rem 0' }} />
 
-                            <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div className="confirm-span4" style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(20,184,166,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Star size={20} color="var(--primary-teal)" fill="var(--primary-teal)" />
                                 </div>
@@ -1359,7 +1387,7 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div style={{ gridColumn: 'span 2', textAlign: 'right' }}>
+                            <div className="confirm-span4" style={{ gridColumn: 'span 2', textAlign: 'right' }}>
                                 <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>Amount Paid ({paymentOption === 'PARTIAL' ? 'Advance' : 'Full'})</p>
                                 <p style={{ fontWeight: 900, color: 'var(--primary-teal)', fontSize: '1.6rem', letterSpacing: '-0.02em' }}>{formatPrice(amountToPay, selectedProperty?.currency || 'INR')}</p>
                             </div>
@@ -1373,7 +1401,7 @@ const InlineBookingPage: React.FC = () => {
                         </div>
                     )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '3rem' }}>
+                    <div className="invoice-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '3rem' }}>
                         {/* Agency Invoice Card */}
                         <div className="glass-pane hover-scale" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid rgba(99,102,241,0.25)' }}>
                             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem', color: '#6366f1' }}>
@@ -1536,7 +1564,9 @@ const RoomDetailView: React.FC<{
     isPricingLoading: boolean;
     onBack: () => void;
     onSelect: (room: RoomType) => void;
-}> = ({ room, property, pricing, isPricingLoading, onBack, onSelect }) => {
+    isGroupBooking?: boolean;
+    groupSize?: number;
+}> = ({ room, property, pricing, isPricingLoading, onBack, onSelect, isGroupBooking, groupSize }) => {
     const [activeImage, setActiveImage] = useState(0);
     const images = room.images || [];
 
@@ -1565,13 +1595,13 @@ const RoomDetailView: React.FC<{
                 <button
                     onClick={onBack}
                     className="glass-pane"
-                    style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '0.5rem', 
-                        padding: '0.6rem 1.2rem', 
-                        borderRadius: '1rem', 
-                        fontWeight: 800, 
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.6rem 1.2rem',
+                        borderRadius: '1rem',
+                        fontWeight: 800,
                         fontSize: '0.85rem',
                         color: 'var(--text-main)',
                         cursor: 'pointer',
@@ -1582,7 +1612,7 @@ const RoomDetailView: React.FC<{
                     <ArrowLeft size={16} /> Back to Rooms
                 </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
+            <div className="roomdetail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                     {/* Gallery Card */}
@@ -1643,17 +1673,18 @@ const RoomDetailView: React.FC<{
                         </div>
                         <h2 style={{ fontSize: '2.2rem', fontWeight: 900, marginBottom: '1.5rem', letterSpacing: '-0.02em' }}>{room.name}</h2>
 
-                        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '2rem' }}>
+                        <div className="specs-pills" style={{ display: 'flex', gap: '1.5rem', marginBottom: '2rem' }}>
                             <div style={{ padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.03)', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700 }}>
                                 <Maximize size={16} color="var(--primary-teal)" /> {room.size || 280} sq.ft
                             </div>
                             <div style={{ padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.03)', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700 }}>
-                                <Users size={16} color="var(--primary-teal)" /> {room.maxAdults} Adults + {room.maxChildren} Child
+                                <Users size={16} color="var(--primary-teal)" />
+                                {isGroupBooking ? `${groupSize} Total Guests` : `${room.maxAdults} Adults + ${room.maxChildren} Child`}
                             </div>
                             <div style={{ padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.03)', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700 }}>
                                 <Bath size={16} color="var(--primary-teal)" /> Private Bath
                             </div>
-                            {room.availableCount !== undefined && room.availableCount > 0 && (
+                            {room.availableCount !== undefined && room.availableCount > 0 && !isGroupBooking && (
                                 <div style={{
                                     padding: '0.5rem 1rem',
                                     background: room.availableCount < 3 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
@@ -1678,7 +1709,7 @@ const RoomDetailView: React.FC<{
                     </div>
 
                     {/* Features Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    <div className="roomdetail-features" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                         <div className="glass-pane" style={{ padding: '2rem', borderRadius: '2rem' }}>
                             <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 900, marginBottom: '1.5rem' }}>
                                 <Star size={20} color="#f59e0b" fill="#f59e0b" /> Highlights & Inclusions
@@ -1718,7 +1749,7 @@ const RoomDetailView: React.FC<{
                 </div>
 
                 {/* Right Side: Price Details Sticky */}
-                <div style={{ position: 'sticky', top: '150px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div className="roomdetail-sidebar" style={{ position: 'sticky', top: '150px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div className="glass-pane" style={{ padding: '2rem', borderRadius: '2rem', boxShadow: '0 20px 40px rgba(0,0,0,0.05)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <h4 style={{ fontWeight: 900, fontSize: '1.1rem' }}>Price Details</h4>
@@ -1727,14 +1758,16 @@ const RoomDetailView: React.FC<{
 
                         <div style={{ padding: '1.5rem 0', borderTop: '1px solid rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.03)', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 600 }}>
-                                <span>Room Charges (GST Inc.)</span>
+                                <span>Room Charges {pricing?.isGstInclusive ? '(GST Inc.)' : '(+ GST)'}</span>
                                 <span>{formatPrice(room.totalPrice || room.basePrice, property?.currency || 'INR')}</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-main)', marginTop: '0.5rem' }}>
                                 <span>Total Price</span>
                                 <span style={{ color: 'var(--primary-teal)' }}>{formatPrice(pricing?.totalAmount || room.totalPrice || room.basePrice, property?.currency || 'INR')}</span>
                             </div>
-                            <p style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 900, textAlign: 'right', textTransform: 'uppercase' }}>GST INCLUSIVE</p>
+                            <p style={{ fontSize: '0.65rem', color: pricing?.isGstInclusive ? '#10b981' : '#f59e0b', fontWeight: 900, textAlign: 'right', textTransform: 'uppercase' }}>
+                                {pricing?.isGstInclusive ? 'GST INCLUSIVE' : 'EXCL. GST'}
+                            </p>
                         </div>
 
                         <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)', padding: '1rem', borderRadius: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '0.75rem' }}>

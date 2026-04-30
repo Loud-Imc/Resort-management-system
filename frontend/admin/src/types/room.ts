@@ -11,6 +11,7 @@ export interface RoomType {
     id: string;
     name: string;
     description?: string;
+    size?: number | null;
     basePrice: number;
     maxAdults: number;
     maxChildren: number;
@@ -36,6 +37,7 @@ export interface RoomType {
 export interface CreateRoomTypeDto {
     name: string;
     description?: string;
+    size?: number | null;
     basePrice: number;
     maxAdults: number;
     maxChildren: number;

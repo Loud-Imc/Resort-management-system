@@ -198,11 +198,11 @@ const Home: React.FC = () => {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-padding)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                        <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Performance Dashboard</h1>
+                        <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, lineHeight: 1.2 }}>Performance Dashboard</h1>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             {stats?.registrationFeePaid && (
                                 <div style={{
@@ -376,8 +376,8 @@ const Home: React.FC = () => {
             </div>
             {/* ... (header and stats cards remain the same) */}
 
-            <div style={{ gridTemplateColumns: '1fr 380px', display: 'grid', gap: '1.5rem' }}>
-                <div className="glass-pane" style={{ padding: '2rem' }}>
+            <div className="responsive-grid" style={{ gridTemplateColumns: '1fr 380px', display: 'grid', gap: '1.5rem' }}>
+                <div className="glass-pane" style={{ padding: 'var(--section-padding)' }}>
                     <h3 style={{ marginBottom: '1.5rem' }}>Recent Activity</h3>
                     <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '3rem' }}>
                         <p>Detailed transaction history will be displayed here.</p>

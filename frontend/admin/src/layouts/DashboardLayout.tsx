@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePendingCounts } from '../hooks/usePendingCounts';
 import { Outlet, NavLink, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProperty } from '../context/PropertyContext';
@@ -36,6 +37,7 @@ export default function DashboardLayout() {
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const pendingCounts = usePendingCounts();
 
     if (isLoading) {
         return (
@@ -74,7 +76,7 @@ export default function DashboardLayout() {
             { icon: Building2, label: 'All Properties', path: '/properties', end: true },
         ] : []),
         ...(hasPermission('properties.create') ? [
-            { icon: Shield, label: 'Property Requests', path: '/properties/requests' },
+            { icon: Shield, label: 'Property Requests', path: '/properties/requests', badgePath: '/properties/requests' },
         ] : []),
         ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [
             { icon: LayoutDashboard, label: 'Property Categories', path: '/property-categories' },
@@ -82,17 +84,17 @@ export default function DashboardLayout() {
 
         // PILLAR 3: CHANNEL PARTNERS
         ...(hasPermission('channelPartners.read') ? [
-            { icon: Users, label: 'CP Onboarding', path: '/channel-partners' },
+            { icon: Users, label: 'CP Onboarding', path: '/channel-partners', badgePath: '/channel-partners' },
         ] : []),
         ...(hasPermission('payments.read') ? [
-            { icon: DollarSign, label: 'CP Redemptions', path: '/financials/redemptions' },
+            { icon: DollarSign, label: 'CP Redemptions', path: '/financials/redemptions', badgePath: '/financials/redemptions' },
         ] : []),
 
         // PILLAR 4: FINANCIAL OPERATIONS
         ...(hasPermission('payments.read') ? [
-            { icon: CreditCard, label: 'Settlements', path: '/financials/settlements' },
-            { icon: DollarSign, label: 'Wallet Adjustments', path: '/financials/adjustments' },
-            { icon: CreditCard, label: 'Refund Requests', path: '/financials/refunds' },
+            { icon: CreditCard, label: 'Settlements', path: '/financials/settlements', badgePath: '/financials/settlements' },
+            { icon: DollarSign, label: 'Wallet Adjustments', path: '/financials/adjustments', badgePath: '/financials/adjustments' },
+            { icon: CreditCard, label: 'Refund Requests', path: '/financials/refunds', badgePath: '/financials/refunds' },
             { icon: Shield, label: 'Reconciliation', path: '/financials/reconciliation' },
         ] : []),
 
@@ -120,7 +122,7 @@ export default function DashboardLayout() {
         ...(hasPermission('roles.read') ? [
             { icon: Shield, label: 'System Roles', path: '/roles' },
         ] : []),
-    ];
+    ] as { icon: any; label: string; path: string; end?: boolean; badgePath?: keyof typeof pendingCounts }[];
 
     return (
         <div className="min-h-screen bg-background text-foreground flex">
@@ -166,24 +168,32 @@ export default function DashboardLayout() {
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            end={item.end}
-                            className={({ isActive }) =>
-                                clsx(
-                                    'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                                    isActive
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                                )
-                            }
-                        >
-                            <item.icon className="h-5 w-5" />
-                            {item.label}
-                        </NavLink>
-                    ))}
+                    {navItems.map((item) => {
+                        const badge = item.badgePath ? (pendingCounts[item.badgePath] ?? 0) : 0;
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end={item.end}
+                                className={({ isActive }) =>
+                                    clsx(
+                                        'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                                        isActive
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                    )
+                                }
+                            >
+                                <item.icon className="h-5 w-5 shrink-0" />
+                                <span className="flex-1 truncate">{item.label}</span>
+                                {badge > 0 && (
+                                    <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                                        {badge > 99 ? '99+' : badge}
+                                    </span>
+                                )}
+                            </NavLink>
+                        );
+                    })}
                 </nav>
 
                 <div className="p-4 border-t border-border space-y-2">
@@ -265,25 +275,33 @@ export default function DashboardLayout() {
                             </button>
                         </div>
                         <nav className="flex-1 p-4 space-y-1">
-                            {navItems.map((item) => (
-                                <NavLink
-                                    key={item.path}
-                                    onClick={() => setIsSidebarOpen(false)}
-                                    to={item.path}
-                                    end={item.end}
-                                    className={({ isActive }) =>
-                                        clsx(
-                                            'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                                            isActive
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                                        )
-                                    }
-                                >
-                                    <item.icon className="h-5 w-5" />
-                                    {item.label}
-                                </NavLink>
-                            ))}
+                            {navItems.map((item) => {
+                                const badge = item.badgePath ? (pendingCounts[item.badgePath] ?? 0) : 0;
+                                return (
+                                    <NavLink
+                                        key={item.path}
+                                        onClick={() => setIsSidebarOpen(false)}
+                                        to={item.path}
+                                        end={item.end}
+                                        className={({ isActive }) =>
+                                            clsx(
+                                                'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                                                isActive
+                                                    ? 'bg-primary text-primary-foreground'
+                                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                            )
+                                        }
+                                    >
+                                        <item.icon className="h-5 w-5 shrink-0" />
+                                        <span className="flex-1 truncate">{item.label}</span>
+                                        {badge > 0 && (
+                                            <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                                                {badge > 99 ? '99+' : badge}
+                                            </span>
+                                        )}
+                                    </NavLink>
+                                );
+                            })}
                         </nav>
                         <div className="p-4 border-t border-gray-100">
                             <button

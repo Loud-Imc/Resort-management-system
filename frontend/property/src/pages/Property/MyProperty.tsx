@@ -14,6 +14,25 @@ import {
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
 
+const GlobalStyles = () => (
+    <style>{`
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.98); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .error-shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    `}</style>
+);
+
 const PREDEFINED_AMENITIES = [
     'Free WiFi', 'Swimming Pool', 'Infinity Pool', 'Free Parking', 'Valet Parking',
     'Restaurant', 'Bar', 'Lounge', 'Coffee Shop', 'Gym', 'State-of-the-art Fitness Center',
@@ -59,6 +78,7 @@ export default function MyProperty() {
     const [groupPriceChild, setGroupPriceChild] = useState<number | ''>('');
     const [defaultCheckInTime, setDefaultCheckInTime] = useState<string>('14:00');
     const [defaultCheckOutTime, setDefaultCheckOutTime] = useState<string>('11:00');
+    const [isGroupGstInclusive, setIsGroupGstInclusive] = useState(false);
     const [amenities, setAmenities] = useState<string[]>([]);
     const [newAmenity, setNewAmenity] = useState('');
     const [images, setImages] = useState<string[]>([]);
@@ -123,6 +143,7 @@ export default function MyProperty() {
                     groupPriceChild: reqDetails.groupPriceChild || '',
                     defaultCheckInTime: reqDetails.defaultCheckInTime || '14:00',
                     defaultCheckOutTime: reqDetails.defaultCheckOutTime || '11:00',
+                    isGroupGstInclusive: reqDetails.isGroupGstInclusive || false,
                     platformCommission: (selectedProperty as any).platformCommission || 10.00
                 };
                 setProperty(reqProperty as Property);
@@ -163,10 +184,24 @@ export default function MyProperty() {
         setGroupPriceChild(p.groupPriceChild ?? '');
         setDefaultCheckInTime((p as any).defaultCheckInTime ?? '14:00');
         setDefaultCheckOutTime((p as any).defaultCheckOutTime ?? '11:00');
+        setIsGroupGstInclusive(p.isGroupGstInclusive ?? false);
     };
 
     const handleSave = async () => {
         if (!selectedProperty?.id) return;
+
+        // Validation for Group Booking Prices
+        if (allowsGroupBooking) {
+            if (groupPriceAdult === '' || groupPriceAdult === null || groupPriceAdult === undefined) {
+                toast.error('Group Price (Adult) is required when group bookings are allowed');
+                return;
+            }
+            if (groupPriceChild === '' || groupPriceChild === null || groupPriceChild === undefined) {
+                toast.error('Group Price (Child) is required when group bookings are allowed');
+                return;
+            }
+        }
+
         try {
             setSaving(true);
             const payload: any = {
@@ -179,6 +214,7 @@ export default function MyProperty() {
                 groupPriceChild: groupPriceChild === '' ? null : Number(groupPriceChild),
                 defaultCheckInTime,
                 defaultCheckOutTime,
+                isGroupGstInclusive,
             };
 
             // Only include commission if platform admin
@@ -324,6 +360,7 @@ export default function MyProperty() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
+            <GlobalStyles />
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
@@ -501,9 +538,12 @@ export default function MyProperty() {
                                         onChange={(e) => setGroupPriceAdult(e.target.value === '' ? '' : parseInt(e.target.value))}
                                         disabled={!editMode}
                                         placeholder="e.g. 600"
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
+                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceAdult === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold`}
                                     />
                                 </div>
+                                {allowsGroupBooking && groupPriceAdult === '' && (
+                                    <p className="text-[10px] text-red-500 font-bold animate-pulse">Required for Group Bookings</p>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Group Price (Child)</label>
@@ -515,12 +555,29 @@ export default function MyProperty() {
                                         onChange={(e) => setGroupPriceChild(e.target.value === '' ? '' : parseInt(e.target.value))}
                                         disabled={!editMode}
                                         placeholder="e.g. 400"
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold"
+                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceChild === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold`}
                                     />
                                 </div>
+                                {allowsGroupBooking && groupPriceChild === '' && (
+                                    <p className="text-[10px] text-red-500 font-bold animate-pulse">Required for Group Bookings</p>
+                                )}
                             </div>
                         </div>
                         <p className="text-[10px] text-gray-400 font-medium italic">* These prices override individual room rates during group bookings.</p>
+                        
+                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <input
+                                type="checkbox"
+                                id="isGroupGstInclusive"
+                                checked={isGroupGstInclusive}
+                                onChange={(e) => setIsGroupGstInclusive(e.target.checked)}
+                                disabled={!editMode}
+                                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                            />
+                            <label htmlFor="isGroupGstInclusive" className="text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
+                                These prices are inclusive of GST
+                            </label>
+                        </div>
                     </div>
                 )}
 

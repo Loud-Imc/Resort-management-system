@@ -8,6 +8,12 @@ import { MailService } from '../mail/mail.service';
 import { PdfService } from '../pdf/pdf.service';
 import axios from 'axios';
 
+interface NotificationPrefs {
+  emailReferrals?: boolean;
+  emailRewards?: boolean;
+  pushBookings?: boolean;
+}
+
 @Injectable()
 export class NotificationsService {
   private twilioClient: Twilio;
@@ -398,7 +404,18 @@ export class NotificationsService {
 
     // 4. Notification for Channel Partner (if applicable)
     if (isCPBooked && booking.channelPartner?.userId) {
-      // Socket & DB Notification
+      // Fetch CP with preferences
+      const cp = await this.prisma.channelPartner.findUnique({
+        where: { id: booking.channelPartnerId },
+        select: {
+          notificationPrefs: true,
+          user: { select: { email: true, phone: true } }
+        }
+      });
+
+      const prefs = (cp?.notificationPrefs as unknown as NotificationPrefs) || { emailReferrals: true, emailRewards: true, pushBookings: true };
+
+      // Socket & DB Notification (Persistent inbox always gets it)
       try {
         await this.createNotification({
           userId: booking.channelPartner.userId,
@@ -412,23 +429,23 @@ export class NotificationsService {
         this.logger.error(`[broadcastNewBooking] CP inbox notification failed:`, err);
       }
 
-      // Premium Email to CP
-      if (booking.channelPartner?.user?.email && pdfAttachment) {
+      // Premium Email to CP (RESPECT PREFS)
+      if (prefs.emailReferrals && cp?.user?.email && pdfAttachment) {
         try {
-          await this.mailService.sendChannelPartnerBookingAlert(booking.channelPartner.user.email, booking, pdfAttachment);
+          await this.mailService.sendChannelPartnerBookingAlert(cp.user.email, booking, pdfAttachment);
         } catch (err) {
           this.logger.error(`[broadcastNewBooking] CP email failed:`, err);
         }
       }
 
-      // Optional: WhatsApp for CP (if number exists)
-      if (booking.channelPartner?.user?.phone) {
+      // WhatsApp for CP (RESPECT PREFS - Push Bookings flag)
+      if (prefs.pushBookings && cp?.user?.phone) {
         try {
           const cpMsg = `💰 *New Referral Booking!*\n\n` +
             `Booking #: ${booking.bookingNumber}\n` +
             `Property: ${booking.property?.name}\n` +
             `Commission earned: ₹${booking.cpCommission}`;
-          await this.sendWhatsApp(booking.channelPartner.user.phone, cpMsg);
+          await this.sendWhatsApp(cp.user.phone, cpMsg);
         } catch (err) {
           this.logger.error(`[broadcastNewBooking] CP WhatsApp failed:`, err);
         }
@@ -601,6 +618,35 @@ export class NotificationsService {
         const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
         await this.sendWhatsApp(targetNumber, msg);
       }
+
+      // 4. Notify Channel Partner of Check-in (if applicable & pref enabled)
+      if (booking.channelPartnerId) {
+        const cp = await this.prisma.channelPartner.findUnique({
+          where: { id: booking.channelPartnerId },
+          select: {
+            notificationPrefs: true,
+            userId: true,
+            user: { select: { phone: true } }
+          }
+        });
+        const prefs = (cp?.notificationPrefs as unknown as NotificationPrefs) || { pushBookings: true };
+        if (prefs.pushBookings && cp) {
+          // Inbox
+          await this.createNotification({
+            userId: cp.userId,
+            title: 'Guest Checked In! 🏨',
+            message: `Your referral guest ${booking.user?.firstName} has checked in at ${booking.property?.name}.`,
+            type: 'CP_GUEST_CHECKIN',
+            targetRole: 'ChannelPartner',
+            data: { bookingId: booking.id }
+          });
+          // WhatsApp
+          if (cp.user?.phone) {
+            const msg = `🏨 *Guest Checked In!*\n\nYour referral guest ${booking.user?.firstName} ${booking.user?.lastName} has checked in at *${booking.property?.name}*.`;
+            await this.sendWhatsApp(cp.user.phone, msg);
+          }
+        }
+      }
     }
   }
 
@@ -623,6 +669,35 @@ export class NotificationsService {
         const msg = `Thank You! 😊\n\nThank you for staying at *${booking.property?.name}*. We hope to see you again soon!`;
         const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
         await this.sendWhatsApp(targetNumber, msg);
+      }
+
+      // 4. Notify Channel Partner of Check-out
+      if (booking.channelPartnerId) {
+        const cp = await this.prisma.channelPartner.findUnique({
+          where: { id: booking.channelPartnerId },
+          select: {
+            notificationPrefs: true,
+            userId: true,
+            user: { select: { phone: true } }
+          }
+        });
+        const prefs = (cp?.notificationPrefs as unknown as NotificationPrefs) || { pushBookings: true };
+        if (prefs.pushBookings && cp) {
+          // Inbox
+          await this.createNotification({
+            userId: cp.userId,
+            title: 'Guest Checked Out! 😊',
+            message: `Your referral guest ${booking.user?.firstName} has checked out from ${booking.property?.name}.`,
+            type: 'CP_GUEST_CHECKOUT',
+            targetRole: 'ChannelPartner',
+            data: { bookingId: booking.id }
+          });
+          // WhatsApp
+          if (cp.user?.phone) {
+            const msg = `😊 *Guest Checked Out!*\n\nYour referral guest ${booking.user?.firstName} ${booking.user?.lastName} has checked out from *${booking.property?.name}*.`;
+            await this.sendWhatsApp(cp.user.phone, msg);
+          }
+        }
       }
     }
   }
@@ -786,6 +861,81 @@ export class NotificationsService {
       }
     } catch (error) {
       this.logger.error(`Failed to send push notification to user ${userId}:`, error);
+    }
+  }
+
+  /**
+   * Notify CP when points/commission are earned
+   */
+  async notifyPointsEarned(cpId: string, points: number, description: string) {
+    const cp = await this.prisma.channelPartner.findUnique({
+      where: { id: cpId },
+      include: { user: true }
+    });
+
+    if (!cp) return;
+
+    const prefs = (cp.notificationPrefs as unknown as NotificationPrefs) || { emailRewards: true };
+
+    // Dashboard Inbox (Always)
+    await this.createNotification({
+      userId: cp.userId,
+      title: 'Points Earned! 💰',
+      message: `${points} points added to your wallet: ${description}`,
+      type: 'CP_POINTS_EARNED',
+      targetRole: 'ChannelPartner',
+      data: { points, description }
+    });
+
+    // Email (Respect Prefs)
+    if (prefs.emailRewards && cp.user?.email) {
+      try {
+        await this.mailService.sendPointsEarnedEmail(cp.user.email, points, description);
+      } catch (err) {
+        this.logger.error(`[notifyPointsEarned] Email failed:`, err);
+      }
+    }
+  }
+
+  /**
+   * Notify CP when a reward redemption status changes
+   */
+  async notifyRedemptionStatusUpdate(redemptionId: string) {
+    const redemption = await this.prisma.cPRewardRedemption.findUnique({
+      where: { id: redemptionId },
+      include: {
+        reward: true,
+        channelPartner: { include: { user: true } }
+      }
+    });
+
+    if (!redemption || !redemption.channelPartner) return;
+
+    const cp = redemption.channelPartner;
+    const prefs = (cp.notificationPrefs as unknown as NotificationPrefs) || { emailRewards: true };
+
+    // Dashboard Inbox (Always)
+    await this.createNotification({
+      userId: cp.userId,
+      title: 'Reward Claim Update 🎁',
+      message: `Your claim for "${redemption.reward.name}" is now ${redemption.status}.`,
+      type: 'CP_REDEMPTION_UPDATE',
+      targetRole: 'ChannelPartner',
+      data: { redemptionId: redemption.id, status: redemption.status }
+    });
+
+    // Email (Respect Prefs)
+    if (prefs.emailRewards && cp.user?.email) {
+      try {
+        await this.mailService.sendRedemptionStatusEmail(
+          cp.user.email,
+          redemption.reward.name,
+          redemption.status,
+          redemption.notes || ''
+        );
+      } catch (err) {
+        this.logger.error(`[notifyRedemptionStatusUpdate] Email failed:`, err);
+      }
     }
   }
 

@@ -15,13 +15,13 @@ interface Image {
 export interface RoomType {
     id: string;
     name: string;
+    size?: number | null;
     description?: string;
     basePrice: number;
     totalPrice?: number;
     originalPrice?: number;
     maxAdults: number;
     maxChildren: number;
-    size?: number;
     images?: (string | Image)[];
     amenities?: string[];
     availableCount?: number;
@@ -135,9 +135,18 @@ const RoomSelectionCard: React.FC<{
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap' }}>
+                <style>{`
+                    @media (max-width: 768px) {
+                        .room-card-row { flex-direction: column !important; }
+                        .room-card-img { width: 100% !important; padding: 1.25rem 1.25rem 0.5rem !important; }
+                        .room-card-info { min-width: 0 !important; border-right: none !important; border-bottom: 1.5px solid #f9fafb; }
+                        .room-card-pricing { width: 100% !important; text-align: left !important; }
+                        .room-card-pricing > div:first-child p:first-child { text-align: left; }
+                    }
+                `}</style>
+                <div className="room-card-row" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap' }}>
                     {/* Left: Image */}
-                    <div style={{ width: '320px', padding: '1.5rem', flexShrink: 0 }}>
+                    <div className="room-card-img" style={{ width: '320px', padding: '1.5rem', flexShrink: 0 }}>
                         <RoomImageCarousel images={room.images || []} name={room.name} />
                         <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', color: '#0d9488', fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                             <Sparkles size={14} /> view more photos
@@ -145,7 +154,7 @@ const RoomSelectionCard: React.FC<{
                     </div>
 
                     {/* Middle: Info */}
-                    <div style={{ flex: 1, borderRight: '1.5px solid #f9fafb', minWidth: '320px', display: 'flex', flexDirection: 'column' }}>
+                    <div className="room-card-info" style={{ flex: 1, borderRight: '1.5px solid #f9fafb', minWidth: '320px', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ padding: '2rem', borderBottom: '1.5px solid #f9fafb' }}>
                             <h3 style={{ fontSize: '2rem', fontWeight: 900, color: '#111827', margin: '0 0 0.75rem 0', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
                                 {isGroupBooking ? 'Group Stay Package' : room.name}
@@ -160,19 +169,19 @@ const RoomSelectionCard: React.FC<{
                         <div style={{ padding: '1rem 2rem', background: '#f9fafb', display: 'flex', gap: '2rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '13px', fontWeight: 800, color: '#374151' }}>
                                 <Users size={16} color="#0d9488" />
-                                {room.maxAdults} Adults {room.maxChildren > 0 && `+ ${room.maxChildren} Child`}
+                                {isGroupBooking ? `${guests} Total Guests` : `${room.maxAdults} Adults ${room.maxChildren > 0 ? `+ ${room.maxChildren} Child` : ''}`}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '13px', fontWeight: 700, color: '#6b7280' }}>
                                 <Maximize size={16} color="#0d9488" />
                                 {room.size || 280} SQ.FT
                             </div>
-                            {room.availableCount !== undefined && room.availableCount > 0 && (
-                                <div style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    gap: '0.5rem', 
-                                    fontSize: '12px', 
-                                    fontWeight: 900, 
+                            {room.availableCount !== undefined && room.availableCount > 0 && !isGroupBooking && (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    fontSize: '12px',
+                                    fontWeight: 900,
                                     color: room.availableCount < 3 ? '#ef4444' : '#10b981',
                                     background: room.availableCount < 3 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
                                     padding: '0.25rem 0.75rem',
@@ -202,7 +211,7 @@ const RoomSelectionCard: React.FC<{
                     </div>
 
                     {/* Right: Pricing */}
-                    <div style={{ width: '260px', padding: '2rem', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'right' }}>
+                    <div className="room-card-pricing" style={{ width: '260px', padding: '2rem', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'right' }}>
                         <div style={{ marginBottom: '2.5rem' }}>
                             <p style={{ fontSize: '11px', fontWeight: 900, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
                                 {nights} Night{nights > 1 ? 's' : ''} • {guests} Guest{guests > 1 ? 's' : ''}

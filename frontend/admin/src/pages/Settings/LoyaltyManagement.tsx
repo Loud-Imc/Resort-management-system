@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { settingsService, GlobalSetting } from '../../services/settings';
 import { marketingService, PartnerLevel, Reward } from '../../services/marketing';
+import { uploadService } from '../../services/uploads';
 import {
     Save,
     Plus,
@@ -16,7 +17,9 @@ import {
     X,
     Image as ImageIcon,
     Percent,
-    Clock
+    Clock,
+    Upload,
+    CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -49,6 +52,8 @@ export default function LoyaltyManagement() {
     const [rewards, setRewards] = useState<Reward[]>([]);
     const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
     const [currentReward, setCurrentReward] = useState<Partial<Reward>>({ isActive: true });
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const imageInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchData();
@@ -544,7 +549,79 @@ export default function LoyaltyManagement() {
                                     <p className="text-[10px] text-muted-foreground mt-1">Cost in loyalty points.</p>
                                 </div>
                             </div>
-                            <div><label className="block text-sm font-medium mb-1">Image URL</label><input type="text" value={currentReward.imageUrl || ''} onChange={(e) => setCurrentReward({ ...currentReward, imageUrl: e.target.value })} className="w-full px-4 py-2 border rounded-xl" /></div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Reward Image</label>
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        setIsUploadingImage(true);
+                                        try {
+                                            const { url } = await uploadService.upload(file);
+                                            setCurrentReward({ ...currentReward, imageUrl: url });
+                                            toast.success('Image uploaded successfully');
+                                        } catch {
+                                            toast.error('Image upload failed. Please try again.');
+                                        } finally {
+                                            setIsUploadingImage(false);
+                                            if (imageInputRef.current) imageInputRef.current.value = '';
+                                        }
+                                    }}
+                                />
+
+                                {currentReward.imageUrl ? (
+                                    <div className="relative rounded-xl overflow-hidden border border-border group">
+                                        <img
+                                            src={currentReward.imageUrl}
+                                            alt="Preview"
+                                            className="w-full h-40 object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => imageInputRef.current?.click()}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-900 rounded-lg text-xs font-bold"
+                                            >
+                                                <Upload className="h-3.5 w-3.5" /> Replace
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentReward({ ...currentReward, imageUrl: '' })}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" /> Remove
+                                            </button>
+                                        </div>
+                                        <div className="absolute top-2 right-2 bg-emerald-500 text-white rounded-full p-1">
+                                            <CheckCircle className="h-3.5 w-3.5" />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => imageInputRef.current?.click()}
+                                        disabled={isUploadingImage}
+                                        className="w-full h-36 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isUploadingImage ? (
+                                            <>
+                                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                                <span className="text-xs font-medium">Uploading image...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="h-8 w-8" />
+                                                <span className="text-xs font-medium">Click to upload image</span>
+                                                <span className="text-[10px] opacity-60">JPG, PNG, WebP — max 5MB</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
                             <div><label className="block text-sm font-medium mb-1">Description</label><textarea value={currentReward.description || ''} onChange={(e) => setCurrentReward({ ...currentReward, description: e.target.value })} className="w-full px-4 py-2 border rounded-xl min-h-[80px]" /></div>
                         </div>
                         <div className="p-4 border-t flex justify-end gap-3 bg-muted/30">

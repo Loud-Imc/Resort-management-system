@@ -58,6 +58,7 @@ const roomTypeSchema = z.object({
     isAvailableForGroupBooking: z.boolean(),
     groupMaxOccupancy: z.number().min(0).optional(),
     isGstInclusive: z.boolean(),
+    size: z.number().optional().nullable(),
 }).refine(data => {
     if (data.originalPrice && data.originalPrice <= data.basePrice) {
         return false;
@@ -102,6 +103,7 @@ export default function CreateRoomType() {
             propertyId: selectedProperty?.id || '',
             isAvailableForGroupBooking: false,
             isGstInclusive: false,
+            size: null,
         },
     });
 
@@ -134,6 +136,7 @@ export default function CreateRoomType() {
                 isAvailableForGroupBooking: existingRoomType.isAvailableForGroupBooking || false,
                 groupMaxOccupancy: existingRoomType.groupMaxOccupancy || 0,
                 isGstInclusive: existingRoomType.isGstInclusive || false,
+                size: existingRoomType.size || null,
             });
         }
     }, [existingRoomType, isEdit, reset]);
@@ -288,6 +291,19 @@ export default function CreateRoomType() {
                                 rows={3}
                                 placeholder="Describe the room experience..."
                                 className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all min-h-[100px]"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                                Room Size (sq.ft)
+                                <Info className="h-3.5 w-3.5 text-gray-400" />
+                            </label>
+                            <input
+                                type="number"
+                                {...register('size', { valueAsNumber: true })}
+                                placeholder="e.g. 280"
+                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400"
                             />
                         </div>
 

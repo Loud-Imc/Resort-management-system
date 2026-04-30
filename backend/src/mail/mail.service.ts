@@ -948,4 +948,91 @@ export class MailService {
             console.error('[MailService] Error sending password reset OTP:', error);
         }
     }
+    async sendPointsEarnedEmail(cpEmail: string, points: number, description: string) {
+        const from = this.configService.get('EMAIL_FROM');
+        const subject = `💰 You've Earned ${points} New Points!`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; text-align: center; }
+              .points-card { background: #f0fdfa; border: 1px solid #99f6e4; padding: 30px; border-radius: 12px; margin: 20px 0; }
+              .points-value { font-size: 48px; font-weight: 800; color: #0d9488; }
+              .footer { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header"><h1>Points Allocated! 💰</h1></div>
+              <div class="content">
+                  <p>Great news! Your wallet has been updated.</p>
+                  <div class="points-card">
+                      <div style="font-size: 12px; color: #0d9488; text-transform: uppercase; font-weight: 700;">Points Added</div>
+                      <div class="points-value">${points}</div>
+                  </div>
+                  <p style="color: #64748b;">${description}</p>
+                  <a href="${this.configService.get('FRONTEND_URL')}/wallet" style="display: inline-block; background: #093f4a; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; margin-top: 20px;">View My Wallet</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Partner Network</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            await this.transporter.sendMail({ from, to: cpEmail, subject, html });
+        } catch (error) {
+            console.error('[MailService] Error sending points email:', error);
+        }
+    }
+
+    async sendRedemptionStatusEmail(cpEmail: string, rewardName: string, status: string, notes: string) {
+        const from = this.configService.get('EMAIL_FROM');
+        const subject = `🎁 Reward Claim Update: ${rewardName}`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; }
+              .status-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 800; font-size: 12px; text-transform: uppercase; margin-bottom: 20px; }
+              .status-pending { background: #fef3c7; color: #92400e; }
+              .status-processing { background: #dbeafe; color: #1e40af; }
+              .status-dispatched { background: #dcfce7; color: #166534; }
+              .status-rejected { background: #fee2e2; color: #991b1b; }
+              .footer { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header"><h1>Claim Status Update</h1></div>
+              <div class="content">
+                  <p>There is an update on your reward claim for <strong>${rewardName}</strong>.</p>
+                  <div class="status-badge status-${status.toLowerCase()}">${status}</div>
+                  ${notes ? `<p style="padding: 15px; background: #f1f5f9; border-radius: 8px; font-size: 14px; color: #475569;"><strong>Admin Note:</strong> ${notes}</p>` : ''}
+                  <a href="${this.configService.get('FRONTEND_URL')}/rewards" style="display: inline-block; background: #093f4a; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; margin-top: 20px;">Track My Claims</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Partner Network</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            await this.transporter.sendMail({ from, to: cpEmail, subject, html });
+        } catch (error) {
+            console.error('[MailService] Error sending redemption email:', error);
+        }
+    }
 }

@@ -30,6 +30,19 @@ export interface Reward {
     updatedAt?: string;
 }
 
+export interface RewardRedemption {
+    id: string;
+    status: 'PENDING' | 'PROCESSING' | 'DISPATCHED' | 'REJECTED';
+    notes?: string;
+    createdAt: string;
+    reward: Reward;
+    channelPartner: {
+        id: string;
+        referralCode: string;
+        user: { id: string; firstName: string; lastName: string; email: string };
+    };
+}
+
 export const marketingService = {
     getStats: async (): Promise<MarketingStats> => {
         const response = await api.get('/marketing/stats');
@@ -81,5 +94,16 @@ export const marketingService = {
 
     deleteReward: async (id: string): Promise<void> => {
         await api.delete(`/marketing/rewards/${id}`);
+    },
+
+    // --- Reward Redemptions (Admin) ---
+    getRewardRedemptions: async (status?: string): Promise<RewardRedemption[]> => {
+        const response = await api.get('/channel-partners/admin/redemptions', { params: status ? { status } : {} });
+        return response.data;
+    },
+
+    updateRedemptionStatus: async (id: string, status: string, notes?: string): Promise<RewardRedemption> => {
+        const response = await api.patch(`/channel-partners/admin/redemptions/${id}/status`, { status, notes });
+        return response.data;
     },
 };

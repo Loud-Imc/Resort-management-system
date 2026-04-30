@@ -154,6 +154,11 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsString()
     defaultCheckOutTime?: string;
+
+    @ApiProperty({ example: false, description: 'Whether group pricing is inclusive of GST' })
+    @IsOptional()
+    @IsBoolean()
+    isGroupGstInclusive?: boolean;
 }
 
 export class UpdatePropertyDto {
@@ -295,6 +300,10 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
     defaultCheckOutTime?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    isGroupGstInclusive?: boolean;
 }
 
 export class PropertyQueryDto {

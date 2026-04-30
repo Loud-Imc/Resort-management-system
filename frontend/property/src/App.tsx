@@ -37,6 +37,7 @@ import AccountSettings from './pages/AccountSettings';
 import DeleteAccount from './pages/DeleteAccount';
 import OffersList from './pages/Marketing/OffersList';
 import CreateOffer from './pages/Marketing/CreateOffer';
+import ScrollToTop from './components/ScrollToTop';
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <SocketProvider>
             <PropertyProvider>

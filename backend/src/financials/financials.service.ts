@@ -295,7 +295,7 @@ export class FinancialsService {
     // CP REDEMPTION LIFECYCLE
     // ============================================
 
-    async createRedemptionRequest(cp: any, amount: number) {
+    async createRedemptionRequest(cp: any, amount: number, transactionId?: string) {
         if (amount <= 0) throw new BadRequestException('Invalid amount');
 
         const activeRequest = await this.prisma.cPRedemptionRequest.findFirst({
@@ -314,6 +314,7 @@ export class FinancialsService {
                 cpId: cp.id,
                 amount: new Decimal(amount),
                 status: RedemptionStatus.REQUESTED,
+                referenceId: transactionId,
             },
         });
     }
@@ -346,21 +347,35 @@ export class FinancialsService {
         const oldStatus = request.status;
 
         return this.prisma.$transaction(async (tx) => {
-            if (status === RedemptionStatus.APPROVED && request.status === RedemptionStatus.REQUESTED) {
-                if (request.channelPartner.walletBalance.lessThan(request.amount)) {
-                    throw new BadRequestException('Insufficient wallet balance to lock for redemption');
-                }
-
-                await tx.channelPartner.update({
-                    where: { id: request.cpId },
-                    data: { walletBalance: { decrement: request.amount } }
-                });
-            }
-
-            if (status === RedemptionStatus.FAILED && request.status === RedemptionStatus.PROCESSING) {
+            // Upfront deduction is handled in ChannelPartnersService.requestRedemption.
+            // Here we only handle REFUNDS if rejected/failed.
+            
+            if ((status === RedemptionStatus.REJECTED || status === RedemptionStatus.FAILED) && 
+                (request.status === RedemptionStatus.REQUESTED || request.status === RedemptionStatus.APPROVED || request.status === RedemptionStatus.PROCESSING)) {
+                
+                // Refund the wallet balance
                 await tx.channelPartner.update({
                     where: { id: request.cpId },
                     data: { walletBalance: { increment: request.amount } }
+                });
+
+                // Void the associated transaction if it exists
+                if (request.referenceId) {
+                    await tx.cPTransaction.updateMany({
+                        where: { id: request.referenceId },
+                        data: { 
+                            status: 'VOID' as any,
+                            description: `Redemption ${status}: Refunded ₹${request.amount.toLocaleString()}`
+                        }
+                    });
+                }
+            }
+
+            if (status === RedemptionStatus.PAID && request.referenceId) {
+                // Finalize the associated transaction
+                await tx.cPTransaction.updateMany({
+                    where: { id: request.referenceId },
+                    data: { status: 'FINALIZED' as any }
                 });
             }
 

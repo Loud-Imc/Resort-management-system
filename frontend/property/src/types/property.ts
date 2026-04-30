@@ -70,6 +70,7 @@ export interface Property {
     groupPriceChild?: number;
     defaultCheckInTime?: string;
     defaultCheckOutTime?: string;
+    isGroupGstInclusive?: boolean;
     isRequest?: boolean;
     location?: string;
     details?: any;

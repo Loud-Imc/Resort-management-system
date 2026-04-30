@@ -139,15 +139,27 @@ export default function BookingsList() {
         const searchStr = searchTerm.toLowerCase();
         const guestName = (booking.isManualBooking && booking.guests?.[0]
             ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
-            : `${booking.user.firstName} ${booking.user.lastName}`).toLowerCase();
+            : `${booking.user?.firstName || ''} ${booking.user?.lastName || ''}`).toLowerCase();
         const bookingNumber = booking.bookingNumber.toLowerCase();
         const email = (booking.isManualBooking && booking.guests?.[0]
             ? (booking.guests[0].email || '')
-            : booking.user.email).toLowerCase();
+            : (booking.user?.email || '')).toLowerCase();
+        // Gather all possible phone numbers related to this booking
+        const allPhones = [
+            booking.user?.phone,
+            booking.whatsappNumber,
+            ...(booking.guests || []).map(g => g.phone),
+            ...(booking.guests || []).map(g => g.whatsappNumber)
+        ].filter(Boolean).map(p => String(p).toLowerCase());
+
+        const cleanSearch = searchStr.replace(/\D/g, '');
+        const hasPhoneMatch = allPhones.some(p => p.includes(searchStr)) || 
+            (cleanSearch !== '' && allPhones.some(p => p.replace(/\D/g, '').includes(cleanSearch)));
 
         return guestName.includes(searchStr) ||
             bookingNumber.includes(searchStr) ||
-            email.includes(searchStr);
+            email.includes(searchStr) ||
+            hasPhoneMatch;
     });
 
     const checkInMutation = useMutation({
@@ -368,7 +380,7 @@ export default function BookingsList() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
                                 type="text"
-                                placeholder="Search by guest name or booking ID..."
+                                placeholder="Search by name, ID or phone..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 border border-border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"

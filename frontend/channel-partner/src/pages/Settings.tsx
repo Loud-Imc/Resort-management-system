@@ -138,11 +138,11 @@ const Settings: React.FC = () => {
 
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-padding)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Account Settings</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                        <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, lineHeight: 1.2 }}>Account Settings</h1>
                         {formData.registrationFeePaid && (
                             <div style={{
                                 display: 'flex',
@@ -207,7 +207,7 @@ const Settings: React.FC = () => {
                 </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '2rem' }}>
+            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 'var(--section-padding)' }}>
                 <div className="glass-pane" style={{ padding: '1.5rem', alignSelf: 'start' }}>
                     <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <TabButton
@@ -237,11 +237,11 @@ const Settings: React.FC = () => {
                     </nav>
                 </div>
 
-                <div className="glass-pane" style={{ padding: '2.5rem' }}>
+                <div className="glass-pane" style={{ padding: 'var(--section-padding)' }}>
                     {activeTab === 'profile' && (
                         <div>
                             <h3 style={{ marginBottom: '2rem' }}>Personal Information</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                 <div>
                                     <label style={labelStyle}>First Name</label>
                                     <input name="firstName" value={formData.firstName} onChange={handleInputChange} style={inputStyle} />
@@ -270,7 +270,7 @@ const Settings: React.FC = () => {
                     {activeTab === 'payout' && (
                         <div>
                             <h3 style={{ marginBottom: '2rem' }}>Payout & Bank Details</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                 <div style={{ gridColumn: 'span 2' }}>
                                     <label style={labelStyle}>Account Holder Name</label>
                                     <input name="accountHolderName" value={formData.accountHolderName} onChange={handleInputChange} style={inputStyle} placeholder="Full name as per bank records" />
@@ -298,7 +298,7 @@ const Settings: React.FC = () => {
                     {activeTab === 'security' && (
                         <div>
                             <h3 style={{ marginBottom: '2rem' }}>Change Password</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                 <div style={{ gridColumn: 'span 2' }}>
                                     <label style={labelStyle}>New Password</label>
                                     <input name="password" type="password" value={formData.password} onChange={handleInputChange} style={inputStyle} placeholder="Minimum 6 characters" />

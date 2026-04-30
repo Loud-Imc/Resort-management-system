@@ -44,9 +44,9 @@ export default function Notifications() {
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '1rem 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1.5rem' }}>
         <div>
-          <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700, margin: 0 }}>Notifications</h1>
+          <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, margin: 0, lineHeight: 1.2 }}>Notifications</h1>
           <p style={{ color: 'var(--text-dim)', marginTop: '0.4rem' }}>Recent referrals and account updates</p>
         </div>
         <button
@@ -82,17 +82,18 @@ export default function Notifications() {
           </div>
         ) : (
           notifications?.map((notification: Notification) => (
-            <div
-              key={notification.id}
-              className="glass-pane"
-              style={{
-                padding: '1.25rem',
-                opacity: notification.isRead ? 0.7 : 1,
-                borderLeft: notification.isRead ? '1px solid var(--border-glass)' : '4px solid var(--primary-teal)',
-                display: 'flex',
-                gap: '1.25rem'
-              }}
-            >
+              <div
+                key={notification.id}
+                className="glass-pane"
+                style={{
+                  padding: '1.25rem',
+                  opacity: notification.isRead ? 0.7 : 1,
+                  borderLeft: notification.isRead ? '1px solid var(--border-glass)' : '4px solid var(--primary-teal)',
+                  display: 'flex',
+                  gap: '1.25rem',
+                  flexWrap: 'wrap'
+                }}
+              >
               <div style={{
                 flexShrink: 0,
                 width: '42px',

@@ -77,6 +77,7 @@ import CategoryList from './pages/PropertyCategories/CategoryList';
 // Notifications
 import Notifications from './pages/Notifications';
 import LoyaltyManagement from './pages/Settings/LoyaltyManagement';
+import ScrollToTop from './components/ScrollToTop';
 
 const queryClient = new QueryClient();
 
@@ -84,6 +85,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <SocketProvider>
             <PropertyProvider>
