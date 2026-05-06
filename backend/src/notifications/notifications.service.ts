@@ -130,10 +130,10 @@ export class NotificationsService {
   /**
    * Main entry point for WhatsApp
    */
-  async sendWhatsApp(to: string, message: string) {
+  async sendWhatsApp(to: string, message: string, templateKey?: string, variables?: any) {
     const provider = this.configService.get('SMS_PROVIDER') || 'TWILIO';
     if (provider === 'MSG91') {
-      return this._sendWhatsAppViaMSG91(to, message);
+      return this._sendWhatsAppViaMSG91(to, message, templateKey, variables);
     }
     return this._sendWhatsAppViaTwilio(to, message);
   }
@@ -256,9 +256,50 @@ export class NotificationsService {
   /**
    * Internal MSG91 WhatsApp
    */
-  private async _sendWhatsAppViaMSG91(to: string, message: string) {
-    // MSG91 WhatsApp usually uses their specific WhatsApp API / Flow
-    this.logger.warn(`MSG91 WhatsApp not yet fully implemented. Simulating to ${to}: ${message}`);
+  private async _sendWhatsAppViaMSG91(to: string, message: string, templateKey?: string, variables?: any) {
+    const authKey = this.configService.get('MSG91_AUTH_KEY');
+    const sender = this.configService.get('MSG91_WHATSAPP_SENDER');
+    
+    // If templateKey is provided, fetch the actual ID from config
+    let templateId = templateKey ? this.configService.get(templateKey) : undefined;
+    
+    // Fallback: if no templateId found for that key, and templateKey looks like a number/ID, use it directly
+    if (!templateId && templateKey) {
+      templateId = templateKey;
+    }
+
+    if (!authKey) {
+      this.logger.warn(`MSG91 not configured. Simulating WhatsApp to ${to}: ${message}`);
+      return;
+    }
+
+    // Normalizing phone (removing +, whatsapp: prefix)
+    const mobile = to.replace('+', '').replace('whatsapp:', '');
+
+    try {
+      if (templateId) {
+        // MSG91 WhatsApp uses Flow API
+        await axios.post('https://api.msg91.com/api/v5/flow/', {
+          template_id: templateId,
+          sender: sender,
+          recipients: [{
+            mobiles: mobile,
+            message: message, // Generic fallback
+            ...variables      // Specific template variables
+          }]
+        }, {
+          headers: {
+            authkey: authKey,
+            'Content-Type': 'application/json'
+          }
+        });
+        this.logger.log(`WhatsApp sent to ${to} via MSG91 (Template: ${templateKey || templateId})`);
+      } else {
+        this.logger.warn(`MSG91 WhatsApp Template ID missing. Check .env. Simulating to ${to}: ${message}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send WhatsApp via MSG91 to ${to}:`, error.response?.data || error.message);
+    }
   }
 
   /**
@@ -353,7 +394,12 @@ export class NotificationsService {
             `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
             `Total: ₹${booking.totalAmount}\n` +
             `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
-          await this.sendWhatsApp(propertyPhone, whatsappMsg);
+          await this.sendWhatsApp(propertyPhone, whatsappMsg, 'MSG91_TPL_PROP_BOOKING', {
+            booking_number: booking.bookingNumber,
+            status: 'New Booking',
+            details: `New booking received! Amount: ₹${booking.totalAmount}. Source: Website.`,
+            link_suffix: `bookings/${booking.id}`
+          });
         } catch (err) {
           this.logger.error(`[broadcastNewBooking] Property WhatsApp failed to ${propertyPhone}:`, err);
         }
@@ -395,7 +441,14 @@ export class NotificationsService {
             `Guest: ${booking.user?.firstName} ${booking.user?.lastName}\n` +
             `Total: ₹${booking.totalAmount}\n` +
             `Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`;
-          await this.sendWhatsApp(targetNumber, whatsappMsg);
+          await this.sendWhatsApp(targetNumber, whatsappMsg, 'MSG91_TPL_GUEST_BOOKING', {
+            booking_number: booking.bookingNumber,
+            resort_name: booking.property?.name,
+            status: 'Confirmed',
+            details: `Hi ${booking.user?.firstName}, your stay for ${booking.totalNights} nights is confirmed. Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}.`,
+            link_suffix: `confirmation?bookingId=${booking.id}`,
+            footer: 'Sent via Loud IMC Resort Portal'
+          });
         } catch (err) {
           this.logger.error(`[broadcastNewBooking] Guest WhatsApp failed to ${targetNumber}:`, err);
         }
@@ -445,7 +498,10 @@ export class NotificationsService {
             `Booking #: ${booking.bookingNumber}\n` +
             `Property: ${booking.property?.name}\n` +
             `Commission earned: ₹${booking.cpCommission}`;
-          await this.sendWhatsApp(cp.user.phone, cpMsg);
+          await this.sendWhatsApp(cp.user.phone, cpMsg, 'MSG91_TPL_PARTNER_ALERTS', {
+            title: 'New Referral Booking! 💰',
+            body: `Booking #${booking.bookingNumber} at ${booking.property?.name}. Commission: ₹${booking.cpCommission}`
+          });
         } catch (err) {
           this.logger.error(`[broadcastNewBooking] CP WhatsApp failed:`, err);
         }
@@ -616,7 +672,13 @@ export class NotificationsService {
       if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
         const msg = `Welcome! 🏨\n\nYou have successfully checked in at *${booking.property?.name}*. Enjoy your stay!`;
         const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
-        await this.sendWhatsApp(targetNumber, msg);
+        await this.sendWhatsApp(targetNumber, msg, 'MSG91_TPL_GUEST_STAY', {
+          guest_name: booking.user?.firstName,
+          status: 'Checked In',
+          resort_name: booking.property?.name,
+          link_suffix: '',
+          footer: 'Sent via Loud IMC Resort Portal'
+        });
       }
 
       // 4. Notify Channel Partner of Check-in (if applicable & pref enabled)
@@ -643,7 +705,10 @@ export class NotificationsService {
           // WhatsApp
           if (cp.user?.phone) {
             const msg = `🏨 *Guest Checked In!*\n\nYour referral guest ${booking.user?.firstName} ${booking.user?.lastName} has checked in at *${booking.property?.name}*.`;
-            await this.sendWhatsApp(cp.user.phone, msg);
+            await this.sendWhatsApp(cp.user.phone, msg, 'MSG91_TPL_PARTNER_ALERTS', {
+              title: 'Guest Arrived! 🏨',
+              body: `Your guest ${booking.user?.firstName} has checked in at ${booking.property?.name}. Status: In-house.`
+            });
           }
         }
       }
@@ -668,7 +733,13 @@ export class NotificationsService {
       if (booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone) {
         const msg = `Thank You! 😊\n\nThank you for staying at *${booking.property?.name}*. We hope to see you again soon!`;
         const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
-        await this.sendWhatsApp(targetNumber, msg);
+        await this.sendWhatsApp(targetNumber, msg, 'MSG91_TPL_GUEST_STAY', {
+          guest_name: booking.user?.firstName,
+          status: 'Checked Out',
+          resort_name: booking.property?.name,
+          link_suffix: '',
+          footer: 'Sent via Loud IMC Resort Portal'
+        });
       }
 
       // 4. Notify Channel Partner of Check-out
@@ -695,7 +766,10 @@ export class NotificationsService {
           // WhatsApp
           if (cp.user?.phone) {
             const msg = `😊 *Guest Checked Out!*\n\nYour referral guest ${booking.user?.firstName} ${booking.user?.lastName} has checked out from *${booking.property?.name}*.`;
-            await this.sendWhatsApp(cp.user.phone, msg);
+            await this.sendWhatsApp(cp.user.phone, msg, 'MSG91_TPL_PARTNER_ALERTS', {
+              title: 'Guest Departed! 😊',
+              body: `Your guest ${booking.user?.firstName} has checked out from ${booking.property?.name}. Status: Completed.`
+            });
           }
         }
       }
@@ -735,7 +809,14 @@ export class NotificationsService {
           const refundAmount = Number(booking.refundAmount || 0);
           const refundLine = refundAmount > 0 ? `\nRefund of ₹${refundAmount.toLocaleString('en-IN')} will be processed within 5–7 business days.` : '';
           const msg = `Booking Cancelled 🚫\n\nYour booking *${booking.bookingNumber}* at *${booking.property?.name}* has been cancelled.${refundLine}`;
-          await this.sendWhatsApp(targetNumber, msg);
+          await this.sendWhatsApp(targetNumber, msg, 'MSG91_TPL_GUEST_BOOKING', {
+            booking_number: booking.bookingNumber,
+            resort_name: booking.property?.name,
+            status: 'Cancelled',
+            details: `Refund of ₹${refundAmount.toLocaleString('en-IN')} will be processed in 5-7 business days.`,
+            link_suffix: `confirmation?bookingId=${booking.id}`,
+            footer: 'Sent via Loud IMC Resort Portal'
+          });
         } catch (err) {
           this.logger.error(`[notifyCancellation] WhatsApp failed:`, err);
         }
@@ -815,7 +896,12 @@ export class NotificationsService {
       if (targetNumber) {
         try {
           const msg = `How was your stay? ⭐\n\nHi ${booking.user?.firstName}, we hope you enjoyed *${booking.property?.name}*!\n\nWe'd love to hear your feedback. Please leave a quick review here:\n${reviewLink}`;
-          await this.sendWhatsApp(targetNumber, msg);
+          await this.sendWhatsApp(targetNumber, msg, 'MSG91_TPL_ACTION_LINKS', {
+            guest_name: booking.user?.firstName,
+            message: `How was your stay at ${booking.property?.name}? We'd love your feedback!`,
+            link: reviewLink,
+            footer: 'Sent via Loud IMC Resort Portal'
+          });
         } catch (err) {
           this.logger.error(`[sendReviewRequest] WhatsApp failed:`, err);
         }
@@ -895,6 +981,19 @@ export class NotificationsService {
         this.logger.error(`[notifyPointsEarned] Email failed:`, err);
       }
     }
+
+    // WhatsApp (New)
+    if (cp.user?.phone) {
+      try {
+        const msg = `💰 *Points Earned!*\n\n${points} points added to your wallet.\nReason: ${description}`;
+        await this.sendWhatsApp(cp.user.phone, msg, 'MSG91_TPL_PARTNER_ALERTS', {
+          title: 'Points Earned! 💰',
+          body: `${description}. Balance Added: ${points} points.`
+        });
+      } catch (err) {
+        this.logger.error(`[notifyPointsEarned] WhatsApp failed:`, err);
+      }
+    }
   }
 
   /**
@@ -937,6 +1036,19 @@ export class NotificationsService {
         this.logger.error(`[notifyRedemptionStatusUpdate] Email failed:`, err);
       }
     }
+
+    // WhatsApp (New)
+    if (cp.user?.phone) {
+      try {
+        const msg = `🎁 *Reward Claim Update*\n\nYour claim for "${redemption.reward.name}" is now *${redemption.status}*.`;
+        await this.sendWhatsApp(cp.user.phone, msg, 'MSG91_TPL_PARTNER_ALERTS', {
+          title: 'Reward Claim Update 🎁',
+          body: `Your claim for "${redemption.reward.name}" is now ${redemption.status}. Notes: ${redemption.notes || 'None'}`
+        });
+      } catch (err) {
+        this.logger.error(`[notifyRedemptionStatusUpdate] WhatsApp failed:`, err);
+      }
+    }
   }
 
   /**
@@ -973,7 +1085,12 @@ export class NotificationsService {
         `Remaining Balance: *₹${balance.toLocaleString('en-IN')}*\n\n` +
         `Please complete your payment here:\n${paymentLink}\n\n` +
         `Ignore if already paid. See you soon! 🤝`;
-      await this.sendWhatsApp(targetNumber, whatsappMsg);
+      await this.sendWhatsApp(targetNumber, whatsappMsg, 'MSG91_TPL_ACTION_LINKS', {
+        guest_name: booking.user?.firstName,
+        message: `Balance payment of ₹${balance.toLocaleString('en-IN')} is due for your stay at ${booking.property?.name}`,
+        link: paymentLink,
+        footer: 'Sent via Loud IMC Resort Portal'
+      });
     }
 
     // 4. Update booking to track reminder sent

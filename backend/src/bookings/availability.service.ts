@@ -367,7 +367,7 @@ export class AvailabilityService {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
                     categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
-                    ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
+                    id: propertyId || (geoPropertyIds !== null ? { in: geoPropertyIds } : undefined),
                     ...(location && {
                         OR: [
                             { city: { contains: location, mode: 'insensitive' } },
