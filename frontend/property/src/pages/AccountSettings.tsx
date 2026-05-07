@@ -20,8 +20,10 @@ export default function AccountSettings() {
     const [passwordData, setPasswordData] = useState({
         currentPassword: '',
         newPassword: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        otp: ''
     });
+    const [passwordStep, setPasswordStep] = useState<'FORM' | 'OTP'>('FORM');
 
     useEffect(() => {
         if (user) {
@@ -54,19 +56,33 @@ export default function AccountSettings() {
         }
     });
 
-    const changePasswordMutation = useMutation({
-        mutationFn: (data: typeof passwordData) => api.patch('/users/change-password', data),
+    const requestPasswordOtpMutation = useMutation({
+        mutationFn: (data: { currentPassword: string }) => api.post('/users/me/change-password/request', data),
         onSuccess: () => {
-            toast.success('Password changed successfully');
+            toast.success('Verification code sent to your email/phone');
+            setPasswordStep('OTP');
+        },
+        onError: (error: any) => {
+            const errorMsg = error.response?.data?.message || 'Failed to send verification code';
+            toast.error(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
+        }
+    });
+
+    const confirmPasswordChangeMutation = useMutation({
+        mutationFn: (data: { otp: string, newPassword: string }) => api.patch('/users/me/change-password/confirm', data),
+        onSuccess: () => {
+            toast.success('Password updated successfully');
             setIsChangingPassword(false);
+            setPasswordStep('FORM');
             setPasswordData({
                 currentPassword: '',
                 newPassword: '',
-                confirmPassword: ''
+                confirmPassword: '',
+                otp: ''
             });
         },
         onError: (error: any) => {
-            const errorMsg = error.response?.data?.message || 'Failed to change password';
+            const errorMsg = error.response?.data?.message || 'Failed to update password';
             toast.error(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
         }
     });
@@ -91,15 +107,27 @@ export default function AccountSettings() {
 
     const handlePasswordChange = (e: React.FormEvent) => {
         e.preventDefault();
-        if (passwordData.newPassword !== passwordData.confirmPassword) {
-            toast.error('Passwords do not match');
-            return;
+        
+        if (passwordStep === 'FORM') {
+            if (passwordData.newPassword !== passwordData.confirmPassword) {
+                toast.error('Passwords do not match');
+                return;
+            }
+            if (passwordData.newPassword.length < 6) {
+                toast.error('New password must be at least 6 characters');
+                return;
+            }
+            requestPasswordOtpMutation.mutate({ currentPassword: passwordData.currentPassword });
+        } else {
+            if (!passwordData.otp || passwordData.otp.length < 6) {
+                toast.error('Please enter a valid 6-digit code');
+                return;
+            }
+            confirmPasswordChangeMutation.mutate({ 
+                otp: passwordData.otp, 
+                newPassword: passwordData.newPassword 
+            });
         }
-        if (passwordData.newPassword.length < 6) {
-            toast.error('New password must be at least 6 characters');
-            return;
-        }
-        changePasswordMutation.mutate(passwordData);
     };
 
     return (
@@ -258,62 +286,102 @@ export default function AccountSettings() {
                 {isChangingPassword && (
                     <div className="p-8 bg-gray-50/50 dark:bg-gray-900/20">
                         <form onSubmit={handlePasswordChange} className="space-y-6 max-w-md">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
-                                    Current Password
-                                </label>
-                                <input
-                                    type="password"
-                                    value={passwordData.currentPassword}
-                                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
-                                    required
-                                    placeholder="Enter current password"
-                                />
-                            </div>
+                            {passwordStep === 'FORM' ? (
+                                <>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+                                            Current Password
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={passwordData.currentPassword}
+                                            onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                                            className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
+                                            required
+                                            placeholder="Enter current password"
+                                        />
+                                    </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
-                                        New Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={passwordData.newPassword}
-                                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                                        className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
-                                        required
-                                        minLength={6}
-                                        placeholder="Min. 6 chars"
-                                    />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+                                                New Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={passwordData.newPassword}
+                                                onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                                                className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
+                                                required
+                                                minLength={6}
+                                                placeholder="Min. 6 chars"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+                                                Confirm New Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={passwordData.confirmPassword}
+                                                onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                                                className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
+                                                required
+                                                placeholder="Repeat new password"
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl">
+                                        <p className="text-sm text-blue-700 dark:text-blue-400 font-medium">
+                                            We've sent a 6-digit verification code to your registered email/phone.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+                                            Verification Code
+                                        </label>
+                                        <input
+                                            type="text"
+                                            maxLength={6}
+                                            value={passwordData.otp}
+                                            onChange={(e) => setPasswordData({ ...passwordData, otp: e.target.value.replace(/\D/g, '') })}
+                                            className="w-full px-4 py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-center text-2xl font-bold tracking-[0.5em] text-gray-900 dark:text-white"
+                                            required
+                                            placeholder="000000"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPasswordStep('FORM')}
+                                        className="text-xs text-blue-600 font-bold hover:underline"
+                                    >
+                                        Change password details
+                                    </button>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
-                                        Confirm New Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={passwordData.confirmPassword}
-                                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                                        className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
-                                        required
-                                        placeholder="Repeat new password"
-                                    />
-                                </div>
-                            </div>
+                            )}
 
                             <div className="flex items-center gap-3 pt-2">
                                 <button
                                     type="submit"
-                                    disabled={changePasswordMutation.isPending}
+                                    disabled={requestPasswordOtpMutation.isPending || confirmPasswordChangeMutation.isPending}
                                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-200 dark:shadow-none disabled:opacity-50"
                                 >
-                                    {changePasswordMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                                    Update Password
+                                    {(requestPasswordOtpMutation.isPending || confirmPasswordChangeMutation.isPending) ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <ShieldCheck className="h-4 w-4" />
+                                    )}
+                                    {passwordStep === 'FORM' ? 'Send Verification Code' : 'Confirm & Update Password'}
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setIsChangingPassword(false)}
+                                    onClick={() => {
+                                        setIsChangingPassword(false);
+                                        setPasswordStep('FORM');
+                                    }}
                                     className="px-6 py-3 bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-all"
                                 >
                                     Cancel

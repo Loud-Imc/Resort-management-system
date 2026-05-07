@@ -4,12 +4,19 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { RequestChangePasswordOtpDto, ConfirmChangePasswordDto } from './dto/change-password-otp.dto';
 import * as bcrypt from 'bcrypt';
 import { normalizePhone } from '../common/utils/phone';
+import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class UsersService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private mailService: MailService,
+        private notificationsService: NotificationsService
+    ) { }
 
     async create(createUserDto: CreateUserDto & { roleIds?: string[] }) {
         const { roleIds, ...userData } = createUserDto;
@@ -797,5 +804,97 @@ export class UsersService {
 
         return { message: 'Password changed successfully' };
     }
+
+    async requestChangePasswordOtp(userId: string, dto: RequestChangePasswordOtpDto) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!user || !user.password) {
+            throw new BadRequestException('User not found or password not set');
+        }
+
+        const isPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
+        if (!isPasswordValid) {
+            throw new BadRequestException('Current password is incorrect');
+        }
+
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Clear existing OTPs
+        await (this.prisma as any).oneTimePassword.deleteMany({
+            where: {
+                OR: [
+                    { email: user.email },
+                    { phone: user.phone }
+                ],
+                type: 'PASSWORD_RESET' // Reusing same type for simplicity or can create new
+            }
+        });
+
+        // Save OTP
+        await (this.prisma as any).oneTimePassword.create({
+            data: {
+                email: user.email,
+                phone: user.phone,
+                code,
+                type: 'PASSWORD_RESET',
+                expiresAt
+            }
+        });
+
+        // Send OTP
+        if (user.email) {
+            await this.mailService.sendPasswordResetOtp(user.email, code);
+        }
+
+        if (user.phone) {
+            const message = `Your password update verification code is ${code}. It expires in 10 minutes.`;
+            await this.notificationsService.sendSMS(user.phone, message, { otp: code });
+        }
+
+        return { message: 'Verification code sent to your registered email/phone' };
+    }
+
+    async confirmChangePassword(userId: string, dto: ConfirmChangePasswordDto) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        const otp = await (this.prisma as any).oneTimePassword.findFirst({
+            where: {
+                OR: [
+                    { email: user.email },
+                    { phone: user.phone }
+                ],
+                code: dto.otp,
+                type: 'PASSWORD_RESET',
+                expiresAt: { gte: new Date() }
+            }
+        });
+
+        if (!otp) {
+            throw new BadRequestException('Invalid or expired verification code');
+        }
+
+        const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword }
+        });
+
+        // Delete OTP
+        await (this.prisma as any).oneTimePassword.delete({
+            where: { id: otp.id }
+        });
+
+        return { message: 'Password updated successfully' };
+    }
 }
+
 
