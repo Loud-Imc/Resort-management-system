@@ -7,10 +7,11 @@ import { roomTypesService } from '../../services/roomTypes';
 import { useProperty } from '../../context/PropertyContext';
 import ImageUpload from '../../components/ImageUpload';
 import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../types/room';
 import { cancellationPoliciesService, type CancellationPolicy } from '../../services/cancellationPolicies';
+import CancellationPolicyModal from '../../components/CancellationPolicyModal';
 
 const COMMON_HIGHLIGHTS = [
     'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
@@ -37,11 +38,11 @@ const COMMON_AMENITIES = [
 
 const roomTypeSchema = z.object({
     name: z.string().min(1, 'Name is required'),
-    description: z.string().optional(),
-    basePrice: z.number().min(0, 'Price must be positive'),
+    description: z.string().min(1, 'Description is required'),
+    basePrice: z.number({ message: 'Price is required' }).min(1, 'Price must be at least 1'),
     originalPrice: z.number().optional().nullable(),
-    maxAdults: z.number().min(1, 'At least 1 adult'),
-    maxChildren: z.number().min(0),
+    maxAdults: z.number({ message: 'Max adults is required' }).min(1, 'At least 1 adult required'),
+    maxChildren: z.number({ message: 'Max children is required' }).min(0),
     isPubliclyVisible: z.boolean(),
     extraAdultPrice: z.number().min(0),
     extraChildPrice: z.number().min(0),
@@ -54,11 +55,11 @@ const roomTypeSchema = z.object({
     cancellationPolicyId: z.string().optional(),
     marketingBadgeText: z.string().optional(),
     marketingBadgeType: z.string().optional(),
-    images: z.array(z.string()),
+    images: z.array(z.string()).min(1, 'At least one image is required'),
     isAvailableForGroupBooking: z.boolean(),
     groupMaxOccupancy: z.number().min(0).optional(),
     isGstInclusive: z.boolean(),
-    size: z.number().optional().nullable(),
+    size: z.number({ message: 'Room size is required' }).min(1, 'Room size is required'),
 }).refine(data => {
     if (data.originalPrice && data.originalPrice <= data.basePrice) {
         return false;
@@ -67,6 +68,11 @@ const roomTypeSchema = z.object({
 }, {
     message: "Original price (MRP) must be higher than base price",
     path: ["originalPrice"]
+}).refine(data => {
+    return !!data.cancellationPolicyId || !!data.cancellationPolicy;
+}, {
+    message: "Please select a policy or provide a text override",
+    path: ["cancellationPolicyId"]
 });
 
 type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
@@ -77,6 +83,7 @@ export default function CreateRoomType() {
     const queryClient = useQueryClient();
     const { selectedProperty } = useProperty();
     const isEdit = !!id;
+    const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
     const { data: existingRoomType, isLoading: loadingExisting } = useQuery<RoomType>({
         queryKey: ['roomType', id],
@@ -103,7 +110,7 @@ export default function CreateRoomType() {
             propertyId: selectedProperty?.id || '',
             isAvailableForGroupBooking: false,
             isGstInclusive: false,
-            size: null,
+            size: undefined,
         },
     });
 
@@ -136,7 +143,7 @@ export default function CreateRoomType() {
                 isAvailableForGroupBooking: existingRoomType.isAvailableForGroupBooking || false,
                 groupMaxOccupancy: existingRoomType.groupMaxOccupancy || 0,
                 isGstInclusive: existingRoomType.isGstInclusive || false,
-                size: existingRoomType.size || null,
+                size: existingRoomType.size || undefined,
             });
         }
     }, [existingRoomType, isEdit, reset]);
@@ -213,21 +220,25 @@ export default function CreateRoomType() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Room Type Name</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                                Room Type Name <span className="text-red-500">*</span>
+                            </label>
                             <input
                                 {...register('name')}
                                 placeholder="e.g. Deluxe Suite"
-                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all font-bold placeholder:text-gray-400"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.name ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all font-bold placeholder:text-gray-400`}
                             />
                             {errors.name && <p className="text-red-500 text-xs mt-1 font-bold">{errors.name.message}</p>}
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Base Price / Night (₹)</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                                Base Price / Night (₹) <span className="text-red-500">*</span>
+                            </label>
                             <input
                                 type="number"
                                 {...register('basePrice', { valueAsNumber: true })}
-                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
                             />
                             {errors.basePrice && <p className="text-red-500 text-xs mt-1 font-bold">{errors.basePrice.message}</p>}
                             <div className="mt-2 pl-1">
@@ -285,36 +296,47 @@ export default function CreateRoomType() {
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                                Description <span className="text-red-500">*</span>
+                            </label>
                             <textarea
                                 {...register('description')}
                                 rows={3}
                                 placeholder="Describe the room experience..."
-                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all min-h-[100px]"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.description ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all min-h-[100px]`}
                             />
+                            {errors.description && <p className="text-red-500 text-xs mt-1 font-bold">{errors.description.message}</p>}
                         </div>
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Room Size (sq.ft)
+                                Room Size (sq.ft) <span className="text-red-500">*</span>
                                 <Info className="h-3.5 w-3.5 text-gray-400" />
                             </label>
                             <input
                                 type="number"
                                 {...register('size', { valueAsNumber: true })}
                                 placeholder="e.g. 280"
-                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.size ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400`}
                             />
+                            {errors.size && <p className="text-red-500 text-xs mt-1 font-bold">{errors.size.message}</p>}
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Max Adults</label>
-                            <input type="number" {...register('maxAdults', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all" />
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                                Max Adults <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="number"
+                                {...register('maxAdults', { valueAsNumber: true })}
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.maxAdults ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all`}
+                            />
+                            {errors.maxAdults && <p className="text-red-500 text-xs mt-1 font-bold">{errors.maxAdults.message}</p>}
                         </div>
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Max Children
+                                Max Children <span className="text-red-500">*</span>
                                 <div className="group/info relative">
                                     <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
                                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 font-medium shadow-xl">
@@ -322,7 +344,12 @@ export default function CreateRoomType() {
                                     </div>
                                 </div>
                             </label>
-                            <input type="number" {...register('maxChildren', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
+                            <input
+                                type="number"
+                                {...register('maxChildren', { valueAsNumber: true })}
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.maxChildren ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold`}
+                            />
+                            {errors.maxChildren && <p className="text-red-500 text-xs mt-1 font-bold">{errors.maxChildren.message}</p>}
                         </div>
 
                         <div>
@@ -416,25 +443,52 @@ export default function CreateRoomType() {
                         </div>
 
                         <div className="md:col-span-1">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Cancellation Policy (Text Override)</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                                Cancellation Policy (Text Override) <span className="text-red-500">*</span>
+                            </label>
                             <input
                                 {...register('cancellationPolicy')}
                                 placeholder="e.g. Free cancellation until 24 hours before check-in"
-                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all placeholder:text-gray-400 font-medium"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.cancellationPolicyId ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all placeholder:text-gray-400 font-medium`}
                             />
+                            <p className="mt-1 text-[10px] text-gray-500 font-medium italic">Type a custom policy if not selecting from the list.</p>
                         </div>
 
                         <div className="md:col-span-1">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Select Cancellation Policy</label>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                    Select Cancellation Policy <span className="text-red-500">*</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPolicyModalOpen(true)}
+                                    className="text-[10px] cursor-pointer font-black uppercase text-primary-600 hover:underline"
+                                >
+                                    Manage Policies
+                                </button>
+                            </div>
                             <select
                                 {...register('cancellationPolicyId')}
-                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.cancellationPolicyId ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold`}
                             >
-                                <option value="">Use Property Default</option>
-                                {policies.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name} {p.isDefault ? '(Default)' : ''}</option>
-                                ))}
+                                {policies.length > 0 ? (
+                                    <>
+                                        <option value="">
+                                            {policies.find(p => p.isDefault) 
+                                                ? `Use Property Default (${policies.find(p => p.isDefault)?.name})` 
+                                                : 'Use Property Default'}
+                                        </option>
+                                        {policies.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name} {p.isDefault ? '(Default)' : ''}
+                                            </option>
+                                        ))}
+                                    </>
+                                ) : (
+                                    <option value="">No Policies Defined - Use Text Override</option>
+                                )}
                             </select>
+                            {errors.cancellationPolicyId && <p className="text-red-500 text-xs mt-1 font-bold">{errors.cancellationPolicyId.message}</p>}
                         </div>
 
                         {/* Marketing Badge Section */}
@@ -537,9 +591,12 @@ export default function CreateRoomType() {
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-6">
                     <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-4">
                         <div className="w-1 h-6 bg-primary-600 rounded-full"></div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Room Type Images</h2>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                            Room Type Images <span className="text-red-500">*</span>
+                        </h2>
                     </div>
                     <ImageUpload images={images || []} onChange={(imgs) => setValue('images', imgs)} maxImages={10} />
+                    {errors.images && <p className="text-red-500 text-xs font-bold">{errors.images.message}</p>}
                 </div>
 
                 {/* Submit */}
@@ -561,6 +618,17 @@ export default function CreateRoomType() {
                     </button>
                 </div>
             </form>
+
+            {selectedProperty?.id && (
+                <CancellationPolicyModal
+                    isOpen={isPolicyModalOpen}
+                    onClose={() => setIsPolicyModalOpen(false)}
+                    propertyId={selectedProperty.id}
+                    onPoliciesChange={() => {
+                        queryClient.invalidateQueries({ queryKey: ['cancellationPolicies', selectedProperty.id] });
+                    }}
+                />
+            )}
         </div>
     );
 }

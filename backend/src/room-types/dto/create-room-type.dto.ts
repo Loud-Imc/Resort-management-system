@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, Min, ArrayMinSize } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -8,16 +8,17 @@ export class CreateRoomTypeDto {
     @IsNotEmpty()
     name: string;
 
-    @ApiProperty({ example: 'Spacious room with ocean view', required: false })
+    @ApiProperty({ example: 'Spacious room with ocean view' })
     @IsString()
-    @IsOptional()
-    description?: string;
+    @IsNotEmpty()
+    description: string;
     
-    @ApiProperty({ example: 280, required: false, nullable: true })
+    @ApiProperty({ example: 280 })
     @IsNumber()
-    @IsOptional()
+    @IsNotEmpty()
+    @Min(1)
     @Type(() => Number)
-    size?: number | null;
+    size: number;
 
     @ApiProperty({ example: ['WiFi', 'AC', 'TV', 'Mini Bar'], type: [String] })
     @IsArray()
@@ -26,7 +27,7 @@ export class CreateRoomTypeDto {
 
     @ApiProperty({ example: 5000 })
     @IsNumber()
-    @Min(0)
+    @Min(1)
     @Type(() => Number)
     basePrice: number;
 
@@ -73,6 +74,7 @@ export class CreateRoomTypeDto {
 
     @ApiProperty({ example: ['https://example.com/room1.jpg'], type: [String] })
     @IsArray()
+    @ArrayMinSize(1, { message: 'At least one image is required' })
     @IsString({ each: true })
     images: string[];
 

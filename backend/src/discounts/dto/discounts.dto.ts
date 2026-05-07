@@ -56,7 +56,6 @@ export class UpdateCouponDto extends PartialType(CreateCouponDto) { }
 
 export class CreateOfferDto {
     @ApiProperty({ example: 'Inaugural Offer' })
-    @IsOptional()
     @IsString()
     @IsNotEmpty()
     name: string;
@@ -68,27 +67,22 @@ export class CreateOfferDto {
 
     @ApiProperty({ enum: DiscountType, example: DiscountType.PERCENTAGE })
     @IsEnum(DiscountType)
-    @IsOptional()
-    discountType?: DiscountType;
+    discountType: DiscountType;
 
     @ApiProperty({ example: 15 })
-    @IsOptional()
     @IsNumber()
-    @Min(0)
+    @Min(1)
     discountValue: number;
 
     @ApiProperty({ example: '2026-02-10T00:00:00Z' })
-    @IsOptional()
     @IsDateString()
     startDate: string;
 
     @ApiProperty({ example: '2026-03-10T23:59:59Z' })
-    @IsOptional()
     @IsDateString()
     endDate: string;
 
     @ApiProperty({ example: ['room-type-uuid-1', 'room-type-uuid-2'] })
-    @IsOptional()
     @IsArray()
     @ArrayNotEmpty()
     @IsString({ each: true })
