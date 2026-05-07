@@ -16,6 +16,8 @@ export default function Profile() {
     const [activeTab, setActiveTab] = useState<'details' | 'bookings'>((searchParams.get('tab') as any) || 'details');
     const [isUpdating, setIsUpdating] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [deleteStep, setDeleteStep] = useState<'CONFIRM' | 'OTP'>('CONFIRM');
+    const [deleteOtp, setDeleteOtp] = useState('');
 
     // Auth check
     const token = localStorage.getItem('token');
@@ -79,8 +81,21 @@ export default function Profile() {
 
     // Account Deletion Mutation
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+    const requestDeleteOtpMutation = useMutation({
+        mutationFn: () => api.post('/users/me/delete-account/request'),
+        onSuccess: () => {
+            toast.success('Verification code sent to your email/phone');
+            setDeleteStep('OTP');
+        },
+        onError: (error: any) => {
+            const errorMsg = error.response?.data?.message || 'Failed to send verification code';
+            toast.error(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
+        }
+    });
+
     const deleteAccountMutation = useMutation({
-        mutationFn: () => api.delete('/users/me'),
+        mutationFn: (otp: string) => api.delete('/users/me/delete-account/confirm', { data: { otp } }),
         onSuccess: () => {
             toast.success('Account deleted successfully');
             localStorage.clear();
@@ -738,27 +753,71 @@ export default function Profile() {
             {/* Delete Account Confirmation Modal */}
             {showDeleteConfirm && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => {
+                        setShowDeleteConfirm(false);
+                        setDeleteStep('CONFIRM');
+                        setDeleteOtp('');
+                    }} />
                     <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-10 text-center">
                             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
                                 <AlertTriangle className="h-10 w-10 text-red-500" />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-900 font-serif mb-4">Are you sure?</h3>
-                            <p className="text-gray-500 text-sm font-medium mb-10 leading-relaxed">
-                                This will permanently deactivate your account and anonymize your data. All active bookings and properties must be handled before deletion.
-                            </p>
+                            <h3 className="text-2xl font-bold text-gray-900 font-serif mb-4">
+                                {deleteStep === 'CONFIRM' ? 'Are you sure?' : 'Verify Identity'}
+                            </h3>
+                            
+                            {deleteStep === 'CONFIRM' ? (
+                                <p className="text-gray-500 text-sm font-medium mb-10 leading-relaxed">
+                                    This will permanently deactivate your account and anonymize your data. All active bookings and properties must be handled before deletion.
+                                </p>
+                            ) : (
+                                <div className="space-y-6 mb-10">
+                                    <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                                        We've sent a 6-digit verification code to your registered email/phone. Please enter it below to confirm deletion.
+                                    </p>
+                                    <input
+                                        type="text"
+                                        maxLength={6}
+                                        value={deleteOtp}
+                                        onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, ''))}
+                                        className="w-full px-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-2xl font-bold tracking-[0.5em] focus:ring-4 focus:ring-red-50 focus:border-red-200 outline-none transition-all"
+                                        placeholder="000000"
+                                    />
+                                </div>
+                            )}
+
                             <div className="flex flex-col gap-3">
+                                {deleteStep === 'CONFIRM' ? (
+                                    <button
+                                        onClick={() => requestDeleteOtpMutation.mutate()}
+                                        disabled={requestDeleteOtpMutation.isPending}
+                                        className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                                    >
+                                        {requestDeleteOtpMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Yes, Delete My Account'}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => {
+                                            if (deleteOtp.length < 6) {
+                                                toast.error('Please enter a valid 6-digit code');
+                                                return;
+                                            }
+                                            deleteAccountMutation.mutate(deleteOtp);
+                                        }}
+                                        disabled={deleteAccountMutation.isPending}
+                                        className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                                    >
+                                        {deleteAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Deletion'}
+                                    </button>
+                                )}
                                 <button
-                                    onClick={() => deleteAccountMutation.mutate()}
-                                    disabled={deleteAccountMutation.isPending}
-                                    className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
-                                >
-                                    {deleteAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Yes, Delete My Account'}
-                                </button>
-                                <button
-                                    onClick={() => setShowDeleteConfirm(false)}
-                                    className="w-full py-4 bg-gray-50 text-gray-600 font-bold rounded-2xl hover:bg-gray-100 transition-all uppercase tracking-widest text-xs"
+                                    onClick={() => {
+                                        setShowDeleteConfirm(false);
+                                        setDeleteStep('CONFIRM');
+                                        setDeleteOtp('');
+                                    }}
+                                    className="w-full py-4 bg-gray-50 text-gray-600 font-bold rounded-2xl hover:bg-gray-200 transition-all uppercase tracking-widest text-xs"
                                 >
                                     Cancel
                                 </button>

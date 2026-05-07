@@ -6,6 +6,7 @@ import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RequestChangePasswordOtpDto, ConfirmChangePasswordDto } from './dto/change-password-otp.dto';
+import { DeleteAccountOtpDto } from './dto/delete-account-otp.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
@@ -48,6 +49,18 @@ export class UsersController {
     @ApiOperation({ summary: 'Confirm password change with OTP' })
     async confirmChangePassword(@Request() req, @Body() dto: ConfirmChangePasswordDto) {
         return this.usersService.confirmChangePassword(req.user.id, dto);
+    }
+
+    @Post('me/delete-account/request')
+    @ApiOperation({ summary: 'Request OTP for account deletion' })
+    async requestDeleteAccountOtp(@Request() req) {
+        return this.usersService.requestDeleteAccountOtp(req.user.id);
+    }
+
+    @Delete('me/delete-account/confirm')
+    @ApiOperation({ summary: 'Confirm account deletion with OTP' })
+    async deleteAccountWithOtp(@Request() req, @Body() dto: DeleteAccountOtpDto) {
+        return this.usersService.deleteAccountWithOtp(req.user.id, dto);
     }
 
     @Get()
