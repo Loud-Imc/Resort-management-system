@@ -513,6 +513,9 @@ export class AvailabilityService {
                 maxChildren: { gte: minChildrenPerRoom },
                 isPubliclyVisible: true,
                 propertyId: propertyId || undefined,
+                rooms: {
+                    some: { isEnabled: true }
+                },
                 property: {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
