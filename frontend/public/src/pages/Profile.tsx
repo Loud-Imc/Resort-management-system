@@ -346,22 +346,19 @@ export default function Profile() {
 
                                         <div className="space-y-2">
                                             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
-                                            <div className="relative">
-                                                <div className="absolute left-5 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white border border-gray-50 text-gray-300">
+                                            <div className="relative group">
+                                                <div className="absolute left-5 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white shadow-sm border border-gray-50 text-gray-400 group-focus-within:text-primary-600 transition-colors">
                                                     <Phone className="h-4 w-4" />
                                                 </div>
                                                 <input
                                                     type="tel"
                                                     value={formData.phone}
-                                                    disabled={true}
+                                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                                    disabled={!isUpdating}
                                                     placeholder='Phone Number'
-                                                    className="w-full pl-16 pr-6 py-4 rounded-2xl border border-gray-100 bg-gray-50/50 text-gray-400 font-medium cursor-not-allowed"
+                                                    className="w-full pl-16 pr-6 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
-                                            <p className="text-[10px] text-gray-400 font-medium mt-1 ml-1 flex items-center gap-1.5">
-                                                <AlertTriangle className="h-3 w-3" />
-                                                Phone number cannot be changed directly for security reasons.
-                                            </p>
                                         </div>
 
                                         {isUpdating && (

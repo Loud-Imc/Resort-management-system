@@ -115,7 +115,9 @@ export default function Navbar() {
                                             <UserIcon className="h-4 w-4" />
                                         </div>
                                     )}
-                                    <span className={clsx("pr-3 pl-1 font-bold text-sm", textColor)}>Profile</span>
+                                    <span className={clsx("pr-3 pl-1 font-bold text-sm", textColor)}>
+                                        {user.firstName ? (user.firstName.length > 10 ? `${user.firstName.substring(0, 8)}...` : user.firstName) : 'Profile'}
+                                    </span>
                                 </Link>
                             </div>
                         ) : (
