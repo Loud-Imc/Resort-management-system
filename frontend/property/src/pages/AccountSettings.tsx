@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMutation } from '@tanstack/react-query';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { User, Mail, Phone, Loader2, AlertTriangle, Trash2, Edit2, Save, X, UserCircle } from 'lucide-react';
+import { User, Mail, Phone, Loader2, AlertTriangle, Trash2, Edit2, Save, X, UserCircle, Lock, ShieldCheck } from 'lucide-react';
 
 export default function AccountSettings() {
     const { user, logout, updateUser } = useAuth();
@@ -14,6 +14,13 @@ export default function AccountSettings() {
         lastName: '',
         email: '',
         phone: ''
+    });
+
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [passwordData, setPasswordData] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
     });
 
     useEffect(() => {
@@ -47,6 +54,23 @@ export default function AccountSettings() {
         }
     });
 
+    const changePasswordMutation = useMutation({
+        mutationFn: (data: typeof passwordData) => api.patch('/users/change-password', data),
+        onSuccess: () => {
+            toast.success('Password changed successfully');
+            setIsChangingPassword(false);
+            setPasswordData({
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: ''
+            });
+        },
+        onError: (error: any) => {
+            const errorMsg = error.response?.data?.message || 'Failed to change password';
+            toast.error(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
+        }
+    });
+
     const deleteAccountMutation = useMutation({
         mutationFn: () => api.delete('/users/me'),
         onSuccess: () => {
@@ -63,6 +87,19 @@ export default function AccountSettings() {
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         updateProfileMutation.mutate(formData);
+    };
+
+    const handlePasswordChange = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            toast.error('Passwords do not match');
+            return;
+        }
+        if (passwordData.newPassword.length < 6) {
+            toast.error('New password must be at least 6 characters');
+            return;
+        }
+        changePasswordMutation.mutate(passwordData);
     };
 
     return (
@@ -197,6 +234,94 @@ export default function AccountSettings() {
                         )}
                     </div>
                 </form>
+            </div>
+
+            {/* Security Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="p-8 border-b border-gray-50 dark:border-gray-700/50 flex justify-between items-center">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Lock className="h-5 w-5 text-blue-600" /> Security & Password
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Update your password to keep your account secure</p>
+                    </div>
+                    {!isChangingPassword && (
+                        <button
+                            onClick={() => setIsChangingPassword(true)}
+                            className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all"
+                        >
+                            Change Password
+                        </button>
+                    )}
+                </div>
+
+                {isChangingPassword && (
+                    <div className="p-8 bg-gray-50/50 dark:bg-gray-900/20">
+                        <form onSubmit={handlePasswordChange} className="space-y-6 max-w-md">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+                                    Current Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={passwordData.currentPassword}
+                                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                                    className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
+                                    required
+                                    placeholder="Enter current password"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+                                        New Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.newPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                                        className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
+                                        required
+                                        minLength={6}
+                                        placeholder="Min. 6 chars"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+                                        Confirm New Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.confirmPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                                        className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
+                                        required
+                                        placeholder="Repeat new password"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 pt-2">
+                                <button
+                                    type="submit"
+                                    disabled={changePasswordMutation.isPending}
+                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-200 dark:shadow-none disabled:opacity-50"
+                                >
+                                    {changePasswordMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                                    Update Password
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsChangingPassword(false)}
+                                    className="px-6 py-3 bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
             </div>
 
             {/* Danger Zone */}

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcrypt';
 import { normalizePhone } from '../common/utils/phone';
 
@@ -768,4 +769,33 @@ export class UsersService {
             });
         });
     }
+
+    async changePassword(userId: string, dto: ChangePasswordDto) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!user || !user.password) {
+            throw new BadRequestException('User not found or password not set');
+        }
+
+        const isPasswordMatching = await bcrypt.compare(dto.currentPassword, user.password);
+        if (!isPasswordMatching) {
+            throw new BadRequestException('Current password is incorrect');
+        }
+
+        if (dto.newPassword !== dto.confirmPassword) {
+            throw new BadRequestException('New password and confirmation do not match');
+        }
+
+        const hashedNewPassword = await bcrypt.hash(dto.newPassword, 10);
+
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedNewPassword }
+        });
+
+        return { message: 'Password changed successfully' };
+    }
 }
+

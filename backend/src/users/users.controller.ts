@@ -4,6 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
@@ -28,6 +29,12 @@ export class UsersController {
         // and cannot change their own roles via this endpoint
         const { roleIds, ...profileData } = updateUserDto;
         return this.usersService.update(req.user.id, profileData);
+    }
+
+    @Patch('change-password')
+    @ApiOperation({ summary: 'Change current user password' })
+    async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
+        return this.usersService.changePassword(req.user.id, changePasswordDto);
     }
 
     @Get()
