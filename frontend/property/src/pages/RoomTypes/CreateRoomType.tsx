@@ -40,7 +40,7 @@ const roomTypeSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().min(1, 'Description is required'),
     basePrice: z.number({ message: 'Price is required' }).min(1, 'Price must be at least 1'),
-    originalPrice: z.number().optional().nullable(),
+    originalPrice: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform(v => (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v))) ? null : Number(v)).nullable().optional(),
     maxAdults: z.number({ message: 'Max adults is required' }).min(1, 'At least 1 adult required'),
     maxChildren: z.number({ message: 'Max children is required' }).min(0),
     isPubliclyVisible: z.boolean(),
@@ -75,7 +75,32 @@ const roomTypeSchema = z.object({
     path: ["cancellationPolicyId"]
 });
 
-type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
+interface RoomTypeFormData {
+    name: string;
+    description: string;
+    basePrice: number;
+    originalPrice?: number | string | null;
+    maxAdults: number;
+    maxChildren: number;
+    isPubliclyVisible: boolean;
+    extraAdultPrice: number;
+    extraChildPrice: number;
+    freeChildrenCount: number;
+    propertyId: string;
+    amenities: { value: string }[];
+    highlights: { value: string }[];
+    inclusions: { value: string }[];
+    images: string[];
+    marketingBadgeText?: string;
+    marketingBadgeType?: string;
+    marketingBadgeColor?: string;
+    cancellationPolicyId?: string;
+    cancellationPolicy?: string;
+    size: number;
+    groupMaxOccupancy?: number;
+    isAvailableForGroupBooking: boolean;
+    isGstInclusive: boolean;
+}
 
 export default function CreateRoomType() {
     const navigate = useNavigate();
@@ -167,6 +192,7 @@ export default function CreateRoomType() {
         mutationFn: (data: RoomTypeFormData) => {
             const payload = {
                 ...data,
+                originalPrice: (data.originalPrice === '' || data.originalPrice === null || data.originalPrice === undefined) ? null : Number(data.originalPrice),
                 amenities: data.amenities.map(a => a.value).filter(v => v),
                 highlights: data.highlights.map(h => h.value).filter(v => v),
                 inclusions: data.inclusions.map(i => i.value).filter(v => v),
