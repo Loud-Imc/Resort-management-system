@@ -560,8 +560,8 @@ export default function PropertyForm() {
                     </div>
                 </div>
 
-                {/* Featured Status - Only visible to Admin */}
-                {isAdmin && (
+                {/* Featured Status - Only visible to Admin/Marketing */}
+                {(isAdmin || isMarketing) && (
                     <div className="bg-card rounded-xl shadow-sm p-6 border-l-4 border-amber-500 border border-border">
                         <div className="flex items-center justify-between">
                             <div>

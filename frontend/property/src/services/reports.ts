@@ -10,6 +10,7 @@ export interface DashboardStats {
         percentage: number;
     };
     revenue: number;
+    todayFees?: number;
     bookingsCreated: number;
     roomStatusSummary: {
         AVAILABLE: number;
