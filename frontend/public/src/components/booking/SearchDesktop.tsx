@@ -94,7 +94,7 @@ export default function SearchDesktop({
         <div className="hidden md:block w-full">
             <form
                 onSubmit={handleSearch}
-                className={`${isDark ? 'bg-black/20 backdrop-blur-3xl border-white/10 shadow-[0_40px_100px_-15px_rgba(0,0,0,0.5)]' : 'bg-black/20 backdrop-blur-3xl border-white/10 shadow-[0_40px_100px_-15px_rgba(0,0,0,0.5)] bg-white border-gray-100 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.2)]'} rounded-[1rem] border overflow-visible flex flex-col relative z-20`}
+                className={`${isDark ? 'bg-black/20 backdrop-blur-3xl border-white/10 shadow-[0_40px_100px_-15px_rgba(0,0,0,0.5)]' : 'bg-black/20 backdrop-blur-3xl border-white/10 shadow-[0_40px_100px_-15px_rgba(0,0,0,0.5)] bg-white border-gray-100 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.2)]'} rounded-[1rem] border overflow-visible flex flex-col relative`}
             >
                 {/* Unified Category Tabs */}
                 <div className={`px-6 py-2.5 border-b ${isDark ? 'border-white/5' : 'border-gray-50'}`}>

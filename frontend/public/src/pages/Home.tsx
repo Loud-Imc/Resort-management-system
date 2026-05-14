@@ -95,14 +95,14 @@ export default function Home() {
     return (
         <div className="space-y-0 bg-white">
             {/* Full-Width Compact Hero — image behind heading + search bar only */}
-            <section className="relative w-full z-20">
+            <section className="relative w-full">
                 {/* Dynamic banner slideshow */}
                 <HeroCarousel banners={heroBanners} />
                 {/* Subtle dark overlay for readability */}
-                <div className="absolute inset-0 bg-black/30" />
+                <div className="absolute inset-0 bg-black/30 pointer-events-none" />
 
                 {/* Content */}
-                <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 flex flex-col items-center text-center gap-8 pt-24 md:pt-28 pb-12">
+                <div className="relative z-50 max-w-7xl mx-auto px-4 md:px-6 flex flex-col items-center text-center gap-8 pt-24 md:pt-28 pb-12">
                     <HeroText
                         heading={displayContent.heading}
                         className="w-full max-w-5xl text-white drop-shadow-lg"

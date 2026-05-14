@@ -36,7 +36,7 @@ const LOCAL_FALLBACKS = [
 export default function PromoCards() {
     const navigate = useNavigate();
     const { location: activeSearchLocation } = useSearch();
-    
+
     const [properties, setProperties] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [detectedCity, setDetectedCity] = useState<string>('');
@@ -72,17 +72,17 @@ export default function PromoCards() {
         const fetchPromotions = async () => {
             try {
                 setLoading(true);
-                
+
                 // Priority 1: Active User Search. Priority 2: IP Geo detection
                 const targetRegion = activeSearchLocation || detectedCity;
-                
+
                 // Attempt to fetch 3 regional featured listings
                 let fetchedList = await propertyApi.getFeatured(3, targetRegion || undefined);
 
                 // If regional availability < 3, backfill with general globally featured properties
                 if (fetchedList.length < 3) {
                     const globalList = await propertyApi.getFeatured(6);
-                    
+
                     // Merge and remove duplicates
                     const merged = [...fetchedList];
                     for (const prop of globalList) {
@@ -144,7 +144,7 @@ export default function PromoCards() {
     };
 
     return (
-        <section className="relative z-40 -mt-28 px-4 md:px-12 mb-20">
+        <section className="relative z-40 -mt-15 px-4 md:px-12 mb-20">
             <div className="max-w-[1500px] mx-auto">
 
 
