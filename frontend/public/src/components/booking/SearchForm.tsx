@@ -119,7 +119,7 @@ export default function SearchForm({
             <SearchMobile {...sharedProps} isExpanded={isExpanded} setIsExpanded={setIsExpanded} theme={theme} />
 
             {theme === 'dark' && (
-                <div className="mt-14 md:mt-20 text-center pointer-events-none">
+                <div className="mt-6 md:mt-8 text-center pointer-events-none">
                     <p className="text-white/40 text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-4">
                         <span className="w-8 md:w-16 h-[1px] bg-white/10" />
                         Premium Eco-Stays

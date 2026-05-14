@@ -123,8 +123,12 @@ export default function Home() {
             <EventsSection />
 
             {/* Featured Properties */}
-            <section className="bg-gray-50 py-20">
-                <div className="max-w-6xl mx-auto px-4">
+            <section className="relative py-20 bg-gray-50 overflow-hidden">
+                <div 
+                    className="absolute inset-0 z-0 opacity-5"
+                    style={{ backgroundImage: "url('/images/hero-slide-1.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }} 
+                />
+                <div className="relative z-10 max-w-6xl mx-auto px-4">
                     <div className="flex justify-between items-end mb-10">
                         <div>
                             <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Destinations</span>

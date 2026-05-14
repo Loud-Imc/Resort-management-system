@@ -190,11 +190,11 @@ export default function PromoCards() {
                                     </div>
 
                                     {/* Bottom Info */}
-                                    <div>
-                                        <h3 className="text-2xl font-black text-white leading-tight mb-3">
+                                    <div className="transform translate-y-12 group-hover:translate-y-0 transition-transform duration-500 ease-out">
+                                        <h3 className="text-2xl font-black text-white leading-tight mb-2">
                                             {promo.name}
                                         </h3>
-                                        <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-500 translate-y-4 group-hover:translate-y-0 transform duration-500">
+                                        <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
                                             <p className="text-sm text-white/70 font-medium line-clamp-1 max-w-[75%]">
                                                 {promo.description || 'Experience the finest luxury and unparalleled service.'}
                                             </p>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useProperty } from '../../context/PropertyContext';
 import { promotionsService } from '../../services/promotions';
 import type { PromotionRequest, AvailabilityResponse } from '../../services/promotions';
-import { Loader2, Rocket, CheckCircle, Calendar, Clock, TrendingUp, Sparkles, X, Lock, CreditCard } from 'lucide-react';
+import { Loader2, Rocket, CheckCircle, Calendar, Clock, TrendingUp, Sparkles, X, Lock } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { toast } from 'react-hot-toast';
 
@@ -449,36 +449,16 @@ export default function PromotionsConsole() {
               </div>
             </div>
 
-            {/* Mock Payment Details */}
+            {/* Invoice Generated Notice */}
             <div className="p-6 space-y-4">
-              <div className="space-y-3">
-                <label className="block text-xs font-black text-muted-foreground uppercase tracking-wider">Payment Method</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" className="border border-emerald-500 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-xl p-3 text-center flex flex-col items-center justify-center gap-1.5 cursor-default pointer-events-none">
-                    <CreditCard className="h-5 w-5 text-emerald-500" />
-                    <span className="text-[11px] font-black text-foreground uppercase tracking-wider">Card / UPI</span>
-                  </button>
-                  <button type="button" className="border border-border bg-muted/20 opacity-50 cursor-not-allowed rounded-xl p-3 text-center flex flex-col items-center justify-center gap-1.5">
-                    <svg className="h-5 w-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /></svg>
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Net Banking</span>
-                  </button>
+              <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4 text-center">
+                <div className="h-10 w-10 bg-emerald-100 dark:bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-              </div>
-
-              <div className="space-y-2 pt-1">
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    readOnly 
-                    value="4242 •••• •••• 4242" 
-                    className="w-full bg-muted/30 border border-border text-foreground rounded-xl pl-10 pr-4 py-3 text-sm font-black tracking-widest focus:outline-none select-none"
-                  />
-                  <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground/50" />
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-1">
-                  <span>Sandbox / Test Mode Active</span>
-                  <span className="text-emerald-500 flex items-center gap-1">● SSL Secured</span>
-                </div>
+                <h4 className="text-sm font-bold text-foreground mb-1">Invoice Generated</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your promotion request has been approved. Proceed to the secure payment gateway to finalize your booking.
+                </p>
               </div>
             </div>
 
