@@ -130,4 +130,9 @@ export class CreateRoomTypeDto {
     @IsBoolean()
     @IsOptional()
     isGstInclusive?: boolean;
+
+    @ApiProperty({ example: false, required: false })
+    @IsBoolean()
+    @IsOptional()
+    allowPayAtProperty?: boolean;
 }

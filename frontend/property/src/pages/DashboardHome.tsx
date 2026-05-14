@@ -161,6 +161,11 @@ export default function DashboardHome() {
                             <p className="text-2xl font-bold text-gray-900 dark:text-white">
                                 ₹{(stats?.revenue || 0).toLocaleString()}
                             </p>
+                            {Number(stats?.todayFees) > 0 && (
+                                <p className="text-[10px] text-orange-600 dark:text-orange-400 font-medium mt-0.5">
+                                    Incl. ₹{stats?.todayFees} platform fee
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>

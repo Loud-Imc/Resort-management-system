@@ -146,6 +146,7 @@ model RoomType {
   reviews                    Review[]
   cancellationPolicy         CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
   isGstInclusive             Boolean             @default(false)
+  allowPayAtProperty         Boolean             @default(false)
   property                   Property            @relation(fields: [propertyId], references: [id])
   rooms                      Room[]
 
@@ -257,6 +258,11 @@ model Booking {
   isSeenByProperty        Boolean                @default(false)
   reviewRequestSentAt     DateTime?
   balanceReminderSentAt   DateTime?
+  payAtPropertyReminderSentAt DateTime?
+  preArrivalWelcomeSentAt DateTime?
+  papReminder24hSent         Boolean             @default(false)
+  papReminder12hSent         Boolean             @default(false)
+  papReminder6hSent          Boolean             @default(false)
   groupSize               Int?
   isGroupBooking          Boolean                @default(false)
   couponCode              String?
@@ -498,6 +504,9 @@ model Property {
   commissionStatus            CommissionStatus     @default(PENDING)
   marketingCommission         Decimal              @default(0) @db.Decimal(10, 2)
   isFeatured                  Boolean              @default(false)
+  isSponsored                 Boolean              @default(false)
+  promotionStart              DateTime?
+  promotionEnd                DateTime?
   platformCommission          Decimal              @default(10.00) @db.Decimal(5, 2)
   whatsappNumber              String?
   status                      PropertyStatus       @default(PENDING)
@@ -535,6 +544,7 @@ model Property {
   roles                       Role[]               @relation("PropertyRoles")
   roomTypes                   RoomType[]
   rooms                       Room[]
+  promotionRequests           PromotionRequest[]
 
   @@map("properties")
 }
@@ -1006,6 +1016,7 @@ enum BookingPaymentStatus {
 enum BookingPaymentOption {
   FULL
   PARTIAL
+  PAY_AT_PROPERTY
 }
 
 enum PricingAdjustmentType {
@@ -1164,4 +1175,47 @@ model Banner {
   updatedAt   DateTime @updatedAt
 
   @@map("banners")
+}
+
+model HeroContent {
+  id          String   @id @default(uuid())
+  tagline     String?
+  heading     String
+  subheading  String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("hero_content")
+}
+
+enum PromotionType {
+  HOMEPAGE_FEATURED
+  SEARCH_SPONSORED
+}
+
+enum PromotionStatus {
+  PENDING_APPROVAL
+  WAITLISTED
+  PAYMENT_PENDING
+  ACTIVE
+  EXPIRED
+  REJECTED
+}
+
+model PromotionRequest {
+  id              String          @id @default(uuid())
+  propertyId      String
+  type            PromotionType
+  status          PromotionStatus @default(PENDING_APPROVAL)
+  startDate       DateTime
+  endDate         DateTime
+  price           Decimal         @default(0.00) @db.Decimal(10, 2)
+  paymentId       String?
+  paymentDeadline DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  property        Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("promotion_requests")
 }

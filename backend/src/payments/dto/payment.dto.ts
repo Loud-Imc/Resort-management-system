@@ -11,6 +11,10 @@ export class InitiatePaymentDto {
     @IsString()
     @IsOptional()
     eventBookingId?: string;
+
+    @ApiProperty({ example: true, required: false })
+    @IsOptional()
+    incentive?: boolean;
 }
 
 export class VerifyPaymentDto {

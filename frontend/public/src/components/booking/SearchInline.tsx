@@ -31,6 +31,7 @@ interface SearchProps {
     setChildren: (v: number) => void;
     rooms: number;
     setRooms: (v: number) => void;
+
     handleSearch: (e: React.FormEvent) => void;
     categories: PropertyCategory[];
     isGroupBooking: boolean;
@@ -47,6 +48,7 @@ export default function SearchInline({
     adults, setAdults,
     children, setChildren,
     rooms, setRooms,
+
     handleSearch,
     categories,
     isGroupBooking, setIsGroupBooking,

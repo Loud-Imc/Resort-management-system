@@ -36,12 +36,12 @@ export default function EventsSection() {
     }
 
     return (
-        <section id="events" className="py-20 bg-white">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="text-center mb-16">
-                    <span className="text-primary-600 font-semibold tracking-wider uppercase">Experiences</span>
-                    <h2 className="text-4xl font-serif font-bold mt-2 text-gray-900">Upcoming Events</h2>
-                    <p className="mt-4 text-xl text-gray-600 max-w-2xl mx-auto">
+        <section id="events" className="py-16 bg-white">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="text-center mb-12">
+                    <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Experiences</span>
+                    <h2 className="text-3xl font-serif font-bold mt-2 text-gray-900">Upcoming Events</h2>
+                    <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
                         Curated experiences designed to connect you with nature, culture, and yourself.
                     </p>
                 </div>
@@ -66,7 +66,7 @@ export default function EventsSection() {
                                     {new Date(event.date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
                                 </div>
                             </div>
-                            <div className="p-8 flex flex-col flex-grow">
+                            <div className="p-6 flex flex-col flex-grow">
                                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
                                     <MapPin className="h-4 w-4" />
                                     {event.location}

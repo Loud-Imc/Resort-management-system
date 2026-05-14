@@ -95,18 +95,6 @@ export default function PropertiesList() {
         }
     };
 
-    const handleToggleFeatured = async (id: string, isFeatured: boolean) => {
-        try {
-            await propertyService.update(id, { isFeatured: !isFeatured });
-            setProperties(properties.map(p =>
-                p.id === id ? { ...p, isFeatured: !isFeatured } : p
-            ));
-            toast.success(`Property ${!isFeatured ? 'marked as featured' : 'removed from featured'} successfully`);
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to update featured status');
-        }
-    };
-
     const handleOpenDashboard = (propertyId: string) => {
         const token = localStorage.getItem('token');
         const userData = localStorage.getItem('user');
@@ -293,22 +281,10 @@ export default function PropertiesList() {
                                             <button
                                                 onClick={() => navigate(`/properties/${property.id}/edit`)}
                                                 title="Edit Property Details"
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-border/50"
+                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-border/50"
                                             >
                                                 <Edit className="h-3.5 w-3.5" />
                                                 Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleToggleFeatured(property.id, property.isFeatured)}
-                                                className={clsx(
-                                                    "flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-bold rounded-lg transition-all border border-border/50",
-                                                    property.isFeatured
-                                                        ? "text-amber-600 hover:bg-amber-50 hover:border-amber-100"
-                                                        : "text-muted-foreground hover:text-amber-600 hover:bg-amber-50"
-                                                )}
-                                            >
-                                                <Star className={clsx("h-3.5 w-3.5", property.isFeatured ? "fill-current" : "")} />
-                                                {property.isFeatured ? 'Unfeature' : 'Feature'}
                                             </button>
                                             <button
                                                 onClick={() => handleToggleActive(property.id, property.isActive)}

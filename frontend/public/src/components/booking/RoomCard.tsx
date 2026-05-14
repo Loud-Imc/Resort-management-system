@@ -19,8 +19,16 @@ export default function RoomCard({ room, onBook }: RoomCardProps) {
                     alt={room.name}
                     className="w-full h-full object-cover"
                 />
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-gray-900 uppercase tracking-wide">
-                    {room.availableCount > 0 ? `${room.availableCount} Available` : 'Sold Out'}
+                <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    <div className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-gray-900 uppercase tracking-wide shadow-sm">
+                        {room.availableCount > 0 ? `${room.availableCount} Available` : 'Sold Out'}
+                    </div>
+                    {room.allowPayAtProperty && (
+                        <div className="bg-green-600/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider flex items-center gap-1 shadow-sm border border-white/20 animate-in fade-in slide-in-from-left-2">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                            Pay at Property
+                        </div>
+                    )}
                 </div>
             </div>
 

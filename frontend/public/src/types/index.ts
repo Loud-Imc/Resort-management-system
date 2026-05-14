@@ -37,6 +37,7 @@ export interface RoomType {
     groupMaxOccupancy?: number;
     groupPricePerHead?: number;
     isGstInclusive?: boolean;
+    allowPayAtProperty?: boolean;
     offerName?: string;
 }
 
@@ -146,6 +147,9 @@ export interface Property {
     groupPriceAdult?: number;
     groupPriceChild?: number;
     isGroupGstInclusive?: boolean;
+    isFeatured?: boolean;
+    isSponsored?: boolean;
+    isPlaceholder?: boolean;
 }
 
 export interface PropertySearchParams {

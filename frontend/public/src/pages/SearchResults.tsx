@@ -6,6 +6,7 @@ import { useSearch } from '../context/SearchContext';
 import { useCurrency } from '../context/CurrencyContext';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
+import { propertyApi } from '../services/properties';
 
 import { Loader2, AlertCircle, Search, MapPin } from 'lucide-react';
 
@@ -45,7 +46,7 @@ export default function SearchResults() {
             rooms,
             latitude: latitude || undefined,
             longitude: longitude || undefined,
-            radius: radius,
+            radius: radius || undefined,
             currency: selectedCurrency,
             isGroupBooking,
             groupSize
@@ -113,19 +114,36 @@ export default function SearchResults() {
         });
     }, [data]);
 
-    // When primary results are empty and a location was searched, try to find nearby
+    // When primary results are empty and a location/coordinates were searched, try to find nearby
     useEffect(() => {
-        if (!isLoading && groupedProperties.length === 0 && location) {
-            setIsLoadingNearby(true);
-            fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/properties?search=${encodeURIComponent(location)}&limit=6`)
-                .then(r => r.json())
-                .then((json: any) => setNearbyProperties(json.data || []))
-                .catch(() => setNearbyProperties([]))
-                .finally(() => setIsLoadingNearby(false));
-        } else {
-            setNearbyProperties([]);
-        }
-    }, [isLoading, groupedProperties.length, location]);
+        const triggerNearbyFallback = async () => {
+            if (!isLoading && groupedProperties.length === 0) {
+                setIsLoadingNearby(true);
+                try {
+                    let results: any[] = [];
+                    // 1. Try by coordinates if available
+                    if (latitude && longitude) {
+                        results = (await propertyApi.getNearby(latitude, longitude)).properties || [];
+                    } 
+                    // 2. Fallback to text search if no coordinates or no results found nearby
+                    if (results.length === 0 && location) {
+                        const searchResults = await propertyApi.getAll({ search: location, limit: 6 });
+                        results = searchResults.data || [];
+                    }
+                    setNearbyProperties(results.slice(0, 6));
+                } catch (err) {
+                    console.error('Error in nearby fallback:', err);
+                    setNearbyProperties([]);
+                } finally {
+                    setIsLoadingNearby(false);
+                }
+            } else {
+                setNearbyProperties([]);
+            }
+        };
+
+        triggerNearbyFallback();
+    }, [isLoading, groupedProperties.length, location, latitude, longitude]);
 
     if (error) {
         return (
@@ -166,7 +184,7 @@ export default function SearchResults() {
                     {/* Results List */}
                     <div className="space-y-6">
                         <div className="flex items-center justify-between px-2">
-                            <h2 className="text-xl font-bold text-gray-900">
+                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-4">
                                 {isLoading ? (
                                     <span className="flex items-center gap-2">
                                         <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
@@ -175,6 +193,12 @@ export default function SearchResults() {
                                 ) : (
                                     <>
                                         {groupedProperties.length} Accommodations Available
+                                        {latitude && longitude && (
+                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-100 flex items-center gap-1.5 font-black uppercase tracking-tighter shadow-sm">
+                                                <MapPin className="h-3 w-3" />
+                                                {radius ? `Within ${radius} KM` : 'Nearby'}
+                                            </span>
+                                        )}
                                     </>
                                 )}
                             </h2>

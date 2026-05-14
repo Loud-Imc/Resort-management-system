@@ -1101,4 +1101,52 @@ export class NotificationsService {
 
     this.logger.log(`24h Balance reminder sent for booking ${booking.bookingNumber}`);
   }
+
+  /**
+   * Send Pay at Property Incentive Reminder
+   */
+  async sendPayAtPropertyReminder(booking: any, hours: number) {
+    const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+    const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL');
+    const paymentLink = `${frontendUrl}/confirmation?bookingId=${booking.id}`;
+
+    if (targetNumber) {
+      const msg = `💳 *Secure your stay!*\n\nYou have a "Pay at Property" booking for tomorrow. Pay now to get an extra discount and skip the check-in queue:\n\n${paymentLink}`;
+      await this.sendWhatsApp(targetNumber, msg, 'MSG91_TPL_ACTION_LINKS', {
+        guest_name: booking.user?.firstName || 'there',
+        message: `Special offer for your upcoming stay at ${booking.property?.name}`,
+        link: paymentLink,
+        footer: 'Sent via Loud IMC Resort Portal'
+      });
+    }
+
+    const field = hours === 6 ? 'papReminder6hSent' : hours === 12 ? 'papReminder12hSent' : 'papReminder24hSent';
+    await this.prisma.booking.update({
+      where: { id: booking.id },
+      data: { [field]: true }
+    });
+  }
+
+  /**
+   * Send Pre-Arrival Welcome (Happy Welcome)
+   */
+  async sendPreArrivalWelcome(booking: any) {
+    const targetNumber = booking.whatsappNumber || booking.user?.whatsappNumber || booking.user?.phone;
+    
+    if (targetNumber) {
+      const msg = `🏨 *Happy Welcome!*\n\nWe are excited to host you at *${booking.property?.name}* tomorrow! Our team is getting everything ready for your arrival. Safe travels! 🚗💨`;
+      await this.sendWhatsApp(targetNumber, msg, 'MSG91_TPL_GUEST_STAY', {
+        guest_name: booking.user?.firstName || 'there',
+        status: 'Arrival Tomorrow',
+        resort_name: booking.property?.name,
+        link_suffix: '',
+        footer: 'We look forward to seeing you!'
+      });
+    }
+
+    await this.prisma.booking.update({
+      where: { id: booking.id },
+      data: { preArrivalWelcomeSentAt: new Date() }
+    });
+  }
 }

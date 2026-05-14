@@ -37,6 +37,7 @@ import AccountSettings from './pages/AccountSettings';
 import DeleteAccount from './pages/DeleteAccount';
 import OffersList from './pages/Marketing/OffersList';
 import CreateOffer from './pages/Marketing/CreateOffer';
+import PromotionsConsole from './pages/Promotions/PromotionsConsole';
 import ScrollToTop from './components/ScrollToTop';
 
 const queryClient = new QueryClient();
@@ -88,6 +89,7 @@ function App() {
                     <Route path="marketing/offers" element={<OffersList />} />
                     <Route path="marketing/offers/create" element={<CreateOffer />} />
                     <Route path="marketing/offers/edit/:id" element={<CreateOffer />} />
+                    <Route path="marketing/boosters" element={<PromotionsConsole />} />
 
                     {/* Team & Roles */}
                     <Route path="team" element={<StaffList />} />

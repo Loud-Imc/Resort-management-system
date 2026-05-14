@@ -588,7 +588,7 @@ export class BookingsService {
                     paymentOption: isHistoricalEntry ? 'FULL' : (createBookingDto.paymentOption || 'FULL'),
                     status: isHistoricalEntry && checkOut < new Date()
                         ? 'CHECKED_OUT'
-                        : (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
+                        : (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY') ? 'CONFIRMED' : 'PENDING_PAYMENT',
                     isSeenByProperty: isAuthorizedStaff,
                     roomId: selectedRoom.id,
                     roomTypeId: roomTypeId!,
@@ -620,7 +620,7 @@ export class BookingsService {
                                 )
                         )
                         : 'UNPAID',
-                    confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? effectiveCreatedAt : null,
+                    confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY') ? effectiveCreatedAt : null,
                     paymentMethod: createBookingDto.paymentMethod as any,
                     guests: {
                         create: (isGroupBooking && guests.length === 0) ? [] : guests.map(g => ({

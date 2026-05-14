@@ -3,6 +3,7 @@ import { financialsService } from '../services/financials';
 import { channelPartnerService } from '../services/channel-partners';
 import { propertyService } from '../services/properties';
 import { marketingService } from '../services/marketing';
+import { promotionsService } from '../services/promotions';
 
 export interface PendingCounts {
     '/financials/refunds': number;
@@ -11,6 +12,7 @@ export interface PendingCounts {
     '/financials/redemptions': number;
     '/channel-partners': number;
     '/properties/requests': number;
+    '/marketing/promotions': number;
 }
 
 export function usePendingCounts() {
@@ -21,10 +23,11 @@ export function usePendingCounts() {
         '/financials/redemptions': 0,
         '/channel-partners': 0,
         '/properties/requests': 0,
+        '/marketing/promotions': 0,
     });
 
     const refresh = useCallback(async () => {
-        const [settlements, redemptions, adjustments, cpList, propRequests, physicalRewards] =
+        const [settlements, redemptions, adjustments, cpList, propRequests, physicalRewards, promoRequests] =
             await Promise.allSettled([
                 financialsService.getAllSettlements({ status: 'CALCULATED', limit: 1 }),
                 financialsService.getAllRedemptions({ status: 'REQUESTED', limit: 1 }),
@@ -32,6 +35,7 @@ export function usePendingCounts() {
                 channelPartnerService.getAll(1, 1),     
                 propertyService.getAllRequests(),        
                 marketingService.getRewardRedemptions('PENDING'),
+                promotionsService.getAll({ status: 'PENDING_APPROVAL' }),
             ]);
 
         const get = (r: PromiseSettledResult<any>, extractor: (v: any) => number) =>
@@ -45,6 +49,7 @@ export function usePendingCounts() {
             '/financials/refunds':      0, 
             '/channel-partners':        get(cpList,       v => v?.meta?.totalPending ?? (Array.isArray(v) ? v.length : 0)),
             '/properties/requests':     get(propRequests, v => Array.isArray(v) ? v.filter((r: any) => r.status === 'PENDING').length : 0),
+            '/marketing/promotions':    get(promoRequests, v => Array.isArray(v) ? v.length : 0),
         });
     }, []);
 

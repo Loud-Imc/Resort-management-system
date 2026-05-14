@@ -58,7 +58,7 @@ export default function SearchForm({
         if (latitude && longitude) {
             params.set('latitude', latitude.toString());
             params.set('longitude', longitude.toString());
-            params.set('radius', radius.toString());
+            if (radius) params.set('radius', radius.toString());
         }
 
         navigate(`/search?${params.toString()}`);
@@ -90,7 +90,7 @@ export default function SearchForm({
     }
 
     return (
-        <div className={`relative w-full max-w-6xl mx-auto ${className}`}>
+        <div className={`relative w-full ${className}`}>
             <SearchDesktop {...sharedProps} theme={theme} />
             <SearchMobile {...sharedProps} isExpanded={isExpanded} setIsExpanded={setIsExpanded} theme={theme} />
 

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService, DashboardStats } from '../services/reports';
-import { Building2, Shield, Users, DollarSign, LayoutGrid, Loader2 } from 'lucide-react';
+import { Building2, Shield, Users, DollarSign, LayoutGrid, Loader2, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -99,7 +99,7 @@ export default function DashboardHome() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-10 pt-8 border-t border-gray-700">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-10 pt-8 border-t border-gray-700">
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
                                     <Building2 className="h-6 w-6 text-primary-400" />
@@ -125,9 +125,19 @@ export default function DashboardHome() {
                                     <DollarSign className="h-6 w-6 text-amber-400" />
                                 </div>
                                 <div>
-                                    <p className="text-gray-400 text-xs uppercase tracking-wider">Unsettled Commissions</p>
+                                    <p className="text-gray-400 text-xs uppercase tracking-wider">Partner Commissions</p>
                                     <p className="text-xl font-bold">₹{stats.superAdmin.pendingCPCommissions.toLocaleString()}</p>
-                                    <p className="text-[10px] text-amber-400 font-medium">Awaiting Redemption Approval</p>
+                                    <p className="text-[10px] text-amber-400 font-medium">Awaiting Redemption</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
+                                    <Tag className="h-6 w-6 text-cyan-400" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-400 text-xs uppercase tracking-wider">Property Fees Due</p>
+                                    <p className="text-xl font-bold">₹{stats.superAdmin.pendingPropertyCommissions.toLocaleString()}</p>
+                                    <p className="text-[10px] text-cyan-400 font-medium">Accrued (Inc. PAP fees)</p>
                                 </div>
                             </div>
                         </div>

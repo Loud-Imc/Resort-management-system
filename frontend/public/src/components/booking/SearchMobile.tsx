@@ -31,6 +31,8 @@ interface SearchProps {
     setChildren: (v: number) => void;
     rooms: number;
     setRooms: (v: number) => void;
+    longitude: number | null;
+    setLongitude: (v: number | null) => void;
     handleSearch: (e: React.FormEvent) => void;
     isExpanded: boolean;
     setIsExpanded: (v: boolean) => void;

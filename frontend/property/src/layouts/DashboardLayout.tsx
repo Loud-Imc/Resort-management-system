@@ -11,7 +11,9 @@ import {
     Moon,
     ChevronDown,
     Loader2,
-    Settings
+    Settings,
+    LayoutGrid,
+    Search
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
@@ -31,6 +33,8 @@ export default function DashboardLayout() {
     const queryClient = useQueryClient();
 
     const { navItems } = useNavigation();
+    const [isNavHubOpen, setIsNavHubOpen] = useState(false);
+    const [hubSearch, setHubSearch] = useState('');
 
     // Real-time update for unread count
     useEffect(() => {
@@ -137,6 +141,17 @@ export default function DashboardLayout() {
                 </nav>
 
                 <div className="p-4 border-t border-border space-y-2">
+                    <button
+                        onClick={() => {
+                            setHubSearch('');
+                            setIsNavHubOpen(true);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-primary bg-primary/10 hover:bg-primary hover:text-white rounded-xl transition-all group shadow-sm"
+                    >
+                        <LayoutGrid className="h-4.5 w-4.5 group-hover:rotate-12 transition-transform" />
+                        <span>Explore Hub</span>
+                    </button>
+
                     <button
                         onClick={toggleTheme}
                         className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-colors"
@@ -281,7 +296,18 @@ export default function DashboardLayout() {
                                 <span className="flex-1">Account Settings</span>
                             </NavLink>
                         </nav>
-                        <div className="p-4 border-t border-border">
+                        <div className="p-4 border-t border-border space-y-2">
+                            <button
+                                onClick={() => {
+                                    setIsSidebarOpen(false);
+                                    setHubSearch('');
+                                    setIsNavHubOpen(true);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-primary bg-primary/10 rounded-xl"
+                            >
+                                <LayoutGrid className="h-4 w-4" />
+                                <span>Explore Hub</span>
+                            </button>
                             <button
                                 onClick={handleLogout}
                                 className="w-full flex items-center gap-3 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -319,6 +345,92 @@ export default function DashboardLayout() {
                     <Outlet />
                 </div>
             </main>
+
+            {/* Navigator Hub Modal */}
+            {isNavHubOpen && (
+                <div 
+                    className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 overflow-y-auto animate-in fade-in duration-200" 
+                    onClick={() => setIsNavHubOpen(false)}
+                >
+                    <div 
+                        className="bg-card border border-border shadow-2xl rounded-3xl w-full max-w-5xl overflow-hidden max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300" 
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Hub Header with Search */}
+                        <div className="p-6 border-b border-border flex flex-col md:flex-row gap-4 items-center justify-between bg-muted/40">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-primary text-white p-3 rounded-2xl shadow-lg shadow-primary/20">
+                                    <LayoutGrid className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-foreground tracking-tight">Property Console Navigator</h2>
+                                    <p className="text-xs text-muted-foreground font-medium">Instantly jump across property management features</p>
+                                </div>
+                            </div>
+                            
+                            <div className="relative flex-1 max-w-md w-full">
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                                <input
+                                    type="text"
+                                    placeholder="Search console, booking, settings..."
+                                    className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-2xl outline-none focus:ring-2 focus:ring-primary focus:border-primary text-sm font-bold transition-all shadow-sm"
+                                    value={hubSearch}
+                                    onChange={(e) => setHubSearch(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <button 
+                                onClick={() => setIsNavHubOpen(false)}
+                                className="p-2.5 bg-muted hover:bg-muted/80 rounded-xl text-muted-foreground hover:text-foreground transition-all border border-border/50"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Hub Grid Content */}
+                        <div className="p-8 overflow-y-auto flex-1 bg-card/50">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                {[
+                                    ...navItems,
+                                    { icon: Settings, label: 'Account Settings', path: '/account-settings' }
+                                ]
+                                    .filter(item => item.label.toLowerCase().includes(hubSearch.toLowerCase()))
+                                    .map((item: any) => {
+                                        const badge = item.badge;
+                                        return (
+                                            <Link
+                                                key={item.path}
+                                                to={item.path}
+                                                onClick={() => setIsNavHubOpen(false)}
+                                                className="group flex flex-col items-center text-center p-6 bg-background border border-border/70 hover:border-primary hover:bg-primary/5 rounded-2xl transition-all hover:scale-[1.03] relative hover:shadow-md cursor-pointer"
+                                            >
+                                                <div className="bg-muted/50 group-hover:bg-primary/10 p-5 rounded-2xl mb-3.5 text-muted-foreground group-hover:text-primary transition-all relative border border-border/50 shadow-sm">
+                                                    <item.icon className="h-7 w-7 transition-transform group-hover:scale-110" />
+                                                    {badge !== undefined && badge > 0 && (
+                                                        <span className="absolute -top-2.5 -right-2.5 h-5.5 px-2 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-card shadow-md animate-pulse">
+                                                            {badge}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-xs font-black text-foreground tracking-tight group-hover:text-primary transition-colors break-words max-w-full leading-tight uppercase">
+                                                    {item.label}
+                                                </span>
+                                            </Link>
+                                        );
+                                    })}
+
+                                {[...navItems, { icon: Settings, label: 'Account Settings', path: '/account-settings' }].filter(item => item.label.toLowerCase().includes(hubSearch.toLowerCase())).length === 0 && (
+                                    <div className="col-span-full py-16 text-center flex flex-col items-center">
+                                        <Search className="h-10 w-10 text-muted-foreground opacity-20 mb-3 animate-bounce" />
+                                        <p className="text-muted-foreground text-sm font-bold italic">No matching features found for "{hubSearch}"</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

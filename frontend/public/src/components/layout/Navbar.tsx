@@ -43,19 +43,14 @@ export default function Navbar() {
         navigate('/');
     };
 
-    const navBg = isHome
-        ? (isScrolled ? 'bg-white/20 backdrop-blur-lg shadow-md' : 'bg-transparent')
-        : 'bg-white/20 backdrop-blur-lg shadow-sm';
 
-    const textColor = isHome && !isScrolled
-        ? 'text-white'
-        : 'text-gray-700';
+
+    const textColor = 'text-gray-700';
 
     return (
         <nav className={clsx(
             "fixed w-full z-50 transition-all duration-300",
-            navBg,
-            isHome && !isScrolled ? "py-6" : "py-1"
+            isScrolled ? "bg-white/80 backdrop-blur-md shadow-md" : "bg-white/80 backdrop-blur-md shadow-md",
         )}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16 md:h-20">
@@ -64,10 +59,7 @@ export default function Navbar() {
                             <img
                                 src={logo}
                                 alt="Route Guide"
-                                className={clsx(
-                                    "h-11 md:h-13 w-auto transition-all ",
-                                    isHome && !isScrolled ? "brightness-0 invert" : ""
-                                )}
+                                className="h-10 md:h-12 w-auto transition-all"
                             />
                         </Link>
                     </div>
@@ -139,7 +131,7 @@ export default function Navbar() {
                                 <Link
                                     to="/properties"
                                     className={clsx(
-                                        "px-8 py-2.5 rounded-full transition-all flex items-center gap-2 font-bold shadow-sm hover:shadow-md",
+                                        "px-6 py-2 rounded-full transition-all flex items-center gap-2 font-bold shadow-sm hover:shadow-md text-sm",
                                         isHome && !isScrolled
                                             ? "bg-white text-primary-900 hover:bg-gray-100"
                                             : "bg-primary-600 text-white hover:bg-primary-700"

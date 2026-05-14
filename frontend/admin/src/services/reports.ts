@@ -24,6 +24,7 @@ export interface DashboardStats {
         totalChannelPartners: number;
         activeChannelPartners: number;
         pendingCPCommissions: number;
+        pendingPropertyCommissions: number;
         platformStats?: {
             totalVolume: number;
             count: number;

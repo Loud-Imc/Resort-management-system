@@ -194,7 +194,15 @@ export default function Checkout() {
     };
 
 
-    const [paymentOption, setPaymentOption] = useState<'FULL' | 'PARTIAL'>('FULL');
+    const [paymentOption, setPaymentOption] = useState<'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY'>('FULL');
+    
+    // Clear coupons if PAP is selected
+    useEffect(() => {
+        if (paymentOption === 'PAY_AT_PROPERTY') {
+            setAppliedCode(null);
+            setCouponCode('');
+        }
+    }, [paymentOption]);
 
     const onSubmit = async (userData: FormData) => {
         if (!selectedRoom) return;
@@ -236,6 +244,17 @@ export default function Checkout() {
             const booking = token
                 ? await bookingService.createAuthenticatedBooking(bookingData)
                 : await bookingService.createBooking(bookingData);
+
+            if (paymentOption === 'PAY_AT_PROPERTY') {
+                setIsProcessing(false);
+                navigate(`/confirmation?bookingId=${booking.id}`, {
+                    state: {
+                        booking: { ...booking, status: 'CONFIRMED' },
+                        email: userData.email
+                    }
+                });
+                return;
+            }
 
             // 2. Initiate Payment (Create Razorpay Order)
             const paymentInfo = await paymentService.initiatePayment({ bookingId: booking.id });
@@ -529,9 +548,16 @@ export default function Checkout() {
                                                             handleApplyCoupon();
                                                         }
                                                     }}
-                                                    placeholder="GUEST10 or CP... (10 chars)"
-                                                    className="w-full p-3 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
+                                                    disabled={paymentOption === 'PAY_AT_PROPERTY'}
+                                                    placeholder={paymentOption === 'PAY_AT_PROPERTY' ? "Not valid for PAP" : "GUEST10 or CP... (10 chars)"}
+                                                    className="w-full p-3 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                                                 />
+                                                {paymentOption === 'PAY_AT_PROPERTY' && (
+                                                    <p className="text-[10px] text-amber-600 font-bold mt-1.5 flex items-center gap-1.5">
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        Coupons/Referrals are only valid for online payments.
+                                                    </p>
+                                                )}
                                                 {appliedCode && (
                                                     <div className="mt-2 flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100">
                                                         <div className="flex flex-col">
@@ -557,7 +583,7 @@ export default function Checkout() {
                                             <button
                                                 type="button"
                                                 onClick={() => handleApplyCoupon()}
-                                                disabled={pricingLoading}
+                                                disabled={pricingLoading || paymentOption === 'PAY_AT_PROPERTY'}
                                                 className="px-6 py-3 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors disabled:opacity-50 whitespace-nowrap"
                                             >
                                                 {pricingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
@@ -606,6 +632,24 @@ export default function Checkout() {
                                     <span className="text-lg font-bold text-gray-900">{formatPrice(Math.round((effectivePricing?.totalAmount || 0) * (effectivePricing?.partialPaymentPct || 33.33) / 100), selectedCurrency, rates)}</span>
                                     <p className="text-[10px] text-gray-500 italic">Pay the remaining balance at the property</p>
                                 </button>
+
+                                {selectedRoom?.allowPayAtProperty && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentOption('PAY_AT_PROPERTY')}
+                                        className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all md:col-span-2 ${paymentOption === 'PAY_AT_PROPERTY' ? 'bg-green-50 border-green-600 ring-1 ring-green-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                    >
+                                        <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'PAY_AT_PROPERTY' ? 'text-green-900' : 'text-gray-500'}`}>Pay at Property</span>
+                                                <span className="bg-green-100 text-green-700 text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter border border-green-200">Zero Upfront</span>
+                                            </div>
+                                            {paymentOption === 'PAY_AT_PROPERTY' && <ShieldCheck className="h-4 w-4 text-green-600" />}
+                                        </div>
+                                        <span className="text-lg font-bold text-gray-900">{formatPrice(0, selectedCurrency, rates)} <span className="text-sm font-normal text-gray-500">to pay now</span></span>
+                                        <p className="text-[10px] text-gray-500 italic font-medium leading-relaxed">No payment required now. Pay full amount (₹{Number(effectivePricing?.totalAmount || 0).toLocaleString('en-IN')}) at the resort during check-in.</p>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -614,18 +658,20 @@ export default function Checkout() {
                         <button
                             type="submit"
                             disabled={isProcessing}
-                            className="w-full bg-primary-600 text-white font-bold py-3.5 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className={`w-full font-bold py-3.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-primary-600/10 ${paymentOption === 'PAY_AT_PROPERTY' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white'}`}
                         >
                             {isProcessing ? (
                                 <>
                                     <Loader2 className="animate-spin h-5 w-5" /> Processing...
                                 </>
                             ) : (
-                                `${paymentOption === 'FULL' ? 'Book Now with' : 'Pay & Reserve'} ${formatPrice(
-                                    paymentOption === 'PARTIAL' ? Math.round((effectivePricing?.totalAmount || 0) * (effectivePricing?.partialPaymentPct || 33.33) / 100) : (effectivePricing?.totalAmount || 0),
-                                    selectedCurrency,
-                                    rates
-                                ) || '...'}`
+                                paymentOption === 'PAY_AT_PROPERTY' 
+                                    ? 'Confirm Booking (No Payment)' 
+                                    : `${paymentOption === 'FULL' ? 'Book Now with' : 'Pay & Reserve'} ${formatPrice(
+                                        paymentOption === 'PARTIAL' ? Math.round((effectivePricing?.totalAmount || 0) * (effectivePricing?.partialPaymentPct || 33.33) / 100) : (effectivePricing?.totalAmount || 0),
+                                        selectedCurrency,
+                                        rates
+                                    ) || '...'}`
                             )}
                         </button>
                     </form>

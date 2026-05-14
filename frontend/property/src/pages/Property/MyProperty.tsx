@@ -85,6 +85,11 @@ export default function MyProperty() {
     const [coverImage, setCoverImage] = useState('');
     const [uploading, setUploading] = useState(false);
 
+    // Geo-Location
+    const [googleMapsLink, setGoogleMapsLink] = useState('');
+    const [latitude, setLatitude] = useState<number | ''>('');
+    const [longitude, setLongitude] = useState<number | ''>('');
+
     // Cancellation Policies
     const [policies, setPolicies] = useState<CancellationPolicy[]>([]);
     const [showPolicyForm, setShowPolicyForm] = useState(false);
@@ -185,6 +190,36 @@ export default function MyProperty() {
         setDefaultCheckInTime((p as any).defaultCheckInTime ?? '14:00');
         setDefaultCheckOutTime((p as any).defaultCheckOutTime ?? '11:00');
         setIsGroupGstInclusive(p.isGroupGstInclusive ?? false);
+        setLatitude(p.latitude ?? '');
+        setLongitude(p.longitude ?? '');
+    };
+
+    const handleMapsLinkChange = (value: string) => {
+        setGoogleMapsLink(value);
+        
+        // Extract coordinates
+        const coordMatch = value.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (coordMatch) {
+            setLatitude(parseFloat(coordMatch[1]));
+            setLongitude(parseFloat(coordMatch[2]));
+            toast.success('Coordinates extracted!');
+            return;
+        }
+
+        const llMatch = value.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (llMatch) {
+            setLatitude(parseFloat(llMatch[1]));
+            setLongitude(parseFloat(llMatch[2]));
+            toast.success('Coordinates extracted!');
+            return;
+        }
+
+        const qMatch = value.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (qMatch) {
+            setLatitude(parseFloat(qMatch[1]));
+            setLongitude(parseFloat(qMatch[2]));
+            toast.success('Coordinates extracted!');
+        }
     };
 
     const handleSave = async () => {
@@ -215,6 +250,8 @@ export default function MyProperty() {
                 defaultCheckInTime,
                 defaultCheckOutTime,
                 isGroupGstInclusive,
+                latitude: latitude === '' ? null : Number(latitude),
+                longitude: longitude === '' ? null : Number(longitude),
             };
 
             // Only include commission if platform admin
@@ -605,6 +642,63 @@ export default function MyProperty() {
                     <Field label="State" value={state} onChange={setState} editMode={editMode} />
                     <Field label="Country" value={country} onChange={setCountry} editMode={editMode} />
                     <Field label="Pincode" value={pincode} onChange={setPincode} editMode={editMode} />
+                </div>
+                
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-4">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Geo-Location</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1.5">Google Maps Link (for extraction)</label>
+                            {editMode ? (
+                                <div className="space-y-2">
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <Globe className="h-4 w-4 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="url"
+                                            value={googleMapsLink}
+                                            onChange={(e) => handleMapsLinkChange(e.target.value)}
+                                            placeholder="Paste Google Maps URL to extract coordinates..."
+                                            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none text-sm font-medium"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 font-medium italic">
+                                        * Link is not stored. It's used to automatically fill Latitude and Longitude below.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-800">
+                                    <Globe className="h-4 w-4 text-gray-400" />
+                                    <p className="text-sm text-gray-500 italic">Enter edit mode to update location via Maps link</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Latitude</label>
+                            <input
+                                type="number"
+                                step="any"
+                                value={latitude}
+                                onChange={(e) => setLatitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                disabled={!editMode}
+                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-blue-500/20 outline-none disabled:opacity-70"
+                                placeholder="0.000000"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Longitude</label>
+                            <input
+                                type="number"
+                                step="any"
+                                value={longitude}
+                                onChange={(e) => setLongitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                disabled={!editMode}
+                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-blue-500/20 outline-none disabled:opacity-70"
+                                placeholder="0.000000"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 

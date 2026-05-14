@@ -28,6 +28,7 @@ import Notifications from './pages/Notifications';
 import NotificationManager from './components/NotificationManager';
 import DeleteAccount from './pages/DeleteAccount';
 import ScrollToTop from './components/common/ScrollToTop';
+import PayOnline from './pages/PayOnline';
 
 import { CurrencyProvider } from './context/CurrencyContext';
 import { SearchProvider } from './context/SearchContext';
@@ -58,6 +59,7 @@ function App() {
                 <Route path="/confirmation" element={<Confirmation />} />
                 <Route path="/track-booking" element={<TrackBooking />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/pay-online/:bookingId" element={<PayOnline />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/gallery" element={<Gallery />} />
                 <Route path="/terms" element={<Terms />} />

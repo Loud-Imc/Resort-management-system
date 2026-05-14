@@ -179,6 +179,21 @@ export class ReportsService {
             },
         });
 
+        // 4.5 Today's Platform Fees
+        const feesToday = await this.prisma.payment.aggregate({
+            where: {
+                paymentDate: {
+                    gte: today,
+                    lt: tomorrow,
+                },
+                status: 'PAID',
+                booking: { property: propertyFilter }
+            },
+            _sum: {
+                platformFee: true,
+            },
+        });
+
         return {
             date: today,
             checkIns,
@@ -189,6 +204,7 @@ export class ReportsService {
                 percentage: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
             },
             revenue: Number(incomeToday._sum.amount || 0),
+            todayFees: Number(feesToday._sum.platformFee || 0),
             bookingsCreated: bookedToday,
             roomStatusSummary: {
                 AVAILABLE: availableCount,
@@ -208,6 +224,10 @@ export class ReportsService {
                         where: { type: 'COMMISSION', status: 'FINALIZED' },
                         _sum: { amount: true }
                     }).then(res => Number(res._sum?.amount || 0)),
+                    pendingPropertyCommissions: await this.prisma.propertySettlement.aggregate({
+                        where: { status: { in: ['CALCULATED', 'APPROVED'] } },
+                        _sum: { platformFee: true }
+                    }).then(res => Number(res._sum?.platformFee || 0)),
                     platformStats: await this.prisma.payment.aggregate({
                         where: { status: { in: ['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'] } },
                         _sum: {
@@ -249,7 +269,7 @@ export class ReportsService {
 
         // Helper to fetch core metrics for a period
         const fetchMetrics = async (start: Date, end: Date) => {
-            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialCount] = await Promise.all([
+            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialCount, platformFees] = await Promise.all([
                 this.prisma.income.aggregate({
                     where: {
                         date: { gte: start, lte: end },
@@ -320,12 +340,21 @@ export class ReportsService {
                 }), // Property Dashboard
                 this.prisma.booking.count({
                     where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' }
-                }) // Partial Payments
+                }), // Partial Payments
+                this.prisma.payment.aggregate({
+                    where: {
+                        paymentDate: { gte: start, lte: end },
+                        status: 'PAID',
+                        booking: { property: propertyFilter }
+                    },
+                    _sum: { platformFee: true }
+                })
             ]);
 
             const totalIncome = Number(income._sum?.amount || 0);
             const totalExpense = Number(expense._sum?.amount || 0);
-            const netProfit = totalIncome - totalExpense;
+            const totalPlatformFees = Number(platformFees._sum?.platformFee || 0);
+            const netProfit = totalIncome - totalExpense - totalPlatformFees;
 
             const bookingsBySource = {
                 online: publicCount,
@@ -341,7 +370,7 @@ export class ReportsService {
             const adr = occupiedNights > 0 ? totalIncome / occupiedNights : 0;
             const revPar = availableNights > 0 ? totalIncome / availableNights : 0;
 
-            return { totalIncome, totalExpense, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource }; // totalVolume as alias for totalIncome for legacy compatibility
+            return { totalIncome, totalExpense, totalPlatformFees, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource }; // totalVolume as alias for totalIncome for legacy compatibility
         };
 
         const currentMetrics = await fetchMetrics(sDate, eDate);

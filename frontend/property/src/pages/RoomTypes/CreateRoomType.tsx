@@ -59,6 +59,7 @@ const roomTypeSchema = z.object({
     isAvailableForGroupBooking: z.boolean(),
     groupMaxOccupancy: z.number().min(0).optional(),
     isGstInclusive: z.boolean(),
+    allowPayAtProperty: z.boolean(),
     size: z.number({ message: 'Room size is required' }).min(1, 'Room size is required'),
 }).refine(data => {
     if (data.originalPrice && data.originalPrice <= data.basePrice) {
@@ -100,6 +101,7 @@ interface RoomTypeFormData {
     groupMaxOccupancy?: number;
     isAvailableForGroupBooking: boolean;
     isGstInclusive: boolean;
+    allowPayAtProperty: boolean;
 }
 
 export default function CreateRoomType() {
@@ -135,6 +137,7 @@ export default function CreateRoomType() {
             propertyId: selectedProperty?.id || '',
             isAvailableForGroupBooking: false,
             isGstInclusive: false,
+            allowPayAtProperty: false,
             size: undefined,
         },
     });
@@ -168,6 +171,7 @@ export default function CreateRoomType() {
                 isAvailableForGroupBooking: existingRoomType.isAvailableForGroupBooking || false,
                 groupMaxOccupancy: existingRoomType.groupMaxOccupancy || 0,
                 isGstInclusive: existingRoomType.isGstInclusive || false,
+                allowPayAtProperty: existingRoomType.allowPayAtProperty || false,
                 size: existingRoomType.size || undefined,
             });
         }
@@ -430,6 +434,17 @@ export default function CreateRoomType() {
                                         <div className="ml-3">
                                             <span className="block text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Enable Group Bookings</span>
                                             <span className="block text-[10px] text-gray-500 font-medium">Allows guests to book per head for large groups</span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div className="flex flex-col justify-center border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700 pt-4 md:pt-0 md:pl-8">
+                                    <label className="inline-flex items-center cursor-pointer group">
+                                        <input type="checkbox" {...register('allowPayAtProperty')} className="sr-only peer" />
+                                        <div className="relative w-11 h-6 bg-red-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                        <div className="ml-3">
+                                            <span className="block text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Pay at Property</span>
+                                            <span className="block text-[10px] text-gray-500 font-medium">Allow guests to book without upfront payment</span>
                                         </div>
                                     </label>
                                 </div>

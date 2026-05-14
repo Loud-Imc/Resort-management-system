@@ -33,6 +33,7 @@ export interface RoomType {
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive: boolean;
+    allowPayAtProperty: boolean;
     propertyId: string;
     property?: {
         id: string;
@@ -68,6 +69,7 @@ export interface CreateRoomTypeDto {
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive?: boolean;
+    allowPayAtProperty?: boolean;
     propertyId?: string;
 }
 

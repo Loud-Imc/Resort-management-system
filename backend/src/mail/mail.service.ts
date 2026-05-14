@@ -1035,4 +1035,99 @@ export class MailService {
             console.error('[MailService] Error sending redemption email:', error);
         }
     }
+
+    async sendAdminNewPropertyAlert(adminEmail: string, property: any) {
+        const from = this.configService.get('EMAIL_FROM');
+        const subject = `🆕 New Property Registration: ${property.name}`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; }
+              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
+              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
+              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
+              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header"><h1>New Property Pending! 🏨</h1></div>
+              <div class="content">
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px;">A new property has registered on the platform and is awaiting your review and approval.</p>
+                  
+                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${property.name}</span></div>
+                  <div class="detail-row"><span class="label">Type</span><span class="value">${property.type}</span></div>
+                  <div class="detail-row"><span class="label">Location</span><span class="value">${property.city}, ${property.state}</span></div>
+                  <div class="detail-row"><span class="label">Owner</span><span class="value">${property.owner?.firstName} ${property.owner?.lastName}</span></div>
+                  <div class="detail-row"><span class="label">Contact</span><span class="value">${property.email} / ${property.phone}</span></div>
+                  
+                  <a href="${this.configService.get('ADMIN_URL') || this.configService.get('FRONTEND_URL') + '/admin'}/properties" class="btn">Review Registration Request</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            await this.transporter.sendMail({ from, to: adminEmail, subject, html });
+        } catch (error) {
+            console.error('[MailService] Error sending admin property alert:', error);
+        }
+    }
+
+    async sendAdminNewCPAlert(adminEmail: string, cp: any) {
+        const from = this.configService.get('EMAIL_FROM');
+        const subject = `🤝 New Partner Signup: ${cp.user?.firstName} ${cp.user?.lastName}`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: #0c4a6e; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; }
+              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
+              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
+              .btn { display: inline-block; background: #0c4a6e; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
+              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header"><h1>New Partner Pending! 🤝</h1></div>
+              <div class="content">
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px;">A new Channel Partner has applied to join the network. Please review their credentials.</p>
+                  
+                  <div class="detail-row"><span class="label">Partner Name</span><span class="value">${cp.user?.firstName} ${cp.user?.lastName}</span></div>
+                  <div class="detail-row"><span class="label">Organization</span><span class="value">${cp.organizationName || 'Individual'}</span></div>
+                  <div class="detail-row"><span class="label">Contact</span><span class="value">${cp.user?.email} / ${cp.user?.phone}</span></div>
+                  <div class="detail-row"><span class="label">Referral Code</span><span class="value">${cp.referralCode}</span></div>
+                  
+                  <a href="${this.configService.get('ADMIN_URL') || this.configService.get('FRONTEND_URL') + '/admin'}/partners" class="btn">Review Application</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            await this.transporter.sendMail({ from, to: adminEmail, subject, html });
+        } catch (error) {
+            console.error('[MailService] Error sending admin CP alert:', error);
+        }
+    }
 }

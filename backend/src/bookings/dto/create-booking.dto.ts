@@ -178,10 +178,10 @@ export class CreateBookingDto {
     @IsOptional()
     paymentMethod?: 'ONLINE' | 'WALLET' | 'CASH' | 'UPI';
 
-    @ApiProperty({ example: 'FULL', required: false, enum: ['FULL', 'PARTIAL'] })
+    @ApiProperty({ example: 'FULL', required: false, enum: ['FULL', 'PARTIAL', 'PAY_AT_PROPERTY'] })
     @IsString()
     @IsOptional()
-    paymentOption?: 'FULL' | 'PARTIAL';
+    paymentOption?: 'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY';
 
     @ApiProperty({ example: 'AED', required: false })
     @IsString()

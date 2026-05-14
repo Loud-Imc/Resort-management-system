@@ -62,7 +62,7 @@ import StaffList from './pages/Properties/StaffList';
 import { CPList } from './pages/ChannelPartners';
 
 // Marketing
-import { MarketingDashboard, CouponsPage, NotificationCenter, BannersPage } from './pages/Marketing';
+import { MarketingDashboard, CouponsPage, NotificationCenter, BannersPage, HeroContentPage, PromotionsPage } from './pages/Marketing';
 
 // Events
 import EventsList from './pages/Events/EventsList';
@@ -76,7 +76,7 @@ import CategoryList from './pages/PropertyCategories/CategoryList';
 
 // Notifications
 import Notifications from './pages/Notifications';
-import LoyaltyManagement from './pages/Settings/LoyaltyManagement';
+import PlatformSettings from './pages/Settings/PlatformSettings';
 import ScrollToTop from './components/ScrollToTop';
 
 const queryClient = new QueryClient();
@@ -152,7 +152,9 @@ function App() {
                     <Route path="marketing" element={<MarketingDashboard />} />
                     <Route path="marketing/coupons" element={<CouponsPage />} />
                     <Route path="marketing/banners" element={<BannersPage />} />
+                    <Route path="marketing/hero-content" element={<HeroContentPage />} />
                     <Route path="marketing/notifications" element={<NotificationCenter />} />
+                    <Route path="marketing/promotions" element={<PromotionsPage />} />
 
                     {/* Event Management */}
                     <Route path="events" element={<EventsList />} />
@@ -165,7 +167,7 @@ function App() {
                     <Route path="notifications" element={<Notifications />} />
 
                     {/* System Settings */}
-                    <Route path="loyalty-management" element={<LoyaltyManagement />} />
+                    <Route path="platform-settings" element={<PlatformSettings />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />

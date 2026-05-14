@@ -92,6 +92,7 @@ export interface Booking {
     isGroupBooking: boolean;
     groupSize?: number;
     payments?: BookingPayment[];
+    paymentOption?: 'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY';
     createdBy?: string;
     createdAt: string;
 }
