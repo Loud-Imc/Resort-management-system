@@ -144,14 +144,9 @@ export default function PromoCards() {
     };
 
     return (
-        <section className="relative z-40 -mt-18 px-4 md:px-12 mb-20">
+        <section className="relative z-40 -mt-28 px-4 md:px-12 mb-20">
             <div className="max-w-[1500px] mx-auto">
-                {/* Label showing the context of what is being featured */}
-                <div className="flex flex-col md:flex-row justify-between items-baseline mb-6">
-                    <h2 className="text-white/90 text-[10px] md:text-[12px] font-black uppercase tracking-[0.3em] flex items-center gap-2 bg-white/5 backdrop-blur px-4 py-2 rounded-xl border border-white/10 animate-pulse">
-                        ⭐ Featured In {activeSearchLocation || detectedCity || 'Top Destinantions'}
-                    </h2>
-                </div>
+
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {loading && properties.length === 0 ? (

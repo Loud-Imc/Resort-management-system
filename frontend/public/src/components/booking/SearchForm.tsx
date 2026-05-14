@@ -114,7 +114,7 @@ export default function SearchForm({
     }
 
     return (
-        <div className={`relative w-full ${className}`}>
+        <div className={`relative z-50 w-full ${className}`}>
             <SearchDesktop {...sharedProps} theme={theme} />
             <SearchMobile {...sharedProps} isExpanded={isExpanded} setIsExpanded={setIsExpanded} theme={theme} />
 
