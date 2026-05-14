@@ -144,7 +144,7 @@ export default function PromoCards() {
     };
 
     return (
-        <section className="relative z-40 -mt-15 px-4 md:px-12 mb-20">
+        <section className="relative z-40 -mt-12 px-4 md:px-12 mb-20">
             <div className="max-w-[1500px] mx-auto">
 
 
