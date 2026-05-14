@@ -42,6 +42,8 @@ interface SearchProps {
     setIsGroupBooking: (v: boolean) => void;
     groupSize: number;
     setGroupSize: (v: number) => void;
+    onUseLocation?: () => void;
+    isLocating?: boolean;
 }
 
 export default function SearchMobile({
@@ -57,7 +59,8 @@ export default function SearchMobile({
     categories,
     theme = 'dark',
     isGroupBooking, setIsGroupBooking,
-    groupSize, setGroupSize
+    groupSize, setGroupSize,
+    onUseLocation, isLocating
 }: SearchProps) {
     const isDark = theme === 'dark';
     const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -190,6 +193,8 @@ export default function SearchMobile({
                             onSelect={(description) => setLocation(description.split(',')[0])}
                             placeholder="City or Resort Name"
                             theme={theme}
+                            onUseLocation={onUseLocation}
+                            isLocating={isLocating}
                             inputClassName={`w-full bg-transparent text-lg font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-200'} outline-none border-none p-0 focus:ring-0`}
                         />
                     </div>

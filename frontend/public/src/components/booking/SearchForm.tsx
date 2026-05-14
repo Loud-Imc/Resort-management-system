@@ -33,6 +33,28 @@ export default function SearchForm({
     } = useSearch();
 
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
+
+    const handleUseMyLocation = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser');
+            return;
+        }
+
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLatitude(position.coords.latitude);
+                setLongitude(position.coords.longitude);
+                setLocation('Current Location');
+                setIsLocating(false);
+            },
+            () => {
+                alert('Unable to retrieve your location');
+                setIsLocating(false);
+            }
+        );
+    };
 
     const { data: categories } = useQuery({
         queryKey: ['property-categories'],
@@ -78,7 +100,9 @@ export default function SearchForm({
         isGroupBooking, setIsGroupBooking,
         groupSize, setGroupSize,
         handleSearch,
-        categories: categories || []
+        categories: categories || [],
+        onUseLocation: handleUseMyLocation,
+        isLocating
     };
 
     if (variant === 'inline') {

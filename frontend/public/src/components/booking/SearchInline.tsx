@@ -38,6 +38,8 @@ interface SearchProps {
     setIsGroupBooking: (v: boolean) => void;
     groupSize: number;
     setGroupSize: (v: number) => void;
+    onUseLocation?: () => void;
+    isLocating?: boolean;
 }
 
 export default function SearchInline({
@@ -52,7 +54,8 @@ export default function SearchInline({
     handleSearch,
     categories,
     isGroupBooking, setIsGroupBooking,
-    groupSize, setGroupSize
+    groupSize, setGroupSize,
+    onUseLocation, isLocating
 }: SearchProps) {
     const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
@@ -118,6 +121,8 @@ export default function SearchInline({
                                         onSelect={(description) => setLocation(description.split(',')[0])}
                                         placeholder="Where to?"
                                         theme="light"
+                                        onUseLocation={onUseLocation}
+                                        isLocating={isLocating}
                                         inputClassName="bg-transparent text-base font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full"
                                     />
                                 </div>
@@ -389,6 +394,8 @@ export default function SearchInline({
                         onSelect={(description) => setLocation(description.split(',')[0])}
                         placeholder="Where to?"
                         theme="light"
+                        onUseLocation={onUseLocation}
+                        isLocating={isLocating}
                         inputClassName="bg-transparent text-sm font-bold text-gray-900 outline-none border-none p-0 focus:ring-0 w-full placeholder:text-gray-300"
                     />
                 </div>

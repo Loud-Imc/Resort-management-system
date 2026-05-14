@@ -32,6 +32,8 @@ interface SearchProps {
     setIsGroupBooking: (v: boolean) => void;
     groupSize: number;
     setGroupSize: (v: number) => void;
+    onUseLocation?: () => void;
+    isLocating?: boolean;
 }
 
 export default function SearchDesktop({
@@ -46,7 +48,8 @@ export default function SearchDesktop({
     categories,
     theme,
     isGroupBooking, setIsGroupBooking,
-    groupSize, setGroupSize
+    groupSize, setGroupSize,
+    onUseLocation, isLocating
 }: SearchProps) {
     const isDark = theme === 'light';
     const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -201,6 +204,8 @@ export default function SearchDesktop({
                                 onSelect={(description) => setLocation(description.split(',')[0])}
                                 placeholder="Search destinations"
                                 theme={theme}
+                                onUseLocation={onUseLocation}
+                                isLocating={isLocating}
                                 inputClassName={`w-full bg-transparent text-sm font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-300'} outline-none border-none p-0 focus:ring-0`}
                             />
                         </div>
