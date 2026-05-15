@@ -634,6 +634,9 @@ async getStats(userId: string) {
             // Invalidate active points cache on new commission
             this.activePointsCache.delete(channelPartnerId);
 
+            // Notify CP of points earned
+            this.notificationsService.notifyPointsEarned(channelPartnerId, points, transaction.description || 'Commission earned');
+
             return transaction;
         } catch (error) {
             if (error.code === 'P2002') {
@@ -1032,7 +1035,7 @@ async getStats(userId: string) {
             });
 
             // 2. Create redemption record
-            return tx.cPRewardRedemption.create({
+            const redemption = await tx.cPRewardRedemption.create({
                 data: {
                     channelPartnerId: cp.id,
                     rewardId: reward.id,
@@ -1042,6 +1045,11 @@ async getStats(userId: string) {
                     reward: true,
                 },
             });
+
+            // Notify CP of new redemption
+            this.notificationsService.notifyRedemptionStatusUpdate(redemption.id);
+
+            return redemption;
         });
     }
 
@@ -1081,10 +1089,15 @@ async getStats(userId: string) {
     }
 
     async updateRedemptionStatus(id: string, status: RedemptionStatus, notes?: string) {
-        return this.prisma.cPRewardRedemption.update({
+        const updated = await this.prisma.cPRewardRedemption.update({
             where: { id },
             data: { status, notes },
         });
+
+        // Notify CP of status change
+        this.notificationsService.notifyRedemptionStatusUpdate(id);
+
+        return updated;
     }
 
     // Update my profile
@@ -1388,8 +1401,8 @@ async getStats(userId: string) {
                 throw new BadRequestException(`Security alert: Transaction ${referenceId} does not belong to partner ${channelPartnerId} `);
             }
 
-            if (Number(amount) > Number(originalPayment.amount) + 0.01) {
-                throw new BadRequestException(`Refund amount(₹${amount}) exceeds original payment(₹${originalPayment.amount})`);
+            if (Math.abs(Number(amount)) > Math.abs(Number(originalPayment.amount)) + 0.01) {
+                throw new BadRequestException(`Refund amount (₹${amount}) exceeds original payment (₹${Math.abs(Number(originalPayment.amount))})`);
             }
 
             // 3. Perform Refund
@@ -1466,11 +1479,33 @@ async getStats(userId: string) {
             throw new BadRequestException('Bank account details are missing. Please update your profile in Payout Settings before requesting a payout.');
         }
 
-        if (Number(cp.walletBalance) < amount) {
-            throw new BadRequestException(`Insufficient wallet balance. Available: ₹${Number(cp.walletBalance).toLocaleString()}`);
-        }
+        // Perform upfront balance deduction with FOR UPDATE lock to prevent double-spending
+        return this.prisma.$transaction(async (tx) => {
+            const [lockedCp] = await tx.$queryRaw<ChannelPartner[]>`SELECT * FROM channel_partners WHERE "id" = ${cp.id} FOR UPDATE`;
+            
+            if (Number(lockedCp.walletBalance) < amount) {
+                throw new BadRequestException(`Insufficient wallet balance. Available: ₹${Number(lockedCp.walletBalance).toLocaleString()}`);
+            }
 
-        // Delegate to financialsService for request creation
-        return this.financialsService.createRedemptionRequest(cp, amount);
+            // 1. Deduct from wallet immediately
+            await tx.channelPartner.update({
+                where: { id: lockedCp.id },
+                data: { walletBalance: { decrement: amount } }
+            });
+
+            // 2. Create Transaction Record (Pending)
+            const transaction = await tx.cPTransaction.create({
+                data: {
+                    channelPartnerId: lockedCp.id,
+                    amount: new Decimal(-amount), // Negative for deduction
+                    type: 'POINTS_REDEEMED' as any,
+                    status: 'PENDING' as any,
+                    description: `Redemption Request: ₹${amount.toLocaleString()}`,
+                }
+            });
+
+            // 3. Delegate to financialsService for request creation
+            return this.financialsService.createRedemptionRequest(lockedCp, amount, transaction.id);
+        });
     }
 }

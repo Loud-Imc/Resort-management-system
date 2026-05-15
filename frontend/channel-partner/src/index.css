@@ -29,6 +29,29 @@
   line-height: 1.5;
   font-weight: 400;
   color-scheme: light;
+
+  /* Responsive Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  /* Responsive Spacing */
+  --section-padding: 3rem;
+  --content-margin: 280px;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --section-padding: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --section-padding: 1.5rem;
+    --content-margin: 0;
+  }
 }
 
 
@@ -144,4 +167,34 @@ button {
   cursor: pointer;
   border: none;
   font-family: inherit;
+}
+
+/* Responsive Utilities */
+.mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+  
+  .responsive-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.responsive-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Base Styles for Responsive Layouts */
+main {
+  transition: margin-left 0.3s ease-in-out;
 }

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import PremiumTable from '../components/PremiumTable';
-import { BadgeCheck, Clock, XCircle, Eye } from 'lucide-react';
+import PaginationControls from '../components/PaginationControls';
+import { BadgeCheck, Clock, XCircle, Eye, Search } from 'lucide-react';
 import api from '../services/api';
 import BookingDetailModal from '../components/BookingDetailModal';
 
@@ -29,6 +30,9 @@ const Referrals: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedBooking, setSelectedBooking] = useState<Referral | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 10;
 
     useEffect(() => {
         const fetchReferrals = async () => {
@@ -68,6 +72,18 @@ const Referrals: React.FC = () => {
         setSelectedBooking(referral);
         setIsDrawerOpen(true);
     };
+
+    const filteredReferrals = useMemo(() => {
+        const q = searchQuery.toLowerCase();
+        return referrals.filter(r =>
+            r.guestName.toLowerCase().includes(q) ||
+            r.property.toLowerCase().includes(q) ||
+            (r.bookingNumber?.toLowerCase().includes(q) ?? false)
+        );
+    }, [referrals, searchQuery]);
+
+    const totalPages = Math.ceil(filteredReferrals.length / PAGE_SIZE);
+    const paginatedReferrals = filteredReferrals.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
     const columns = [
         {
@@ -198,21 +214,46 @@ const Referrals: React.FC = () => {
 
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-padding)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Your Referrals</h1>
+                    <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, lineHeight: 1.2 }}>Your Referrals</h1>
                     <p style={{ color: 'var(--text-dim)' }}>Track the progress of your shared links and commissions.</p>
+                </div>
+                {/* Search */}
+                <div style={{ position: 'relative', width: '100%', maxWidth: '380px' }}>
+                    <Search size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                    <input
+                        type="text"
+                        placeholder="Search guest, property or booking ID..."
+                        value={searchQuery}
+                        onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                        style={{
+                            width: '100%', padding: '0.75rem 1rem 0.75rem 2.6rem',
+                            borderRadius: '0.875rem', border: '1px solid var(--border-glass)',
+                            background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)',
+                            outline: 'none', fontSize: '0.9rem', boxSizing: 'border-box'
+                        }}
+                    />
                 </div>
             </div>
 
-            <div className="glass-pane" style={{ padding: '2rem' }}>
-                {referrals.length > 0 ? (
-                    <PremiumTable columns={columns} data={referrals} />
+            <div className="glass-pane" style={{ padding: 'var(--section-padding)' }}>
+                {filteredReferrals.length > 0 ? (
+                    <>
+                        <PremiumTable columns={columns} data={paginatedReferrals} />
+                        <PaginationControls
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={filteredReferrals.length}
+                            itemsPerPage={PAGE_SIZE}
+                            onPageChange={setCurrentPage}
+                        />
+                    </>
                 ) : (
                     <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-dim)' }}>
-                        <p>No referrals found yet.</p>
-                        <p style={{ fontSize: '0.9rem' }}>Share your code from the dashboard to get started!</p>
+                        <p>{searchQuery ? 'No referrals match your search.' : 'No referrals found yet.'}</p>
+                        <p style={{ fontSize: '0.9rem' }}>{!searchQuery && 'Share your code from the dashboard to get started!'}</p>
                     </div>
                 )}
             </div>

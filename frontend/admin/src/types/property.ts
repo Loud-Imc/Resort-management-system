@@ -34,6 +34,7 @@ export interface Property {
     isActive: boolean;
     isVerified: boolean;
     isFeatured: boolean;
+    isSponsored: boolean;
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     ownerId: string;
     owner?: {
@@ -88,6 +89,7 @@ export interface CreatePropertyDto {
     platformCommission?: number;
     ownerId?: string;
     isFeatured?: boolean;
+    isSponsored?: boolean;
     allowsGroupBooking?: boolean;
     maxGroupCapacity?: number;
     groupPricePerHead?: number;
@@ -98,6 +100,7 @@ export interface CreatePropertyDto {
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {
     isActive?: boolean;
     isFeatured?: boolean;
+    isSponsored?: boolean;
 }
 
 export interface PropertyQueryParams {
@@ -112,6 +115,7 @@ export interface PropertyQueryParams {
     longitude?: number;
     radius?: number;
     allowsGroupBooking?: boolean;
+    isSponsored?: boolean;
     status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
 }
 

@@ -25,8 +25,8 @@ interface SearchContextType {
     setLatitude: (v: number | null) => void;
     longitude: number | null;
     setLongitude: (v: number | null) => void;
-    radius: number;
-    setRadius: (v: number) => void;
+    radius: number | null;
+    setRadius: (v: number | null) => void;
     syncFromUrl: () => void;
     clearSearch: () => void;
 }
@@ -47,7 +47,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [groupSize, setGroupSize] = useState(10);
     const [latitude, setLatitude] = useState<number | null>(null);
     const [longitude, setLongitude] = useState<number | null>(null);
-    const [radius, setRadius] = useState(50);
+    const [radius, setRadius] = useState<number | null>(null);
 
     const syncFromUrl = useCallback(() => {
         const loc = searchParams.get('location');
@@ -80,7 +80,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (grpSz) setGroupSize(parseInt(grpSz) || 10);
         if (lat && lat !== 'null') setLatitude(parseFloat(lat));
         if (lng && lng !== 'null') setLongitude(parseFloat(lng));
-        if (rad) setRadius(parseInt(rad) || 50);
+        if (rad) setRadius(parseInt(rad));
     }, [searchParams]);
 
     const clearSearch = useCallback(() => {
@@ -95,7 +95,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setGroupSize(10);
         setLatitude(null);
         setLongitude(null);
-        setRadius(50);
+        setRadius(null);
     }, []);
 
     // Initial sync from URL parameters

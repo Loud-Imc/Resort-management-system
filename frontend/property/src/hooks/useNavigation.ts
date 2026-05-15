@@ -14,7 +14,8 @@ import {
     Shield,
     Building2,
     RefreshCw,
-    Tag
+    Tag,
+    Rocket
 } from 'lucide-react';
 
 export function useNavigation() {
@@ -69,6 +70,7 @@ export function useNavigation() {
 
             ...(hasPermission('marketing.read') ? [
                 { icon: Tag, label: 'Offers & Marketing', path: '/marketing/offers' },
+                { icon: Rocket, label: 'Promotional Boosters', path: '/marketing/boosters' },
             ] : []),
 
             ...(hasPermission('bookingSources.read') ? [

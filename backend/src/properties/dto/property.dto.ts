@@ -114,6 +114,11 @@ export class CreatePropertyDto {
     @IsBoolean()
     isFeatured?: boolean;
 
+    @ApiProperty({ example: false, description: 'Whether this property is sponsored/top unique' })
+    @IsOptional()
+    @IsBoolean()
+    isSponsored?: boolean;
+
     @ApiProperty({ example: 'category-uuid-123' })
     @IsOptional()
     @IsString()
@@ -154,6 +159,11 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsString()
     defaultCheckOutTime?: string;
+
+    @ApiProperty({ example: false, description: 'Whether group pricing is inclusive of GST' })
+    @IsOptional()
+    @IsBoolean()
+    isGroupGstInclusive?: boolean;
 }
 
 export class UpdatePropertyDto {
@@ -237,6 +247,10 @@ export class UpdatePropertyDto {
     isFeatured?: boolean;
 
     @IsOptional()
+    @IsBoolean()
+    isSponsored?: boolean;
+
+    @IsOptional()
     @IsEnum(['PENDING', 'PAID', 'CANCELLED'])
     commissionStatus?: 'PENDING' | 'PAID' | 'CANCELLED';
 
@@ -295,6 +309,10 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
     defaultCheckOutTime?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    isGroupGstInclusive?: boolean;
 }
 
 export class PropertyQueryDto {
@@ -365,7 +383,17 @@ export class PropertyQueryDto {
     @IsOptional()
     @IsBoolean()
     @Type(() => Boolean)
+    isSponsored?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
     isVerified?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    sortByRating?: boolean;
 
     @IsOptional()
     @IsEnum(PropertyStatus)

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
@@ -62,6 +62,9 @@ export default function Register() {
         pincode: '',
         propertyPhone: '',
         propertyEmail: '',
+        googleMapsLink: '',
+        latitude: '',
+        longitude: '',
         platformCommission: 10
     });
 
@@ -270,6 +273,46 @@ export default function Register() {
             setShowCommissionOtpInput(false);
             setCommissionOtp('');
         }
+
+        // If googleMapsLink changes, attempt to extract lat/lng if we had them (not in this form yet but good practice)
+    };
+
+    const handleMapsLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { value } = e.target;
+        setFormData(prev => ({ ...prev, googleMapsLink: value }));
+        
+        // Extract coordinates
+        const coordMatch = value.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (coordMatch) {
+            setFormData(prev => ({ 
+                ...prev, 
+                latitude: coordMatch[1], 
+                longitude: coordMatch[2] 
+            }));
+            toast.success('Coordinates extracted!');
+            return;
+        }
+
+        const llMatch = value.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (llMatch) {
+            setFormData(prev => ({ 
+                ...prev, 
+                latitude: llMatch[1], 
+                longitude: llMatch[2] 
+            }));
+            toast.success('Coordinates extracted!');
+            return;
+        }
+
+        const qMatch = value.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (qMatch) {
+            setFormData(prev => ({ 
+                ...prev, 
+                latitude: qMatch[1], 
+                longitude: qMatch[2] 
+            }));
+            toast.success('Coordinates extracted!');
+        }
     };
 
     const nextStep = () => {
@@ -303,10 +346,13 @@ export default function Register() {
         setIsLoading(true);
         try {
             // Format phone numbers to include country code for backend validation
+            const { googleMapsLink, ...rest } = formData;
             const formattedData = {
-                ...formData,
+                ...rest,
                 ownerPhone: normalizePhoneNumber(formData.ownerPhone),
                 propertyPhone: normalizePhoneNumber(formData.propertyPhone),
+                latitude: rest.latitude ? parseFloat(rest.latitude as any) : undefined,
+                longitude: rest.longitude ? parseFloat(rest.longitude as any) : undefined,
                 platformCommission: Number(formData.platformCommission),
                 referredById: referredById || undefined
             };
@@ -611,6 +657,26 @@ export default function Register() {
                                             placeholder="123, Main Road, Area"
                                         />
                                     </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Google Maps Link (Recommended)</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <Globe className="h-4 w-4 text-gray-400" />
+                                        </div>
+                                        <input
+                                            name="googleMapsLink"
+                                            type="url"
+                                            value={formData.googleMapsLink}
+                                            onChange={handleMapsLinkChange}
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            placeholder="https://goo.gl/maps/..."
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                        Helps our staff verify your location quickly.
+                                    </p>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">

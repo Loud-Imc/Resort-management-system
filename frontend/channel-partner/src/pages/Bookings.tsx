@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import PremiumTable from '../components/PremiumTable';
+import PaginationControls from '../components/PaginationControls';
 import {
     BadgeCheck, Clock, MapPin, XCircle, Loader2, Eye,
     Search, TrendingUp, Wallet, Briefcase,
@@ -51,6 +52,8 @@ const Bookings: React.FC = () => {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 10;
     const [isDownloading, setIsDownloading] = useState<{ [key: string]: boolean }>({});
     const [invoiceCaptureData, setInvoiceCaptureData] = useState<{ data: InvoiceData; type: 'GUEST' | 'PARTNER' } | null>(null);
     const invoiceRef = useRef<HTMLDivElement>(null);
@@ -111,6 +114,7 @@ const Bookings: React.FC = () => {
     }, [bookings]);
 
     const filteredBookings = useMemo(() => {
+        setCurrentPage(1);
         return bookings.filter(b => {
             const matchesSearch = b.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 b.bookingNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -119,6 +123,9 @@ const Bookings: React.FC = () => {
             return matchesSearch && matchesStatus;
         });
     }, [bookings, searchQuery, statusFilter]);
+
+    const totalPages = Math.ceil(filteredBookings.length / PAGE_SIZE);
+    const paginatedBookings = filteredBookings.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
     const handleDownloadInvoice = async (booking: Booking, type: 'GUEST' | 'PARTNER') => {
         const key = `${booking.id}-${type}`;
@@ -313,7 +320,7 @@ const Bookings: React.FC = () => {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-padding)', width: '100%' }}>
             {/* Hidden Invoice Template for DOM capture */}
             <div
                 ref={invoiceRef}
@@ -336,8 +343,8 @@ const Bookings: React.FC = () => {
 
             {/* Page Header */}
             <div>
-                <h1 className="text-premium-gradient" style={{ fontSize: '2.5rem', fontWeight: 900, letterSpacing: '-0.02em' }}>Bookings Portfolio</h1>
-                <p style={{ color: 'var(--text-dim)', fontSize: '1.1rem' }}>Manage and track your referred luxury stay reservations.</p>
+                <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.2 }}>Bookings Portfolio</h1>
+                <p style={{ color: 'var(--text-dim)', fontSize: 'clamp(0.9rem, 3vw, 1.1rem)' }}>Manage and track your referred luxury stay reservations.</p>
             </div>
 
             {/* Stats Summary Section */}
@@ -372,7 +379,7 @@ const Bookings: React.FC = () => {
             </div>
 
             {/* Search & Filters */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
                 <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
                     <Search size={18} color="var(--text-dim)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
                     <input
@@ -386,13 +393,14 @@ const Bookings: React.FC = () => {
                             borderRadius: '1rem',
                             border: '1px solid var(--border-glass)',
                             background: 'rgba(255,255,255,0.05)',
-                            color: '#fff',
+                            color: 'var(--text-main)',
                             outline: 'none',
-                            fontSize: '0.9rem'
+                            fontSize: '0.9rem',
+                            boxSizing: 'border-box'
                         }}
                     />
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.05)', padding: '0.3rem', borderRadius: '0.75rem', overflowX: 'auto', maxWidth: '100%' }}>
                     {['ALL', 'CONFIRMED', 'PENDING_PAYMENT', 'CHECKED_OUT'].map(status => (
                         <button
                             key={status}
@@ -406,7 +414,8 @@ const Bookings: React.FC = () => {
                                 cursor: 'pointer',
                                 background: statusFilter === status ? 'var(--primary-teal)' : 'transparent',
                                 color: statusFilter === status ? '#fff' : 'var(--text-dim)',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                whiteSpace: 'nowrap'
                             }}
                         >
                             {status === 'ALL' ? 'Everything' : status.replace('_', ' ')}
@@ -418,7 +427,16 @@ const Bookings: React.FC = () => {
             {/* Bookings Table */}
             <div className="glass-pane" style={{ padding: '1rem', overflow: 'hidden' }}>
                 {filteredBookings.length > 0 ? (
-                    <PremiumTable columns={columns} data={filteredBookings} />
+                    <>
+                        <PremiumTable columns={columns} data={paginatedBookings} />
+                        <PaginationControls
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={filteredBookings.length}
+                            itemsPerPage={PAGE_SIZE}
+                            onPageChange={setCurrentPage}
+                        />
+                    </>
                 ) : (
                     <div style={{ textAlign: 'center', padding: '5rem 2rem' }}>
                         <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: 'var(--text-dim)' }}>

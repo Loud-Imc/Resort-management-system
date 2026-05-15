@@ -484,7 +484,7 @@ export class BookingsService {
             let walletTxId: string | undefined;
             if (createBookingDto.paymentMethod === 'WALLET' && channelPartnerId) {
                 let totalToCollect = finalTotal - cpCommission;
-                
+
                 // If it's a partial payment from wallet, we only deduct the percentage amount
                 // Note: Commission is usually deferred for partial payments, so we deduct the raw percentage of the total
                 if (createBookingDto.paymentOption === 'PARTIAL') {
@@ -588,7 +588,7 @@ export class BookingsService {
                     paymentOption: isHistoricalEntry ? 'FULL' : (createBookingDto.paymentOption || 'FULL'),
                     status: isHistoricalEntry && checkOut < new Date()
                         ? 'CHECKED_OUT'
-                        : (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? 'CONFIRMED' : 'PENDING_PAYMENT',
+                        : (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY') ? 'CONFIRMED' : 'PENDING_PAYMENT',
                     isSeenByProperty: isAuthorizedStaff,
                     roomId: selectedRoom.id,
                     roomTypeId: roomTypeId!,
@@ -604,23 +604,23 @@ export class BookingsService {
                     couponId,
                     couponCode: couponId ? couponCode : null, // Store the code string
                     paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
-                        ? (paidAmountInput !== undefined ? Number(paidAmountInput) : 
-                            (createBookingDto.paymentOption === 'PARTIAL' 
-                                ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) 
+                        ? (paidAmountInput !== undefined ? Number(paidAmountInput) :
+                            (createBookingDto.paymentOption === 'PARTIAL'
+                                ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100)
                                 : finalTotal))
                         : 0,
                     paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
                         ? (
-                            (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : finalTotal)) >= finalTotal - 0.01 
-                            ? 'FULL' 
-                            : (
-                                (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : 0)) > 0 
-                                ? 'PARTIAL' 
-                                : 'UNPAID'
-                              )
-                          )
+                            (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : finalTotal)) >= finalTotal - 0.01
+                                ? 'FULL'
+                                : (
+                                    (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : 0)) > 0
+                                        ? 'PARTIAL'
+                                        : 'UNPAID'
+                                )
+                        )
                         : 'UNPAID',
-                    confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET') ? effectiveCreatedAt : null,
+                    confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY') ? effectiveCreatedAt : null,
                     paymentMethod: createBookingDto.paymentMethod as any,
                     guests: {
                         create: (isGroupBooking && guests.length === 0) ? [] : guests.map(g => ({
@@ -911,6 +911,8 @@ export class BookingsService {
                     select: {
                         id: true,
                         email: true,
+                        phone: true,
+
                         firstName: true,
                         lastName: true,
                     },

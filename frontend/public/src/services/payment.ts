@@ -1,7 +1,7 @@
 import api from './api';
 
 export const paymentService = {
-    initiatePayment: async (params: { bookingId?: string; eventBookingId?: string }) => {
+    initiatePayment: async (params: { bookingId?: string; eventBookingId?: string; incentive?: boolean }) => {
         const { data } = await api.post<{
             orderId: string;
             amount: number;

@@ -38,7 +38,7 @@ export class PaymentsService {
     /**
      * Initiate payment - Create Razorpay order
      */
-    async initiatePayment(bookingId?: string, eventBookingId?: string) {
+    async initiatePayment(bookingId?: string, eventBookingId?: string, incentive?: boolean) {
         if (!bookingId && !eventBookingId) {
             throw new BadRequestException('Either bookingId or eventBookingId is required');
         }
@@ -56,7 +56,9 @@ export class PaymentsService {
                 throw new NotFoundException('Booking not found');
             }
 
-            if (booking.status !== 'PENDING_PAYMENT' && booking.status !== 'RESERVED') {
+            if (booking.paymentOption === 'PAY_AT_PROPERTY' && booking.status === 'CONFIRMED') {
+                // This is allowed for incentive conversion from Pay At Property to Online
+            } else if (booking.status !== 'PENDING_PAYMENT' && booking.status !== 'RESERVED') {
                 throw new BadRequestException('Booking is not in a payable status');
             }
 
@@ -80,6 +82,12 @@ export class PaymentsService {
                 // Fetch dynamic partial payment percentage (default 33.33%)
                 const partialPaymentPct = await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33;
                 chargeAmount = Math.round((totalAmount * Number(partialPaymentPct)) / 100);
+            }
+
+            // Apply incentive discount if applicable
+            if (incentive && booking.paymentOption === 'PAY_AT_PROPERTY') {
+                const discountPct = await this.systemSettings.getSetting('ONLINE_PAYMENT_DISCOUNT_PCT') || 5;
+                chargeAmount = Math.round(chargeAmount * (1 - (Number(discountPct) / 100)));
             }
 
             if (chargeAmount <= 0) {
@@ -397,6 +405,7 @@ export class PaymentsService {
                         confirmedAt: payment.booking.confirmedAt || new Date(),
                         paidAmount: newPaidAmount,
                         paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
+                        paymentOption: isFullyPaid ? 'FULL' : payment.booking.paymentOption,
                     },
                 });
 
@@ -1167,9 +1176,12 @@ export class PaymentsService {
         const result = await this.prisma.$transaction(async (tx) => {
             const newPaidAmount = Number(booking.paidAmount) + Number(dto.amount);
             const totalAmount = Number(booking.totalAmount);
+            // Logic for Platform Fee: 
+            // 1. If dashboard booking (isManualBooking: true) -> 0 Fee
+            // 2. If public PAP booking -> Take Platform Fee (recorded as due)
             const commissionRate = Number(booking.property?.platformCommission ?? 10);
-            const platformFee = (Number(dto.amount) * commissionRate) / 100;
-            const netAmount = Number(dto.amount) - platformFee;
+            const shouldTakeFee = !booking.isManualBooking && booking.paymentOption === 'PAY_AT_PROPERTY';
+            const platformFee = shouldTakeFee ? (Number(dto.amount) * commissionRate) / 100 : 0;
 
             // 1. Create payment record
             const payment = await tx.payment.create({
@@ -1180,11 +1192,11 @@ export class PaymentsService {
                     paymentMethod: dto.method,
                     paymentDate: new Date(),
                     bookingId: dto.bookingId,
-                    notes: `Property Desk Payment: ${dto.notes || ''} (Zero Platform Fee)`,
-                    platformFee: 0,
-                    netAmount: dto.amount,
-                    commissionRate: 0,
-                    payoutStatus: 'PAID',
+                    notes: `Property Desk Payment: ${dto.notes || ''}${shouldTakeFee ? ` (Platform Fee: ${platformFee})` : ' (Zero Platform Fee)'}`,
+                    platformFee: platformFee,
+                    netAmount: Number(dto.amount) - platformFee,
+                    commissionRate: shouldTakeFee ? commissionRate : 0,
+                    payoutStatus: 'PAID', // Marked as paid because property already has the cash
                 },
             });
 

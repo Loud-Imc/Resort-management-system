@@ -24,7 +24,8 @@ import {
     ExternalLink,
     PieChart as PieChartIcon,
     BarChart3,
-    CreditCard
+    CreditCard,
+    Tag
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 
@@ -181,14 +182,21 @@ export default function Reports() {
             </div>
 
             {/* KPI Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <KPICard
                     title="Total Revenue"
-                    value={`₹${(financialReport?.summary?.totalIncome || 0).toLocaleString()}`}
+                    value={`₹${(financialReport?.summary?.totalVolume || 0).toLocaleString()}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />}
                     trend={financialReport?.summary?.growth?.revenue}
                     color="text-emerald-500"
                     onClick={() => setActiveDrillDown('REVENUE')}
+                />
+                <KPICard
+                    title="Accrued Fees"
+                    value={`₹${(financialReport?.summary?.totalPlatformFees || 0).toLocaleString()}`}
+                    icon={<Tag className="h-4 w-4 text-cyan-500" />}
+                    color="text-cyan-500"
+                    description="Inc. PAP commissions"
                 />
                 <KPICard
                     title="Avg. Occupancy"

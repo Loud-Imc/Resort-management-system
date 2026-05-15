@@ -12,6 +12,7 @@ export interface RoomType {
     id: string;
     name: string;
     description?: string;
+    size?: number | null;
     basePrice: number;
     originalPrice?: number | null;
     maxAdults: number;
@@ -32,6 +33,7 @@ export interface RoomType {
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive: boolean;
+    allowPayAtProperty: boolean;
     propertyId: string;
     property?: {
         id: string;
@@ -47,6 +49,7 @@ export interface RoomType {
 export interface CreateRoomTypeDto {
     name: string;
     description?: string;
+    size?: number | null;
     basePrice: number;
     originalPrice?: number | null;
     maxAdults: number;
@@ -66,6 +69,7 @@ export interface CreateRoomTypeDto {
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive?: boolean;
+    allowPayAtProperty?: boolean;
     propertyId?: string;
 }
 

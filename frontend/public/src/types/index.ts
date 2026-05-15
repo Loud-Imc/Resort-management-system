@@ -7,7 +7,7 @@ export interface RoomType {
     capacity: number;
     maxAdults: number;
     maxChildren: number;
-    size?: number;
+    size?: number | null;
     amenities: string[];
     images: string[];
     highlights?: string[];
@@ -37,6 +37,7 @@ export interface RoomType {
     groupMaxOccupancy?: number;
     groupPricePerHead?: number;
     isGstInclusive?: boolean;
+    allowPayAtProperty?: boolean;
     offerName?: string;
 }
 
@@ -145,6 +146,10 @@ export interface Property {
     groupPricePerHead?: number;
     groupPriceAdult?: number;
     groupPriceChild?: number;
+    isGroupGstInclusive?: boolean;
+    isFeatured?: boolean;
+    isSponsored?: boolean;
+    isPlaceholder?: boolean;
 }
 
 export interface PropertySearchParams {
@@ -160,6 +165,9 @@ export interface PropertySearchParams {
     latitude?: number;
     longitude?: number;
     radius?: number;
+    isFeatured?: boolean;
+    isSponsored?: boolean;
+    sortByRating?: boolean;
 }
 
 export interface PropertyListResponse {

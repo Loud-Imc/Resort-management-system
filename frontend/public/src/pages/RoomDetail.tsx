@@ -6,7 +6,7 @@ import {
     Wifi, Utensils, Clock, ChevronRight, ChevronLeft,
     Star, ShieldCheck, MapPin, Building2, Loader2,
     Tv, Coffee, Waves, Trees, Sparkles, Lock,
-    ConciergeBell, Ticket, Snowflake, Sunset, Mountain
+    ConciergeBell, Ticket, Snowflake, Sunset, Mountain, Wallet
 } from 'lucide-react';
 import { roomTypeApi } from '../services/roomTypes';
 import { propertyApi } from '../services/properties';
@@ -175,7 +175,7 @@ export default function RoomDetail() {
                                                 </span>
                                             </div>
 
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-2 overflow-x-auto max-w-[160px] sm:max-w-none">
                                                 {roomType.images.map((_, i) => (
                                                     <button
                                                         key={i}
@@ -221,7 +221,7 @@ export default function RoomDetail() {
                                         <span>Luxury Accommodation</span>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">
+                                        <h1 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tight">
                                             {roomType.name}
                                         </h1>
                                         {roomType.marketingBadgeText && (
@@ -234,8 +234,18 @@ export default function RoomDetail() {
                                                 {roomType.marketingBadgeText}
                                             </span>
                                         )}
+                                        {roomType.allowPayAtProperty && (
+                                            <div className="flex flex-col items-center bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 text-white px-6 py-3 rounded-[2rem] border border-white/30 shadow-2xl shadow-emerald-500/40 relative overflow-hidden group/pap animate-badge-glow">
+                                                <div className="flex items-center gap-3">
+                                                    <Wallet className="h-6 w-6 animate-bounce" />
+                                                    <span className="text-[14px] font-black uppercase tracking-[0.25em] whitespace-nowrap">Pay At Property Available</span>
+                                                </div>
+                                                <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest mt-0.5">Secure your stay with zero advance</span>
+                                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/pap:animate-shimmer" />
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-4 text-gray-500 text-sm font-medium pt-2">
+                                    <div className="flex flex-wrap items-center gap-3 text-gray-500 text-sm font-medium pt-2">
                                         <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 rounded-full">
                                             <Maximize className="h-4 w-4 text-primary-500" />
                                             <span>{roomType.size || 280} sq.ft</span>
@@ -261,7 +271,7 @@ export default function RoomDetail() {
                                         <div className="flex items-baseline justify-end gap-1">
                                             <PriceDisplay
                                                 amount={roomType.basePrice}
-                                                className="text-3xl font-black text-primary-700"
+                                                className="text-2xl sm:text-3xl font-black text-primary-700"
                                             />
                                             <span className="text-gray-500 text-sm font-medium">/ night</span>
                                         </div>
@@ -550,6 +560,31 @@ export default function RoomDetail() {
                     </div>
                 </div>
             </div>
+            {/* Mobile Sticky Booking Bar — hidden on lg where sidebar is visible */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-2xl p-4 flex items-center justify-between gap-4">
+                <div>
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Per night from</p>
+                    <div className="flex items-baseline gap-1">
+                        <PriceDisplay
+                            amount={roomType.discountedPricePerNight || roomType.basePrice}
+                            className="text-xl font-black text-primary-700"
+                        />
+                        {!roomType.isGstInclusive && <span className="text-[10px] text-gray-400 font-medium">+ taxes</span>}
+                    </div>
+                </div>
+                <Link
+                    to={checkIn && checkOut
+                        ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=${isGroupBooking}`
+                        : `/properties/${property.slug}#stay-selection`
+                    }
+                    className="flex-1 max-w-[200px] py-3.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white text-center font-bold rounded-2xl shadow-lg shadow-primary-500/30 text-sm uppercase tracking-wider"
+                >
+                    {(!checkIn || !checkOut) ? 'Select Dates' : 'Book Now'}
+                </Link>
+            </div>
+
+            {/* Spacer so content isn't hidden behind mobile sticky bar */}
+            <div className="lg:hidden h-24" />
         </div>
     );
 }

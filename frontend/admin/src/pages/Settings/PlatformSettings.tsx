@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { settingsService, GlobalSetting } from '../../services/settings';
 import { marketingService, PartnerLevel, Reward } from '../../services/marketing';
+import { uploadService } from '../../services/uploads';
 import {
     Save,
     Plus,
@@ -16,7 +17,9 @@ import {
     X,
     Image as ImageIcon,
     Percent,
-    Clock
+    Upload,
+    Settings,
+    MapPin
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,7 +31,7 @@ interface GstTier {
 
 type TabType = 'GLOBAL' | 'TIERS' | 'REWARDS';
 
-export default function LoyaltyManagement() {
+export default function PlatformSettings() {
     const [activeTab, setActiveTab] = useState<TabType>('GLOBAL');
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -40,6 +43,11 @@ export default function LoyaltyManagement() {
     const [partialPaymentPct, setPartialPaymentPct] = useState<number>(33.33);
     const [payoutFrequency, setPayoutFrequency] = useState<string>('Monthly');
 
+    // New Platform Discovery States
+    const [searchRadius, setSearchRadius] = useState<number>(50);
+    const [onlinePaymentDiscountPct, setOnlinePaymentDiscountPct] = useState<number>(5);
+    const [maxBookingDiscountPct, setMaxBookingDiscountPct] = useState<number>(30);
+
     // Tiers State
     const [levels, setLevels] = useState<PartnerLevel[]>([]);
     const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
@@ -49,6 +57,8 @@ export default function LoyaltyManagement() {
     const [rewards, setRewards] = useState<Reward[]>([]);
     const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
     const [currentReward, setCurrentReward] = useState<Partial<Reward>>({ isActive: true });
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const imageInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchData();
@@ -79,12 +89,22 @@ export default function LoyaltyManagement() {
             const freqSetting = settingsData.find((s: GlobalSetting) => s.key === 'PAYOUT_FREQUENCY');
             if (freqSetting) setPayoutFrequency(String(freqSetting.value));
 
+            // Discovery & Discounts
+            const radiusSetting = settingsData.find((s: GlobalSetting) => s.key === 'SEARCH_RADIUS');
+            if (radiusSetting) setSearchRadius(Number(radiusSetting.value));
+
+            const papSetting = settingsData.find((s: GlobalSetting) => s.key === 'ONLINE_PAYMENT_DISCOUNT_PCT');
+            if (papSetting) setOnlinePaymentDiscountPct(Number(papSetting.value));
+
+            const maxDiscountSetting = settingsData.find((s: GlobalSetting) => s.key === 'MAX_DISCOUNT_PCT');
+            if (maxDiscountSetting) setMaxBookingDiscountPct(Number(maxDiscountSetting.value));
+
             // Map Tiers & Rewards
             setLevels(levelsData.sort((a, b) => a.minPoints - b.minPoints));
             setRewards(rewardsData.sort((a, b) => a.pointCost - b.pointCost));
         } catch (error) {
             console.error('Failed to fetch data:', error);
-            toast.error('Failed to load loyalty settings');
+            toast.error('Failed to load platform settings');
         } finally {
             setIsLoading(false);
         }
@@ -116,6 +136,9 @@ export default function LoyaltyManagement() {
         if (defaultPlatformCommission < 0 || defaultPlatformCommission > 100) return 'Platform Commission must be between 0 and 100%';
         if (partialPaymentPct < 0 || partialPaymentPct > 100) return 'Partial Payment % must be between 0 and 100%';
         if (payoutCoolingHours < 0) return 'Cooling period cannot be negative';
+        if (searchRadius < 1) return 'Search radius must be at least 1km';
+        if (onlinePaymentDiscountPct < 0 || onlinePaymentDiscountPct > 50) return 'PAP Discount must be between 0 and 50%';
+        if (maxBookingDiscountPct < 0 || maxBookingDiscountPct > 90) return 'Max discount must be between 0 and 90%';
         return null;
     };
 
@@ -163,7 +186,7 @@ export default function LoyaltyManagement() {
         }
     };
 
-    const handleSaveLoyalty = async () => {
+    const handleSavePlatformConfig = async () => {
         const error = validateFinancialSettingsLogic();
         if (error) {
             toast.error(error);
@@ -177,8 +200,11 @@ export default function LoyaltyManagement() {
                 settingsService.update('PAYOUT_COOLING_HOURS', payoutCoolingHours, 'Cooling period (hours) before settlement approval'),
                 settingsService.update('PARTIAL_PAYMENT_PCT', partialPaymentPct, 'The percentage of the total amount required for a partial payment booking advance'),
                 settingsService.update('PAYOUT_FREQUENCY', payoutFrequency, 'Global payout frequency for Channel Partners'),
+                settingsService.update('SEARCH_RADIUS', searchRadius, 'Default radius (in km) used for nearby property discovery'),
+                settingsService.update('ONLINE_PAYMENT_DISCOUNT_PCT', onlinePaymentDiscountPct, 'Incentive discount for PAP customers to pay online before check-in'),
+                settingsService.update('MAX_DISCOUNT_PCT', maxBookingDiscountPct, 'Global maximum combined discount percentage allowed on any booking'),
             ]);
-            toast.success('Settings updated successfully');
+            toast.success('Platform configurations updated successfully');
         } catch (error) {
             toast.error('Failed to update settings');
         } finally {
@@ -276,11 +302,11 @@ export default function LoyaltyManagement() {
             {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-                    <Coins className="h-8 w-8 text-primary" />
-                    Loyalty & Tiers Management
+                    <Settings className="h-8 w-8 text-primary" />
+                    Platform Settings
                 </h1>
                 <p className="mt-2 text-muted-foreground">
-                    Centralize tax policies, Channel Partner (CP) reseller tiers, and the rewards catalog.
+                    Centralize platform configurations, tax policies, and loyalty catalogs.
                 </p>
             </div>
 
@@ -290,7 +316,7 @@ export default function LoyaltyManagement() {
                     onClick={() => setActiveTab('GLOBAL')}
                     className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'GLOBAL' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
                 >
-                    <Coins className="h-4 w-4" /> Global Points & Tax
+                    <Settings className="h-4 w-4" /> Platform Config
                 </button>
                 <button
                     onClick={() => setActiveTab('TIERS')}
@@ -313,7 +339,7 @@ export default function LoyaltyManagement() {
                         <Info className="h-5 w-5 text-primary mt-0.5" />
                         <div>
                             <p className="text-sm font-medium text-foreground">Global Configuration</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">Setup foundational tax tiers based on room prices and define the base conversion rates for the loyalty engine.</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Setup foundational tax tiers, discovery radius, and platform-wide financial parameters.</p>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -353,10 +379,28 @@ export default function LoyaltyManagement() {
                             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
                                 <div className="p-6 border-b border-border flex items-center gap-3 bg-muted/30">
                                     <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><Coins className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
-                                    <div><h2 className="text-lg font-bold text-foreground">Points & Financials</h2><p className="text-xs text-muted-foreground">Global commission and conversion rates</p></div>
+                                    <div><h2 className="text-lg font-bold text-foreground">Operational & Discovery Config</h2><p className="text-xs text-muted-foreground">Platform-wide business parameters</p></div>
                                 </div>
                                 <div className="p-6 space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-muted-foreground mb-2">Search Radius (KM)</label>
+                                            <div className="relative">
+                                                <input type="number" value={searchRadius} onChange={(e) => setSearchRadius(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold" />
+                                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-500" />
+                                            </div>
+                                            <p className="mt-2 text-[10px] text-muted-foreground">Radius used for "Explore Similar Stays" and proximity fallback. <strong>Vital for discovery.</strong></p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-muted-foreground mb-2">PAP Early Pay Discount %</label>
+                                            <div className="relative">
+                                                <input type="number" value={onlinePaymentDiscountPct} onChange={(e) => setOnlinePaymentDiscountPct(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold" />
+                                                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                            </div>
+                                            <p className="mt-2 text-[10px] text-muted-foreground">Incentive discount for "Pay at Property" guests to pay online early.</p>
+                                        </div>
 
                                         <div>
                                             <label className="block text-sm font-medium text-muted-foreground mb-2">Platform Fee %</label>
@@ -364,25 +408,7 @@ export default function LoyaltyManagement() {
                                                 <input type="number" value={defaultPlatformCommission} onChange={(e) => setDefaultPlatformCommission(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold" />
                                                 <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                             </div>
-                                            <p className="mt-2 text-[10px] text-muted-foreground">The service fee charged to resort properties for every booking processed.</p>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-muted-foreground mb-2">Payout Frequency</label>
-                                            <div className="relative">
-                                                <select
-                                                    value={payoutFrequency}
-                                                    onChange={(e) => setPayoutFrequency(e.target.value)}
-                                                    className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold appearance-none cursor-pointer"
-                                                >
-                                                    <option value="Weekly">Weekly</option>
-                                                    <option value="Bi-weekly">Bi-weekly</option>
-                                                    <option value="Monthly">Monthly</option>
-                                                    <option value="Instant">Instant (On Checkout)</option>
-                                                </select>
-                                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                                            </div>
-                                            <p className="mt-2 text-[10px] text-muted-foreground">Determines when the commission becomes eligible for withdrawal by the partner.</p>
+                                            <p className="mt-2 text-[10px] text-muted-foreground">Service fee charged to properties for every booking processed.</p>
                                         </div>
 
                                         <div>
@@ -391,7 +417,16 @@ export default function LoyaltyManagement() {
                                                 <input type="number" value={partialPaymentPct} onChange={(e) => setPartialPaymentPct(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold" />
                                                 <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                             </div>
-                                            <p className="mt-2 text-[10px] text-muted-foreground">Minimum guest advance payment (%) required to confirm a reservation.</p>
+                                            <p className="mt-2 text-[10px] text-muted-foreground">Minimum guest advance payment required for reservations.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-muted-foreground mb-2">Max Global Discount %</label>
+                                            <div className="relative">
+                                                <input type="number" value={maxBookingDiscountPct} onChange={(e) => setMaxBookingDiscountPct(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold" />
+                                                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                            </div>
+                                            <p className="mt-2 text-[10px] text-muted-foreground italic text-amber-600">Strict ceiling for combined discounts (Coupon + Referral + Offer).</p>
                                         </div>
 
                                         <div>
@@ -403,9 +438,9 @@ export default function LoyaltyManagement() {
                                             <p className="mt-2 text-[10px] text-muted-foreground italic">Safety period after checkout before settlement is approved.</p>
                                         </div>
                                     </div>
-                                    <button onClick={handleSaveLoyalty} disabled={isSaving} className="w-full py-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">
+                                    <button onClick={handleSavePlatformConfig} disabled={isSaving} className="w-full py-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">
                                         {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-                                        Save All Financial Settings
+                                        Update Platform Configuration
                                     </button>
                                 </div>
                             </div>
@@ -422,9 +457,6 @@ export default function LoyaltyManagement() {
                         <div>
                             <p className="text-sm font-medium text-purple-900">Partner Progression</p>
                             <p className="text-xs text-purple-700/70 mt-0.5">Setup a tiered growth system for Channel Partners. As partners reach cumulative point milestones through bookings, they graduate to higher tiers with better commission rates.</p>
-                            <p className="mt-2 text-[10px] text-purple-900/60 italic bg-purple-100/50 p-2 rounded-lg leading-relaxed">
-                                <strong>Example:</strong> If "Gold" requires 50k pts and offers 12% commission, once a partner hits 50,000 total points, their commission automatically increases from the base rate (e.g. 10%) to 12% for all future bookings.
-                            </p>
                         </div>
                     </div>
                     <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -458,10 +490,7 @@ export default function LoyaltyManagement() {
                         <Gift className="h-5 w-5 text-emerald-600 mt-0.5" />
                         <div>
                             <p className="text-sm font-medium text-emerald-900">Loyalty Marketplace</p>
-                            <p className="text-xs text-emerald-700/70 mt-0.5">Manage the catalog of items and rewards that Channel Partners can redeem using their points. Points are spent upon redemption.</p>
-                            <p className="mt-2 text-[10px] text-emerald-900/60 italic bg-emerald-100/50 p-2 rounded-lg leading-relaxed">
-                                <strong>Example:</strong> If a partner has 600,000 points and redeems an "iPad" for 500k, their "Available" balance drops to 100k, but their "Lifetime Points" (which determines tier status) remains at 600,000.
-                            </p>
+                            <p className="text-xs text-emerald-700/70 mt-0.5">Manage the catalog of items and rewards that Channel Partners can redeem using their points.</p>
                         </div>
                     </div>
                     <div className="flex items-center justify-between">
@@ -486,7 +515,7 @@ export default function LoyaltyManagement() {
                 </div>
             )}
 
-            {/* MODALS */}
+            {/* MODALS remain largely the same, but you might want to adjust them if needed */}
             {isLevelModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/60 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-card rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-border">
@@ -505,19 +534,6 @@ export default function LoyaltyManagement() {
                                     <label className="block text-sm font-medium mb-1">Commission %</label>
                                     <input type="number" value={currentLevel.commissionRate || ''} onChange={(e) => setCurrentLevel({ ...currentLevel, commissionRate: Number(e.target.value) })} className="w-full px-4 py-2 border rounded-xl" />
                                 </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Points Per Unit</label>
-                                    <input type="number" value={currentLevel.pointsPerUnit || ''} onChange={(e) => setCurrentLevel({ ...currentLevel, pointsPerUnit: Number(e.target.value) })} className="w-full px-4 py-2 border rounded-xl" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Unit Amount (₹)</label>
-                                    <input type="number" value={currentLevel.unitAmount || ''} onChange={(e) => setCurrentLevel({ ...currentLevel, unitAmount: Number(e.target.value) })} className="w-full px-4 py-2 border rounded-xl" />
-                                </div>
-                                <p className="col-span-2 text-[10px] text-muted-foreground italic -mt-2">
-                                    Partners in this tier earn <strong>{currentLevel.pointsPerUnit || 0} pts</strong> for every <strong>₹{currentLevel.unitAmount || 0}</strong> spent.
-                                </p>
                             </div>
                         </div>
                         <div className="p-4 border-t flex justify-end gap-3 bg-muted/30">
@@ -541,10 +557,77 @@ export default function LoyaltyManagement() {
                                 <div className="col-span-1">
                                     <label className="block text-sm font-medium mb-1">Point Cost</label>
                                     <input type="number" value={currentReward.pointCost || ''} onChange={(e) => setCurrentReward({ ...currentReward, pointCost: Number(e.target.value) })} className="w-full px-4 py-2 border rounded-xl" />
-                                    <p className="text-[10px] text-muted-foreground mt-1">Cost in loyalty points.</p>
                                 </div>
                             </div>
-                            <div><label className="block text-sm font-medium mb-1">Image URL</label><input type="text" value={currentReward.imageUrl || ''} onChange={(e) => setCurrentReward({ ...currentReward, imageUrl: e.target.value })} className="w-full px-4 py-2 border rounded-xl" /></div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Reward Image</label>
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        setIsUploadingImage(true);
+                                        try {
+                                            const { url } = await uploadService.upload(file);
+                                            setCurrentReward({ ...currentReward, imageUrl: url });
+                                            toast.success('Image uploaded successfully');
+                                        } catch {
+                                            toast.error('Image upload failed. Please try again.');
+                                        } finally {
+                                            setIsUploadingImage(false);
+                                            if (imageInputRef.current) imageInputRef.current.value = '';
+                                        }
+                                    }}
+                                />
+
+                                {currentReward.imageUrl ? (
+                                    <div className="relative rounded-xl overflow-hidden border border-border group">
+                                        <img
+                                            src={currentReward.imageUrl}
+                                            alt="Preview"
+                                            className="w-full h-40 object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => imageInputRef.current?.click()}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-900 rounded-lg text-xs font-bold"
+                                            >
+                                                <Upload className="h-3.5 w-3.5" /> Replace
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentReward({ ...currentReward, imageUrl: '' })}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" /> Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => imageInputRef.current?.click()}
+                                        disabled={isUploadingImage}
+                                        className="w-full h-36 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isUploadingImage ? (
+                                            <>
+                                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                                <span className="text-xs font-medium">Uploading image...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="h-8 w-8" />
+                                                <span className="text-xs font-medium">Click to upload image</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
                             <div><label className="block text-sm font-medium mb-1">Description</label><textarea value={currentReward.description || ''} onChange={(e) => setCurrentReward({ ...currentReward, description: e.target.value })} className="w-full px-4 py-2 border rounded-xl min-h-[80px]" /></div>
                         </div>
                         <div className="p-4 border-t flex justify-end gap-3 bg-muted/30">

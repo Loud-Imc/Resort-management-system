@@ -24,10 +24,18 @@ export const propertyApi = {
         return response.data;
     },
 
-    // Get featured properties for homepage
-    async getFeatured(limit = 6): Promise<Property[]> {
+    // Get featured properties for homepage with optional regional filter
+    async getFeatured(limit = 6, city?: string): Promise<Property[]> {
         const response = await api.get('/properties', {
-            params: { limit, isFeatured: true }
+            params: { limit, isFeatured: true, ...(city && { city }) }
+        });
+        return response.data.data;
+    },
+
+    // Get top unique/rated properties for homepage
+    async getTopUnique(limit = 6): Promise<Property[]> {
+        const response = await api.get('/properties', {
+            params: { limit, sortByRating: true }
         });
         return response.data.data;
     },
@@ -39,7 +47,7 @@ export const propertyApi = {
     },
 
     // Get nearby properties by lat/lng
-    async getNearby(lat: number, lng: number, radius = 100): Promise<Property[]> {
+    async getNearby(lat: number, lng: number, radius?: number): Promise<{ properties: Property[], radiusKm: number }> {
         const response = await api.get('/properties/nearby', { params: { lat, lng, radius } });
         return response.data;
     },

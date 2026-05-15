@@ -223,6 +223,8 @@ export class PropertiesService {
                     ownerAadhaarImage: details.ownerAadhaarImage || null,
                     allowsGroupBooking: details.allowsGroupBooking || false,
                     maxGroupCapacity: details.maxGroupCapacity || null,
+                    latitude: details.latitude ? new Prisma.Decimal(details.latitude) : null,
+                    longitude: details.longitude ? new Prisma.Decimal(details.longitude) : null,
                     platformCommission: details.platformCommission
                         ? new Prisma.Decimal(details.platformCommission)
                         : new Prisma.Decimal(await this.systemSettings.getSetting('DEFAULT_PLATFORM_COMMISSION') ?? 10.00),
@@ -409,6 +411,7 @@ export class PropertiesService {
                 latitude: data.latitude ? new Prisma.Decimal(data.latitude) : null,
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : null,
                 isFeatured: data.isFeatured || false,
+                isSponsored: data.isSponsored || false,
                 status: PropertyStatus.APPROVED, // Manual creation by staff is auto-approved
                 categoryId: data.categoryId || null,
             },
@@ -554,7 +557,7 @@ export class PropertiesService {
     }
 
     async findAll(query: PropertyQueryDto) {
-        const { city, state, type, search, page = 1, limit = 10, latitude, longitude, radius } = query;
+        const { city, state, type, search, page = 1, limit = 100, latitude, longitude, radius } = query;
         const skip = (page - 1) * limit;
 
         let geoPropertyIds: string[] | null = null;
@@ -588,6 +591,7 @@ export class PropertiesService {
             ...(type && { type }),
             ...(query.categoryId && { categoryId: query.categoryId }),
             ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
+            ...(query.isSponsored !== undefined && { isSponsored: String(query.isSponsored) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
             ...(query.allowsGroupBooking !== undefined && { allowsGroupBooking: String(query.allowsGroupBooking) === 'true' }),
             ...(search && {
@@ -606,7 +610,15 @@ export class PropertiesService {
                 where,
                 skip,
                 take: limit,
-                orderBy: { createdAt: 'desc' },
+                orderBy: query.sortByRating ? [
+                    { rating: 'desc' },
+                    { reviewCount: 'desc' },
+                    { createdAt: 'desc' }
+                ] : [
+                    { isFeatured: 'desc' },
+                    { isSponsored: 'desc' },
+                    { createdAt: 'desc' }
+                ],
                 include: {
                     owner: {
                         select: { id: true, firstName: true, lastName: true },
@@ -632,7 +644,7 @@ export class PropertiesService {
     }
 
     async findAllAdmin(user: any, query: any) {
-        const { city, state, type, search, page = 1, limit = 10, status } = query;
+        const { city, state, type, search, page = 1, limit = 100, status } = query;
         const skip = (page - 1) * limit;
 
         const roles = user.roles || [];
@@ -854,13 +866,16 @@ export class PropertiesService {
         // Prepare data for update, handling restricted fields
         const updateData: any = { ...data };
 
+        // Globally lock down isFeatured updates from the public REST interface.
+        // Only the internal Promotion system is allowed to alter this field.
+        delete updateData.isFeatured;
+
         // If not platform admin, prevent changing ownership/marketing/financial fields
         if (!isPlatformAdmin) {
             delete updateData.ownerId;
             delete updateData.addedById;
             delete updateData.marketingCommission;
             delete updateData.commissionStatus;
-            delete updateData.isFeatured;
             delete updateData.platformCommission; // <--- Restrict this
         } else {
             // Admin logic

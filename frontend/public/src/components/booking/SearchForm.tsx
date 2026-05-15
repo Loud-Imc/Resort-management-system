@@ -33,6 +33,28 @@ export default function SearchForm({
     } = useSearch();
 
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
+
+    const handleUseMyLocation = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser');
+            return;
+        }
+
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLatitude(position.coords.latitude);
+                setLongitude(position.coords.longitude);
+                setLocation('Current Location');
+                setIsLocating(false);
+            },
+            () => {
+                alert('Unable to retrieve your location');
+                setIsLocating(false);
+            }
+        );
+    };
 
     const { data: categories } = useQuery({
         queryKey: ['property-categories'],
@@ -58,7 +80,7 @@ export default function SearchForm({
         if (latitude && longitude) {
             params.set('latitude', latitude.toString());
             params.set('longitude', longitude.toString());
-            params.set('radius', radius.toString());
+            if (radius) params.set('radius', radius.toString());
         }
 
         navigate(`/search?${params.toString()}`);
@@ -78,7 +100,9 @@ export default function SearchForm({
         isGroupBooking, setIsGroupBooking,
         groupSize, setGroupSize,
         handleSearch,
-        categories: categories || []
+        categories: categories || [],
+        onUseLocation: handleUseMyLocation,
+        isLocating
     };
 
     if (variant === 'inline') {
@@ -90,12 +114,12 @@ export default function SearchForm({
     }
 
     return (
-        <div className={`relative w-full max-w-6xl mx-auto ${className}`}>
+        <div className={`relative z-50 w-full ${className}`}>
             <SearchDesktop {...sharedProps} theme={theme} />
             <SearchMobile {...sharedProps} isExpanded={isExpanded} setIsExpanded={setIsExpanded} theme={theme} />
 
             {theme === 'dark' && (
-                <div className="mt-14 md:mt-20 text-center pointer-events-none">
+                <div className="mt-14 md:mt-10 md:mb-5 text-center pointer-events-none">
                     <p className="text-white/40 text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-4">
                         <span className="w-8 md:w-16 h-[1px] bg-white/10" />
                         Premium Eco-Stays

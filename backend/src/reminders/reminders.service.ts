@@ -186,4 +186,102 @@ export class RemindersService {
             this.logger.error('Failed to process balance reminders:', error);
         }
     }
+
+    /**
+     * Run every hour to check for Pay at Property bookings requiring incentive reminders
+     */
+    @Cron(CronExpression.EVERY_HOUR)
+    async processPayAtPropertyReminders() {
+        this.logger.log('Checking for Pay at Property incentive reminders...');
+
+        const now = new Date();
+        
+        // We check for bookings in the next 25 hours
+        const soon = addDays(now, 1.1); 
+
+        try {
+            const bookings = await this.prisma.booking.findMany({
+                where: {
+                    checkInDate: {
+                        gte: now,
+                        lte: soon,
+                    },
+                    status: 'CONFIRMED',
+                    paymentOption: 'PAY_AT_PROPERTY',
+                    paymentStatus: 'UNPAID',
+                },
+                include: {
+                    user: true,
+                    property: true,
+                },
+            });
+
+            this.logger.log(`Found ${bookings.length} Pay at Property bookings in the reminder window.`);
+
+            for (const booking of bookings) {
+                // Assume check-in is at 2 PM (14:00) on the check-in date
+                const checkInTime = new Date(booking.checkInDate);
+                checkInTime.setHours(14, 0, 0, 0);
+
+                const hoursUntilCheckIn = (checkInTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+                if (hoursUntilCheckIn <= 6 && !(booking as any).papReminder6hSent) {
+                    await this.notificationsService.sendPayAtPropertyReminder(booking, 6);
+                } else if (hoursUntilCheckIn <= 12 && !(booking as any).papReminder12hSent) {
+                    await this.notificationsService.sendPayAtPropertyReminder(booking, 12);
+                } else if (hoursUntilCheckIn <= 24 && !(booking as any).papReminder24hSent) {
+                    await this.notificationsService.sendPayAtPropertyReminder(booking, 24);
+                }
+            }
+        } catch (error) {
+            this.logger.error('Failed to process Pay at Property reminders:', error);
+        }
+    }
+
+    /**
+     * Run every hour to send a warm "Happy Welcome" 24h before check-in for ALL confirmed bookings
+     */
+    @Cron(CronExpression.EVERY_HOUR)
+    async processPreArrivalWelcomes() {
+        this.logger.log('Checking for upcoming check-ins for Happy Welcome messages...');
+
+        const now = new Date();
+        const windowStart = addDays(now, 1);
+        const windowEnd = addDays(now, 1.1); // Looking for check-ins in the next ~24-26 hours
+
+        try {
+            const bookings = await this.prisma.booking.findMany({
+                where: {
+                    checkInDate: {
+                        gte: now,
+                        lte: windowEnd,
+                    },
+                    status: 'CONFIRMED',
+                    preArrivalWelcomeSentAt: null, // Only send once
+                },
+                include: {
+                    user: true,
+                    property: true,
+                },
+            });
+
+            this.logger.log(`Found ${bookings.length} bookings eligible for the Happy Welcome message.`);
+
+            for (const booking of bookings) {
+                // Assume check-in is at 2 PM (14:00)
+                const checkInTime = new Date(booking.checkInDate);
+                checkInTime.setHours(14, 0, 0, 0);
+
+                const hoursUntilCheckIn = (checkInTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+                // We trigger this between 20 and 26 hours before check-in
+                if (hoursUntilCheckIn <= 26 && hoursUntilCheckIn >= 0) {
+                    await this.notificationsService.sendPreArrivalWelcome(booking);
+                    this.logger.log(`Triggered Happy Welcome for booking ${booking.bookingNumber}`);
+                }
+            }
+        } catch (error) {
+            this.logger.error('Failed to process pre-arrival welcomes:', error);
+        }
+    }
 }

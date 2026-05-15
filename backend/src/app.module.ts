@@ -39,6 +39,8 @@ import { PdfModule } from './pdf/pdf.module';
 import { SystemSettingsModule } from './system-settings/system-settings.module';
 import { FinancialsModule } from './financials/financials.module';
 import { BannersModule } from './banners/banners.module';
+import { HeroContentModule } from './hero-content/hero-content.module';
+import { PromotionsModule } from './promotions/promotions.module';
 
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
@@ -85,6 +87,8 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
     RemindersModule,
     IcalModule,
     BannersModule,
+    HeroContentModule,
+    PromotionsModule,
   ],
   controllers: [AppController],
   providers: [

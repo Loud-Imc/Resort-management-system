@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { MapPin, Star, Users, CheckCircle } from 'lucide-react';
+import { MapPin, Star, Users, CheckCircle, Wallet } from 'lucide-react';
 import { Property, PropertyType } from '../types';
 import { PriceDisplay } from './common/PriceDisplay';
 
@@ -52,13 +52,33 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                     {propertyTypeLabels[property.type]}
                 </div>
 
-                {/* Verified Badge */}
-                {property.isVerified && (
-                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 text-green-600 text-xs font-medium">
-                        <CheckCircle className="h-3 w-3" />
-                        Verified
+                {/* Promoted Badge */}
+                {(property.isSponsored || property.isFeatured) && (
+                    <div className="absolute top-12 left-3 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1 text-yellow-400 text-[9px] font-black uppercase tracking-widest shadow-md border border-yellow-400/30">
+                        <Star className="h-2.5 w-2.5 fill-current" />
+                        {property.isSponsored ? 'Unique' : 'Featured'}
                     </div>
                 )}
+
+                {/* Verified Badge */}
+                <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+                    {property.isVerified && (
+                        <div className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 text-green-600 text-xs font-medium shadow-sm">
+                            <CheckCircle className="h-3 w-3" />
+                            Verified
+                        </div>
+                    )}
+                    {property.roomTypes?.some(rt => rt.allowPayAtProperty) && (
+                        <div className="bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 backdrop-blur-md px-4 py-2 rounded-2xl flex flex-col items-center gap-0.5 text-white shadow-2xl shadow-emerald-500/40 border border-white/40 group/pap relative overflow-hidden group-hover:scale-105 transition-transform duration-300">
+                            <div className="flex items-center gap-2">
+                                <Wallet className="h-4 w-4 animate-bounce" />
+                                <span className="text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap">Pay At Property</span>
+                            </div>
+                            <span className="text-[8px] font-bold text-white/80 uppercase tracking-widest -mt-0.5">Zero Advance Required</span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/pap:animate-shimmer" />
+                        </div>
+                    )}
+                </div>
 
                 {/* Sold Out Badge */}
                 {property.isSoldOut && (
@@ -119,7 +139,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                                         className="text-xl font-black text-gray-900" 
                                     />
                                     <span className="text-[10px] text-gray-500 font-bold">
-                                        / person + GST
+                                        / person {property.isGroupGstInclusive ? 'incl. GST' : '+ GST'}
                                     </span>
                                 </div>
                             </>

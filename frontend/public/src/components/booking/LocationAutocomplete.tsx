@@ -18,6 +18,8 @@ interface Props {
     className?: string;
     inputClassName?: string;
     theme?: 'dark' | 'light';
+    onUseLocation?: () => void;
+    isLocating?: boolean;
 }
 
 export default function LocationAutocomplete({
@@ -27,6 +29,8 @@ export default function LocationAutocomplete({
     placeholder = 'Where are you going?',
     inputClassName = '',
     theme = 'dark',
+    onUseLocation,
+    isLocating,
 }: Props) {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -111,7 +115,7 @@ export default function LocationAutocomplete({
                     value={value}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
-                    onFocus={() => suggestions.length > 0 && setIsOpen(true)}
+                    onFocus={() => setIsOpen(true)}
                     placeholder={placeholder}
                     className={inputClassName}
                     autoComplete="off"
@@ -128,8 +132,24 @@ export default function LocationAutocomplete({
             </div>
 
             {/* Dropdown */}
-            {isOpen && suggestions.length > 0 && (
+            {isOpen && (suggestions.length > 0 || onUseLocation) && (
                 <div className="absolute top-full left-0 right-0 mt-1 z-[200] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 bg-white border-gray-100">
+                    {onUseLocation && (
+                        <button
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); onUseLocation(); setIsOpen(false); }}
+                            className={`w-full flex items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-gray-50 border-b border-gray-50`}
+                        >
+                            {isLocating ? (
+                                <Loader2 className="h-4 w-4 shrink-0 text-primary-500 animate-spin" />
+                            ) : (
+                                <MapPin className="h-4 w-4 shrink-0 text-primary-500" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold truncate text-primary-600">Use Current Location</p>
+                            </div>
+                        </button>
+                    )}
                     {suggestions.map((s, i) => (
                         <button
                             key={s.placeId}

@@ -367,7 +367,7 @@ export class AvailabilityService {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
                     categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
-                    ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
+                    id: propertyId || (geoPropertyIds !== null ? { in: geoPropertyIds } : undefined),
                     ...(location && {
                         OR: [
                             { city: { contains: location, mode: 'insensitive' } },
@@ -388,6 +388,18 @@ export class AvailabilityService {
 
             for (const property of properties) {
                 if (property.roomTypes.length === 0) continue;
+
+                // Fallback for stale Prisma client
+                let isGroupInclusive = (property as any).isGroupGstInclusive;
+                if (isGroupInclusive === undefined) {
+                    try {
+                        const rawProps = await this.prisma.$queryRaw<any[]>`SELECT "isGroupGstInclusive" FROM properties WHERE id = ${property.id}`;
+                        isGroupInclusive = rawProps?.[0]?.isGroupGstInclusive || false;
+                    } catch (e) {
+                        isGroupInclusive = false;
+                    }
+                }
+                (property as any).isGroupGstInclusive = isGroupInclusive;
 
                 let totalPoolCapacity = 0;
                 for (const rt of property.roomTypes) {
@@ -419,6 +431,11 @@ export class AvailabilityService {
                             description: `Whole property access for your group of ${groupSize} guests.`,
                             basePrice: delegateType.basePrice,
                             propertyId: delegateType.propertyId,
+                            images: (delegateType.images && delegateType.images.length > 0) ? delegateType.images : (property.images && property.images.length > 0 ? property.images : [property.coverImage].filter(Boolean)),
+                            amenities: delegateType.amenities || property.amenities || [],
+                            maxAdults: delegateType.maxAdults,
+                            maxChildren: delegateType.maxChildren,
+                            size: (delegateType as any).size,
                             property: {
                                 id: property.id,
                                 name: property.name,
@@ -430,8 +447,9 @@ export class AvailabilityService {
                                 isVerified: property.isVerified,
                                 rating: property.rating,
                                 reviewCount: property.reviewCount,
-                                groupPriceAdult: property.groupPriceAdult,
-                                groupPricePerHead: property.groupPricePerHead,
+                                groupPriceAdult: (property as any).groupPriceAdult,
+                                groupPricePerHead: (property as any).groupPricePerHead,
+                                isGroupGstInclusive: (property as any).isGroupGstInclusive,
                                 _count: property._count,
                             },
                             availableCount: 1,
@@ -456,6 +474,12 @@ export class AvailabilityService {
                         name: 'Group Stay Package',
                         basePrice: delegateType.basePrice,
                         propertyId: delegateType.propertyId,
+                        images: (delegateType.images && delegateType.images.length > 0) ? delegateType.images : (property.images && property.images.length > 0 ? property.images : [property.coverImage].filter(Boolean)),
+                        amenities: delegateType.amenities || property.amenities || [],
+                        maxAdults: delegateType.maxAdults,
+                        maxChildren: delegateType.maxChildren,
+                        size: (delegateType as any).size,
+                        description: `Whole property access for your group of ${groupSize} guests.`,
                         property: {
                             id: property.id,
                             name: property.name,
@@ -467,8 +491,9 @@ export class AvailabilityService {
                             isVerified: property.isVerified,
                             rating: property.rating,
                             reviewCount: property.reviewCount,
-                            groupPriceAdult: property.groupPriceAdult,
-                            groupPricePerHead: property.groupPricePerHead,
+                            groupPriceAdult: (property as any).groupPriceAdult,
+                            groupPricePerHead: (property as any).groupPricePerHead,
+                            isGroupGstInclusive: (property as any).isGroupGstInclusive,
                             _count: property._count,
                         },
                         availableCount: 0,
@@ -488,6 +513,9 @@ export class AvailabilityService {
                 maxChildren: { gte: minChildrenPerRoom },
                 isPubliclyVisible: true,
                 propertyId: propertyId || undefined,
+                rooms: {
+                    some: { isEnabled: true }
+                },
                 property: {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
@@ -542,6 +570,7 @@ export class AvailabilityService {
                     images: (type as any).images,
                     maxAdults: type.maxAdults,
                     maxChildren: type.maxChildren,
+                    size: (type as any).size,
                     propertyId: type.propertyId,
                     property: {
                         id: type.property.id,

@@ -65,6 +65,16 @@ export class SystemSettingsService implements OnModuleInit {
                 key: 'PAYOUT_FREQUENCY',
                 value: 'Monthly',
                 description: 'Global payout frequency for Channel Partners (e.g., Weekly, Monthly).'
+            },
+            {
+                key: 'ONLINE_PAYMENT_DISCOUNT_PCT',
+                value: 5,
+                description: 'Discount percentage offered to "Pay at Property" customers who choose to pay online before check-in.'
+            },
+            {
+                key: 'SEARCH_RADIUS',
+                value: 50,
+                description: 'Default radius (in km) used for nearby property discovery and recommendations.'
             }
         ];
 

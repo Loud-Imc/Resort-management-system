@@ -26,11 +26,12 @@ export default function GuestsList() {
 
     // Filter for users with 'Customer' role
     const filteredUsers = (users as User[] | undefined)?.filter(user => {
-        const isCustomer = user.roles.some((r: any) => r.role.name === 'Customer');
+        const isCustomer = user.roles?.some((r: any) => r.role.name === 'Customer');
+        const q = search.toLowerCase();
         const matchesSearch =
-            user.firstName.toLowerCase().includes(search.toLowerCase()) ||
-            user.lastName.toLowerCase().includes(search.toLowerCase()) ||
-            user.email.toLowerCase().includes(search.toLowerCase());
+            (user.firstName || '').toLowerCase().includes(q) ||
+            (user.lastName || '').toLowerCase().includes(q) ||
+            (user.email || '').toLowerCase().includes(q);
 
         return isCustomer && matchesSearch;
     });

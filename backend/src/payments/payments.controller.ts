@@ -19,7 +19,7 @@ export class PaymentsController {
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Initiate payment - Create Razorpay order' })
     initiatePayment(@Body() dto: InitiatePaymentDto) {
-        return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId);
+        return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId, dto.incentive);
     }
 
     @Post('manual/request')
@@ -57,7 +57,7 @@ export class PaymentsController {
     @Post('public/initiate')
     @ApiOperation({ summary: 'Initiate payment (Public)' })
     initiatePublicPayment(@Body() dto: InitiatePaymentDto) {
-        return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId);
+        return this.paymentsService.initiatePayment(dto.bookingId, dto.eventBookingId, dto.incentive);
     }
 
     @Post('verify')

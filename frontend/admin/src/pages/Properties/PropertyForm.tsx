@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, Star } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Building2, MapPin, Image } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import { PropertyType, CreatePropertyDto } from '../../types/property';
@@ -13,6 +13,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import toast from 'react-hot-toast';
+import clsx from 'clsx';
 
 const propertyTypes: { value: PropertyType; label: string }[] = [
     { value: 'RESORT', label: 'Resort' },
@@ -63,6 +64,7 @@ export default function PropertyForm() {
         marketingCommission: 0,
         ownerId: '',
         isFeatured: false,
+        isSponsored: false,
         platformCommission: 10,
         whatsappNumber: '',
         categoryId: '',
@@ -156,6 +158,7 @@ export default function PropertyForm() {
                 marketingCommission: property.marketingCommission || 0,
                 ownerId: property.ownerId || '',
                 isFeatured: property.isFeatured || false,
+                isSponsored: property.isSponsored || false,
                 platformCommission: property.platformCommission || 10,
                 whatsappNumber: property.whatsappNumber || '',
                 categoryId: property.categoryId || '',
@@ -508,6 +511,51 @@ export default function PropertyForm() {
                                     Allow Group Bookings (Property Level)
                                 </label>
                             </div>
+
+                            {isAdmin && (
+                                <div className="flex flex-wrap gap-6 mb-4">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-muted-foreground cursor-pointer group">
+                                        <div className={clsx(
+                                            "w-10 h-5 rounded-full transition-colors relative",
+                                            formData.isFeatured ? "bg-amber-500" : "bg-muted border border-border"
+                                        )}>
+                                            <input
+                                                type="checkbox"
+                                                name="isFeatured"
+                                                checked={formData.isFeatured}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, isFeatured: e.target.checked }))}
+                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                            />
+                                            <div className={clsx(
+                                                "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
+                                                formData.isFeatured ? "left-6" : "left-1"
+                                            )} />
+                                        </div>
+                                        <span className="group-hover:text-amber-600 transition-colors font-bold uppercase tracking-tight">Featured on Home</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 text-sm font-bold text-muted-foreground cursor-pointer group">
+                                        <div className={clsx(
+                                            "w-10 h-5 rounded-full transition-colors relative",
+                                            formData.isSponsored ? "bg-indigo-600" : "bg-muted border border-border"
+                                        )}>
+                                            <input
+                                                type="checkbox"
+                                                name="isSponsored"
+                                                checked={formData.isSponsored}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, isSponsored: e.target.checked }))}
+                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                            />
+                                            <div className={clsx(
+                                                "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
+                                                formData.isSponsored ? "left-6" : "left-1"
+                                            )} />
+                                        </div>
+                                        <span className="group-hover:text-indigo-600 transition-colors font-bold uppercase tracking-tight">Top Unique Property</span>
+                                    </label>
+                                </div>
+                            )}
+
                             {formData.allowsGroupBooking && (
                                 <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -560,32 +608,6 @@ export default function PropertyForm() {
                     </div>
                 </div>
 
-                {/* Featured Status - Only visible to Admin */}
-                {isAdmin && (
-                    <div className="bg-card rounded-xl shadow-sm p-6 border-l-4 border-amber-500 border border-border">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                                    <Star className="h-5 w-5 text-amber-500" />
-                                    Featured Property
-                                </h2>
-                                <p className="text-sm text-muted-foreground font-medium">
-                                    Featured properties are showcased on the public homepage.
-                                </p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    name="isFeatured"
-                                    checked={formData.isFeatured}
-                                    onChange={handleChange}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                            </label>
-                        </div>
-                    </div>
-                )}
 
                 {/* Location */}
                 <div className="bg-card rounded-xl shadow-sm p-6 border border-border">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { categoryService } from '../../services/category';
@@ -24,10 +24,12 @@ const propertyTypeColors: Record<PropertyType, string> = {
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import { useNavigate } from 'react-router-dom';
 
 export default function PropertiesList() {
 
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -211,6 +213,18 @@ export default function PropertiesList() {
                                 </span>
                                 {/* Status Badges */}
                                 <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                                    {property.isFeatured && (
+                                        <span className="bg-amber-500 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
+                                            <Star className="h-3 w-3 fill-current" />
+                                            Featured
+                                        </span>
+                                    )}
+                                    {property.isSponsored && (
+                                        <span className="bg-indigo-600 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
+                                            <Building2 className="h-3 w-3 fill-current" />
+                                            Unique
+                                        </span>
+                                    )}
                                     {property.isVerified && (
                                         <span className="bg-green-500 text-white px-2 py-1 text-xs rounded flex items-center gap-1">
                                             <CheckCircle className="h-3 w-3" />
@@ -269,18 +283,19 @@ export default function PropertiesList() {
                                         </button>
 
                                         {/* Tertiary Actions */}
-                                        <div className="flex gap-2">
-                                            {/* <button
-                                                onClick={() => navigate(`/properties/${property.id}/staff`)}
-                                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all border border-border/50"
+                                        <div className="flex gap-2.5">
+                                            <button
+                                                onClick={() => navigate(`/properties/${property.id}/edit`)}
+                                                title="Edit Property Details"
+                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-border/50"
                                             >
-                                                <Users className="h-3.5 w-3.5" />
-                                                Staff
-                                            </button> */}
+                                                <Edit className="h-3.5 w-3.5" />
+                                                Edit
+                                            </button>
                                             <button
                                                 onClick={() => handleToggleActive(property.id, property.isActive)}
                                                 className={clsx(
-                                                    "flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border border-border/50",
+                                                    "flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-bold rounded-lg transition-all border border-border/50",
                                                     property.isActive
                                                         ? "text-amber-600 hover:bg-amber-50 hover:border-amber-100"
                                                         : "text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100"

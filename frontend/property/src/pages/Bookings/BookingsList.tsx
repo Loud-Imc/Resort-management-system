@@ -29,7 +29,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
-import { Banknote, Download } from 'lucide-react';
+import { Banknote, Download, Wallet } from 'lucide-react';
 import { useRef } from 'react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -139,15 +139,27 @@ export default function BookingsList() {
         const searchStr = searchTerm.toLowerCase();
         const guestName = (booking.isManualBooking && booking.guests?.[0]
             ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
-            : `${booking.user.firstName} ${booking.user.lastName}`).toLowerCase();
+            : `${booking.user?.firstName || ''} ${booking.user?.lastName || ''}`).toLowerCase();
         const bookingNumber = booking.bookingNumber.toLowerCase();
         const email = (booking.isManualBooking && booking.guests?.[0]
             ? (booking.guests[0].email || '')
-            : booking.user.email).toLowerCase();
+            : (booking.user?.email || '')).toLowerCase();
+        // Gather all possible phone numbers related to this booking
+        const allPhones = [
+            booking.user?.phone,
+            booking.whatsappNumber,
+            ...(booking.guests || []).map(g => g.phone),
+            ...(booking.guests || []).map(g => g.whatsappNumber)
+        ].filter(Boolean).map(p => String(p).toLowerCase());
+
+        const cleanSearch = searchStr.replace(/\D/g, '');
+        const hasPhoneMatch = allPhones.some(p => p.includes(searchStr)) || 
+            (cleanSearch !== '' && allPhones.some(p => p.replace(/\D/g, '').includes(cleanSearch)));
 
         return guestName.includes(searchStr) ||
             bookingNumber.includes(searchStr) ||
-            email.includes(searchStr);
+            email.includes(searchStr) ||
+            hasPhoneMatch;
     });
 
     const checkInMutation = useMutation({
@@ -368,7 +380,7 @@ export default function BookingsList() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
                                 type="text"
-                                placeholder="Search by guest name or booking ID..."
+                                placeholder="Search by name, ID or phone..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 border border-border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
@@ -502,14 +514,22 @@ export default function BookingsList() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-1.5">
-                                                <span className={`px-2.5 py-0.5 inline-flex text-[10px] leading-4 font-black rounded-full border ${booking.paymentStatus === 'FULL'
-                                                    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                                    : booking.paymentStatus === 'PARTIAL'
-                                                        ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                                                        : 'bg-red-500/10 text-red-600 border-red-500/20'
-                                                    }`}>
-                                                    {booking.paymentStatus}
-                                                </span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <span className={`px-2.5 py-0.5 inline-flex text-[10px] leading-4 font-black rounded-full border ${booking.paymentStatus === 'FULL'
+                                                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                                        : booking.paymentStatus === 'PARTIAL'
+                                                            ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                                                            : 'bg-red-500/10 text-red-600 border-red-500/20'
+                                                        }`}>
+                                                        {booking.paymentStatus}
+                                                    </span>
+                                                    {booking.paymentOption === 'PAY_AT_PROPERTY' && (
+                                                        <span className="px-2.5 py-0.5 inline-flex items-center gap-1 text-[9px] font-black rounded-full bg-cyan-500 text-white shadow-sm shadow-cyan-500/20 border border-white/20 uppercase tracking-tighter">
+                                                            <Wallet className="h-2.5 w-2.5" />
+                                                            Pay At Property
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-[10px] text-muted-foreground font-bold tracking-tight">
                                                     <div>
                                                         <span className={booking.paymentStatus === 'PARTIAL' ? 'text-emerald-600' : ''}>
@@ -658,11 +678,18 @@ export default function BookingsList() {
                                             </div>
                                             <div>
                                                 <h2 className="text-2xl font-black tracking-tight text-foreground">Verification Center</h2>
-                                                <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-                                                    Booking: <span className="text-primary font-bold">{checkInBooking?.bookingNumber}</span>
-                                                    <span className="w-1 h-1 rounded-full bg-border" />
-                                                    Required for security compliance
-                                                </p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                                                        Booking: <span className="text-primary font-bold">{checkInBooking?.bookingNumber}</span>
+                                                        <span className="w-1 h-1 rounded-full bg-border" />
+                                                    </p>
+                                                    {checkInBooking?.paymentOption === 'PAY_AT_PROPERTY' && (
+                                                        <div className="flex items-center gap-1 px-2 py-0.5 bg-cyan-500 text-white text-[10px] font-black uppercase rounded-md animate-pulse">
+                                                            <Wallet className="h-3 w-3" />
+                                                            Pay At Property
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <button

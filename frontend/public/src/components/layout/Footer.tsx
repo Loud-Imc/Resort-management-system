@@ -14,9 +14,13 @@ export default function Footer() {
     return (
         <>
             {/* Promo Section above Footer */}
-            <div className="bg-white pt-6 pb-20 text-left border-t border-gray-100 overflow-hidden">
-                <div className="max-w-7xl mx-auto px-4">
-                    <h2 className="text-[48px] md:text-[96px] font-black text-gray-600 tracking-tight leading-[1] mb-8">
+            <div className="relative bg-white pt-6 pb-12 text-left border-t border-gray-100 overflow-hidden">
+                <div
+                    className="absolute inset-0 z-0 opacity-20"
+                    style={{ backgroundImage: "url('/images/hero-slide-2.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
+                />
+                <div className="relative z-10 max-w-6xl mx-auto px-4">
+                    <h2 className="text-[32px] md:text-[64px] font-black text-gray-600 tracking-tight leading-[1] mb-6">
                         Love Yourself... <br /> Explore the World!!
                     </h2>
                     <div className="flex items-center justify-start gap-2 text-gray-500 font-bold text-sm md:text-base">
@@ -27,11 +31,11 @@ export default function Footer() {
                 </div>
             </div>
 
-            <footer className="bg-gray-950 text-white pt-16 pb-8" id="contact">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <footer className="bg-gray-950 text-white pt-12 pb-6" id="contact">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
                     {/* Main 3-column layout */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-center mb-14">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center mb-10">
 
                         {/* Left — Quick links / tagline */}
                         <div className="flex flex-col gap-4 md:items-start items-center text-center md:text-left">
@@ -60,13 +64,13 @@ export default function Footer() {
                         </div>
 
                         {/* Center — Logo + Social */}
-                        <div className="flex flex-col items-center gap-6">
+                        <div className="flex flex-col items-center gap-4">
                             <img
                                 src={logo}
                                 alt="Route Guide"
-                                className="h-16 w-auto brightness-0 invert opacity-90"
+                                className="h-12 w-auto brightness-0 invert opacity-90"
                             />
-                            <div className="flex items-center gap-5">
+                            <div className="flex items-center gap-4">
                                 {[
                                     { Icon: Facebook, href: '#', label: 'Facebook' },
                                     { Icon: Instagram, href: '#', label: 'Instagram' },
@@ -115,9 +119,9 @@ export default function Footer() {
                     </div>
 
                     {/* Bottom bar */}
-                    <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-gray-600 text-xs">
+                    <div className="border-t border-white/5 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-gray-600 text-[10px]">
                         <p>© {new Date().getFullYear()} All rights Reserved by Route Guide | Develop & Designed By Loudimc.com</p>
-                        <div className="flex gap-6">
+                        <div className="flex gap-4">
                             <a href="/terms" className="hover:text-gray-400 transition-colors">Terms & Conditions</a>
                             <a href="/privacy" className="hover:text-gray-400 transition-colors">Privacy Policy</a>
                         </div>

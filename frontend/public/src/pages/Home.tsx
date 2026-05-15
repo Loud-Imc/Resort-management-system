@@ -5,9 +5,12 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { propertyApi } from '../services/properties';
 import { bannerApi, Banner } from '../services/banners';
+import { heroContentApi } from '../services/heroContent';
 import PromoBanner from '../components/home/PromoBanner';
 import EventsSection from '../components/home/EventsSection';
+import PromoCards from '../components/home/PromoCards';
 import PropertyCard from '../components/PropertyCard';
+import HeroText from '../components/home/HeroText';
 import { Property } from '../types';
 
 interface HeroCarouselProps {
@@ -33,16 +36,23 @@ function HeroCarousel({ banners }: HeroCarouselProps) {
     }, [slides.length]);
 
     return (
-        <div className="absolute inset-0 z-0">
-            {slides.map((slide, index) => (
-                <div
-                    key={index}
-                    className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${index === current ? 'opacity-100' : 'opacity-0'}`}
-                    style={{ backgroundImage: `url('${slide}')` }}
-                />
-            ))}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+            {slides.map((slide, index) => {
+                const isColor = slide?.startsWith('color::');
+                const colorVal = isColor ? slide.replace('color::', '') : '';
+                return (
+                    <div
+                        key={index}
+                        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === current ? 'opacity-100' : 'opacity-0'}`}
+                        style={isColor
+                            ? { background: colorVal }
+                            : { backgroundImage: `url('${slide}')`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                        }
+                    />
+                );
+            })}
             {slides.length > 1 && (
-                <div className="absolute bottom-10 left-0 right-0 z-20 flex justify-center gap-2">
+                <div className="absolute bottom-32 left-0 right-0 z-20 flex justify-center gap-2">
                     {slides.map((_, idx) => (
                         <button
                             key={idx}
@@ -57,9 +67,9 @@ function HeroCarousel({ banners }: HeroCarouselProps) {
 }
 
 export default function Home() {
-    const { data: featuredProperties, isLoading: isPropertiesLoading } = useQuery({
-        queryKey: ['featuredProperties'],
-        queryFn: () => propertyApi.getFeatured(3)
+    const { data: topUniqueProperties, isLoading: isPropertiesLoading } = useQuery({
+        queryKey: ['topUniqueProperties'],
+        queryFn: () => propertyApi.getTopUnique(3)
     });
 
     const { data: heroBanners = [] } = useQuery({
@@ -67,31 +77,63 @@ export default function Home() {
         queryFn: () => bannerApi.getActive('HERO')
     });
 
+    const { data: randomHeroContent } = useQuery({
+        queryKey: ['randomHeroContent'],
+        queryFn: () => heroContentApi.getRandom(),
+        staleTime: 0, // Ensure refresh on each load
+    });
+
+    // Default fallback content if none in DB
+    const defaultHeroContent = {
+        tagline: "Sustainable Journeys, Meaningful Stays",
+        heading: "Find places worth disappearing into",
+        subheading: "Curated eco-luxury stays across India. Travel slower. Stay deeper."
+    };
+
+    const displayContent = randomHeroContent || defaultHeroContent;
+
     return (
-        <div className="space-y-0">
-            {/* Hero Section */}
-            <section className="relative h-[80vh] md:h-screen flex items-start pt-32 md:items-center md:justify-center md:pt-0 z-20">
+        <div className="space-y-0 bg-white">
+            {/* Full-Width Compact Hero — image behind heading + search bar only */}
+            <section className="relative w-full">
+                {/* Dynamic banner slideshow */}
                 <HeroCarousel banners={heroBanners} />
-                <div className="absolute inset-0 bg-black/20 z-10" />
-                <div className="relative z-30 max-w-7xl mx-auto px-4 w-full">
-                    <SearchForm className="animate-fade-in-up" />
+                {/* Subtle dark overlay for readability */}
+                <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+
+                {/* Content */}
+                <div className="relative z-50 max-w-7xl mx-auto px-4 md:px-6 flex flex-col items-center text-center gap-8 pt-24 md:pt-28 pb-12">
+                    <HeroText
+                        heading={displayContent.heading}
+                        className="w-full max-w-5xl text-white drop-shadow-lg"
+                    />
+                    <SearchForm
+                        className="w-full max-w-6xl"
+                        theme="dark"
+                    />
                 </div>
             </section>
+
+            {/* Promotional Cards — on white, immediately below the hero image */}
+            <div className="bg-white">
+                <PromoCards />
+            </div>
 
             {/* Events Section */}
             <EventsSection />
 
             {/* Featured Properties */}
-            <section className="bg-gray-50 py-24">
-                <div className="max-w-7xl mx-auto px-4">
-                    <div className="flex justify-between items-end mb-12">
+            <section className="relative py-20 bg-gray-50 overflow-hidden">
+                <div 
+                    className="absolute inset-0 z-0 opacity-5"
+                    style={{ backgroundImage: "url('/images/hero-slide-1.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }} 
+                />
+                <div className="relative z-10 max-w-6xl mx-auto px-4">
+                    <div className="flex justify-between items-end mb-10">
                         <div>
-                            <span className="text-primary-600 font-semibold tracking-wider uppercase">Destinations</span>
-                            <h2 className="text-4xl font-serif font-bold mt-2 text-gray-900">Featured Properties</h2>
+                            <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Collection</span>
+                            <h2 className="text-3xl font-serif font-bold mt-2 text-gray-900">Stay at our top unique properties</h2>
                         </div>
-                        <Link to="/properties" className="hidden md:flex items-center gap-2 text-primary-700 font-semibold hover:gap-3 transition-all">
-                            View All Properties <ArrowRight className="h-5 w-5" />
-                        </Link>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -109,14 +151,14 @@ export default function Home() {
                             ))
                         ) : (
                             // Real Data
-                            featuredProperties?.map((property: Property) => (
+                            topUniqueProperties?.map((property: Property) => (
                                 <PropertyCard key={property.id} property={property} />
                             ))
                         )}
 
-                        {!isPropertiesLoading && (!featuredProperties || featuredProperties.length === 0) && (
+                        {!isPropertiesLoading && (!topUniqueProperties || topUniqueProperties.length === 0) && (
                             <div className="col-span-3 text-center py-12 text-gray-500 bg-white rounded-xl border border-gray-100">
-                                No featured properties available at the moment.
+                                No unique properties available at the moment.
                             </div>
                         )}
                     </div>
@@ -129,7 +171,7 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Promo Banner (Dynamic) - Moved to bottom for better flow */}
+            {/* Promo Banner (Dynamic) */}
             <PromoBanner />
         </div>
     );

@@ -1,7 +1,8 @@
 import { Wallet, ArrowUpRight, ArrowDownLeft, Plus, Loader2, CreditCard, Download, Send } from 'lucide-react';
 import api from '../services/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PaginationControls from '../components/PaginationControls';
 
 interface Transaction {
     id: string;
@@ -29,6 +30,16 @@ const Wallet2Page: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'wallet' | 'commissions'>('wallet');
+    const [walletPage, setWalletPage] = useState(1);
+    const [commissionPage, setCommissionPage] = useState(1);
+    const TX_PAGE_SIZE = 10;
+    const errorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (error && errorRef.current) {
+            errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [error]);
 
     useEffect(() => {
         loadData();
@@ -87,7 +98,7 @@ const Wallet2Page: React.FC = () => {
             setSuccess(`Payout request for ₹${payoutAmount.toLocaleString()} submitted successfully!`);
             loadData();
         } catch (e: any) {
-            setError(e?.response?.data?.message || 'Failed to submit payout request');
+            setError(e?.response?.data?.message || e?.message || 'Failed to submit payout request');
         } finally {
             setIsProcessing(false);
         }
@@ -147,14 +158,17 @@ const Wallet2Page: React.FC = () => {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-padding)' }}>
             <div>
-                <h1 className="text-premium-gradient" style={{ fontSize: '2.2rem', fontWeight: 700 }}>Wallet</h1>
+                <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, lineHeight: 1.2 }}>Wallet</h1>
                 <p style={{ color: 'var(--text-dim)' }}>Manage your earnings, wallet balance, and withdrawals.</p>
             </div>
 
             {error && (
-                <div style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-md)', color: '#ef4444', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div
+                    ref={errorRef}
+                    style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-md)', color: '#ef4444', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
                     <span>{error}</span>
                     {error.includes('Bank details') && (
                         <button
@@ -181,10 +195,10 @@ const Wallet2Page: React.FC = () => {
                 </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '2rem' }}>
+            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 'var(--section-padding)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div className="glass-pane" style={{
-                        padding: '2.5rem',
+                        padding: 'var(--section-padding)',
                         background: 'linear-gradient(135deg, rgba(8,71,78,0.15) 0%, rgba(12,106,117,0.08) 100%)',
                         border: '1px solid var(--border-teal)',
                         position: 'relative',
@@ -229,7 +243,7 @@ const Wallet2Page: React.FC = () => {
                             <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Transaction History</h3>
                             <div style={{ display: 'flex', background: 'rgba(8,71,78,0.05)', padding: '0.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)' }}>
                                 <button
-                                    onClick={() => setActiveTab('wallet')}
+                                    onClick={() => { setActiveTab('wallet'); setWalletPage(1); }}
                                     style={{
                                         padding: '0.4rem 1rem',
                                         borderRadius: 'var(--radius-sm)',
@@ -245,7 +259,7 @@ const Wallet2Page: React.FC = () => {
                                     Wallet History
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('commissions')}
+                                    onClick={() => { setActiveTab('commissions'); setCommissionPage(1); }}
                                     style={{
                                         padding: '0.4rem 1rem',
                                         borderRadius: 'var(--radius-sm)',
@@ -263,38 +277,53 @@ const Wallet2Page: React.FC = () => {
                             </div>
                         </div>
 
-                        {transactions.filter(tx => activeTab === 'wallet' ? WALLET_TYPES.includes(tx.type) : COMMISSION_TYPES.includes(tx.type)).length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-dim)' }}>
-                                <p>No {activeTab} transactions yet.</p>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {transactions
-                                    .filter(tx => activeTab === 'wallet' ? WALLET_TYPES.includes(tx.type) : COMMISSION_TYPES.includes(tx.type))
-                                    .map((tx) => {
-                                        const isCredit = Number(tx.amount) > 0;
-                                        return (
-                                            <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.5)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <div style={{ padding: '0.5rem', borderRadius: '50%', background: isCredit ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: isCredit ? '#10b981' : '#ef4444' }}>
-                                                        {isCredit ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
+                        {(() => {
+                            const txList = transactions.filter(tx => activeTab === 'wallet' ? WALLET_TYPES.includes(tx.type) : COMMISSION_TYPES.includes(tx.type));
+                            const txPage = activeTab === 'wallet' ? walletPage : commissionPage;
+                            const setTxPage = activeTab === 'wallet' ? setWalletPage : setCommissionPage;
+                            const txTotalPages = Math.ceil(txList.length / TX_PAGE_SIZE);
+                            const paginatedTxs = txList.slice((txPage - 1) * TX_PAGE_SIZE, txPage * TX_PAGE_SIZE);
+                            return txList.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-dim)' }}>
+                                    <p>No {activeTab} transactions yet.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {paginatedTxs
+                                            .map((tx) => {
+                                                const isCredit = Number(tx.amount) > 0;
+                                                return (
+                                                    <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.5)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                            <div style={{ padding: '0.5rem', borderRadius: '50%', background: isCredit ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: isCredit ? '#10b981' : '#ef4444' }}>
+                                                                {isCredit ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
+                                                            </div>
+                                                            <div>
+                                                                <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{tx.description}</p>
+                                                                <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{new Date(tx.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ textAlign: 'right' }}>
+                                                            <p style={{ fontWeight: 700, color: isCredit ? '#10b981' : '#ef4444', fontSize: '1rem' }}>
+                                                                {isCredit ? '+' : ''}₹{Math.abs(Number(tx.amount)).toLocaleString()}
+                                                            </p>
+                                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'capitalize' }}>{tx.status.toLowerCase()}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{tx.description}</p>
-                                                        <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{new Date(tx.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                                                    </div>
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <p style={{ fontWeight: 700, color: isCredit ? '#10b981' : '#ef4444', fontSize: '1rem' }}>
-                                                        {isCredit ? '+' : ''}₹{Math.abs(Number(tx.amount)).toLocaleString()}
-                                                    </p>
-                                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'capitalize' }}>{tx.status.toLowerCase()}</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-                        )}
+                                                );
+                                            })}
+                                    </div>
+                                    <PaginationControls
+                                        currentPage={txPage}
+                                        totalPages={txTotalPages}
+                                        totalItems={txList.length}
+                                        itemsPerPage={TX_PAGE_SIZE}
+                                        onPageChange={setTxPage}
+                                    />
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
 

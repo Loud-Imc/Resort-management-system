@@ -4,6 +4,9 @@ import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { CreateUserWithRoleDto } from './dto/create-user-with-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { RequestChangePasswordOtpDto, ConfirmChangePasswordDto } from './dto/change-password-otp.dto';
+import { DeleteAccountOtpDto } from './dto/delete-account-otp.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
@@ -28,6 +31,36 @@ export class UsersController {
         // and cannot change their own roles via this endpoint
         const { roleIds, ...profileData } = updateUserDto;
         return this.usersService.update(req.user.id, profileData);
+    }
+
+    @Patch('change-password')
+    @ApiOperation({ summary: 'Change current user password' })
+    async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
+        return this.usersService.changePassword(req.user.id, changePasswordDto);
+    }
+
+    @Post('me/change-password/request')
+    @ApiOperation({ summary: 'Request OTP for password change' })
+    async requestChangePasswordOtp(@Request() req, @Body() dto: RequestChangePasswordOtpDto) {
+        return this.usersService.requestChangePasswordOtp(req.user.id, dto);
+    }
+
+    @Patch('me/change-password/confirm')
+    @ApiOperation({ summary: 'Confirm password change with OTP' })
+    async confirmChangePassword(@Request() req, @Body() dto: ConfirmChangePasswordDto) {
+        return this.usersService.confirmChangePassword(req.user.id, dto);
+    }
+
+    @Post('me/delete-account/request')
+    @ApiOperation({ summary: 'Request OTP for account deletion' })
+    async requestDeleteAccountOtp(@Request() req) {
+        return this.usersService.requestDeleteAccountOtp(req.user.id);
+    }
+
+    @Delete('me/delete-account/confirm')
+    @ApiOperation({ summary: 'Confirm account deletion with OTP' })
+    async deleteAccountWithOtp(@Request() req, @Body() dto: DeleteAccountOtpDto) {
+        return this.usersService.deleteAccountWithOtp(req.user.id, dto);
     }
 
     @Get()

@@ -40,7 +40,7 @@ export default function PromoBanner() {
     const activeBanner = banners[current];
 
     return (
-        <section className="relative h-[60vh] md:h-[70vh] overflow-hidden group">
+        <section className="relative h-[50vh] md:h-[60vh] overflow-hidden group">
             {/* Background with crossfade */}
             {banners.map((banner, index) => (
                 <div key={banner.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === current ? 'opacity-100' : 'opacity-0'}`}>
@@ -52,18 +52,18 @@ export default function PromoBanner() {
                 </div>
             ))}
 
-            <div className="relative z-10 h-full max-w-7xl mx-auto px-4 flex items-center">
-                <div className="max-w-2xl">
+            <div className="relative z-10 h-full max-w-6xl mx-auto px-4 flex items-center">
+                <div className="max-w-xl">
                     {activeBanner.badgeText && (
                         <span className="inline-block py-1 px-3 rounded-full bg-primary-600 text-white text-[10px] font-bold tracking-wider uppercase mb-6 animate-fade-in">
                             {activeBanner.badgeText}
                         </span>
                     )}
-                    <h2 className="text-4xl md:text-6xl font-serif font-bold text-white mb-6 leading-tight animate-fade-in-up">
+                    <h2 className="text-3xl md:text-5xl font-serif font-bold text-white mb-6 leading-tight animate-fade-in-up">
                         {activeBanner.title}
                     </h2>
                     {activeBanner.description && (
-                        <p className="text-lg md:text-xl text-gray-200 mb-8 leading-relaxed max-w-xl animate-fade-in-up delay-100">
+                        <p className="text-base md:text-lg text-gray-200 mb-8 leading-relaxed max-w-lg animate-fade-in-up delay-100">
                             {activeBanner.description}
                         </p>
                     )}
@@ -71,13 +71,13 @@ export default function PromoBanner() {
                     <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up delay-200">
                         <Link
                             to={activeBanner.linkUrl || '/properties'}
-                            className="inline-flex justify-center items-center gap-2 bg-white text-primary-900 px-8 py-4 rounded-full font-bold hover:bg-gray-100 transition-all shadow-lg transform hover:-translate-y-1"
+                            className="inline-flex justify-center items-center gap-2 bg-white text-primary-900 px-6 py-3 rounded-full text-sm font-bold hover:bg-gray-100 transition-all shadow-lg transform hover:-translate-y-1"
                         >
                             {activeBanner.buttonText || 'Book Now'}
                         </Link>
                         <Link
                             to="/properties"
-                            className="inline-flex justify-center items-center gap-2 border border-white/30 text-white px-8 py-4 rounded-full font-bold hover:bg-white/10 transition-all backdrop-blur-sm"
+                            className="inline-flex justify-center items-center gap-2 border border-white/30 text-white px-6 py-3 rounded-full text-sm font-bold hover:bg-white/10 transition-all backdrop-blur-sm"
                         >
                             View All Properties
                         </Link>

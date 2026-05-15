@@ -224,7 +224,20 @@ export class ChannelPartnersController {
         return this.cpService.findAllRedemptions(status);
     }
 
+    @Patch('admin/redemptions/:id/status')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Update reward redemption status (Admin)' })
+    updateRedemptionStatus(
+        @Param('id') id: string,
+        @Body('status') status: RedemptionStatus,
+        @Body('notes') notes?: string,
+    ) {
+        return this.cpService.updateRedemptionStatus(id, status, notes);
+    }
+
     // Financial actions moved to FinancialsController
+
 
     @Post('me/claim-earnings')
     @UseGuards(AuthGuard('jwt'))

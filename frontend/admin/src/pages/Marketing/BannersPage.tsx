@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { bannerService, Banner, BannerType } from '../../services/banners';
-import { Loader2, Plus, Edit2, Trash2, Image, CheckCircle, XCircle, MoveUp, MoveDown, Layout, Megaphone, Search } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Image, CheckCircle, XCircle, MoveUp, MoveDown, Layout, Megaphone, Search, Palette } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -13,6 +13,8 @@ export default function BannersPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<BannerType>('HERO');
     const [searchTerm, setSearchTerm] = useState('');
+    const [bgType, setBgType] = useState<'image' | 'color'>('image');
+    const [colorValue, setColorValue] = useState('#1a6b4a');
 
     const [formData, setFormData] = useState<Partial<Banner>>({
         title: '',
@@ -45,18 +47,24 @@ export default function BannersPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.imageUrl) {
+        if (bgType === 'image' && !formData.imageUrl) {
             toast.error('Please upload a banner image');
             return;
+        }
+        const finalData = { ...formData };
+        if (bgType === 'color') {
+            finalData.imageUrl = `color::${colorValue}`;
         }
 
         setIsSaving(true);
         try {
+            // Strip read-only fields rejected by backend DTO validation
+            const { id, createdAt, updatedAt, ...payload } = finalData as any;
             if (editingBanner) {
-                await bannerService.updateBanner(editingBanner.id, formData);
+                await bannerService.updateBanner(editingBanner.id, payload);
                 toast.success('Banner updated successfully');
             } else {
-                await bannerService.createBanner(formData);
+                await bannerService.createBanner(payload);
                 toast.success('Banner created successfully');
             }
             setIsModalOpen(false);
@@ -104,8 +112,17 @@ export default function BannersPage() {
         if (banner) {
             setEditingBanner(banner);
             setFormData({ ...banner });
+            if (banner.imageUrl?.startsWith('color::')) {
+                setBgType('color');
+                setColorValue(banner.imageUrl.replace('color::', ''));
+            } else {
+                setBgType('image');
+                setColorValue('#1a6b4a');
+            }
         } else {
             setEditingBanner(null);
+            setBgType('image');
+            setColorValue('#1a6b4a');
             setFormData({
                 title: '',
                 description: '',
@@ -210,7 +227,14 @@ export default function BannersPage() {
                                         <tr key={banner.id} className="hover:bg-muted/30 transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="w-32 h-20 bg-muted rounded-lg overflow-hidden border border-border">
-                                                    {banner.imageUrl ? (
+                                                    {banner.imageUrl?.startsWith('color::') ? (
+                                                        <div
+                                                            className="w-full h-full flex items-center justify-center"
+                                                            style={{ background: banner.imageUrl.replace('color::', '') }}
+                                                        >
+                                                            <Palette className="h-5 w-5 text-white drop-shadow" />
+                                                        </div>
+                                                    ) : banner.imageUrl ? (
                                                         <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center">
@@ -293,14 +317,81 @@ export default function BannersPage() {
                             <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground text-2xl">&times;</button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+
+                            {/* Background Type Toggle */}
                             <div>
-                                <label className="block text-sm font-bold text-muted-foreground mb-1 text-center">Banner Image</label>
-                                <ImageUpload
-                                    images={formData.imageUrl ? [formData.imageUrl] : []}
-                                    onChange={(images) => setFormData({ ...formData, imageUrl: images[0] || '' })}
-                                    maxImages={1}
-                                />
+                                <label className="block text-sm font-bold text-muted-foreground mb-2">Background Type</label>
+                                <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => setBgType('image')}
+                                        className={clsx(
+                                            'flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all',
+                                            bgType === 'image' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        <Image className="h-4 w-4" /> Image
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setBgType('color')}
+                                        className={clsx(
+                                            'flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all',
+                                            bgType === 'color' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        <Palette className="h-4 w-4" /> Color
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* Image Upload */}
+                            {bgType === 'image' && (
+                                <div>
+                                    <label className="block text-sm font-bold text-muted-foreground mb-1 text-center">Banner Image</label>
+                                    <ImageUpload
+                                        images={formData.imageUrl && !formData.imageUrl.startsWith('color::') ? [formData.imageUrl] : []}
+                                        onChange={(images) => setFormData({ ...formData, imageUrl: images[0] || '' })}
+                                        maxImages={1}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Color Picker */}
+                            {bgType === 'color' && (
+                                <div>
+                                    <label className="block text-sm font-bold text-muted-foreground mb-2">Background Color</label>
+                                    <div className="flex items-center gap-3">
+                                        {/* Color Picker */}
+                                        <div className="relative">
+                                            <input
+                                                type="color"
+                                                value={colorValue.startsWith('#') ? colorValue : '#1a6b4a'}
+                                                onChange={(e) => setColorValue(e.target.value)}
+                                                className="w-14 h-14 rounded-xl border-2 border-border cursor-pointer p-1 bg-background"
+                                                title="Pick a color"
+                                            />
+                                        </div>
+                                        {/* Hex Input */}
+                                        <div className="flex-1">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Hex Code</label>
+                                            <input
+                                                type="text"
+                                                value={colorValue}
+                                                onChange={(e) => setColorValue(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none font-mono text-sm"
+                                                placeholder="#1a6b4a or linear-gradient(...)"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground mt-1">You can also enter a CSS gradient e.g. <span className="font-mono">linear-gradient(135deg, #0f766e, #1d4ed8)</span></p>
+                                        </div>
+                                        {/* Preview */}
+                                        <div
+                                            className="w-20 h-14 rounded-xl border border-border flex-shrink-0"
+                                            style={{ background: colorValue }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="col-span-2 md:col-span-1">

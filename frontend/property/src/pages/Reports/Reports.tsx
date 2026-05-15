@@ -8,7 +8,7 @@ import {
     XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import {
-    Loader2, TrendingUp, Users, Bed, Calendar, ArrowUpRight, HelpCircle, Info
+    Loader2, TrendingUp, Users, Bed, Calendar, ArrowUpRight, HelpCircle, Info, Tag
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import FinancialDetailsModal from '../../components/Reports/FinancialDetailsModal';
@@ -160,9 +160,11 @@ export default function Reports() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <KPICard title="Total Revenue" value={`₹${financialReport?.summary?.totalIncome?.toLocaleString() || '0'}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />} color="text-emerald-500" onClick={() => { setDetailsType('REVENUE'); setDetailsModalOpen(true); }} isClickable />
+                <KPICard title="Platform Fees" value={`₹${financialReport?.summary?.totalPlatformFees?.toLocaleString() || '0'}`}
+                    icon={<Tag className="h-4 w-4 text-orange-500" />} color="text-orange-500" />
                 <KPICard title="Avg. Occupancy" value={`${occupancyReport?.averageOccupancy || 0}%`}
                     icon={<Bed className="h-4 w-4 text-sky-500" />} color="text-sky-500" />
                 <KPICard title="Total Bookings" value={financialReport?.summary?.bookingsCount || 0}

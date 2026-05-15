@@ -61,7 +61,7 @@ export class PricingService {
         targetCurrency: string = 'INR',
         isGroupBooking: boolean = false,
         groupSize?: number,
-        requestedRoomCount: number = 1,
+        requestedRoomCount?: number,
         generalCode?: string,
         overrideTotal?: number,
         isOverrideInclusive: boolean = true,
@@ -158,6 +158,15 @@ export class PricingService {
         let extraAdultAmount = 0;
         let extraChildAmount = 0;
         let basePricePerNight = 0;
+        let isGroupInclusive = false;
+        
+        // Pre-calculate room count for accurate GST slab reverse-calculation
+        const stdCapacity = (Number(roomType.maxAdults) || 2) + (Number(roomType.maxChildren) || 0);
+        const roomCapacity = roomType.groupMaxOccupancy || stdCapacity || 1;
+        const calculatedRoomCount = (isGroupBooking && groupSize)
+            ? (requestedRoomCount || Math.ceil(groupSize / roomCapacity))
+            : (requestedRoomCount || 1);
+        let finalRoomCount = Math.max(1, calculatedRoomCount);
 
         if (isGroupBooking && groupSize) {
             // ... (group booking logic stays same, using property-level prices which we current assume are exclusive)
@@ -170,27 +179,57 @@ export class PricingService {
             const propertyGroupPricePerHead = (roomType.property as any).groupPricePerHead;
             const propertyGroupPriceAdult = (roomType.property as any).groupPriceAdult;
             const propertyGroupPriceChild = (roomType.property as any).groupPriceChild;
+            
+            isGroupInclusive = (roomType.property as any).isGroupGstInclusive;
+            if (isGroupInclusive === undefined || isGroupInclusive === null) {
+                // Fallback for stale Prisma client or null value
+                try {
+                    const rawProps = await this.prisma.$queryRaw<any[]>`SELECT "isGroupGstInclusive" FROM properties WHERE id = ${roomType.propertyId}`;
+                    isGroupInclusive = rawProps?.[0]?.isGroupGstInclusive ?? false;
+                } catch (e) {
+                    isGroupInclusive = false;
+                }
+            }
 
+            // 1. Target room count was already pre-calculated above for slab accuracy
+
+            // 2. Calculate the total inclusive price for the group per night
+            let totalInclusivePerNight = 0;
             if (propertyGroupPriceAdult === null || propertyGroupPriceAdult === undefined) {
-                // Backward compatibility: use the old per-head price for both if new ones aren't set
                 if (propertyGroupPricePerHead === null || propertyGroupPricePerHead === undefined) {
                     console.error(`[PricingService] Missing group pricing for property: ${roomType.property.name}`);
                     throw new BadRequestException(`Group pricing is not configured for property: ${roomType.property.name}`);
                 }
-                basePricePerNight = Number(propertyGroupPricePerHead) * groupSize;
+                totalInclusivePerNight = Number(propertyGroupPricePerHead) * groupSize;
             } else {
                 const adultPrice = Number(propertyGroupPriceAdult);
                 const childPrice = propertyGroupPriceChild !== null ? Number(propertyGroupPriceChild) : adultPrice;
-
-                // Use breakdown if available, otherwise fallback to groupSize * adultPrice
                 const totalSpecifiedGuests = (adultsCount || 0) + (childrenCount || 0);
+                
                 if (totalSpecifiedGuests > 0) {
-                    basePricePerNight = (adultPrice * (adultsCount || 0)) + (childPrice * (childrenCount || 0));
+                    totalInclusivePerNight = (adultPrice * (adultsCount || 0)) + (childPrice * (childrenCount || 0));
                 } else {
-                    basePricePerNight = adultPrice * groupSize;
+                    totalInclusivePerNight = adultPrice * groupSize;
                 }
             }
-            baseAmount = basePricePerNight * Math.max(1, numberOfNights);
+
+            // 3. Convert inclusive total to base total using accurate roomCount-based slab
+            if (isGroupInclusive) {
+                const normalized = await this.calculateReverseGST(totalInclusivePerNight, 1, finalRoomCount);
+                basePricePerNight = Number((normalized.baseAmount / groupSize).toFixed(2));
+                baseAmount = normalized.baseAmount * Math.max(1, numberOfNights);
+            } else {
+                basePricePerNight = Number((totalInclusivePerNight / groupSize).toFixed(2));
+                baseAmount = totalInclusivePerNight * Math.max(1, numberOfNights);
+            }
+
+            console.log(`[PricingService] Group Booking Pricing Debug:`, {
+                propertyName: roomType.property.name,
+                isGroupInclusive,
+                totalInclusivePerNight,
+                baseAmount,
+                finalRoomCount
+            });
         } else {
             // Standard pricing (nights * base price for X rooms)
             const rooms = requestedRoomCount || 1;
@@ -232,12 +271,7 @@ export class PricingService {
         const gstTiersForOriginal = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
         const originalEffectiveNights = Math.max(1, numberOfNights);
 
-        // Consolidate room count for accurate GST slab calculation
-        const roomCapacity = roomType.groupMaxOccupancy || (roomType.maxAdults + (roomType.maxChildren || 0)) || 1;
-        const calculatedRoomCount = (isGroupBooking && groupSize)
-            ? (requestedRoomCount || Math.ceil(groupSize / roomCapacity))
-            : (requestedRoomCount || 1);
-        const finalRoomCount = Math.max(1, calculatedRoomCount);
+        // GST calculation logic below uses finalRoomCount pre-calculated above
 
         for (let i = 0; i < originalEffectiveNights; i++) {
             const subtotalThisNight = subtotalBeforeDiscounts / originalEffectiveNights;
@@ -394,7 +428,7 @@ export class PricingService {
             appliedCodeType: referralCode ? 'REFERRAL' : (couponCode ? 'COUPON' : 'NONE') as 'REFERRAL' | 'COUPON' | 'NONE',
             referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode } }))?.id : undefined,
             partialPaymentPct: Number(await this.systemSettingsService.getSetting('PARTIAL_PAYMENT_PCT') || 33.33),
-            isGstInclusive: !!roomType.isGstInclusive,
+            isGstInclusive: isGroupBooking ? !!isGroupInclusive : !!roomType.isGstInclusive,
         };
 
         // --- MANAGE OVERRIDES ---

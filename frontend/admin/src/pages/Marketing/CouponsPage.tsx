@@ -47,15 +47,30 @@ export default function CouponsPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            // Sanitize payload to only include allowed fields
+            const payload = {
+                code: formData.code,
+                description: formData.description,
+                discountType: formData.discountType,
+                discountValue: Number(formData.discountValue),
+                validFrom: formData.validFrom,
+                validUntil: formData.validUntil,
+                isActive: formData.isActive,
+                maxUses: formData.maxUses !== undefined ? Number(formData.maxUses) : undefined,
+                minBookingAmount: formData.minBookingAmount !== undefined ? Number(formData.minBookingAmount) : undefined,
+            };
+
             if (editingCoupon) {
-                await discountService.updateCoupon(editingCoupon.id, formData);
+                await discountService.updateCoupon(editingCoupon.id, payload);
             } else {
-                await discountService.createCoupon(formData);
+                await discountService.createCoupon(payload);
             }
             setIsModalOpen(false);
             loadCoupons();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to save coupon', error);
+            const message = error.response?.data?.message;
+            alert(Array.isArray(message) ? message.join('\n') : (message || 'Failed to save coupon'));
         }
     };
 

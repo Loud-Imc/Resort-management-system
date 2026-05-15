@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext'
 import { SocketProvider } from './context/SocketContext'
 import './index.css'
 import App from './App.tsx'
+import ScrollToTop from './components/ScrollToTop'
 
 const queryClient = new QueryClient()
 
@@ -21,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <SocketProvider>
             <Toaster position="top-right" />

@@ -12,14 +12,22 @@ import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 
 const offerSchema = z.object({
-    name: z.string().min(1, 'Name is required'),
+    name: z.string().min(1, 'Offer name is required'),
     description: z.string().optional(),
     discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT']),
-    discountValue: z.number().min(0, 'Value must be positive'),
+    discountValue: z.number({ message: 'Discount value is required' }).min(1, 'Value must be at least 1'),
     startDate: z.string().min(1, 'Start date is required'),
     endDate: z.string().min(1, 'End date is required'),
     roomTypeIds: z.array(z.string()).min(1, 'Select at least one room type'),
     isActive: z.boolean(),
+}).refine(data => {
+    if (data.discountType === 'PERCENTAGE' && data.discountValue > 100) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Percentage discount cannot exceed 100%",
+    path: ["discountValue"]
 }).refine(data => {
     return new Date(data.endDate) >= new Date(data.startDate);
 }, {
@@ -132,7 +140,7 @@ export default function CreateOffer() {
                     <div className="p-8 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <label className="text-sm font-bold text-card-foreground ml-1">Offer Name</label>
+                                <label className="text-sm font-bold text-card-foreground ml-1">Offer Name <span className="text-destructive">*</span></label>
                                 <input
                                     {...register('name')}
                                     className="w-full px-4 py-3 rounded-xl bg-muted border-none focus:ring-2 focus:ring-primary/20 transition-all font-bold placeholder:font-medium"
@@ -143,7 +151,7 @@ export default function CreateOffer() {
 
                             <div className="col-span-full space-y-4">
                                 <div className="flex items-center justify-between ml-1">
-                                    <label className="text-sm font-bold text-card-foreground">Applicable Room Types</label>
+                                    <label className="text-sm font-bold text-card-foreground">Applicable Room Types <span className="text-destructive">*</span></label>
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -240,7 +248,7 @@ export default function CreateOffer() {
 
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-card-foreground ml-1">
-                                    {discountType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 'Discount Amount (₹)'}
+                                    {discountType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 'Discount Amount (₹)'} <span className="text-destructive">*</span>
                                 </label>
                                 <div className="relative">
                                     <input
@@ -261,7 +269,7 @@ export default function CreateOffer() {
                             <div className="space-y-2">
                                 <div className="flex items-center gap-2 mb-1">
                                     <Calendar className="h-4 w-4 text-primary" />
-                                    <label className="text-sm font-bold text-card-foreground">Start Date</label>
+                                    <label className="text-sm font-bold text-card-foreground">Start Date <span className="text-destructive">*</span></label>
                                 </div>
                                 <input
                                     type="date"
@@ -274,7 +282,7 @@ export default function CreateOffer() {
                             <div className="space-y-2">
                                 <div className="flex items-center gap-2 mb-1">
                                     <Calendar className="h-4 w-4 text-primary" />
-                                    <label className="text-sm font-bold text-card-foreground">End Date</label>
+                                    <label className="text-sm font-bold text-card-foreground">End Date <span className="text-destructive">*</span></label>
                                 </div>
                                 <input
                                     type="date"

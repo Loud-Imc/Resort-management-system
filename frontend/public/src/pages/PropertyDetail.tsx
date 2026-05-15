@@ -6,12 +6,13 @@ import {
     Wifi, Car, Coffee, Dumbbell, Waves, Loader2,
     Building2, Users, Maximize, ChevronRight, ChevronLeft, Clock, Utensils,
     Tv, Trees, Sparkles, Lock, ConciergeBell, Ticket, Snowflake, Sunset, Mountain,
-    Calendar,
+    Calendar, Wallet,
     Bath, Bed, Monitor, Sofa, Lamp, DoorOpen, Wind
 } from 'lucide-react';
 import { propertyApi } from '../services/properties';
 import { bookingService } from '../services/booking';
 import { reviewService, Review, ReviewStats } from '../services/reviews';
+import PropertyCard from '../components/PropertyCard';
 import { Property, RoomType } from '../types';
 import { useSearch } from '../context/SearchContext';
 import { PriceDisplay } from '../components/common/PriceDisplay';
@@ -167,6 +168,9 @@ export default function PropertyDetail() {
     const [error, setError] = useState<string | null>(null);
     const [reviews, setReviews] = useState<Review[]>([]);
     const [stats, setStats] = useState<ReviewStats | null>(null);
+    const [nearbyProperties, setNearbyProperties] = useState<Property[]>([]);
+    const [nearbyRadius, setNearbyRadius] = useState<number>(50);
+    const [loadingNearby, setLoadingNearby] = useState(false);
 
     useEffect(() => {
         if (slug) {
@@ -177,8 +181,25 @@ export default function PropertyDetail() {
     useEffect(() => {
         if (property?.id) {
             fetchReviews(property.id);
+            if (property.latitude && property.longitude) {
+                fetchNearby(Number(property.latitude), Number(property.longitude));
+            }
         }
-    }, [property?.id]);
+    }, [property?.id, property?.latitude, property?.longitude]);
+
+    const fetchNearby = async (lat: number, lng: number) => {
+        try {
+            setLoadingNearby(true);
+            const { properties: data, radiusKm } = await propertyApi.getNearby(lat, lng); 
+            setNearbyRadius(radiusKm);
+            // Filter out the current property
+            setNearbyProperties(data.filter(p => p.id !== property?.id).slice(0, 3));
+        } catch (err) {
+            console.error('Error fetching nearby properties:', err);
+        } finally {
+            setLoadingNearby(false);
+        }
+    };
 
     const fetchReviews = async (id: string) => {
         try {
@@ -309,9 +330,21 @@ export default function PropertyDetail() {
                                 </span>
                             )}
                         </div>
-                        <h1 className="text-3xl md:text-5xl font-bold text-white mb-2">
-                            {toTitleCase(property.name)}
-                        </h1>
+                        <div className="flex flex-wrap items-center gap-4 mb-4">
+                            <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight">
+                                {toTitleCase(property.name)}
+                            </h1>
+                            {property.roomTypes?.some(rt => rt.allowPayAtProperty) && (
+                                <div className="bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 backdrop-blur-md px-5 py-2.5 rounded-2xl flex flex-col items-center gap-0.5 text-white shadow-2xl shadow-emerald-500/40 border border-white/30 animate-badge-glow relative overflow-hidden group/pap mt-2 md:mt-0">
+                                    <div className="flex items-center gap-2">
+                                        <Wallet className="h-4 w-4 animate-bounce" />
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap">Pay At Property Available</span>
+                                    </div>
+                                    <span className="text-[8px] font-bold text-white/80 uppercase tracking-widest -mt-0.5 whitespace-nowrap">Secure your stay with zero advance</span>
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/pap:animate-shimmer" />
+                                </div>
+                            )}
+                        </div>
                         <div className="flex flex-wrap items-center gap-4 text-white/90">
                             <span className="flex items-center gap-1">
                                 <MapPin className="h-4 w-4" />
@@ -491,7 +524,7 @@ export default function PropertyDetail() {
                                                                         to={checkIn && checkOut ? `/book?roomId=${groupStay.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=true&groupSize=${groupSize}` : '#'}
                                                                         className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-xl shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
-                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Reserve Group Stay'}
+                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Book Group Stay'}
                                                                         <ChevronRight className="h-4 w-4" />
                                                                     </Link>
                                                                 )}
@@ -559,9 +592,21 @@ export default function PropertyDetail() {
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <div className="flex items-center gap-2 text-xs font-bold text-primary-600">
-                                                                        <CheckCircle className="h-3.5 w-3.5" />
-                                                                        Verified Accommodation
+                                                                    <div className="flex flex-wrap items-center gap-3">
+                                                                        <div className="flex items-center gap-2 text-xs font-bold text-primary-600">
+                                                                            <CheckCircle className="h-3.5 w-3.5" />
+                                                                            Verified Accommodation
+                                                                        </div>
+                                                                        {roomType.allowPayAtProperty && (
+                                                                            <div className="flex flex-col items-center bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 text-white px-5 py-2 rounded-2xl border border-white/20 shadow-xl shadow-emerald-500/30 relative overflow-hidden group/pap animate-badge-glow transition-transform hover:scale-105 cursor-default">
+                                                                                <div className="flex items-center gap-2.5">
+                                                                                    <Wallet className="h-4 w-4 animate-bounce" />
+                                                                                    <span className="text-[11px] font-black uppercase tracking-[0.15em] whitespace-nowrap">Pay At Property</span>
+                                                                                </div>
+                                                                                <span className="text-[8px] font-bold text-white/70 uppercase tracking-widest -mt-0.5">Zero Advance</span>
+                                                                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/pap:animate-shimmer" />
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                                 {stats && stats.count > 0 && stats.average >= 4 && (
@@ -921,6 +966,22 @@ export default function PropertyDetail() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Nearby Properties */}
+                        {!loadingNearby && nearbyProperties.length > 0 && (
+                            <div className="space-y-8 pt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                <div className="flex items-center gap-4">
+                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                                    <h2 className="text-2xl font-bold text-gray-900 font-serif whitespace-nowrap">Explore Similar Stays Nearby</h2>
+                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {nearbyProperties.map((prop) => (
+                                        <PropertyCard key={prop.id} property={prop} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Sidebar - Booking CTA */}
@@ -1114,6 +1175,30 @@ export default function PropertyDetail() {
                         </div>
                     )}
                 </div>
+
+                {/* Similar Stays Section */}
+                {nearbyProperties.length > 0 && (
+                    <div className="mt-24 border-t border-gray-100 pt-24 pb-12">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+                            <div>
+                                <span className="text-primary-600 font-bold tracking-widest uppercase text-xs">Discovery</span>
+                                <h2 className="text-4xl font-bold text-gray-900 mt-2 font-serif">Explore Similar Stays</h2>
+                                <p className="text-gray-500 mt-3 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-primary-500" />
+                                    Showing curated properties within <span className="px-2 py-0.5 bg-primary-100 text-primary-700 rounded-md font-black">{nearbyRadius} km</span> radius.
+                                </p>
+                            </div>
+                            <Link to="/properties" className="text-primary-600 font-bold hover:underline flex items-center gap-2">
+                                View all destinations <ChevronRight className="h-4 w-4" />
+                            </Link>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            {nearbyProperties.map(p => (
+                                <PropertyCard key={p.id} property={p} />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

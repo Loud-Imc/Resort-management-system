@@ -114,7 +114,7 @@ const Register: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             background: 'radial-gradient(circle at top right, rgba(8, 71, 78, 0.05) 0%, transparent 40%), radial-gradient(circle at bottom left, rgba(8, 71, 78, 0.03) 0%, transparent 40%), #f1f5f9',
-            padding: '4rem 2rem'
+            padding: 'var(--section-padding)'
         }}>
 
 
@@ -136,7 +136,7 @@ const Register: React.FC = () => {
                     />
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem', textAlign: 'left' }}>
+                <form onSubmit={handleSubmit} className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem', textAlign: 'left' }}>
                     {error && (
                         <div style={{
                             gridColumn: 'span 2',
@@ -283,7 +283,7 @@ const Register: React.FC = () => {
                     {/* Mandatory Documents for CP */}
                     <div style={{ gridColumn: 'span 2', marginTop: '1rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1.5rem' }}>
                         <h4 style={{ fontSize: '1rem', color: 'var(--text-main)', marginBottom: '1rem', fontWeight: 600 }}>Verification Documents</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
+                        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
                             <DocumentUpload
                                 label="Aadhaar Card Copy"
                                 value={formData.aadhaarImage}
