@@ -134,9 +134,6 @@ export default function Home() {
                             <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Collection</span>
                             <h2 className="text-3xl font-serif font-bold mt-2 text-gray-900">Stay at our top unique properties</h2>
                         </div>
-                        <Link to="/properties" className="hidden md:flex items-center gap-2 text-primary-700 text-sm font-semibold hover:gap-3 transition-all">
-                            View All Properties <ArrowRight className="h-5 w-5" />
-                        </Link>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
