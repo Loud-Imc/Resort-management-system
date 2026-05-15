@@ -23,7 +23,6 @@ cd backend
 npm install
 
 npx prisma generate
-npx prisma migrate resolve --rolled-back 20260507114500_add_pay_at_property || true
 npx prisma migrate deploy
 NODE_OPTIONS="--max-old-space-size=1536" npm run build
 echo "🔄 Restarting Backend Service..."
