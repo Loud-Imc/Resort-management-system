@@ -391,6 +391,11 @@ export class PropertyQueryDto {
     isVerified?: boolean;
 
     @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    sortByRating?: boolean;
+
+    @IsOptional()
     @IsEnum(PropertyStatus)
     status?: PropertyStatus;
 

@@ -32,10 +32,10 @@ export const propertyApi = {
         return response.data.data;
     },
 
-    // Get sponsored/unique properties for homepage
-    async getSponsored(limit = 6): Promise<Property[]> {
+    // Get top unique/rated properties for homepage
+    async getTopUnique(limit = 6): Promise<Property[]> {
         const response = await api.get('/properties', {
-            params: { limit, isSponsored: true }
+            params: { limit, sortByRating: true }
         });
         return response.data.data;
     },

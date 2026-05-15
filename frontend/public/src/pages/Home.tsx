@@ -69,7 +69,7 @@ function HeroCarousel({ banners }: HeroCarouselProps) {
 export default function Home() {
     const { data: topUniqueProperties, isLoading: isPropertiesLoading } = useQuery({
         queryKey: ['topUniqueProperties'],
-        queryFn: () => propertyApi.getSponsored(3)
+        queryFn: () => propertyApi.getTopUnique(3)
     });
 
     const { data: heroBanners = [] } = useQuery({

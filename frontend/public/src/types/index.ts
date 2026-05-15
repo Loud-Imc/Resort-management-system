@@ -167,6 +167,7 @@ export interface PropertySearchParams {
     radius?: number;
     isFeatured?: boolean;
     isSponsored?: boolean;
+    sortByRating?: boolean;
 }
 
 export interface PropertyListResponse {

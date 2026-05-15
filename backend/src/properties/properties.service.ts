@@ -610,7 +610,11 @@ export class PropertiesService {
                 where,
                 skip,
                 take: limit,
-                orderBy: [
+                orderBy: query.sortByRating ? [
+                    { rating: 'desc' },
+                    { reviewCount: 'desc' },
+                    { createdAt: 'desc' }
+                ] : [
                     { isFeatured: 'desc' },
                     { isSponsored: 'desc' },
                     { createdAt: 'desc' }
