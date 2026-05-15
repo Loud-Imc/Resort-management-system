@@ -15,9 +15,9 @@ export default function Footer() {
         <>
             {/* Promo Section above Footer */}
             <div className="relative bg-white pt-6 pb-12 text-left border-t border-gray-100 overflow-hidden">
-                <div 
-                    className="absolute inset-0 z-0 opacity-5"
-                    style={{ backgroundImage: "url('/images/hero-slide-2.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }} 
+                <div
+                    className="absolute inset-0 z-0 opacity-20"
+                    style={{ backgroundImage: "url('/images/hero-slide-2.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
                 />
                 <div className="relative z-10 max-w-6xl mx-auto px-4">
                     <h2 className="text-[32px] md:text-[64px] font-black text-gray-600 tracking-tight leading-[1] mb-6">

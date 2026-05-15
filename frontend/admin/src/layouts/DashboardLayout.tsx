@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { usePendingCounts } from '../hooks/usePendingCounts';
 import { Outlet, NavLink, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useProperty } from '../context/PropertyContext';
+// import { useProperty } from '../context/PropertyContext';
 import { useTheme } from '../context/ThemeContext';
 import {
     LayoutDashboard,
@@ -36,7 +36,7 @@ import NotificationBell from '../components/NotificationBell';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
-    const { selectedProperty, properties, setSelectedProperty } = useProperty();
+    // const { selectedProperty, properties, setSelectedProperty } = useProperty();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -113,7 +113,7 @@ export default function DashboardLayout() {
         ...(hasPermission('marketing.manageCoupons') ? [
             { icon: ImageIcon, label: 'Web Banners', path: '/marketing/banners' },
             { icon: Type, label: 'Hero Content', path: '/marketing/hero-content' },
-            {icon: Megaphone, label: 'Promotions Board', path: '/marketing/promotions', badgePath: '/marketing/promotions'},
+            { icon: Megaphone, label: 'Promotions Board', path: '/marketing/promotions', badgePath: '/marketing/promotions' },
         ] : []),
         ...(hasPermission('marketing.manageBroadcasts') ? [
             { icon: Bell, label: 'Broadcast Alerts', path: '/marketing/notifications' },
@@ -144,34 +144,6 @@ export default function DashboardLayout() {
                         />
                     </Link>
 
-                    {properties.length > 0 && (
-                        <div className="relative">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
-                                Property
-                            </label>
-                            <select
-                                value={selectedProperty?.id || 'all'}
-                                onChange={(e) => {
-                                    if (e.target.value === 'all') {
-                                        setSelectedProperty(null);
-                                    } else {
-                                        const prop = properties.find(p => p.id === e.target.value);
-                                        setSelectedProperty(prop || null);
-                                    }
-                                }}
-                                className="w-full p-2 text-sm border border-border rounded-md focus:ring-primary focus:border-primary bg-background text-foreground"
-                            >
-                                {(isSuperAdmin || user?.roles?.includes('Admin')) && (
-                                    <option value="all">All Properties</option>
-                                )}
-                                {properties.map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -352,12 +324,12 @@ export default function DashboardLayout() {
 
             {/* Navigator Hub Modal */}
             {isNavHubOpen && (
-                <div 
-                    className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 overflow-y-auto animate-in fade-in duration-200" 
+                <div
+                    className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 overflow-y-auto animate-in fade-in duration-200"
                     onClick={() => setIsNavHubOpen(false)}
                 >
-                    <div 
-                        className="bg-card border border-border shadow-2xl rounded-3xl w-full max-w-5xl overflow-hidden max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300" 
+                    <div
+                        className="bg-card border border-border shadow-2xl rounded-3xl w-full max-w-5xl overflow-hidden max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Hub Header with Search */}
@@ -371,7 +343,7 @@ export default function DashboardLayout() {
                                     <p className="text-xs text-muted-foreground font-medium">Instantly access and filter platform features</p>
                                 </div>
                             </div>
-                            
+
                             <div className="relative flex-1 max-w-md w-full">
                                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
                                 <input
@@ -384,7 +356,7 @@ export default function DashboardLayout() {
                                 />
                             </div>
 
-                            <button 
+                            <button
                                 onClick={() => setIsNavHubOpen(false)}
                                 className="p-2.5 bg-muted hover:bg-muted/80 rounded-xl text-muted-foreground hover:text-foreground transition-all border border-border/50 shadow-sm"
                             >

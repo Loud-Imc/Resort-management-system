@@ -8,5 +8,4 @@ ADD COLUMN     "papReminder6hSent" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN     "payAtPropertyReminderSentAt" TIMESTAMP(3);
 
 -- AlterTable
-ALTER TABLE "room_types" ADD COLUMN     "allowPayAtProperty" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "size" INTEGER;
+ALTER TABLE "room_types" ADD COLUMN     "allowPayAtProperty" BOOLEAN NOT NULL DEFAULT false;
