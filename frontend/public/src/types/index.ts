@@ -165,6 +165,8 @@ export interface PropertySearchParams {
     latitude?: number;
     longitude?: number;
     radius?: number;
+    isFeatured?: boolean;
+    isSponsored?: boolean;
 }
 
 export interface PropertyListResponse {

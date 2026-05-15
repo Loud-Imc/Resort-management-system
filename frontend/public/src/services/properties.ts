@@ -32,6 +32,14 @@ export const propertyApi = {
         return response.data.data;
     },
 
+    // Get sponsored/unique properties for homepage
+    async getSponsored(limit = 6): Promise<Property[]> {
+        const response = await api.get('/properties', {
+            params: { limit, isSponsored: true }
+        });
+        return response.data.data;
+    },
+
     // Get all active property categories
     async getCategories(): Promise<PropertyCategory[]> {
         const response = await api.get('/property-categories');

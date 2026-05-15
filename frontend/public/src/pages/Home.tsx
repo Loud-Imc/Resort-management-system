@@ -67,9 +67,9 @@ function HeroCarousel({ banners }: HeroCarouselProps) {
 }
 
 export default function Home() {
-    const { data: featuredProperties, isLoading: isPropertiesLoading } = useQuery({
-        queryKey: ['featuredProperties'],
-        queryFn: () => propertyApi.getFeatured(3)
+    const { data: topUniqueProperties, isLoading: isPropertiesLoading } = useQuery({
+        queryKey: ['topUniqueProperties'],
+        queryFn: () => propertyApi.getSponsored(3)
     });
 
     const { data: heroBanners = [] } = useQuery({
@@ -131,8 +131,8 @@ export default function Home() {
                 <div className="relative z-10 max-w-6xl mx-auto px-4">
                     <div className="flex justify-between items-end mb-10">
                         <div>
-                            <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Destinations</span>
-                            <h2 className="text-3xl font-serif font-bold mt-2 text-gray-900">Featured Properties</h2>
+                            <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Collection</span>
+                            <h2 className="text-3xl font-serif font-bold mt-2 text-gray-900">Stay at our top unique properties</h2>
                         </div>
                         <Link to="/properties" className="hidden md:flex items-center gap-2 text-primary-700 text-sm font-semibold hover:gap-3 transition-all">
                             View All Properties <ArrowRight className="h-5 w-5" />
@@ -154,14 +154,14 @@ export default function Home() {
                             ))
                         ) : (
                             // Real Data
-                            featuredProperties?.map((property: Property) => (
+                            topUniqueProperties?.map((property: Property) => (
                                 <PropertyCard key={property.id} property={property} />
                             ))
                         )}
 
-                        {!isPropertiesLoading && (!featuredProperties || featuredProperties.length === 0) && (
+                        {!isPropertiesLoading && (!topUniqueProperties || topUniqueProperties.length === 0) && (
                             <div className="col-span-3 text-center py-12 text-gray-500 bg-white rounded-xl border border-gray-100">
-                                No featured properties available at the moment.
+                                No unique properties available at the moment.
                             </div>
                         )}
                     </div>

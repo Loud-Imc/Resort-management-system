@@ -63,6 +63,7 @@ export default function PropertyForm() {
         marketingCommission: 0,
         ownerId: '',
         isFeatured: false,
+        isSponsored: false,
         platformCommission: 10,
         whatsappNumber: '',
         categoryId: '',
@@ -156,6 +157,7 @@ export default function PropertyForm() {
                 marketingCommission: property.marketingCommission || 0,
                 ownerId: property.ownerId || '',
                 isFeatured: property.isFeatured || false,
+                isSponsored: property.isSponsored || false,
                 platformCommission: property.platformCommission || 10,
                 whatsappNumber: property.whatsappNumber || '',
                 categoryId: property.categoryId || '',
@@ -508,6 +510,51 @@ export default function PropertyForm() {
                                     Allow Group Bookings (Property Level)
                                 </label>
                             </div>
+
+                            {isAdmin && (
+                                <div className="flex flex-wrap gap-6 mb-4">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-muted-foreground cursor-pointer group">
+                                        <div className={clsx(
+                                            "w-10 h-5 rounded-full transition-colors relative",
+                                            formData.isFeatured ? "bg-amber-500" : "bg-muted border border-border"
+                                        )}>
+                                            <input
+                                                type="checkbox"
+                                                name="isFeatured"
+                                                checked={formData.isFeatured}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, isFeatured: e.target.checked }))}
+                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                            />
+                                            <div className={clsx(
+                                                "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
+                                                formData.isFeatured ? "left-6" : "left-1"
+                                            )} />
+                                        </div>
+                                        <span className="group-hover:text-amber-600 transition-colors font-bold uppercase tracking-tight">Featured on Home</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-2 text-sm font-bold text-muted-foreground cursor-pointer group">
+                                        <div className={clsx(
+                                            "w-10 h-5 rounded-full transition-colors relative",
+                                            formData.isSponsored ? "bg-indigo-600" : "bg-muted border border-border"
+                                        )}>
+                                            <input
+                                                type="checkbox"
+                                                name="isSponsored"
+                                                checked={formData.isSponsored}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, isSponsored: e.target.checked }))}
+                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                            />
+                                            <div className={clsx(
+                                                "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
+                                                formData.isSponsored ? "left-6" : "left-1"
+                                            )} />
+                                        </div>
+                                        <span className="group-hover:text-indigo-600 transition-colors font-bold uppercase tracking-tight">Top Unique Property</span>
+                                    </label>
+                                </div>
+                            )}
+
                             {formData.allowsGroupBooking && (
                                 <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

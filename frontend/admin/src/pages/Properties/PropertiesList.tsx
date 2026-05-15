@@ -219,6 +219,12 @@ export default function PropertiesList() {
                                             Featured
                                         </span>
                                     )}
+                                    {property.isSponsored && (
+                                        <span className="bg-indigo-600 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
+                                            <Building2 className="h-3 w-3 fill-current" />
+                                            Unique
+                                        </span>
+                                    )}
                                     {property.isVerified && (
                                         <span className="bg-green-500 text-white px-2 py-1 text-xs rounded flex items-center gap-1">
                                             <CheckCircle className="h-3 w-3" />

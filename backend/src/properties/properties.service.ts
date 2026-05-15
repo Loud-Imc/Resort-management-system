@@ -411,6 +411,7 @@ export class PropertiesService {
                 latitude: data.latitude ? new Prisma.Decimal(data.latitude) : null,
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : null,
                 isFeatured: data.isFeatured || false,
+                isSponsored: data.isSponsored || false,
                 status: PropertyStatus.APPROVED, // Manual creation by staff is auto-approved
                 categoryId: data.categoryId || null,
             },
@@ -590,6 +591,7 @@ export class PropertiesService {
             ...(type && { type }),
             ...(query.categoryId && { categoryId: query.categoryId }),
             ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
+            ...(query.isSponsored !== undefined && { isSponsored: String(query.isSponsored) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
             ...(query.allowsGroupBooking !== undefined && { allowsGroupBooking: String(query.allowsGroupBooking) === 'true' }),
             ...(search && {

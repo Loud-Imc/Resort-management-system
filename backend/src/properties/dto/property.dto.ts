@@ -114,6 +114,11 @@ export class CreatePropertyDto {
     @IsBoolean()
     isFeatured?: boolean;
 
+    @ApiProperty({ example: false, description: 'Whether this property is sponsored/top unique' })
+    @IsOptional()
+    @IsBoolean()
+    isSponsored?: boolean;
+
     @ApiProperty({ example: 'category-uuid-123' })
     @IsOptional()
     @IsString()
@@ -240,6 +245,10 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsBoolean()
     isFeatured?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    isSponsored?: boolean;
 
     @IsOptional()
     @IsEnum(['PENDING', 'PAID', 'CANCELLED'])
@@ -370,6 +379,11 @@ export class PropertyQueryDto {
     @IsBoolean()
     @Type(() => Boolean)
     isFeatured?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    isSponsored?: boolean;
 
     @IsOptional()
     @IsBoolean()

@@ -56,7 +56,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                 {(property.isSponsored || property.isFeatured) && (
                     <div className="absolute top-12 left-3 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1 text-yellow-400 text-[9px] font-black uppercase tracking-widest shadow-md border border-yellow-400/30">
                         <Star className="h-2.5 w-2.5 fill-current" />
-                        Promoted
+                        {property.isSponsored ? 'Unique' : 'Featured'}
                     </div>
                 )}
 
