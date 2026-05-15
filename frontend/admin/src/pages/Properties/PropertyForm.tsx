@@ -13,6 +13,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import toast from 'react-hot-toast';
+import clsx from 'clsx';
 
 const propertyTypes: { value: PropertyType; label: string }[] = [
     { value: 'RESORT', label: 'Resort' },
