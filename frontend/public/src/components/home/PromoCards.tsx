@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Star } from 'lucide-react';
+import { ArrowRight, Star, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { propertyApi } from '../../services/properties';
 
@@ -14,6 +14,8 @@ const LOCAL_FALLBACKS = [
         coverImage: '/images/promo_resort_1.png',
         category: { name: 'Eco-Luxury' },
         rating: 4.8,
+        city: 'Munnar',
+        state: 'Kerala'
     },
     {
         id: 'f2',
@@ -22,6 +24,8 @@ const LOCAL_FALLBACKS = [
         coverImage: '/images/promo_resort_2.png',
         category: { name: 'Cultural' },
         rating: 4.5,
+        city: 'Mysore',
+        state: 'Karnataka'
     },
     {
         id: 'f3',
@@ -30,6 +34,8 @@ const LOCAL_FALLBACKS = [
         coverImage: '/images/promo_resort_3.png',
         category: { name: 'Wellness' },
         rating: 4.9,
+        city: 'Coorg',
+        state: 'Karnataka'
     }
 ];
 
@@ -168,38 +174,44 @@ export default function PromoCards() {
                                 />
 
                                 {/* Overlay Gradient */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-8 flex flex-col justify-between">
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent p-6 flex flex-col justify-between">
                                     {/* Top Badges */}
                                     <div className="flex justify-between items-start">
-                                        <span className="bg-white/10 backdrop-blur-md text-white border border-white/20 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                        <span className="bg-black/40 backdrop-blur-md text-white border border-white/20 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em]">
                                             {promo.category?.name || 'Premium Stay'}
                                         </span>
-                                        <div className="flex flex-col items-end">
-                                            <div className="flex items-center gap-1 mb-1">
+                                        <div className="flex flex-col items-center bg-black/40 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-2xl">
+                                            <div className="flex items-center gap-0.5 mb-0.5">
                                                 {[...Array(5)].map((_, i) => (
                                                     <Star
                                                         key={i}
-                                                        className={`h-3 w-3 ${i < Math.round(Number(promo.rating) || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-white/30'}`}
+                                                        className={`h-2.5 w-2.5 ${i < Math.round(Number(promo.rating) || 5) ? 'text-amber-400 fill-amber-400' : 'text-white/20'}`}
                                                     />
                                                 ))}
                                             </div>
-                                            <span className="text-white text-[10px] font-black">
-                                                {promo.rating ? `${promo.rating}/5` : 'Featured'}
+                                            <span className="text-white/80 text-[8px] font-bold tracking-widest uppercase">
+                                                {promo.rating ? `${promo.rating} Rating` : 'Featured'}
                                             </span>
                                         </div>
                                     </div>
 
                                     {/* Bottom Info */}
-                                    <div className="transform translate-y-12 group-hover:translate-y-0 transition-transform duration-500 ease-out">
-                                        <h3 className="text-2xl font-black text-white leading-tight mb-2">
+                                    <div className="relative">
+                                        <h3 className="text-2xl font-serif font-medium text-white leading-tight mb-1 tracking-wide">
                                             {promo.name}
                                         </h3>
-                                        <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
-                                            <p className="text-sm text-white/70 font-medium line-clamp-1 max-w-[75%]">
-                                                {promo.description || 'Experience the finest luxury and unparalleled service.'}
+                                        
+                                        <div className="flex items-center gap-1.5 text-white/70 font-light italic">
+                                            <MapPin className="h-3 w-3 text-amber-400" />
+                                            <p className="text-[12px] line-clamp-1">
+                                                {promo.city && promo.state ? `${promo.city}, ${promo.state}` : (promo.city || promo.state || 'Discover Location')}
                                             </p>
-                                            <button className="bg-primary-500 text-white p-3 rounded-full hover:bg-primary-400 transition-all shadow-lg hover:scale-110">
-                                                <ArrowRight className="h-5 w-5" />
+                                        </div>
+
+                                        {/* Hover Button - Positioned absolutely to the right */}
+                                        <div className="absolute right-0 bottom-0 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-4 group-hover:translate-x-0">
+                                            <button className="bg-white/10 backdrop-blur-md border border-white/20 text-white p-2.5 rounded-full hover:bg-primary-500 hover:border-primary-500 transition-all shadow-2xl">
+                                                <ArrowRight className="h-4 w-4" />
                                             </button>
                                         </div>
                                     </div>

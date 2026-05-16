@@ -108,15 +108,32 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                 {/* Stats Row */}
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
                     {/* Rating */}
-                    {property.rating ? (
-                        <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                            <span className="font-semibold text-gray-900">{property.rating}</span>
-                            <span className="text-gray-400 text-sm">({property.reviewCount})</span>
+                    <div className="flex items-center gap-1.5">
+                        <div className="flex items-center">
+                            {[1, 2, 3, 4, 5].map((star) => {
+                                const rating = Number(property.rating) || 0;
+                                const isFilled = star <= Math.round(rating);
+                                return (
+                                    <Star
+                                        key={star}
+                                        className={`h-3 w-3 ${
+                                            isFilled
+                                                ? 'text-amber-400 fill-amber-400'
+                                                : 'text-gray-200 fill-gray-200'
+                                        }`}
+                                    />
+                                );
+                            })}
                         </div>
-                    ) : (
-                        <span className="text-gray-400 text-sm">New</span>
-                    )}
+                        {property.rating ? (
+                            <div className="flex items-center gap-1">
+                                <span className="font-bold text-gray-900 text-xs">{property.rating}</span>
+                                <span className="text-gray-400 text-[10px]">({property.reviewCount})</span>
+                            </div>
+                        ) : (
+                            <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter">New Collection</span>
+                        )}
+                    </div>
 
                     {/* Rooms */}
                     <div className="flex items-center gap-1 text-gray-500 text-sm">
