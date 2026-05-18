@@ -4,7 +4,7 @@ export interface HeroContent {
     id: string;
     tagline?: string;
     heading: string;
-    subheading: string;
+    subheading?: string;
     isActive: boolean;
     createdAt: string;
     updatedAt: string;

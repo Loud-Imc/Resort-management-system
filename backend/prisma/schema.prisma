@@ -1181,7 +1181,7 @@ model HeroContent {
   id          String   @id @default(uuid())
   tagline     String?
   heading     String
-  subheading  String
+  subheading  String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

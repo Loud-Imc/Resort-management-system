@@ -37,8 +37,8 @@ export default function HeroContentPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.heading || !formData.subheading) {
-            toast.error('Heading and Subheading are required');
+        if (!formData.heading) {
+            toast.error('Heading is required');
             return;
         }
 
@@ -229,9 +229,8 @@ export default function HeroContentPage() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-muted-foreground mb-1">Subheading / Description</label>
+                                <label className="block text-sm font-bold text-muted-foreground mb-1">Subheading / Description (Optional)</label>
                                 <textarea
-                                    required
                                     className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none min-h-[100px]"
                                     value={formData.subheading}
                                     onChange={(e) => setFormData({ ...formData, subheading: e.target.value })}

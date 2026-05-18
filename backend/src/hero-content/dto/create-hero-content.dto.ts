@@ -9,7 +9,8 @@ export class CreateHeroContentDto {
     heading: string;
 
     @IsString()
-    subheading: string;
+    @IsOptional()
+    subheading?: string;
 
     @IsBoolean()
     @IsOptional()
