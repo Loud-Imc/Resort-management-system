@@ -59,7 +59,7 @@ export default function PromoCards() {
                 }
 
                 // Query public HTTPS IP lookup
-                const res = await fetch('https://freeipapi.com/api/json');
+                const res = await fetch('https://free.freeipapi.com/api/json');
                 const data = await res.json();
                 if (data && data.cityName) {
                     setDetectedCity(data.cityName);
@@ -197,7 +197,7 @@ export default function PromoCards() {
 
                                     {/* Bottom Info */}
                                     <div className="relative">
-                                        <h3 className="text-2xl font-serif font-medium text-white leading-tight mb-1 tracking-wide">
+                                        <h3 className="text-2xl font-['Open_Sans'] font-medium text-white leading-tight mb-1 tracking-wide">
                                             {promo.name}
                                         </h3>
                                         

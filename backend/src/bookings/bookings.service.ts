@@ -14,7 +14,7 @@ import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PdfService } from '../pdf/pdf.service';
 import { MailService } from '../mail/mail.service';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 
 @Injectable()
@@ -1274,6 +1274,175 @@ export class BookingsService {
         await this.notificationsService.notifyCheckOut(updated);
 
         return updated;
+    }
+
+    /**
+     * Mark a booking as no-show
+     */
+    async markNoShow(id: string, user: any) {
+        const booking = await this.findOne(id, user);
+
+        if (!['CONFIRMED', 'RESERVED'].includes(booking.status)) {
+            throw new BadRequestException('Only confirmed or reserved bookings can be marked as no-show');
+        }
+
+        const updated = await this.prisma.booking.update({
+            where: { id },
+            data: {
+                status: 'NO_SHOW',
+                cancelledAt: new Date(), // Set cancellation date for reference
+            },
+            include: {
+                room: true,
+                roomType: true,
+                guests: true,
+                property: true, // Needed for notification template lookup
+                user: true,
+            },
+        });
+
+        // Update room status to AVAILABLE
+        await this.prisma.room.update({
+            where: { id: booking.roomId },
+            data: { status: 'AVAILABLE' },
+        });
+
+        // Create Audit Log
+        await this.auditService.createLog({
+            action: 'NO_SHOW',
+            entity: 'Booking',
+            entityId: id,
+            userId: user.id,
+            oldValue: { status: booking.status },
+            newValue: { status: 'NO_SHOW' },
+            bookingId: id,
+        });
+
+        // Notify guest of no-show cancellation
+        try {
+            await this.notificationsService.notifyCancellation(updated);
+        } catch (err) {
+            this.logger.error(`[markNoShow] Failed to send cancellation notification for booking ${booking.bookingNumber}:`, err);
+        }
+
+        return updated;
+    }
+
+    /**
+     * Hourly Cron job to handle automated check-in no-show
+     */
+    @Cron(CronExpression.EVERY_HOUR)
+    async handleAutoNoShow() {
+        this.logger.log('[Cron][AutoNoShow] Checking for unarrived bookings that exceeded the check-in grace period...');
+        const now = new Date();
+        const graceHoursSetting = await this.systemSettings.getSetting('AUTO_NO_SHOW_HOURS');
+        const graceHours = graceHoursSetting !== null ? Number(graceHoursSetting) : 6;
+
+        try {
+            // Find CONFIRMED/RESERVED bookings checking in today or earlier that have not checked in
+            const bookings = await this.prisma.booking.findMany({
+                where: {
+                    status: { in: ['CONFIRMED', 'RESERVED'] },
+                    checkInDate: { lte: now },
+                    checkedInAt: null,
+                },
+                include: {
+                    property: true,
+                },
+            });
+
+            this.logger.log(`[Cron][AutoNoShow] Found ${bookings.length} potential no-show bookings in database.`);
+
+            const systemUser = { id: 'SYSTEM', firstName: 'System', lastName: 'Auto-NoShow', roles: ['SuperAdmin'] };
+            let processedCount = 0;
+
+            for (const booking of bookings) {
+                // Determine scheduled check-in time boundary
+                const checkInTimeStr = booking.property?.defaultCheckInTime || '14:00';
+                const [hours, minutes] = checkInTimeStr.split(':').map(Number);
+
+                // Scheduled Check-In Time is on the checkInDate
+                const scheduledCheckIn = new Date(booking.checkInDate);
+                scheduledCheckIn.setHours(hours, minutes, 0, 0);
+
+                // Add grace period to get the absolute cutoff timestamp
+                const cutoffTime = new Date(scheduledCheckIn.getTime() + graceHours * 60 * 60 * 1000);
+
+                if (now >= cutoffTime) {
+                    this.logger.log(`[Cron][AutoNoShow] Booking ${booking.bookingNumber} exceeded cutoff of ${cutoffTime.toISOString()}. Marking as NO_SHOW.`);
+                    try {
+                        await this.markNoShow(booking.id, systemUser);
+                        processedCount++;
+                    } catch (err) {
+                        this.logger.error(`[Cron][AutoNoShow] Failed to mark booking ${booking.bookingNumber} as no-show:`, err);
+                    }
+                }
+            }
+
+            if (processedCount > 0) {
+                this.logger.log(`[Cron][AutoNoShow] Successfully processed ${processedCount} bookings to NO_SHOW.`);
+            }
+        } catch (error) {
+            this.logger.error('[Cron][AutoNoShow] Failed to run check-in no-show cron:', error);
+        }
+    }
+
+    /**
+     * Hourly Cron job to handle automated check-out for forgotten stays
+     */
+    @Cron(CronExpression.EVERY_HOUR)
+    async handleAutoCheckout() {
+        this.logger.log('[Cron][AutoCheckout] Checking for checked-in bookings that exceeded the check-out grace period...');
+        const now = new Date();
+        const graceHoursSetting = await this.systemSettings.getSetting('AUTO_CHECKOUT_HOURS');
+        const graceHours = graceHoursSetting !== null ? Number(graceHoursSetting) : 2;
+
+        try {
+            // Find CHECKED_IN bookings scheduled to checkout today or earlier
+            const bookings = await this.prisma.booking.findMany({
+                where: {
+                    status: 'CHECKED_IN',
+                    checkOutDate: { lte: now },
+                },
+                include: {
+                    property: true,
+                },
+            });
+
+            this.logger.log(`[Cron][AutoCheckout] Found ${bookings.length} potential forgotten check-outs in database.`);
+
+            const systemUser = { id: 'SYSTEM', firstName: 'System', lastName: 'Auto-Checkout', roles: ['SuperAdmin'] };
+            let processedCount = 0;
+
+            for (const booking of bookings) {
+                // Determine scheduled check-out time boundary
+                const checkOutTimeStr = booking.property?.defaultCheckOutTime || '11:00';
+                const [hours, minutes] = checkOutTimeStr.split(':').map(Number);
+
+                // Scheduled Check-Out Time is on the checkOutDate
+                const scheduledCheckOut = new Date(booking.checkOutDate);
+                scheduledCheckOut.setHours(hours, minutes, 0, 0);
+
+                // Add grace period to get the absolute cutoff timestamp
+                const cutoffTime = new Date(scheduledCheckOut.getTime() + graceHours * 60 * 60 * 1000);
+
+                if (now >= cutoffTime) {
+                    this.logger.log(`[Cron][AutoCheckout] Booking ${booking.bookingNumber} exceeded cutoff of ${cutoffTime.toISOString()}. Executing Auto-Checkout.`);
+                    try {
+                        await this.checkOut(booking.id, systemUser);
+                        processedCount++;
+                    } catch (err) {
+                        this.logger.error(`[Cron][AutoCheckout] Failed to auto-checkout booking ${booking.bookingNumber}:`, err);
+                    }
+                }
+            }
+
+            if (processedCount > 0) {
+                this.logger.log(`[Cron][AutoCheckout] Successfully auto-checked out ${processedCount} bookings.`);
+            }
+        } catch (error) {
+            this.logger.error('[Cron][AutoCheckout] Failed to run auto-checkout cron:', error);
+        }
     }
 
     /**

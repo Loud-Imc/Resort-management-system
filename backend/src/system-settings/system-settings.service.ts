@@ -75,6 +75,16 @@ export class SystemSettingsService implements OnModuleInit {
                 key: 'SEARCH_RADIUS',
                 value: 50,
                 description: 'Default radius (in km) used for nearby property discovery and recommendations.'
+            },
+            {
+                key: 'AUTO_NO_SHOW_HOURS',
+                value: 6,
+                description: 'Grace period (in hours) after the scheduled check-in time before marking an unarrived guest booking as NO_SHOW.'
+            },
+            {
+                key: 'AUTO_CHECKOUT_HOURS',
+                value: 2,
+                description: 'Grace period (in hours) after the scheduled check-out time before automatically checking out guests.'
             }
         ];
 

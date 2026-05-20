@@ -48,6 +48,10 @@ export default function PlatformSettings() {
     const [onlinePaymentDiscountPct, setOnlinePaymentDiscountPct] = useState<number>(5);
     const [maxBookingDiscountPct, setMaxBookingDiscountPct] = useState<number>(30);
 
+    // Auto-NoShow & Auto-Checkout grace periods
+    const [autoNoShowHours, setAutoNoShowHours] = useState<number>(6);
+    const [autoCheckoutHours, setAutoCheckoutHours] = useState<number>(2);
+
     // Tiers State
     const [levels, setLevels] = useState<PartnerLevel[]>([]);
     const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
@@ -99,6 +103,13 @@ export default function PlatformSettings() {
             const maxDiscountSetting = settingsData.find((s: GlobalSetting) => s.key === 'MAX_DISCOUNT_PCT');
             if (maxDiscountSetting) setMaxBookingDiscountPct(Number(maxDiscountSetting.value));
 
+            // Grace Periods
+            const noShowSetting = settingsData.find((s: GlobalSetting) => s.key === 'AUTO_NO_SHOW_HOURS');
+            if (noShowSetting) setAutoNoShowHours(Number(noShowSetting.value));
+
+            const checkoutSetting = settingsData.find((s: GlobalSetting) => s.key === 'AUTO_CHECKOUT_HOURS');
+            if (checkoutSetting) setAutoCheckoutHours(Number(checkoutSetting.value));
+
             // Map Tiers & Rewards
             setLevels(levelsData.sort((a, b) => a.minPoints - b.minPoints));
             setRewards(rewardsData.sort((a, b) => a.pointCost - b.pointCost));
@@ -139,6 +150,8 @@ export default function PlatformSettings() {
         if (searchRadius < 1) return 'Search radius must be at least 1km';
         if (onlinePaymentDiscountPct < 0 || onlinePaymentDiscountPct > 50) return 'PAP Discount must be between 0 and 50%';
         if (maxBookingDiscountPct < 0 || maxBookingDiscountPct > 90) return 'Max discount must be between 0 and 90%';
+        if (autoNoShowHours < 0) return 'Auto-NoShow grace period cannot be negative';
+        if (autoCheckoutHours < 0) return 'Auto-Checkout grace period cannot be negative';
         return null;
     };
 
@@ -203,6 +216,8 @@ export default function PlatformSettings() {
                 settingsService.update('SEARCH_RADIUS', searchRadius, 'Default radius (in km) used for nearby property discovery'),
                 settingsService.update('ONLINE_PAYMENT_DISCOUNT_PCT', onlinePaymentDiscountPct, 'Incentive discount for PAP customers to pay online before check-in'),
                 settingsService.update('MAX_DISCOUNT_PCT', maxBookingDiscountPct, 'Global maximum combined discount percentage allowed on any booking'),
+                settingsService.update('AUTO_NO_SHOW_HOURS', autoNoShowHours, 'Grace period (hours) before marking unarrived guests as NO_SHOW'),
+                settingsService.update('AUTO_CHECKOUT_HOURS', autoCheckoutHours, 'Grace period (hours) before automatically checking out guests'),
             ]);
             toast.success('Platform configurations updated successfully');
         } catch (error) {
@@ -436,6 +451,24 @@ export default function PlatformSettings() {
                                                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">Hrs</span>
                                             </div>
                                             <p className="mt-2 text-[10px] text-muted-foreground italic">Safety period after checkout before settlement is approved.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-muted-foreground mb-2">Auto-No Show Grace Period (Hrs)</label>
+                                            <div className="relative">
+                                                <input type="number" value={autoNoShowHours} onChange={(e) => setAutoNoShowHours(Number(e.target.value))} className="w-full pl-4 pr-12 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold" />
+                                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">Hrs</span>
+                                            </div>
+                                            <p className="mt-2 text-[10px] text-muted-foreground italic">Grace period past check-in time before marking as NO_SHOW and freeing the room.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-muted-foreground mb-2">Auto-Checkout Grace Period (Hrs)</label>
+                                            <div className="relative">
+                                                <input type="number" value={autoCheckoutHours} onChange={(e) => setAutoCheckoutHours(Number(e.target.value))} className="w-full pl-4 pr-12 py-3 bg-muted/50 border-none rounded-xl text-lg font-bold" />
+                                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">Hrs</span>
+                                            </div>
+                                            <p className="mt-2 text-[10px] text-muted-foreground italic">Grace period past check-out time before automatically checking out stay bookings.</p>
                                         </div>
                                     </div>
                                     <button onClick={handleSavePlatformConfig} disabled={isSaving} className="w-full py-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">
