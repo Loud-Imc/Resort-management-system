@@ -52,7 +52,7 @@ export default function Navbar() {
             "fixed w-full z-50 transition-all duration-300",
             isScrolled ? "bg-white/80 backdrop-blur-md shadow-md" : "bg-white/80 backdrop-blur-md shadow-md",
         )}>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-12">
                 <div className="flex justify-between items-center h-16 md:h-20">
                     <div className="flex items-center">
                         <Link to="/" className="flex items-center">

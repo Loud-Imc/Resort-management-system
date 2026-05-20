@@ -102,13 +102,13 @@ export default function Home() {
                 <div className="absolute inset-0 bg-black/30 pointer-events-none" />
 
                 {/* Content */}
-                <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 flex flex-col items-center text-center gap-8 pt-24 md:pt-28 pb-12">
+                <div className="relative z-10 max-w-[1500px] mx-auto px-4 md:px-12 flex flex-col items-center text-center gap-8 pt-24 md:pt-28 pb-12">
                     <HeroText
                         heading={displayContent.heading}
                         className="w-full max-w-5xl text-white drop-shadow-lg"
                     />
                     <SearchForm
-                        className="w-full max-w-6xl"
+                        className="w-full max-w-[1400px]"
                         theme="dark"
                     />
                 </div>
@@ -128,7 +128,7 @@ export default function Home() {
                     className="absolute inset-0 z-0 opacity-5"
                     style={{ backgroundImage: "url('/images/hero-slide-1.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }} 
                 />
-                <div className="relative z-10 max-w-6xl mx-auto px-4">
+                <div className="relative z-10 max-w-[1500px] mx-auto px-4 md:px-12">
                     <div className="flex justify-between items-end mb-10">
                         <div>
                             <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Collection</span>
