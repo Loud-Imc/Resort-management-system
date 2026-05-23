@@ -148,7 +148,7 @@ export default function SearchResults() {
     if (error) {
         return (
             <div className="max-w-4xl mx-auto px-4 py-12 text-center pt-28">
-                <div className="bg-red-50 text-red-900 p-8 rounded-3xl border border-red-100 max-w-lg mx-auto shadow-sm">
+                <div className="bg-red-50 text-red-900 p-8 rounded-lg border border-red-100 max-w-lg mx-auto shadow-sm">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
                     <h3 className="text-xl font-bold text-red-900 mb-2">
                         {isGroupBooking ? 'Group Stay Search Unavailable' : 'Search Error'}
@@ -161,7 +161,7 @@ export default function SearchResults() {
                     </p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-colors"
+                        className="px-6 py-2.5 bg-red-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-colors"
                     >
                         Try Refreshing
                     </button>
@@ -172,7 +172,7 @@ export default function SearchResults() {
 
     return (
         <div className="min-h-screen bg-gray-50 pt-28">
-            <div className="max-w-7xl mx-auto px-4 py-8">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-8">
                 {/* Search Bar Refinement */}
                 <div className="mb-12">
                     <div className="max-w-4xl mx-auto">
@@ -208,7 +208,7 @@ export default function SearchResults() {
                         {/* Property Cards Grid or Nearby Fallback */}
                         {!isLoading && groupedProperties.length === 0 ? (
                             <div className="space-y-8">
-                                <div className="bg-white p-10 rounded-3xl text-center border border-gray-100 shadow-sm max-w-2xl mx-auto">
+                                <div className="bg-white p-10 rounded-lg text-center border border-gray-100 shadow-sm max-w-2xl mx-auto">
                                     <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                                     <h2 className="text-xl font-bold text-gray-900 mb-2">
                                         {isGroupBooking ? 'No groups available' : 'No matching properties'}
@@ -221,7 +221,7 @@ export default function SearchResults() {
                                     </p>
                                     <button
                                         onClick={clearFilters}
-                                        className="px-8 py-3 bg-primary-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-500/20"
+                                        className="px-8 py-3 bg-primary-600 text-white rounded-lg font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-500/20"
                                     >
                                         Clear all filters
                                     </button>
@@ -258,7 +258,7 @@ export default function SearchResults() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                                 {isLoading && groupedProperties.length === 0 ? (
                                     [1, 2, 3, 4, 5, 6].map(n => (
-                                        <div key={n} className="h-[400px] bg-gray-100 rounded-3xl animate-pulse" />
+                                        <div key={n} className="h-[400px] bg-gray-100 rounded-lg animate-pulse" />
                                     ))
                                 ) : (
                                     groupedProperties.map((property) => (

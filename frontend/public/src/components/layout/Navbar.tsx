@@ -50,7 +50,7 @@ export default function Navbar() {
     return (
         <nav className={clsx(
             "fixed w-full z-50 transition-all duration-300",
-            isScrolled ? "bg-white/80 backdrop-blur-md shadow-md" : "bg-white/80 backdrop-blur-md shadow-md",
+            isScrolled ? "bg-white/90 backdrop-blur-md shadow-md" : "bg-[#fafaf9]"
         )}>
             <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-12">
                 <div className="flex justify-between items-center h-16 md:h-20">
@@ -130,12 +130,7 @@ export default function Navbar() {
                                 </Link>
                                 <Link
                                     to="/properties"
-                                    className={clsx(
-                                        "px-6 py-2 rounded-full transition-all flex items-center gap-2 font-bold shadow-sm hover:shadow-md text-sm",
-                                        isHome && !isScrolled
-                                            ? "bg-white text-primary-900 hover:bg-gray-100"
-                                            : "bg-primary-600 text-white hover:bg-primary-700"
-                                    )}
+                                    className="px-6 py-2 rounded-lg transition-all flex items-center gap-2 font-bold shadow-sm hover:shadow-md text-sm bg-primary-800 text-white hover:bg-primary-900"
                                 >
                                     Book Now
                                 </Link>

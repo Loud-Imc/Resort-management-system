@@ -189,7 +189,7 @@ export default function EventBookingFlow() {
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col pt-16">
 
-            <main className="flex-grow pt-28 pb-16 px-4">
+            <main className="flex-grow pt-28 pb-16 max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12">
                 <div className="max-w-4xl mx-auto">
                     {/* Stepper */}
                     {step < 3 && (
@@ -210,7 +210,7 @@ export default function EventBookingFlow() {
                         {/* Main Content */}
                         <div className="lg:col-span-2">
                             {step === 1 && (
-                                <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+                                <div className="bg-white rounded-lg p-8 shadow-sm border border-gray-100">
                                     <h2 className="text-2xl font-bold text-gray-900 mb-8">Guest Details</h2>
                                     <div className="space-y-6">
                                         <div>
@@ -221,7 +221,7 @@ export default function EventBookingFlow() {
                                                     type="text"
                                                     value={formData.guestName}
                                                     onChange={(e) => setFormData({ ...formData, guestName: e.target.value })}
-                                                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                                                    className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
                                                     placeholder="Enter your full name"
                                                 />
                                             </div>
@@ -235,7 +235,7 @@ export default function EventBookingFlow() {
                                                         type="email"
                                                         value={formData.guestEmail}
                                                         onChange={(e) => setFormData({ ...formData, guestEmail: e.target.value })}
-                                                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                                                        className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
                                                         placeholder="john@example.com"
                                                     />
                                                 </div>
@@ -248,7 +248,7 @@ export default function EventBookingFlow() {
                                                         type="tel"
                                                         value={formData.guestPhone}
                                                         onChange={(e) => setFormData({ ...formData, guestPhone: e.target.value })}
-                                                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                                                        className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
                                                         placeholder="+91 XXXXX XXXXX"
                                                     />
                                                 </div>
@@ -257,7 +257,7 @@ export default function EventBookingFlow() {
                                         <button
                                             onClick={handleNext}
                                             disabled={!formData.guestName || !formData.guestEmail}
-                                            className="w-full py-4 bg-primary-600 text-white font-bold rounded-2xl hover:bg-primary-700 transition-all shadow-lg shadow-primary-200 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+                                            className="w-full py-4 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-all shadow-lg shadow-primary-200 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
                                         >
                                             Continue to Payment
                                         </button>
@@ -266,7 +266,7 @@ export default function EventBookingFlow() {
                             )}
 
                             {step === 2 && (
-                                <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+                                <div className="bg-white rounded-lg p-8 shadow-sm border border-gray-100">
                                     <div className="flex items-center gap-4 mb-8">
                                         <button onClick={() => setStep(1)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-all">
                                             <ArrowLeft className="h-5 w-5" />
@@ -275,7 +275,7 @@ export default function EventBookingFlow() {
                                     </div>
 
                                     <div className="space-y-6">
-                                        <div className="p-6 bg-primary-50 border border-primary-100 rounded-2xl">
+                                        <div className="p-6 bg-primary-50 border border-primary-100 rounded-lg">
                                             <div className="flex items-center gap-3 text-primary-800 font-bold mb-2">
                                                 <CreditCard className="h-5 w-5" />
                                                 Razorpay Secure Payment
@@ -285,7 +285,7 @@ export default function EventBookingFlow() {
                                             </p>
                                         </div>
 
-                                        <div className="border border-gray-200 rounded-2xl p-6">
+                                        <div className="border border-gray-200 rounded-lg p-6">
                                             <div className="flex items-center justify-between mb-4">
                                                 <span className="text-gray-600 font-medium">Standard Admission</span>
                                                 <span className="font-bold">{event.price ? formatPrice(Number(event.price), selectedCurrency, rates) : 'Free'}</span>
@@ -299,7 +299,7 @@ export default function EventBookingFlow() {
                                         <button
                                             onClick={handleConfirmBooking}
                                             disabled={submitting || isPaymentProcessing}
-                                            className="w-full py-4 bg-primary-600 text-white font-bold rounded-2xl hover:bg-primary-700 transition-all shadow-lg shadow-primary-200 flex items-center justify-center gap-3"
+                                            className="w-full py-4 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-all shadow-lg shadow-primary-200 flex items-center justify-center gap-3"
                                         >
                                             {submitting || isPaymentProcessing ? (
                                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -312,7 +312,7 @@ export default function EventBookingFlow() {
                             )}
 
                             {step === 3 && booking && (
-                                <div className="bg-white rounded-3xl p-1 shadow-xl border border-gray-100 overflow-hidden text-center animate-in zoom-in-95 duration-500">
+                                <div className="bg-white rounded-lg p-1 shadow-xl border border-gray-100 overflow-hidden text-center animate-in zoom-in-95 duration-500">
                                     <div className="bg-green-500 p-12 text-white">
                                         <div className="bg-white/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
                                             <CheckCircle className="h-10 w-10 text-white" />
@@ -323,7 +323,7 @@ export default function EventBookingFlow() {
 
                                     <div className="p-10 space-y-8">
                                         {/* Ticket Stub UI */}
-                                        <div ref={ticketRef} className="border-2 border-dashed border-gray-200 rounded-3xl p-8 relative bg-gray-50 max-w-md mx-auto print:m-0 print:border-none print:shadow-none">
+                                        <div ref={ticketRef} className="border-2 border-dashed border-gray-200 rounded-lg p-8 relative bg-gray-50 max-w-md mx-auto print:m-0 print:border-none print:shadow-none">
                                             <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-inner print:hidden" />
                                             <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-inner print:hidden" />
 
@@ -336,7 +336,7 @@ export default function EventBookingFlow() {
                                             </div>
 
                                             {event.images && event.images.length > 0 && (
-                                                <div className="w-full h-32 rounded-2xl overflow-hidden mb-6 shadow-sm border border-gray-100">
+                                                <div className="w-full h-32 rounded-lg overflow-hidden mb-6 shadow-sm border border-gray-100">
                                                     <img
                                                         src={event.images[0]}
                                                         alt={event.title}
@@ -355,7 +355,7 @@ export default function EventBookingFlow() {
                                             </div>
 
                                             {/* Real QR Code */}
-                                            <div className="bg-white p-4 rounded-2xl inline-block shadow-sm border border-gray-100 mb-8">
+                                            <div className="bg-white p-4 rounded-lg inline-block shadow-sm border border-gray-100 mb-8">
                                                 <QRCodeCanvas
                                                     value={booking.ticketId}
                                                     size={128}
@@ -379,13 +379,13 @@ export default function EventBookingFlow() {
                                         <div className="flex flex-wrap items-center justify-center gap-4 print:hidden">
                                             <button
                                                 onClick={handleDownload}
-                                                className="flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all"
+                                                className="flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-bold hover:bg-black transition-all"
                                             >
                                                 <Download className="h-4 w-4" /> Download Ticket
                                             </button>
                                             <button
                                                 onClick={handlePrint}
-                                                className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
+                                                className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-all"
                                             >
                                                 <Printer className="h-4 w-4" /> Print
                                             </button>
@@ -404,8 +404,8 @@ export default function EventBookingFlow() {
                         {/* Event Card Summary (Visible in Sidebar steps 1 & 2) */}
                         {step < 3 && (
                             <div className="lg:col-span-1">
-                                <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 sticky top-28">
-                                    <div className="h-40 rounded-2xl overflow-hidden mb-6 bg-gray-100">
+                                <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 sticky top-28">
+                                    <div className="h-40 rounded-lg overflow-hidden mb-6 bg-gray-100">
                                         <img
                                             src={event.images?.[0] || '/placeholder-event.jpg'}
                                             alt={event.title}

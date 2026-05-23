@@ -29,7 +29,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
     return (
         <Link
             to={`/properties/${property.slug}?${searchParams.toString()}`}
-            className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
+            className="group bg-white rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
         >
             {/* Image Container */}
             <div className="relative h-48 overflow-hidden">
@@ -54,7 +54,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
 
                 {/* Promoted Badge */}
                 {(property.isSponsored || property.isFeatured) && (
-                    <div className="absolute top-12 left-3 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1 text-yellow-400 text-[9px] font-black uppercase tracking-widest shadow-md border border-yellow-400/30">
+                    <div className="absolute top-12 left-3 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1 text-yellow-400 text-[9px] font-black uppercase tracking-widest shadow-md border border-yellow-400/30">
                         <Star className="h-2.5 w-2.5 fill-current" />
                         {property.isSponsored ? 'Unique' : 'Featured'}
                     </div>
@@ -69,7 +69,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                         </div>
                     )}
                     {property.roomTypes?.some(rt => rt.allowPayAtProperty) && (
-                        <div className="bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 backdrop-blur-md px-4 py-2 rounded-2xl flex flex-col items-center gap-0.5 text-white shadow-2xl shadow-emerald-500/40 border border-white/40 group/pap relative overflow-hidden group-hover:scale-105 transition-transform duration-300">
+                        <div className="bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 backdrop-blur-md px-4 py-2 rounded-lg flex flex-col items-center gap-0.5 text-white shadow-2xl shadow-emerald-500/40 border border-white/40 group/pap relative overflow-hidden group-hover:scale-105 transition-transform duration-300">
                             <div className="flex items-center gap-2">
                                 <Wallet className="h-4 w-4 animate-bounce" />
                                 <span className="text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap">Pay At Property</span>
@@ -83,7 +83,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                 {/* Sold Out Badge */}
                 {property.isSoldOut && (
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                        <div className="bg-white/90 shadow-xl border border-rose-200 px-4 py-2 rounded-xl flex flex-col items-center gap-0.5 transform -rotate-2">
+                        <div className="bg-white/90 shadow-xl border border-rose-200 px-4 py-2 rounded-lg flex flex-col items-center gap-0.5 transform -rotate-2">
                             <span className="text-rose-600 font-black text-sm uppercase tracking-tighter">Fully Booked</span>
                             <span className="text-gray-500 text-[8px] font-bold">Try different dates</span>
                         </div>
@@ -162,7 +162,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                             </>
                         ) : (
                             <div className="pb-1">
-                                <span className="text-[10px] text-primary-600 font-black uppercase tracking-wider bg-primary-50 px-2 py-1 rounded-md">
+                                <span className="text-[10px] text-primary-600 font-black uppercase tracking-wider bg-primary-50 px-2 py-1 rounded-lg">
                                     Check Availability
                                 </span>
                             </div>

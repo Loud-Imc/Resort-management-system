@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Star, MapPin } from 'lucide-react';
+import { Star, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { propertyApi } from '../../services/properties';
 
@@ -150,76 +150,66 @@ export default function PromoCards() {
     };
 
     return (
-        <section className="relative z-40 -mt-12 px-4 md:px-12 mb-20">
-            <div className="max-w-[1500px] mx-auto">
+        <section className="mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {loading && properties.length === 0 ? (
+                    // Preloading pulses
+                    [1, 2, 3].map(n => (
+                        <div key={n} className="relative aspect-[16/9] bg-gray-200 rounded-lg animate-pulse" />
+                    ))
+                ) : (
+                    properties.map((promo) => (
+                        <div
+                            key={promo.id}
+                            onClick={() => handleCardClick(promo)}
+                            className="group cursor-pointer relative aspect-[16/9] overflow-hidden rounded-lg transition-all duration-300 hover:shadow-2xl"
+                        >
+                            <img
+                                src={promo.coverImage || '/images/promo_resort_1.png'}
+                                alt={promo.name}
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            />
 
+                            {/* Overlay Gradient */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent p-5 flex flex-col justify-between">
+                                {/* Top Row: Category Badge */}
+                                <div className="flex justify-between items-start">
+                                    <span className="bg-primary-800 text-white px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                                        {promo.category?.name || 'STAY'}
+                                    </span>
+                                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {loading && properties.length === 0 ? (
-                        // Preloading pulses
-                        [1, 2, 3].map(n => (
-                            <div key={n} className="relative aspect-[16/10] bg-white/5 border border-white/10 rounded-[1rem] animate-pulse" />
-                        ))
-                    ) : (
-                        properties.map((promo) => (
-                            <div
-                                key={promo.id}
-                                onClick={() => handleCardClick(promo)}
-                                className="group cursor-pointer relative aspect-[16/10] overflow-hidden rounded-[1rem] border border-white/20 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.6)] transition-all duration-700 hover:-translate-y-4 hover:shadow-primary-500/30 hover:z-50"
-                            >
-                                <img
-                                    src={promo.coverImage || '/images/promo_resort_1.png'}
-                                    alt={promo.name}
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                />
-
-                                {/* Overlay Gradient */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent p-6 flex flex-col justify-between">
-                                    {/* Top Badges */}
-                                    <div className="flex justify-between items-start">
-                                        <span className="bg-black/40 backdrop-blur-md text-white border border-white/20 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em]">
-                                            {promo.category?.name || 'Premium Stay'}
-                                        </span>
-                                        <div className="flex flex-col items-center bg-black/40 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-2xl">
-                                            <div className="flex items-center gap-0.5 mb-0.5">
-                                                {[...Array(5)].map((_, i) => (
-                                                    <Star
-                                                        key={i}
-                                                        className={`h-2.5 w-2.5 ${i < Math.round(Number(promo.rating) || 5) ? 'text-amber-400 fill-amber-400' : 'text-white/20'}`}
-                                                    />
-                                                ))}
+                                {/* Bottom Info */}
+                                <div>
+                                    <h3 className="text-xl font-bold text-white leading-tight mb-1 truncate">
+                                        {promo.name}
+                                    </h3>
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <div className="flex items-center gap-1.5 text-white/90 mb-2">
+                                                <MapPin className="h-3.5 w-3.5 text-gray-300" />
+                                                <p className="text-xs truncate max-w-[150px]">
+                                                    {promo.city && promo.state ? `${promo.city}, ${promo.state}` : (promo.city || promo.state || 'Discover Location')}
+                                                </p>
                                             </div>
-                                            <span className="text-white/80 text-[8px] font-bold tracking-widest uppercase">
-                                                {promo.rating ? `${promo.rating} Rating` : 'Featured'}
-                                            </span>
+                                            <div className="flex items-center gap-1">
+                                                <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                                                <span className="text-white text-xs font-bold">{promo.rating ? Number(promo.rating).toFixed(1) : '4.5'}</span>
+                                                <span className="text-white/80 text-[10px] ml-1">Excellent</span>
+                                            </div>
                                         </div>
-                                    </div>
-
-                                    {/* Bottom Info */}
-                                    <div className="relative">
-                                        <h3 className="text-2xl font-['Open_Sans'] font-medium text-white leading-tight mb-1 tracking-wide">
-                                            {promo.name}
-                                        </h3>
-                                        
-                                        <div className="flex items-center gap-1.5 text-white/70 font-light italic">
-                                            <MapPin className="h-3 w-3 text-amber-400" />
-                                            <p className="text-[12px] line-clamp-1">
-                                                {promo.city && promo.state ? `${promo.city}, ${promo.state}` : (promo.city || promo.state || 'Discover Location')}
+                                        <div className="text-right">
+                                            <p className="text-white text-sm font-bold">
+                                                From ₹{promo.basePrice ? promo.basePrice.toLocaleString('en-IN') : (promo.pricePerNight ? promo.pricePerNight.toLocaleString('en-IN') : '4,200')}
                                             </p>
-                                        </div>
-
-                                        {/* Hover Button - Positioned absolutely to the right */}
-                                        <div className="absolute right-0 bottom-0 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-4 group-hover:translate-x-0">
-                                            <button className="bg-white/10 backdrop-blur-md border border-white/20 text-white p-2.5 rounded-full hover:bg-primary-500 hover:border-primary-500 transition-all shadow-2xl">
-                                                <ArrowRight className="h-4 w-4" />
-                                            </button>
+                                            <p className="text-xs font-normal text-white/80">/ night</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        ))
-                    )}
-                </div>
+                        </div>
+                    ))
+                )}
             </div>
         </section>
     );

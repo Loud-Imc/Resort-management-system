@@ -47,7 +47,7 @@ export default function PayOnline() {
     if (error || !booking) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-                <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl border border-red-100 text-center">
+                <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-xl border border-red-100 text-center">
                     <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
                         <AlertCircle className="h-8 w-8 text-red-500" />
                     </div>
@@ -55,7 +55,7 @@ export default function PayOnline() {
                     <p className="text-gray-500 mb-8 font-medium">We couldn't retrieve the details for this booking. Please check the link or contact support.</p>
                     <button 
                         onClick={() => navigate('/')}
-                        className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-black transition-all"
+                        className="w-full py-4 bg-gray-900 text-white rounded-lg font-bold hover:bg-black transition-all"
                     >
                         Go to Homepage
                     </button>
@@ -68,7 +68,7 @@ export default function PayOnline() {
     if (booking.paymentStatus === 'FULL') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-                <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl border border-green-100 text-center">
+                <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-xl border border-green-100 text-center">
                     <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
                         <CheckCircle2 className="h-8 w-8 text-green-500" />
                     </div>
@@ -76,7 +76,7 @@ export default function PayOnline() {
                     <p className="text-gray-500 mb-8 font-medium">This booking is already fully paid. You're all set for your stay!</p>
                     <button 
                         onClick={() => navigate(`/track-booking`)}
-                        className="w-full py-4 bg-primary-600 text-white rounded-2xl font-bold hover:bg-primary-700 transition-all"
+                        className="w-full py-4 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-all"
                     >
                         View Booking Details
                     </button>
@@ -156,13 +156,13 @@ export default function PayOnline() {
     return (
         <div className="min-h-screen bg-slate-50 pt-32 pb-20 px-4">
             <div className="max-w-3xl mx-auto">
-                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 overflow-hidden border border-slate-100">
+                <div className="bg-white rounded-lg shadow-2xl shadow-slate-200/50 overflow-hidden border border-slate-100">
                     {/* Header with Background */}
                     <div className="bg-slate-900 p-10 text-white relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
                         <div className="relative z-10">
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
+                                <div className="p-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
                                     <Zap className="h-6 w-6 text-primary-400 fill-primary-400" />
                                 </div>
                                 <span className="text-xs font-black uppercase tracking-[0.2em] text-primary-400">Exclusive Offer</span>
@@ -183,7 +183,7 @@ export default function PayOnline() {
                                 <div>
                                     <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Reservation Details</h3>
                                     <div className="flex gap-4 items-start">
-                                        <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 border border-slate-100">
+                                        <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                                             <img src={booking.property?.images?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945'} alt={booking.property?.name} className="w-full h-full object-cover" />
                                         </div>
                                         <div>
@@ -205,7 +205,7 @@ export default function PayOnline() {
                                     </div>
                                 </div>
 
-                                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                                <div className="p-5 bg-slate-50 rounded-lg border border-slate-100 space-y-3">
                                     <div className="flex items-center gap-3 text-slate-600">
                                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                         <span className="text-xs font-bold uppercase tracking-wide">Instant Confirmation</span>
@@ -223,7 +223,7 @@ export default function PayOnline() {
 
                             {/* Price Breakdown & Action */}
                             <div className="flex flex-col h-full">
-                                <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 flex-1">
+                                <div className="bg-slate-50 rounded-lg p-8 border border-slate-100 flex-1">
                                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Payment Summary</h3>
                                     
                                     <div className="space-y-4 mb-8">
@@ -252,7 +252,7 @@ export default function PayOnline() {
                                     <button
                                         onClick={handlePayment}
                                         disabled={isProcessing}
-                                        className="w-full py-5 bg-primary-600 text-white rounded-2xl font-black uppercase tracking-[0.15em] text-sm shadow-xl shadow-primary-600/30 hover:bg-primary-700 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-3 group"
+                                        className="w-full py-5 bg-primary-600 text-white rounded-lg font-black uppercase tracking-[0.15em] text-sm shadow-xl shadow-primary-600/30 hover:bg-primary-700 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-3 group"
                                     >
                                         {isProcessing ? (
                                             <Loader2 className="h-5 w-5 animate-spin" />
@@ -278,22 +278,22 @@ export default function PayOnline() {
 
                 {/* FAQ or Why Pay Online Section */}
                 <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 flex flex-col items-center text-center">
-                        <div className="p-3 bg-blue-50 rounded-2xl text-blue-600 mb-4">
+                    <div className="bg-white p-6 rounded-lg border border-slate-100 flex flex-col items-center text-center">
+                        <div className="p-3 bg-blue-50 rounded-lg text-blue-600 mb-4">
                             <Info className="h-6 w-6" />
                         </div>
                         <h4 className="font-bold text-slate-900 mb-2">Why Pay Online?</h4>
                         <p className="text-[10px] text-slate-500 font-medium">Guaranteed lower price and prioritized check-in during peak hours.</p>
                     </div>
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 flex flex-col items-center text-center">
-                        <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600 mb-4">
+                    <div className="bg-white p-6 rounded-lg border border-slate-100 flex flex-col items-center text-center">
+                        <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600 mb-4">
                             <ShieldCheck className="h-6 w-6" />
                         </div>
                         <h4 className="font-bold text-slate-900 mb-2">Safe & Secure</h4>
                         <p className="text-[10px] text-slate-500 font-medium">Industry standard 256-bit encryption for all transactions.</p>
                     </div>
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 flex flex-col items-center text-center">
-                        <div className="p-3 bg-amber-50 rounded-2xl text-amber-600 mb-4">
+                    <div className="bg-white p-6 rounded-lg border border-slate-100 flex flex-col items-center text-center">
+                        <div className="p-3 bg-amber-50 rounded-lg text-amber-600 mb-4">
                             <CreditCard className="h-6 w-6" />
                         </div>
                         <h4 className="font-bold text-slate-900 mb-2">Multiple Options</h4>

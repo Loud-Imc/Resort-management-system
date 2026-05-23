@@ -106,7 +106,7 @@ export default function RoomDetail() {
         <div className="min-h-screen bg-slate-50">
             {/* Header / Breadcrumbs */}
             <div className="bg-white border-b border-gray-200 pt-20">
-                <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+                <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3 text-sm text-gray-500 overflow-hidden text-ellipsis whitespace-nowrap">
                         <Link to="/" className="hover:text-primary-600 transition">Home</Link>
                         <ChevronRight className="h-4 w-4" />
@@ -127,14 +127,14 @@ export default function RoomDetail() {
                 </div>
             </div>
 
-            <div className="container mx-auto px-4 py-8">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                     {/* Left & Center: Gallery and Content */}
                     <div className="lg:col-span-2 space-y-8">
 
                         {/* Premium Gallery Section */}
-                        <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+                        <div className="bg-white rounded-lg shadow-xl overflow-hidden border border-gray-100">
                             <div className="relative aspect-[16/9] md:aspect-[21/9] bg-gray-900 group">
                                 {roomType.images && roomType.images.length > 0 ? (
                                     <>
@@ -202,7 +202,7 @@ export default function RoomDetail() {
                                             <button
                                                 key={i}
                                                 onClick={() => setActiveImage(i)}
-                                                className={`relative w-24 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${activeImage === i ? 'border-primary-500 scale-105 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                                                className={`relative w-24 h-16 rounded-lg overflow-hidden shrink-0 border-2 transition-all ${activeImage === i ? 'border-primary-500 scale-105 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'}`}
                                             >
                                                 <img src={img} alt="" className="w-full h-full object-cover" />
                                             </button>
@@ -213,7 +213,7 @@ export default function RoomDetail() {
                         </div>
 
                         {/* Title & Stats */}
-                        <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
+                        <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-100">
                             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2 text-primary-600 font-bold text-xs uppercase tracking-widest">
@@ -235,7 +235,7 @@ export default function RoomDetail() {
                                             </span>
                                         )}
                                         {roomType.allowPayAtProperty && (
-                                            <div className="flex flex-col items-center bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 text-white px-6 py-3 rounded-[2rem] border border-white/30 shadow-2xl shadow-emerald-500/40 relative overflow-hidden group/pap animate-badge-glow">
+                                            <div className="flex flex-col items-center bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 text-white px-6 py-3 rounded-lg border border-white/30 shadow-2xl shadow-emerald-500/40 relative overflow-hidden group/pap animate-badge-glow">
                                                 <div className="flex items-center gap-3">
                                                     <Wallet className="h-6 w-6 animate-bounce" />
                                                     <span className="text-[14px] font-black uppercase tracking-[0.25em] whitespace-nowrap">Pay At Property Available</span>
@@ -260,7 +260,7 @@ export default function RoomDetail() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-primary-50 rounded-2xl p-6 text-right border border-primary-100">
+                                <div className="bg-primary-50 rounded-lg p-6 text-right border border-primary-100">
                                     <p className="text-gray-500 text-xs font-bold uppercase mb-1">Starting from</p>
                                     <div className="flex flex-col items-end gap-1">
                                         {roomType.originalPrice && roomType.originalPrice > roomType.basePrice && (
@@ -288,7 +288,7 @@ export default function RoomDetail() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
                             {/* Highlights & Inclusions */}
-                            <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100 space-y-6">
+                            <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-100 space-y-6">
                                 <h3 className="text-xl font-black text-gray-900 flex items-center gap-3">
                                     <Star className="h-6 w-6 text-yellow-500 fill-yellow-500" />
                                     Highlights & Inclusions
@@ -296,7 +296,7 @@ export default function RoomDetail() {
 
                                 <div className="space-y-4">
                                     {/* Cancellation Policy */}
-                                    <div className="p-4 bg-green-50 rounded-2xl border border-green-100 flex items-start gap-4">
+                                    <div className="p-4 bg-green-50 rounded-lg border border-green-100 flex items-start gap-4">
                                         <ShieldCheck className="h-6 w-6 text-green-600 shrink-0" />
                                         <div>
                                             <p className="text-sm font-bold text-green-900">Cancellation Policy</p>
@@ -341,7 +341,7 @@ export default function RoomDetail() {
                             </div>
 
                             {/* Full Amenities */}
-                            <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100 space-y-6">
+                            <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-100 space-y-6">
                                 <h3 className="text-xl font-black text-gray-900 flex items-center gap-3">
                                     <Wifi className="h-6 w-6 text-primary-600" />
                                     Room Amenities
@@ -362,7 +362,7 @@ export default function RoomDetail() {
                         </div>
 
                         {/* Room Specific Reviews */}
-                        <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
+                        <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-100">
                             <h3 className="text-xl font-black text-gray-900 mb-8 flex items-center gap-3">
                                 <Sparkles className="h-6 w-6 text-primary-500" />
                                 Guest Feedback for this Room
@@ -373,7 +373,7 @@ export default function RoomDetail() {
                                     <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
                                 </div>
                             ) : !reviews || reviews.length === 0 ? (
-                                <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                                <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                                     <Star className="h-8 w-8 text-gray-300 mx-auto mb-3" />
                                     <p className="text-gray-500 font-medium italic">No specific reviews for this room yet.</p>
                                 </div>
@@ -383,7 +383,7 @@ export default function RoomDetail() {
                                         <div key={review.id} className="border-b last:border-0 border-gray-100 pb-8 last:pb-0">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600 font-bold overflow-hidden">
+                                                    <div className="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600 font-bold overflow-hidden">
                                                         {review.user?.avatar ? (
                                                             <img src={review.user.avatar} alt={review.user.firstName} className="w-full h-full object-cover" />
                                                         ) : (
@@ -424,7 +424,7 @@ export default function RoomDetail() {
                         <div className="sticky top-24 space-y-6">
 
                             {/* Price & Booking Card */}
-                            <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-8 border border-gray-100">
+                            <div className="bg-white rounded-lg shadow-xl shadow-gray-200/50 p-8 border border-gray-100">
                                 <div className="space-y-6">
                                     <div>
                                         <div className="flex justify-between items-baseline mb-2">
@@ -480,9 +480,9 @@ export default function RoomDetail() {
 
                                     <div className="space-y-4">
                                         {roomType.marketingBadgeType === 'URGENT' ? (
-                                            <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                                            <div className="bg-red-50 p-4 rounded-lg border border-red-100">
                                                 <div className="flex gap-3">
-                                                    <div className="bg-red-100 p-2 rounded-xl h-fit">
+                                                    <div className="bg-red-100 p-2 rounded-lg h-fit">
                                                         <Clock className="h-5 w-5 text-red-600" />
                                                     </div>
                                                     <div>
@@ -492,9 +492,9 @@ export default function RoomDetail() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                                            <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
                                                 <div className="flex gap-3">
-                                                    <div className="bg-orange-100 p-2 rounded-xl h-fit">
+                                                    <div className="bg-orange-100 p-2 rounded-lg h-fit">
                                                         <Star className="h-5 w-5 text-orange-600" />
                                                     </div>
                                                     <div>
@@ -510,7 +510,7 @@ export default function RoomDetail() {
                                                 ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=${isGroupBooking}`
                                                 : `/properties/${property.slug}#stay-selection`
                                             }
-                                            className="block w-full py-5 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-2xl shadow-xl shadow-primary-500/30 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-sm"
+                                            className="block w-full py-5 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-lg shadow-xl shadow-primary-500/30 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-sm"
                                         >
                                             {(!checkIn || !checkOut) ? 'Select Dates First' : 'Complete Booking'}
                                         </Link>
@@ -522,11 +522,11 @@ export default function RoomDetail() {
                                             Safe & Secure Stay
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div className="text-center p-3 bg-gray-50 rounded-2xl">
+                                            <div className="text-center p-3 bg-gray-50 rounded-lg">
                                                 <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Check-In</p>
                                                 <p className="text-xs font-black text-gray-800">12:00 PM</p>
                                             </div>
-                                            <div className="text-center p-3 bg-gray-50 rounded-2xl">
+                                            <div className="text-center p-3 bg-gray-50 rounded-lg">
                                                 <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Check-Out</p>
                                                 <p className="text-xs font-black text-gray-800">11:00 AM</p>
                                             </div>
@@ -536,11 +536,11 @@ export default function RoomDetail() {
                             </div>
 
                             {/* Property Mini Card */}
-                            <div className="bg-gray-900 rounded-3xl p-8 text-white space-y-6">
+                            <div className="bg-gray-900 rounded-lg p-8 text-white space-y-6">
                                 <h4 className="font-black text-xl">Property Location</h4>
                                 <div className="space-y-4">
                                     <div className="flex gap-4">
-                                        <div className="bg-white/10 p-2 rounded-xl h-fit">
+                                        <div className="bg-white/10 p-2 rounded-lg h-fit">
                                             <MapPin className="h-5 w-5" />
                                         </div>
                                         <p className="text-sm text-gray-300 leading-relaxed font-medium">
@@ -577,7 +577,7 @@ export default function RoomDetail() {
                         ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=${isGroupBooking}`
                         : `/properties/${property.slug}#stay-selection`
                     }
-                    className="flex-1 max-w-[200px] py-3.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white text-center font-bold rounded-2xl shadow-lg shadow-primary-500/30 text-sm uppercase tracking-wider"
+                    className="flex-1 max-w-[200px] py-3.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white text-center font-bold rounded-lg shadow-lg shadow-primary-500/30 text-sm uppercase tracking-wider"
                 >
                     {(!checkIn || !checkOut) ? 'Select Dates' : 'Book Now'}
                 </Link>

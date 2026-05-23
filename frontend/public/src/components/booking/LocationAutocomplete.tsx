@@ -20,6 +20,7 @@ interface Props {
     theme?: 'dark' | 'light';
     onUseLocation?: () => void;
     isLocating?: boolean;
+    hideIcon?: boolean;
 }
 
 export default function LocationAutocomplete({
@@ -31,6 +32,7 @@ export default function LocationAutocomplete({
     theme = 'dark',
     onUseLocation,
     isLocating,
+    hideIcon = false,
 }: Props) {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -105,11 +107,21 @@ export default function LocationAutocomplete({
 
     return (
         <div ref={containerRef} className="relative w-full">
-            <div className="flex items-center gap-3 w-full">
-                {isLoading
-                    ? <Loader2 className={`h-6 w-6 shrink-0 animate-spin ${isDark ? 'text-white/40' : 'text-primary-500'}`} />
-                    : <MapPin className={`h-6 w-6 shrink-0 ${isDark ? 'text-white/40' : 'text-gray-300'}`} />
-                }
+            <div className="flex items-center w-full">
+                {!hideIcon && (
+                    <div className="mr-3 shrink-0">
+                        {isLoading ? (
+                            <Loader2 className={`h-6 w-6 animate-spin ${isDark ? 'text-white/40' : 'text-primary-500'}`} />
+                        ) : (
+                            <MapPin className={`h-6 w-6 ${isDark ? 'text-white/40' : 'text-gray-300'}`} />
+                        )}
+                    </div>
+                )}
+                {hideIcon && isLoading && (
+                    <div className="mr-2 shrink-0">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary-800" />
+                    </div>
+                )}
                 <input
                     type="text"
                     value={value}
