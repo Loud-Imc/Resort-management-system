@@ -72,7 +72,8 @@ export default function TrackBooking() {
 
     return (
         <div className="min-h-screen bg-slate-50 pt-32 pb-20">
-            <div className="container mx-auto px-4 max-w-4xl">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12">
+                <div className="max-w-4xl mx-auto">
                 {/* Header Section */}
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-black text-gray-900 tracking-tight mb-4">
@@ -84,7 +85,7 @@ export default function TrackBooking() {
                 </div>
 
                 {/* Search Form */}
-                <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-8 md:p-10 border border-gray-100 mb-12">
+                <div className="bg-white rounded-lg shadow-xl shadow-gray-200/50 p-8 md:p-10 border border-gray-100 mb-12">
                     <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
@@ -97,7 +98,7 @@ export default function TrackBooking() {
                                 value={bookingNumber}
                                 onChange={(e) => setBookingNumber(e.target.value)}
                                 required
-                                className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
+                                className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
                             />
                         </div>
                         <div className="space-y-2">
@@ -111,14 +112,14 @@ export default function TrackBooking() {
                                 value={emailOrPhone}
                                 onChange={(e) => setEmailOrPhone(e.target.value)}
                                 required
-                                className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
+                                className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
                             />
                         </div>
                         <div className="md:col-span-2 pt-4">
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full py-5 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-black rounded-2xl shadow-xl shadow-primary-500/30 transition-all transform hover:-translate-y-1 active:scale-[0.98] flex items-center justify-center gap-3 uppercase tracking-[0.1em] text-sm disabled:opacity-70"
+                                className="w-full py-5 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-black rounded-lg shadow-xl shadow-primary-500/30 transition-all transform hover:-translate-y-1 active:scale-[0.98] flex items-center justify-center gap-3 uppercase tracking-[0.1em] text-sm disabled:opacity-70"
                             >
                                 {loading ? (
                                     <>
@@ -141,7 +142,7 @@ export default function TrackBooking() {
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
                         {/* Status Bar */}
                         <div className={clsx(
-                            "rounded-2xl border px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm",
+                            "rounded-lg border px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm",
                             getStatusColor(booking.status)
                         )}>
                             <div className="flex items-center gap-3 font-black text-lg uppercase tracking-wider">
@@ -159,7 +160,7 @@ export default function TrackBooking() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                             {/* Property & Room Info */}
                             <div className="md:col-span-2 space-y-6">
-                                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
                                     <div className="h-48 relative">
                                         <img
                                             src={booking.property.images?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'}
@@ -207,7 +208,7 @@ export default function TrackBooking() {
 
                                         <div className="pt-8 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="flex items-start gap-4">
-                                                <div className="p-3 bg-primary-50 rounded-2xl text-primary-600">
+                                                <div className="p-3 bg-primary-50 rounded-lg text-primary-600">
                                                     <HomeIcon className="h-6 w-6" />
                                                 </div>
                                                 <div>
@@ -217,7 +218,7 @@ export default function TrackBooking() {
                                                 </div>
                                             </div>
                                             <div className="flex items-start gap-4">
-                                                <div className="p-3 bg-blue-50 rounded-2xl text-blue-600">
+                                                <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
                                                     <Users className="h-6 w-6" />
                                                 </div>
                                                 <div>
@@ -234,7 +235,7 @@ export default function TrackBooking() {
                             {/* Sidebar Info */}
                             <div className="space-y-6">
                                 {/* Price Summary */}
-                                <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
+                                <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-100">
                                     <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center gap-2">
                                         <CreditCard className="h-5 w-5 text-primary-500" />
                                         Payment Summary
@@ -264,14 +265,14 @@ export default function TrackBooking() {
                                     </div>
 
                                     {booking.paymentStatus !== 'FULL' && booking.status !== 'CANCELLED' && (
-                                        <button className="w-full mt-8 py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 transition shadow-lg">
+                                        <button className="w-full mt-8 py-4 bg-gray-900 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-gray-800 transition shadow-lg">
                                             Complete Payment <ArrowRight className="h-4 w-4" />
                                         </button>
                                     )}
                                 </div>
 
                                 {/* Guest List */}
-                                <div className="bg-gray-900 rounded-3xl p-8 text-white">
+                                <div className="bg-gray-900 rounded-lg p-8 text-white">
                                     <h3 className="text-lg font-black mb-6 flex items-center gap-2">
                                         <User className="h-5 w-5 text-primary-400" />
                                         Guest Information
@@ -292,7 +293,7 @@ export default function TrackBooking() {
                                 </div>
 
                                 {/* Security Message */}
-                                <div className="p-6 rounded-2xl bg-primary-50 border border-primary-100 flex gap-4">
+                                <div className="p-6 rounded-lg bg-primary-50 border border-primary-100 flex gap-4">
                                     <CheckCircle2 className="h-6 w-6 text-primary-600 shrink-0" />
                                     <p className="text-xs text-primary-800 font-medium leading-relaxed">
                                         Your booking is securely stored. Changes to guests or dates must be made via our support team.
@@ -302,6 +303,7 @@ export default function TrackBooking() {
                         </div>
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );

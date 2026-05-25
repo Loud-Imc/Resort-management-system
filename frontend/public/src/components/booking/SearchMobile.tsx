@@ -88,7 +88,7 @@ export default function SearchMobile({
                         onClick={() => handleCategorySelect('', true)}
                         className="flex flex-col items-center gap-4 transition-all duration-300 active:scale-95 group"
                     >
-                        <div className={`w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-500 ${isGroupBooking
+                        <div className={`w-16 h-16 rounded-lg flex items-center justify-center transition-all duration-500 ${isGroupBooking
                             ? 'bg-primary-600 text-white shadow-xl shadow-primary-500/40 scale-110'
                             : isDark
                                 ? 'bg-white/10 backdrop-blur-xl text-white border border-white/20 group-hover:bg-white/30'
@@ -105,7 +105,7 @@ export default function SearchMobile({
                         onClick={() => handleCategorySelect('', false)}
                         className="flex flex-col items-center gap-4 transition-all duration-300 active:scale-95 group"
                     >
-                        <div className={`w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-500 ${categoryId === '' && !isGroupBooking
+                        <div className={`w-16 h-16 rounded-lg flex items-center justify-center transition-all duration-500 ${categoryId === '' && !isGroupBooking
                             ? 'bg-primary-600 text-white shadow-xl shadow-primary-500/40 scale-110'
                             : isDark
                                 ? 'bg-white/10 backdrop-blur-xl text-white border border-white/20 group-hover:bg-white/30'
@@ -125,7 +125,7 @@ export default function SearchMobile({
                                 onClick={() => handleCategorySelect(cat.id, false)}
                                 className="flex flex-col items-center gap-4 transition-all duration-300 active:scale-95 group"
                             >
-                                <div className={`w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-500 ${categoryId === cat.id && !isGroupBooking
+                                <div className={`w-16 h-16 rounded-lg flex items-center justify-center transition-all duration-500 ${categoryId === cat.id && !isGroupBooking
                                     ? 'bg-primary-600 text-white shadow-xl shadow-primary-500/40 scale-110'
                                     : isDark
                                         ? 'bg-white/10 backdrop-blur-xl text-white border border-white/20 group-hover:bg-white/30'
@@ -157,7 +157,7 @@ export default function SearchMobile({
                 >
                     <ChevronLeft className="h-5 w-5" />
                 </button>
-                <div className={`flex-1 ${isDark ? 'bg-black/30 border-white/20' : 'bg-white border-gray-200'} backdrop-blur-md rounded-2xl py-3 px-5 shadow-2xl border`}>
+                <div className={`flex-1 ${isDark ? 'bg-black/30 border-white/20' : 'bg-white border-primary-800'} backdrop-blur-md rounded-lg py-3 px-5 shadow-none border`}>
                     <div className="flex items-center gap-3">
                         {(() => {
                             if (isGroupBooking) return <Users className={`h-4 w-4 ${isDark ? 'text-primary-400' : 'text-primary-600'}`} />;
@@ -181,9 +181,9 @@ export default function SearchMobile({
 
             <form
                 onSubmit={handleSearch}
-                className={`${isDark ? 'bg-black/10 backdrop-blur-2xl border-white/10 shadow-[0_30px_90px_-15px_rgba(0,0,0,0.4)]' : 'bg-white border-gray-200 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.3)]'} rounded-[2.5rem] overflow-visible border flex flex-col`}
+                className={`${isDark ? 'bg-black/10 backdrop-blur-2xl border-white/10 shadow-none' : 'bg-white border-primary-800 shadow-[0_2px_10px_rgba(15,63,71,0.06)]'} rounded-lg overflow-visible border flex flex-col`}
             >
-                <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-gray-50'}`}>
+                <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-primary-800'}`}>
                     {/* Location */}
                     <div className={`p-4 active:${isDark ? 'bg-white/5' : 'bg-gray-50'} transition-colors cursor-pointer group`}>
                         <label className={`block text-[8px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/40' : 'text-primary-500/80'} mb-1.5`}>Where to?</label>
@@ -200,7 +200,7 @@ export default function SearchMobile({
                     </div>
 
                     {/* Dates */}
-                    <div className={`flex divide-x ${isDark ? 'divide-white/5' : 'divide-gray-50'}`}>
+                    <div className={`flex divide-x ${isDark ? 'divide-white/5' : 'divide-primary-800'}`}>
                         <div className={`flex-1 p-4 group`}>
                             <label className={`block text-[8px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/40' : 'text-primary-50/80'} mb-1.5`}>CHECK IN</label>
                             <div className="flex items-center gap-3">
@@ -271,17 +271,17 @@ export default function SearchMobile({
                                     {isGroupBooking ? 'Whole Property Stay' : `${adults} Adults${children > 0 ? `, ${children} Children` : ''}, ${rooms} Room${rooms > 1 ? 's' : ''}`}
                                 </p>
                             </div>
-                            <div className={`p-2 rounded-xl ${isDark ? 'bg-white/5' : 'bg-gray-100'} text-primary-600 transition-transform active:scale-90`}>
+                            <div className={`p-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-gray-100'} text-primary-600 transition-transform active:scale-90`}>
                                 <ChevronRight className="h-5 w-5" />
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className={`p-4 ${isDark ? 'bg-black/5' : 'bg-gray-50/50'} rounded-b-[2.5rem]`}>
+                <div className={`p-4 ${isDark ? 'bg-black/5' : 'bg-gray-50/50'} rounded-b-lg`}>
                     <button
                         type="submit"
-                        className="w-full rounded-xl bg-gradient-to-r from-primary-600 to-primary-900 text-white font-black py-5 shadow-xl shadow-primary-500/30 active:scale-95 transition-all duration-300 uppercase tracking-[0.3em] text-xs flex items-center justify-center gap-3"
+                        className="w-full rounded-lg bg-gradient-to-r from-primary-600 to-primary-900 text-white font-black py-5 shadow-none active:scale-95 transition-all duration-300 uppercase tracking-[0.3em] text-xs flex items-center justify-center gap-3"
                     >
                         Search Now
                         <Search className="h-4 w-4" />
@@ -296,7 +296,7 @@ export default function SearchMobile({
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
                         onClick={() => setShowGuestModal(false)}
                     />
-                    <div className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up-fade">
+                    <div className="relative w-full max-w-lg bg-white rounded-lg shadow-none overflow-hidden animate-slide-up-fade">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                             <div className="space-y-1">
                                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-900">Manage Travelers</h3>
@@ -319,7 +319,7 @@ export default function SearchMobile({
                                     </h4>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 13+</p>
                                 </div>
-                                <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                                <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -327,7 +327,7 @@ export default function SearchMobile({
                                             setAdults(newVal);
                                             if (isGroupBooking) setGroupSize(newVal + children);
                                         }}
-                                        className="w-12 h-12 flex items-center justify-center rounded-xl transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                        className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
                                     >-</button>
                                     <input
                                         type="number"
@@ -346,7 +346,7 @@ export default function SearchMobile({
                                             setAdults(newVal);
                                             if (isGroupBooking) setGroupSize(newVal + children);
                                         }}
-                                        className="w-12 h-12 flex items-center justify-center rounded-xl transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                        className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
                                     >+</button>
                                 </div>
                             </div>
@@ -358,7 +358,7 @@ export default function SearchMobile({
                                     </h4>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 6–12</p>
                                 </div>
-                                <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                                <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -366,7 +366,7 @@ export default function SearchMobile({
                                             setChildren(newVal);
                                             if (isGroupBooking) setGroupSize(adults + newVal);
                                         }}
-                                        className="w-12 h-12 flex items-center justify-center rounded-xl transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                        className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
                                     >-</button>
                                     <input
                                         type="number"
@@ -385,7 +385,7 @@ export default function SearchMobile({
                                             setChildren(newVal);
                                             if (isGroupBooking) setGroupSize(adults + newVal);
                                         }}
-                                        className="w-12 h-12 flex items-center justify-center rounded-xl transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                        className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
                                     >+</button>
                                 </div>
                             </div>
@@ -396,11 +396,11 @@ export default function SearchMobile({
                                         <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">Rooms</h4>
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Accommodation</p>
                                     </div>
-                                    <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                                    <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
                                         <button
                                             type="button"
                                             onClick={() => setRooms(Math.max(1, rooms - 1))}
-                                            className="w-12 h-12 flex items-center justify-center rounded-xl transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                            className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
                                         >-</button>
                                         <input
                                             type="number"
@@ -411,14 +411,14 @@ export default function SearchMobile({
                                         <button
                                             type="button"
                                             onClick={() => setRooms(rooms + 1)}
-                                            className="w-12 h-12 flex items-center justify-center rounded-xl transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                            className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
                                         >+</button>
                                     </div>
                                 </div>
                             )}
 
                             {isGroupBooking && (
-                                <div className="p-5 bg-primary-50 rounded-2.5xl border border-primary-100/50 flex items-center justify-between shadow-inner">
+                                <div className="p-5 bg-primary-50 rounded-lg border border-primary-100/50 flex items-center justify-between shadow-inner">
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
                                             <Users className="h-5 w-5" />
@@ -435,7 +435,7 @@ export default function SearchMobile({
                             <button
                                 type="button"
                                 onClick={() => setShowGuestModal(false)}
-                                className="w-full rounded-xl py-5 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-black uppercase tracking-[0.3em] text-[12px] shadow-lg shadow-primary-500/20 active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-3"
+                                className="w-full rounded-lg py-5 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-black uppercase tracking-[0.3em] text-[12px] shadow-none active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-3"
                             >
                                 Confirm Travelers
                             </button>

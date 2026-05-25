@@ -62,7 +62,8 @@ export default function MyBookings() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-12 pt-8">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12">
+                <div className="max-w-5xl mx-auto">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
                     <div>
@@ -76,7 +77,7 @@ export default function MyBookings() {
                         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
                     </div>
                 ) : error ? (
-                    <div className="bg-white p-12 rounded-2xl shadow-sm border border-gray-100 text-center">
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 text-center p-12">
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 text-red-600 mb-4">
                             <Package className="h-8 w-8" />
                         </div>
@@ -84,7 +85,7 @@ export default function MyBookings() {
                         <p className="text-gray-500 mt-2">Please try refreshing the page or contact support if the issue persists.</p>
                     </div>
                 ) : bookings?.length === 0 ? (
-                    <div className="bg-white p-16 rounded-2xl shadow-sm border border-gray-100 text-center">
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 text-center p-16">
                         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-50 text-gray-400 mb-6">
                             <Calendar className="h-10 w-10" />
                         </div>
@@ -104,12 +105,12 @@ export default function MyBookings() {
                         {bookings?.map((booking) => (
                             <div
                                 key={booking.id}
-                                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group"
+                                className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group"
                             >
                                 <div className="p-6">
                                     <div className="flex flex-col md:flex-row gap-6">
                                         {/* Property Thumbnail (Placeholder or first image if available) */}
-                                        <div className="w-full md:w-32 h-32 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
+                                        <div className="w-full md:w-32 h-32 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
                                             {booking.room?.property?.images?.[0] ? (
                                                 <img
                                                     src={booking.room.property.images[0]}
@@ -201,10 +202,10 @@ export default function MyBookings() {
             {/* Cancel Mutation Modal */}
             {cancellingBooking && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="bg-white rounded-lg shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
                         <div className="p-8">
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                                <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
                                     <AlertTriangle className="h-6 w-6 text-red-600" />
                                 </div>
                                 <h3 className="text-2xl font-bold text-gray-900 font-serif">Cancel Booking</h3>
@@ -219,7 +220,7 @@ export default function MyBookings() {
                             <div className="space-y-2 mb-8">
                                 <label className="text-sm font-bold text-gray-700">Reason for cancellation (Optional)</label>
                                 <textarea
-                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm h-24 resize-none"
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm h-24 resize-none"
                                     placeholder="Ex: Change of plans, found better price, etc."
                                     value={cancelReason}
                                     onChange={(e) => setCancelReason(e.target.value)}
@@ -229,14 +230,14 @@ export default function MyBookings() {
                             <div className="flex gap-4">
                                 <button
                                     onClick={() => setCancellingBooking(null)}
-                                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors"
                                     disabled={cancelMutation.isPending}
                                 >
                                     No, Keep it
                                 </button>
                                 <button
                                     onClick={handleCancelSubmit}
-                                    className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-lg shadow-red-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                     disabled={cancelMutation.isPending}
                                 >
                                     {cancelMutation.isPending ? (
@@ -252,6 +253,7 @@ export default function MyBookings() {
                     </div>
                 </div>
             )}
-        </div>
-    );
-}
+            </div>
+            </div>
+        );
+    }

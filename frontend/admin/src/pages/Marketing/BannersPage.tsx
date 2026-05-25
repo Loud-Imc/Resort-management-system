@@ -15,6 +15,7 @@ export default function BannersPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [bgType, setBgType] = useState<'image' | 'color'>('image');
     const [colorValue, setColorValue] = useState('#1a6b4a');
+    const [alignment, setAlignment] = useState<'left' | 'center' | 'right'>('left');
 
     const [formData, setFormData] = useState<Partial<Banner>>({
         title: '',
@@ -54,6 +55,13 @@ export default function BannersPage() {
         const finalData = { ...formData };
         if (bgType === 'color') {
             finalData.imageUrl = `color::${colorValue}`;
+        }
+
+        // Append alignment tag to title
+        if (alignment !== 'left') {
+            finalData.title = `${formData.title} [${alignment}]`;
+        } else {
+            finalData.title = `${formData.title}`;
         }
 
         setIsSaving(true);
@@ -111,7 +119,24 @@ export default function BannersPage() {
     const openModal = (banner?: Banner) => {
         if (banner) {
             setEditingBanner(banner);
-            setFormData({ ...banner });
+
+            // Parse alignment tag from title
+            let parsedAlign: 'left' | 'center' | 'right' = 'left';
+            let cleanedTitle = banner.title;
+            if (banner.title?.includes('[right]')) {
+                parsedAlign = 'right';
+                cleanedTitle = banner.title.replace('[right]', '').trim();
+            } else if (banner.title?.includes('[center]')) {
+                parsedAlign = 'center';
+                cleanedTitle = banner.title.replace('[center]', '').trim();
+            } else if (banner.title?.includes('[left]')) {
+                parsedAlign = 'left';
+                cleanedTitle = banner.title.replace('[left]', '').trim();
+            }
+
+            setAlignment(parsedAlign);
+            setFormData({ ...banner, title: cleanedTitle });
+
             if (banner.imageUrl?.startsWith('color::')) {
                 setBgType('color');
                 setColorValue(banner.imageUrl.replace('color::', ''));
@@ -123,6 +148,7 @@ export default function BannersPage() {
             setEditingBanner(null);
             setBgType('image');
             setColorValue('#1a6b4a');
+            setAlignment('left');
             setFormData({
                 title: '',
                 description: '',
@@ -244,7 +270,9 @@ export default function BannersPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="font-bold text-card-foreground">{banner.title}</div>
+                                                <div className="font-bold text-card-foreground">
+                                                    {banner.title ? banner.title.replace(/\[(left|right|center)\]/g, '').trim() : ''}
+                                                </div>
                                                 <div className="text-xs text-muted-foreground line-clamp-1 max-w-xs">{banner.description}</div>
                                                 {banner.badgeText && (
                                                     <span className="inline-block mt-1 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase">
@@ -392,6 +420,43 @@ export default function BannersPage() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Content Alignment Toggle */}
+                            <div>
+                                <label className="block text-sm font-bold text-muted-foreground mb-2">Content Alignment</label>
+                                <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAlignment('left')}
+                                        className={clsx(
+                                            'px-4 py-1.5 rounded-lg text-sm font-bold transition-all',
+                                            alignment === 'left' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        Left
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAlignment('center')}
+                                        className={clsx(
+                                            'px-4 py-1.5 rounded-lg text-sm font-bold transition-all',
+                                            alignment === 'center' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        Center
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAlignment('right')}
+                                        className={clsx(
+                                            'px-4 py-1.5 rounded-lg text-sm font-bold transition-all',
+                                            alignment === 'right' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        Right
+                                    </button>
+                                </div>
+                            </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="col-span-2 md:col-span-1">

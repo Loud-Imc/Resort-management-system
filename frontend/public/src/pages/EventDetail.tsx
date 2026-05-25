@@ -53,7 +53,7 @@ export default function EventDetail() {
                     <p className="text-gray-500 mb-8 max-w-md mx-auto">
                         {error || "We couldn't find the event you're looking for. It might have been moved or removed."}
                     </p>
-                    <Link to="/" className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition-all shadow-lg shadow-primary-200">
+                    <Link to="/" className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-all shadow-lg shadow-primary-200">
                         <ArrowLeft className="h-4 w-4" />
                         Back to Home
                     </Link>
@@ -82,7 +82,7 @@ export default function EventDetail() {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-900/40 to-transparent" />
 
-                <div className="absolute inset-0 container mx-auto px-4 flex flex-col justify-end pb-12">
+                <div className="absolute inset-0 max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 flex flex-col justify-end pb-12">
                     <button
                         onClick={() => navigate(-1)}
                         className="absolute top-10 left-4 bg-white/10 backdrop-blur-md border border-white/20 p-2 rounded-full text-white hover:bg-white/20 transition-all"
@@ -119,11 +119,11 @@ export default function EventDetail() {
             </div>
 
             {/* Content Section */}
-            <div className="container mx-auto px-4 py-16">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-16">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                     {/* Details Column */}
                     <div className="lg:col-span-2 space-y-12">
-                        <section className="bg-white rounded-3xl p-8 md:p-10 shadow-sm border border-gray-100">
+                        <section className="bg-white rounded-lg p-8 md:p-10 shadow-sm border border-gray-100">
                             <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                                 <Info className="h-6 w-6 text-primary-600" />
                                 Event Overview
@@ -138,7 +138,7 @@ export default function EventDetail() {
                                 <h2 className="text-2xl font-bold text-gray-900 mb-8 px-2">Experience Gallery</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {event.images.slice(1).map((image, index) => (
-                                        <div key={index} className="group overflow-hidden rounded-2xl aspect-[4/3] bg-gray-100 shadow-sm">
+                                        <div key={index} className="group overflow-hidden rounded-lg aspect-[4/3] bg-gray-100 shadow-sm">
                                             <img
                                                 src={image}
                                                 alt={`${event.title} Gallery ${index + 1}`}
@@ -154,15 +154,15 @@ export default function EventDetail() {
                     {/* Sidebar / RSVP Column */}
                     <div className="lg:col-span-1">
                         <div className="sticky top-28 space-y-6">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100">
+                            <div className="bg-white rounded-lg p-8 shadow-xl shadow-gray-200/50 border border-gray-100">
                                 <div className="mb-8">
                                     <div className="text-sm font-bold text-primary-600 uppercase tracking-widest mb-2">Admission</div>
                                     <div className="text-4xl font-bold text-gray-900">{event.price ? formatPrice(Number(event.price), selectedCurrency, rates) : 'Free'}</div>
                                 </div>
 
                                 <div className="space-y-5 mb-8">
-                                    <div className="flex items-center gap-4 text-gray-700 p-3 rounded-2xl bg-gray-50">
-                                        <div className="h-10 w-10 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                                    <div className="flex items-center gap-4 text-gray-700 p-3 rounded-lg bg-gray-50">
+                                        <div className="h-10 w-10 bg-white rounded-lg shadow-sm flex items-center justify-center">
                                             <Clock className="h-5 w-5 text-primary-600" />
                                         </div>
                                         <div>
@@ -170,8 +170,8 @@ export default function EventDetail() {
                                             <div className="font-semibold">{eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4 text-gray-700 p-3 rounded-2xl bg-gray-50">
-                                        <div className="h-10 w-10 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                                    <div className="flex items-center gap-4 text-gray-700 p-3 rounded-lg bg-gray-50">
+                                        <div className="h-10 w-10 bg-white rounded-lg shadow-sm flex items-center justify-center">
                                             <Tag className="h-5 w-5 text-primary-600" />
                                         </div>
                                         <div>
@@ -183,13 +183,13 @@ export default function EventDetail() {
 
                                 <Link
                                     to={`/events/${event.id}/book`}
-                                    className="block w-full py-4 bg-primary-600 text-white text-center font-bold rounded-2xl hover:bg-primary-700 transition-all shadow-lg shadow-primary-200 hover:shadow-primary-300 transform hover:-translate-y-0.5 active:translate-y-0"
+                                    className="block w-full py-4 bg-primary-600 text-white text-center font-bold rounded-lg hover:bg-primary-700 transition-all shadow-lg shadow-primary-200 hover:shadow-primary-300 transform hover:-translate-y-0.5 active:translate-y-0"
                                 >
                                     Reserve Your Spot
                                 </Link>
 
                                 <button
-                                    className="mt-4 w-full py-3 bg-white text-gray-700 text-center font-semibold rounded-2xl border border-gray-200 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                                    className="mt-4 w-full py-3 bg-white text-gray-700 text-center font-semibold rounded-lg border border-gray-200 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
                                     onClick={() => {
                                         if (navigator.share) {
                                             navigator.share({
@@ -207,13 +207,13 @@ export default function EventDetail() {
 
                             {/* Property Link if applicable */}
                             {event.property && (
-                                <div className="bg-primary-900 rounded-3xl p-8 text-white">
+                                <div className="bg-primary-900 rounded-lg p-8 text-white">
                                     <h3 className="text-xl font-bold mb-4">Hosted at {event.property.name}</h3>
                                     <p className="text-primary-100/80 mb-6 text-sm leading-relaxed">
                                         Experience our hospitality while attending this event. Book a room to make your visit even more memorable.
                                     </p>
                                     <Link
-                                        to={`/properties/${event.propertyId}`} // Need slug really, but id works if handled
+                                        to={`/properties/${event.propertyId}`}
                                         className="inline-flex items-center gap-2 text-primary-300 font-bold hover:text-white transition-colors"
                                     >
                                         View Property <ArrowRight className="h-4 w-4" />

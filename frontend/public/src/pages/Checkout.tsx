@@ -332,7 +332,7 @@ export default function Checkout() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-8">
             <button
                 onClick={() => navigate(-1)}
                 className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-8"
@@ -368,7 +368,7 @@ export default function Checkout() {
                         )}
                     </div>
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+                    <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-gray-700">First Name</label>
@@ -530,7 +530,7 @@ export default function Checkout() {
                             </h3>
 
                             {/* Applied Offers / Coupon Section (Div instead of Form to avoid nesting) */}
-                            <div className="bg-gray-50 border border-gray-100 rounded-xl p-5">
+                            <div className="bg-gray-50 border border-gray-100 rounded-lg p-5">
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Apply Coupon or Partner Code</label>
@@ -559,7 +559,7 @@ export default function Checkout() {
                                                     </p>
                                                 )}
                                                 {appliedCode && (
-                                                    <div className="mt-2 flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                                    <div className="mt-2 flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
                                                         <div className="flex flex-col">
                                                             <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
                                                                 {couponPricing?.appliedCodeType === 'REFERRAL' ? 'Partner Code Applied' : 'Coupon Applied'}
@@ -610,7 +610,7 @@ export default function Checkout() {
                                 <button
                                     type="button"
                                     onClick={() => setPaymentOption('FULL')}
-                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'FULL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                    className={`p-4 border rounded-lg flex flex-col items-start gap-2 transition-all ${paymentOption === 'FULL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
                                 >
                                     <div className="flex items-center justify-between w-full">
                                         <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'FULL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Full Amount</span>
@@ -623,7 +623,7 @@ export default function Checkout() {
                                 <button
                                     type="button"
                                     onClick={() => setPaymentOption('PARTIAL')}
-                                    className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all ${paymentOption === 'PARTIAL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                    className={`p-4 border rounded-lg flex flex-col items-start gap-2 transition-all ${paymentOption === 'PARTIAL' ? 'bg-primary-50 border-primary-600 ring-1 ring-primary-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
                                 >
                                     <div className="flex items-center justify-between w-full">
                                         <span className={`text-sm font-black uppercase tracking-wider ${paymentOption === 'PARTIAL' ? 'text-primary-900' : 'text-gray-500'}`}>Pay Advance</span>
@@ -637,7 +637,7 @@ export default function Checkout() {
                                     <button
                                         type="button"
                                         onClick={() => setPaymentOption('PAY_AT_PROPERTY')}
-                                        className={`p-4 border rounded-xl flex flex-col items-start gap-2 transition-all md:col-span-2 ${paymentOption === 'PAY_AT_PROPERTY' ? 'bg-green-50 border-green-600 ring-1 ring-green-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                        className={`p-4 border rounded-lg flex flex-col items-start gap-2 transition-all md:col-span-2 ${paymentOption === 'PAY_AT_PROPERTY' ? 'bg-green-50 border-green-600 ring-1 ring-green-600' : 'bg-white border-gray-200 hover:border-gray-300'}`}
                                     >
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center gap-2">
@@ -678,7 +678,7 @@ export default function Checkout() {
                 </div>
 
                 <div>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 sticky top-24">
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 sticky top-24">
                         <h3 className="text-lg font-semibold mb-6">Booking Summary</h3>
 
                         {selectedRoom ? (

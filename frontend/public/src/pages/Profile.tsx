@@ -247,13 +247,13 @@ export default function Profile() {
 
     return (
         <div className="min-h-screen bg-[#fcfcfc] pt-32 pb-20">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
                     {/* Sidebar / Profile Info */}
                     <div className="lg:col-span-1">
-                        <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-8 text-center sticky top-36">
+                        <div className="bg-white rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-8 text-center sticky top-36">
                             <div className="relative inline-block mb-6 group">
-                                <div className="w-32 h-32 rounded-3xl overflow-hidden bg-primary-50 border-[6px] border-white shadow-2xl mx-auto ring-1 ring-gray-100">
+                                <div className="w-32 h-32 rounded-lg overflow-hidden bg-primary-50 border-[6px] border-white shadow-2xl mx-auto ring-1 ring-gray-100">
                                     {user?.avatar ? (
                                         <img src={user.avatar} alt={user.firstName} className="w-full h-full object-cover" />
                                     ) : (
@@ -262,7 +262,7 @@ export default function Profile() {
                                         </div>
                                     )}
                                 </div>
-                                <label className="absolute -bottom-2 -right-2 bg-white p-2.5 rounded-2xl shadow-xl border border-gray-100 cursor-pointer hover:bg-gray-50 transition-all hover:scale-110 active:scale-95 z-10">
+                                <label className="absolute -bottom-2 -right-2 bg-white p-2.5 rounded-lg shadow-xl border border-gray-100 cursor-pointer hover:bg-gray-50 transition-all hover:scale-110 active:scale-95 z-10">
                                     {isUploading ? <Loader2 className="h-5 w-5 animate-spin text-primary-600" /> : <Camera className="h-5 w-5 text-primary-600" />}
                                     <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
                                 </label>
@@ -276,18 +276,18 @@ export default function Profile() {
                             <div className="flex flex-col gap-3">
                                 <button
                                     onClick={() => setActiveTab('details')}
-                                    className={`flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all duration-300 text-sm ${activeTab === 'details' ? 'bg-primary-900 text-white shadow-xl shadow-primary-200' : 'text-gray-500 hover:bg-gray-50'}`}
+                                    className={`flex items-center gap-4 px-6 py-4 rounded-lg font-bold transition-all duration-300 text-sm ${activeTab === 'details' ? 'bg-primary-900 text-white shadow-xl shadow-primary-200' : 'text-gray-500 hover:bg-gray-50'}`}
                                 >
-                                    <div className={clsx("p-2 rounded-xl", activeTab === 'details' ? "bg-white/10" : "bg-gray-50")}>
+                                    <div className={clsx("p-2 rounded-lg", activeTab === 'details' ? "bg-white/10" : "bg-gray-50")}>
                                         <User className="h-4 w-4" />
                                     </div>
                                     Personal Details
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('bookings')}
-                                    className={`flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all duration-300 text-sm ${activeTab === 'bookings' ? 'bg-primary-900 text-white shadow-xl shadow-primary-200' : 'text-gray-500 hover:bg-gray-50'}`}
+                                    className={`flex items-center gap-4 px-6 py-4 rounded-lg font-bold transition-all duration-300 text-sm ${activeTab === 'bookings' ? 'bg-primary-900 text-white shadow-xl shadow-primary-200' : 'text-gray-500 hover:bg-gray-50'}`}
                                 >
-                                    <div className={clsx("p-2 rounded-xl", activeTab === 'bookings' ? "bg-white/10" : "bg-gray-50")}>
+                                    <div className={clsx("p-2 rounded-lg", activeTab === 'bookings' ? "bg-white/10" : "bg-gray-50")}>
                                         <Calendar className="h-4 w-4" />
                                     </div>
                                     My Bookings
@@ -298,7 +298,7 @@ export default function Profile() {
 
                     {/* Main Content */}
                     <div className="lg:col-span-3">
-                        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-gray-100 overflow-hidden min-h-[640px]">
+                        <div className="bg-white rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-gray-100 overflow-hidden min-h-[640px]">
                             {activeTab === 'details' ? (
                                 <div className="p-10 md:p-14">
                                     <div className="flex justify-between items-end mb-12">
@@ -309,7 +309,7 @@ export default function Profile() {
                                         {!isUpdating && (
                                             <button
                                                 onClick={() => setIsUpdating(true)}
-                                                className="px-6 py-2.5 bg-primary-50 text-primary-600 rounded-xl font-bold text-sm hover:bg-primary-100 transition-colors border border-primary-100"
+                                                className="px-6 py-2.5 bg-primary-50 text-primary-600 rounded-lg font-bold text-sm hover:bg-primary-100 transition-colors border border-primary-100"
                                             >
                                                 Edit Profile
                                             </button>
@@ -326,7 +326,7 @@ export default function Profile() {
                                                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                                                     disabled={!isUpdating}
                                                     placeholder='First Name'
-                                                    className="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
+                                                    className="w-full px-5 py-4 rounded-lg border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
                                             <div className="space-y-2">
@@ -337,7 +337,7 @@ export default function Profile() {
                                                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                                     disabled={!isUpdating}
                                                     placeholder='Last Name'
-                                                    className="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
+                                                    className="w-full px-5 py-4 rounded-lg border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
                                         </div>
@@ -354,7 +354,7 @@ export default function Profile() {
                                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                                     disabled={!isUpdating}
                                                     placeholder='Email Address'
-                                                    className="w-full pl-16 pr-6 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
+                                                    className="w-full pl-16 pr-6 py-4 rounded-lg border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
                                         </div>
@@ -371,7 +371,7 @@ export default function Profile() {
                                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                                     disabled={!isUpdating}
                                                     placeholder='Phone Number'
-                                                    className="w-full pl-16 pr-6 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
+                                                    className="w-full pl-16 pr-6 py-4 rounded-lg border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>
                                         </div>
@@ -389,14 +389,14 @@ export default function Profile() {
                                                             email: user.email || ''
                                                         });
                                                     }}
-                                                    className="flex-1 px-8 py-4 bg-gray-50 text-gray-600 font-bold rounded-2xl hover:bg-gray-100 transition-all text-sm uppercase tracking-widest"
+                                                    className="flex-1 px-8 py-4 bg-gray-50 text-gray-600 font-bold rounded-lg hover:bg-gray-100 transition-all text-sm uppercase tracking-widest"
                                                 >
                                                     Discard
                                                 </button>
                                                 <button
                                                     type="submit"
                                                     disabled={updateProfileMutation.isPending}
-                                                    className="flex-1 px-8 py-4 bg-primary-600 text-white font-bold rounded-2xl hover:bg-primary-700 shadow-2xl shadow-primary-200 disabled:opacity-50 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-3"
+                                                    className="flex-1 px-8 py-4 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 shadow-2xl shadow-primary-200 disabled:opacity-50 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-3"
                                                 >
                                                     {updateProfileMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Save Changes'}
                                                 </button>
@@ -415,7 +415,7 @@ export default function Profile() {
                                             </div>
                                             <button
                                                 onClick={() => setShowDeleteConfirm(true)}
-                                                className="px-8 py-3 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition-all text-xs uppercase tracking-widest border border-red-100"
+                                                className="px-8 py-3 bg-red-50 text-red-600 font-bold rounded-lg hover:bg-red-100 transition-all text-xs uppercase tracking-widest border border-red-100"
                                             >
                                                 Delete Account
                                             </button>
@@ -429,7 +429,7 @@ export default function Profile() {
                                             <h3 className="text-3xl font-bold text-gray-900 font-serif mb-2">My Bookings</h3>
                                             <p className="text-gray-400 text-sm font-medium">View and manage your past and upcoming reservations.</p>
                                         </div>
-                                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-xl border border-gray-100">
+                                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100">
                                             <Package className="h-4 w-4 text-primary-500" />
                                             <span className="text-sm font-bold text-gray-700">{bookings?.length || 0} Total Stays</span>
                                         </div>
@@ -441,23 +441,23 @@ export default function Profile() {
                                             <p className="text-gray-400 text-sm font-medium animate-pulse">Relieving your memories...</p>
                                         </div>
                                     ) : bookings?.length === 0 ? (
-                                        <div className="text-center py-32 px-4 bg-gray-50/50 rounded-[2rem] border-2 border-dashed border-gray-100">
+                                        <div className="text-center py-32 px-4 bg-gray-50/50 rounded-lg border-2 border-dashed border-gray-100">
                                             <div className="w-24 h-24 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-8 text-gray-200">
                                                 <Calendar className="h-12 w-12" />
                                             </div>
                                             <h4 className="text-2xl font-bold text-gray-900 font-serif mb-3">No bookings yet</h4>
                                             <p className="text-gray-500 mb-10 max-w-sm mx-auto leading-relaxed">Your journey with us hasn't started yet. Let's find your perfect escape.</p>
-                                            <Link to="/properties" className="inline-flex items-center px-10 py-4 bg-primary-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl shadow-primary-100 uppercase tracking-widest text-xs">
+                                            <Link to="/properties" className="inline-flex items-center px-10 py-4 bg-primary-900 text-white font-bold rounded-lg hover:bg-black transition-all shadow-xl shadow-primary-100 uppercase tracking-widest text-xs">
                                                 Discover Resorts
                                             </Link>
                                         </div>
                                     ) : (
                                         <div className="space-y-8">
                                             {bookings?.map((booking) => (
-                                                <div key={booking.id} className="group bg-white rounded-[2rem] border border-gray-100 overflow-hidden hover:border-primary-100 hover:shadow-[0_20px_60px_rgba(0,0,0,0.04)] transition-all duration-500">
+                                                <div key={booking.id} className="group bg-white rounded-lg border border-gray-100 overflow-hidden hover:border-primary-100 hover:shadow-[0_20px_60px_rgba(0,0,0,0.04)] transition-all duration-500">
                                                     <div className="p-8 md:p-10">
                                                         <div className="flex flex-col lg:flex-row gap-8">
-                                                            <div className="w-full lg:w-48 h-36 rounded-2xl bg-gray-50 overflow-hidden flex-shrink-0 shadow-inner group-hover:scale-[1.02] transition-transform duration-500">
+                                                            <div className="w-full lg:w-48 h-36 rounded-lg bg-gray-50 overflow-hidden flex-shrink-0 shadow-inner group-hover:scale-[1.02] transition-transform duration-500">
                                                                 {booking.roomType?.images?.[0] ? (
                                                                     <img src={booking.roomType.images[0]} className="w-full h-full object-cover" />
                                                                 ) : (
@@ -495,7 +495,7 @@ export default function Profile() {
                                                                     <div className="flex flex-col sm:flex-row justify-end items-center gap-4">
                                                                         <button
                                                                             onClick={() => setManagingBooking(booking)}
-                                                                            className="px-6 py-2.5 bg-primary-50 text-primary-900 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-primary-100 transition-all border border-primary-100 shadow-sm active:scale-95"
+                                                                            className="px-6 py-2.5 bg-primary-50 text-primary-900 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-primary-100 transition-all border border-primary-100 shadow-sm active:scale-95"
                                                                         >
                                                                             Manage Booking
                                                                         </button>
@@ -532,7 +532,7 @@ export default function Profile() {
             {managingBooking && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setManagingBooking(null)} />
-                    <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="relative bg-white w-full max-w-md rounded-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-8 md:p-10">
                             <div className="flex justify-between items-start mb-8">
                                 <div>
@@ -547,10 +547,10 @@ export default function Profile() {
                             <div className="space-y-4">
                                 <Link
                                     to={`/confirmation?bookingId=${managingBooking.id}`}
-                                    className="w-full flex items-center justify-between p-5 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:border-primary-200 transition-all group"
+                                    className="w-full flex items-center justify-between p-5 rounded-lg border border-gray-100 bg-gray-50/50 hover:bg-white hover:border-primary-200 transition-all group"
                                 >
                                     <div className="flex items-center gap-4">
-                                        <div className="p-3 rounded-xl bg-white border border-gray-100 shadow-sm text-gray-400 group-hover:text-primary-600">
+                                        <div className="p-3 rounded-lg bg-white border border-gray-100 shadow-sm text-gray-400 group-hover:text-primary-600">
                                             <Package className="h-5 w-5" />
                                         </div>
                                         <div className="text-left">
@@ -567,10 +567,10 @@ export default function Profile() {
                                             setReviewingBooking(managingBooking);
                                             setManagingBooking(null);
                                         }}
-                                        className="w-full flex items-center justify-between p-5 rounded-2xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50 transition-all group"
+                                        className="w-full flex items-center justify-between p-5 rounded-lg border border-amber-100 bg-amber-50/30 hover:bg-amber-50 transition-all group"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="p-3 rounded-xl bg-white border border-amber-100 shadow-sm text-amber-500">
+                                            <div className="p-3 rounded-lg bg-white border border-amber-100 shadow-sm text-amber-500">
                                                 <Star className="h-5 w-5 fill-current" />
                                             </div>
                                             <div className="text-left">
@@ -583,9 +583,9 @@ export default function Profile() {
                                 )}
 
                                 {managingBooking.review && (
-                                    <div className="w-full flex items-center justify-between p-5 rounded-2xl border border-green-100 bg-green-50/30">
+                                    <div className="w-full flex items-center justify-between p-5 rounded-lg border border-green-100 bg-green-50/30">
                                         <div className="flex items-center gap-4">
-                                            <div className="p-3 rounded-xl bg-white border border-green-100 shadow-sm text-green-500">
+                                            <div className="p-3 rounded-lg bg-white border border-green-100 shadow-sm text-green-500">
                                                 <Star className="h-5 w-5 fill-current" />
                                             </div>
                                             <div className="text-left">
@@ -603,10 +603,10 @@ export default function Profile() {
                                             setCancellingBooking(managingBooking);
                                             setManagingBooking(null);
                                         }}
-                                        className="w-full flex items-center justify-between p-5 rounded-2xl border border-red-100 bg-red-50/30 hover:bg-red-50 transition-all group"
+                                        className="w-full flex items-center justify-between p-5 rounded-lg border border-red-100 bg-red-50/30 hover:bg-red-50 transition-all group"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="p-3 rounded-xl bg-white border border-red-100 shadow-sm text-red-500">
+                                            <div className="p-3 rounded-lg bg-white border border-red-100 shadow-sm text-red-500">
                                                 <AlertTriangle className="h-5 w-5" />
                                             </div>
                                             <div className="text-left">
@@ -626,17 +626,17 @@ export default function Profile() {
             {/* Cancel Modal (reused from MyBookings) */}
             {cancellingBooking && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 animate-in zoom-in duration-200">
+                    <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-8 animate-in zoom-in duration-200">
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
+                            <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center">
                                 <AlertTriangle className="h-6 w-6 text-red-600" />
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 font-serif">Cancel Booking</h3>
                         </div>
                         <p className="text-gray-600 mb-8">Are you sure you want to cancel booking #{cancellingBooking.bookingNumber}?</p>
                         <div className="flex gap-4">
-                            <button onClick={() => setCancellingBooking(null)} className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200">Back</button>
-                            <button onClick={() => cancelMutation.mutate({ id: cancellingBooking.id, reason: cancelReason })} className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700">Cancel Stay</button>
+                            <button onClick={() => setCancellingBooking(null)} className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">Back</button>
+                            <button onClick={() => cancelMutation.mutate({ id: cancellingBooking.id, reason: cancelReason })} className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700">Cancel Stay</button>
                         </div>
                     </div>
                 </div>
@@ -645,7 +645,7 @@ export default function Profile() {
             {reviewingBooking && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setReviewingBooking(null)} />
-                    <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="relative bg-white w-full max-w-lg rounded-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-8 md:p-12">
                             <div className="flex justify-between items-start mb-8">
                                 <div>
@@ -689,7 +689,7 @@ export default function Profile() {
                                         value={reviewComment}
                                         onChange={(e) => setReviewComment(e.target.value)}
                                         placeholder="Tell us about the service, food, and room..."
-                                        className="w-full p-6 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 focus:ring-4 focus:ring-primary-50/10 focus:border-primary-500 outline-none transition-all min-h-[120px] resize-none shadow-inner"
+                                        className="w-full p-6 bg-gray-50 border border-gray-100 rounded-lg text-sm font-medium text-gray-900 focus:ring-4 focus:ring-primary-50/10 focus:border-primary-500 outline-none transition-all min-h-[120px] resize-none shadow-inner"
                                     />
                                 </div>
 
@@ -698,7 +698,7 @@ export default function Profile() {
                                     <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 block px-1">Add Photos (Optional)</label>
                                     <div className="grid grid-cols-4 gap-3">
                                         {reviewImages.map((url, idx) => (
-                                            <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-100">
+                                            <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-gray-100">
                                                 <img src={url} className="w-full h-full object-cover" />
                                                 <button
                                                     onClick={() => removeReviewImage(idx)}
@@ -709,7 +709,7 @@ export default function Profile() {
                                             </div>
                                         ))}
                                         {reviewImages.length < 4 && (
-                                            <label className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-xl hover:bg-gray-50 hover:border-primary-200 transition-all cursor-pointer">
+                                            <label className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-lg hover:bg-gray-50 hover:border-primary-200 transition-all cursor-pointer">
                                                 {isUploadingReviewImages ? (
                                                     <Loader2 className="h-5 w-5 animate-spin text-primary-400" />
                                                 ) : (
@@ -735,7 +735,7 @@ export default function Profile() {
                                 <button
                                     onClick={() => submitReviewMutation.mutate()}
                                     disabled={submitReviewMutation.isPending}
-                                    className="w-full py-5 bg-primary-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl shadow-primary-100 uppercase tracking-widest text-xs flex items-center justify-center gap-3 disabled:opacity-50"
+                                    className="w-full py-5 bg-primary-900 text-white font-bold rounded-lg hover:bg-black transition-all shadow-xl shadow-primary-100 uppercase tracking-widest text-xs flex items-center justify-center gap-3 disabled:opacity-50"
                                 >
                                     {submitReviewMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                                         <>
@@ -758,7 +758,7 @@ export default function Profile() {
                         setDeleteStep('CONFIRM');
                         setDeleteOtp('');
                     }} />
-                    <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="relative bg-white w-full max-w-md rounded-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-10 text-center">
                             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
                                 <AlertTriangle className="h-10 w-10 text-red-500" />
@@ -781,7 +781,7 @@ export default function Profile() {
                                         maxLength={6}
                                         value={deleteOtp}
                                         onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, ''))}
-                                        className="w-full px-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-2xl font-bold tracking-[0.5em] focus:ring-4 focus:ring-red-50 focus:border-red-200 outline-none transition-all"
+                                        className="w-full px-4 py-4 bg-gray-50 border border-gray-100 rounded-lg text-center text-2xl font-bold tracking-[0.5em] focus:ring-4 focus:ring-red-50 focus:border-red-200 outline-none transition-all"
                                         placeholder="000000"
                                     />
                                 </div>
@@ -792,7 +792,7 @@ export default function Profile() {
                                     <button
                                         onClick={() => requestDeleteOtpMutation.mutate()}
                                         disabled={requestDeleteOtpMutation.isPending}
-                                        className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                                        className="w-full py-4 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
                                     >
                                         {requestDeleteOtpMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Yes, Delete My Account'}
                                     </button>
@@ -806,7 +806,7 @@ export default function Profile() {
                                             deleteAccountMutation.mutate(deleteOtp);
                                         }}
                                         disabled={deleteAccountMutation.isPending}
-                                        className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                                        className="w-full py-4 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-all shadow-xl shadow-red-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
                                     >
                                         {deleteAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Deletion'}
                                     </button>
@@ -817,7 +817,7 @@ export default function Profile() {
                                         setDeleteStep('CONFIRM');
                                         setDeleteOtp('');
                                     }}
-                                    className="w-full py-4 bg-gray-50 text-gray-600 font-bold rounded-2xl hover:bg-gray-200 transition-all uppercase tracking-widest text-xs"
+                                    className="w-full py-4 bg-gray-50 text-gray-600 font-bold rounded-lg hover:bg-gray-200 transition-all uppercase tracking-widest text-xs"
                                 >
                                     Cancel
                                 </button>

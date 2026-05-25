@@ -54,7 +54,7 @@ export default function PropertiesPage() {
                     <div className="absolute inset-0 bg-black/40 z-10" />
                 </div>
 
-                <div className="relative z-30 max-w-7xl mx-auto px-4 w-full">
+                <div className="relative z-30 max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 w-full">
                     <div className="text-center mb-10 animate-fade-in">
                         <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-4">
                             Properties Marketplace
@@ -67,7 +67,7 @@ export default function PropertiesPage() {
                 </div>
             </section>
 
-            <div className="container mx-auto px-4 py-8">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-8">
                 <div className="flex flex-col gap-10">
                     {/* Main Content */}
                     <div className="flex-1">
@@ -80,7 +80,7 @@ export default function PropertiesPage() {
 
                         {/* Properties Grid */}
                         {!loading && properties.length === 0 ? (
-                            <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-gray-100 max-w-2xl mx-auto">
+                            <div className="bg-white rounded-lg p-12 text-center shadow-sm border border-gray-100 max-w-2xl mx-auto">
                                 <Building2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                                 <h3 className="text-lg font-medium text-gray-900">No properties found</h3>
                                 <p className="text-gray-500 mt-1">Try adjusting your search or filters to explore more stays.</p>
@@ -109,7 +109,7 @@ export default function PropertiesPage() {
                         {loading && properties.length === 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                                 {[1, 2, 3, 4, 5, 6].map(n => (
-                                    <div key={n} className="h-[400px] bg-gray-100 rounded-3xl animate-pulse" />
+                                    <div key={n} className="h-[400px] bg-gray-100 rounded-lg animate-pulse" />
                                 ))}
                             </div>
                         )}

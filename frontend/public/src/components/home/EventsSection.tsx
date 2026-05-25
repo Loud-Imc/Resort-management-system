@@ -37,7 +37,7 @@ export default function EventsSection() {
 
     return (
         <section id="events" className="py-16 bg-white">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12">
                 <div className="text-center mb-12">
                     <span className="text-primary-600 text-xs font-semibold tracking-wider uppercase">Experiences</span>
                     <h2 className="text-3xl font-serif font-bold mt-2 text-gray-900">Upcoming Events</h2>
@@ -48,7 +48,7 @@ export default function EventsSection() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {events.map((event) => (
-                        <div key={event.id} className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col relative">
+                        <div key={event.id} className="group bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col relative">
                             <Link to={`/events/${event.id}`} className="absolute inset-0 z-20" aria-label={`View details for ${event.title}`} />
                             <div className="h-64 overflow-hidden relative bg-gray-200">
                                 {/* Fallback pattern */}
@@ -89,7 +89,7 @@ export default function EventsSection() {
                 </div>
 
                 <div className="mt-12 text-center">
-                    <Link to="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 hover:text-primary-600 hover:border-primary-100 transition-all">
+                    <Link to="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 hover:text-primary-600 hover:border-primary-100 transition-all">
                         Inquire about private events
                         <ArrowRight className="h-4 w-4" />
                     </Link>

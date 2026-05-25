@@ -16,10 +16,10 @@ export default function Footer() {
             {/* Promo Section above Footer */}
             <div className="relative bg-white pt-6 pb-12 text-left border-t border-gray-100 overflow-hidden">
                 <div
-                    className="absolute inset-0 z-0 opacity-20"
+                    className="absolute inset-0 z-0 opacity-10"
                     style={{ backgroundImage: "url('/images/hero-slide-2.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
                 />
-                <div className="relative z-10 max-w-6xl mx-auto px-4">
+                <div className="relative z-10 max-w-[1500px] mx-auto px-4 md:px-12">
                     <h2 className="text-[32px] md:text-[64px] font-black text-gray-600 tracking-tight leading-[1] mb-6">
                         Love Yourself... <br /> Explore the World!!
                     </h2>
@@ -32,7 +32,7 @@ export default function Footer() {
             </div>
 
             <footer className="bg-gray-950 text-white pt-12 pb-6" id="contact">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-12">
 
                     {/* Main 3-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center mb-10">

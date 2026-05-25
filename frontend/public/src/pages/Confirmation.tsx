@@ -57,16 +57,18 @@ export default function Confirmation() {
 
     if (error) {
         return (
-            <div className="min-h-[70vh] flex items-center justify-center bg-gray-50 px-4">
-                <div className="bg-white p-12 rounded-2xl shadow-sm border border-gray-100 text-center max-w-md w-full">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 text-red-600 mb-4">
-                        <Package className="h-8 w-8" />
+            <div className="min-h-[70vh] flex items-center justify-center bg-gray-50">
+                <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 w-full flex justify-center">
+                    <div className="bg-white p-12 rounded-lg shadow-sm border border-gray-100 text-center max-w-md w-full">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 text-red-600 mb-4">
+                            <Package className="h-8 w-8" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900">Booking not found</h3>
+                        <p className="text-gray-500 mt-2 mb-8">We couldn't find the reservation you're looking for. It may have been removed or the ID is incorrect.</p>
+                        <Link to="/profile" className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors inline-block w-full">
+                            View My Bookings
+                        </Link>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900">Booking not found</h3>
-                    <p className="text-gray-500 mt-2 mb-8">We couldn't find the reservation you're looking for. It may have been removed or the ID is incorrect.</p>
-                    <Link to="/profile" className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors inline-block w-full">
-                        View My Bookings
-                    </Link>
                 </div>
             </div>
         );
@@ -191,10 +193,11 @@ export default function Confirmation() {
     };
 
     return (
-        <div className="min-h-[70vh] bg-gray-50 px-4 py-12">
-            <div className="max-w-3xl mx-auto">
-                <div ref={invoiceRef} className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none relative">
-                    {/* Add Inline Styles for PDF capture to ensure they override everything */}
+        <div className="min-h-[70vh] bg-gray-50 py-12">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12">
+                <div className="max-w-3xl mx-auto">
+                    <div ref={invoiceRef} className="bg-white rounded-lg shadow-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none relative">
+                        {/* Add Inline Styles for PDF capture to ensure they override everything */}
                     <style>{`
                         .pdf-capture-mode {
                             width: 800px !important;
@@ -282,7 +285,7 @@ export default function Confirmation() {
                         </div>
 
                         <div className="hidden print:block [.pdf-capture-mode_&]:block text-right">
-                            <div className="invoice-badge bg-white px-5 py-3 rounded-xl border-2 border-primary-100 inline-block shadow-sm">
+                            <div className="invoice-badge bg-white px-5 py-3 rounded-lg border-2 border-primary-100 inline-block shadow-sm">
                                 <span className="block text-[9px] text-primary-600 font-black uppercase tracking-widest mb-1">Booking ID</span>
                                 <span className="text-md font-black text-primary-950">#{booking.bookingNumber}</span>
                             </div>
@@ -300,7 +303,7 @@ export default function Confirmation() {
                                 </h3>
 
                                 <div className="space-y-6">
-                                    <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
+                                    <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
                                         <div className="w-16 h-16 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
                                             {property?.images?.[0] ? (
                                                 <img src={property.images[0]} alt={property.name} className="w-full h-full object-cover" />
@@ -370,7 +373,7 @@ export default function Confirmation() {
                             </div>
 
                             {/* Right Column: Payment Details */}
-                            <div className="bg-gray-50/50 rounded-2xl p-6 border border-gray-100 print:bg-white print:border-none print:p-0 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-none [.pdf-capture-mode_&]:p-0">
+                            <div className="bg-gray-50/50 rounded-lg p-6 border border-gray-100 print:bg-white print:border-none print:p-0 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-none [.pdf-capture-mode_&]:p-0">
                                 <h3 className="text-lg font-bold text-gray-900 mb-6 print:text-base print:mb-4 [.pdf-capture-mode_&]:text-base [.pdf-capture-mode_&]:mb-4">Payment Details</h3>
 
                                 <div className="space-y-4 print:space-y-2 [.pdf-capture-mode_&]:space-y-2">
@@ -410,7 +413,7 @@ export default function Confirmation() {
                                         </div>
 
                                         {!isCancelled && balanceDue > 0 && (
-                                            <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl border border-amber-100 print:bg-white print:border-gray-200 print:p-2 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200 [.pdf-capture-mode_&]:p-2">
+                                            <div className="flex justify-between items-center p-3 bg-amber-50 rounded-lg border border-amber-100 print:bg-white print:border-gray-200 print:p-2 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200 [.pdf-capture-mode_&]:p-2">
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">Balance Due</span>
                                                     <span className="text-xs text-amber-700 italic print:hidden [.pdf-capture-mode_&]:hidden">To be paid during check-in</span>
@@ -422,7 +425,7 @@ export default function Confirmation() {
                                         )}
 
                                         {totalRefundedAmount > 0 && (
-                                            <div className="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-100 print:bg-white print:border-gray-200 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200">
+                                            <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-100 print:bg-white print:border-gray-200 [.pdf-capture-mode_&]:bg-white [.pdf-capture-mode_&]:border-gray-200">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-xs font-bold text-purple-700 uppercase tracking-wider text-[10px] print:text-gray-500 [.pdf-capture-mode_&]:text-gray-500">Total Refunded</span>
                                                     <span className="text-lg font-black text-purple-700 print:text-base [.pdf-capture-mode_&]:text-base">{formatPrice(totalRefundedAmount, booking.bookingCurrency || 'INR')}</span>
@@ -442,7 +445,7 @@ export default function Confirmation() {
                                             <button
                                                 onClick={handlePayBalance}
                                                 disabled={isProcessing}
-                                                className="w-full bg-primary-600 text-white hover:bg-primary-700 px-6 py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200 disabled:opacity-50"
+                                                className="w-full bg-primary-600 text-white hover:bg-primary-700 px-6 py-3.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-200 disabled:opacity-50"
                                             >
                                                 {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
                                                 {balanceDue > 0 ? 'Pay Due Balance' : (isDepositPaid ? 'Pay Remaining Balance' : 'Pay Deposit Online')}
@@ -454,14 +457,14 @@ export default function Confirmation() {
                                                 <button
                                                     onClick={handleDownloadPDF}
                                                     disabled={isDownloading}
-                                                    className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                    className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                 >
                                                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                                                     {balanceDue > 0 ? 'Performa invoice (PDF)' : 'Invoice (PDF)'}
                                                 </button>
                                                 <button
                                                     onClick={() => window.print()}
-                                                    className="w-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                                    className="w-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 px-6 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <Download className="h-4 w-4" />
                                                     Print
@@ -497,7 +500,7 @@ export default function Confirmation() {
 
                         {/* Note Area */}
                         {!isCancelled && (
-                            <div className="mt-12 p-6 bg-blue-50 rounded-2xl border border-blue-100 flex gap-4">
+                            <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-100 flex gap-4">
                                 <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
                                     <User className="h-5 w-5 text-blue-600" />
                                 </div>
@@ -511,7 +514,7 @@ export default function Confirmation() {
                             </div>
                         )}
                         {isCancelled && (
-                            <div className="mt-12 p-6 bg-red-50 rounded-2xl border border-red-100 flex gap-4">
+                            <div className="mt-12 p-6 bg-red-50 rounded-lg border border-red-100 flex gap-4">
                                 <div className="bg-white w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
                                     <User className="h-5 w-5 text-red-600" />
                                 </div>
@@ -527,5 +530,6 @@ export default function Confirmation() {
                 </div>
             </div>
         </div>
-    );
+    </div>
+);
 }

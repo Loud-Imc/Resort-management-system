@@ -76,7 +76,7 @@ export default function SearchInline({
             <div className="lg:hidden">
                 <button
                     onClick={() => setIsMobileModalOpen(true)}
-                    className="w-full bg-primary-600 backdrop-blur-md border border-white/20 rounded-2xl  px-4 flex items-center justify-between text-white shadow-xl group animate-fade-in"
+                    className="w-full bg-primary-600 backdrop-blur-md border border-white/20 rounded-lg  px-4 flex items-center justify-between text-white shadow-xl group animate-fade-in"
                 >
                     <div className="flex items-center gap-2.5 px-4 py-2.5 ">
                         <Search className="h-4.5 w-4.5 text-white" />
@@ -99,7 +99,7 @@ export default function SearchInline({
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
                         onClick={() => setIsMobileModalOpen(false)}
                     />
-                    <div className="absolute top-0 inset-x-0 bg-white rounded-b-[2.5rem] shadow-2xl overflow-hidden  flex flex-col animate-slide-down">
+                    <div className="absolute top-0 inset-x-0 bg-white rounded-b-lg shadow-2xl overflow-hidden  flex flex-col animate-slide-down">
                         <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
                             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-900">Update Your Search</h3>
                             <button
@@ -175,9 +175,9 @@ export default function SearchInline({
                                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary-600 px-1">Traveler Details</label>
                                 <div className="space-y-3">
                                     {/* Adults */}
-                                    <div className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm group">
+                                    <div className="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-3.5 shadow-sm group">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                            <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
                                                 <Users className="h-4.5 w-4.5" />
                                             </div>
                                             <div>
@@ -187,7 +187,7 @@ export default function SearchInline({
                                                 <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 13+</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">
+                                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100 shadow-inner">
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -220,9 +220,9 @@ export default function SearchInline({
                                     </div>
 
                                     {/* Children */}
-                                    <div className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm group">
+                                    <div className="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-3.5 shadow-sm group">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                            <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
                                                 <Users className="h-4.5 w-4.5" />
                                             </div>
                                             <div>
@@ -232,7 +232,7 @@ export default function SearchInline({
                                                 <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 6-12</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">
+                                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100 shadow-inner">
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -266,9 +266,9 @@ export default function SearchInline({
 
                                     {/* Rooms */}
                                     {!isGroupBooking && (
-                                        <div className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm group">
+                                        <div className="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-3.5 shadow-sm group">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                                <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
                                                     <Hotel className="h-4.5 w-4.5" />
                                                 </div>
                                                 <div>
@@ -276,7 +276,7 @@ export default function SearchInline({
                                                     <p className="text-[8px] font-bold text-gray-400 uppercase">Total rooms needed</p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">
+                                            <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100 shadow-inner">
                                                 <button
                                                     type="button"
                                                     onClick={() => setRooms(Math.max(1, rooms - 1))}
@@ -298,7 +298,7 @@ export default function SearchInline({
                                     )}
 
                                     {isGroupBooking && (
-                                        <div className="p-4 bg-primary-50 rounded-2xl border border-primary-100/50 flex items-center justify-between">
+                                        <div className="p-4 bg-primary-50 rounded-lg border border-primary-100/50 flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
                                                     <Users className="h-4 w-4" />
@@ -313,14 +313,13 @@ export default function SearchInline({
 
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">Travel Categories</label>
-                                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                                    <button
+                                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">                                    <button
                                         type="button"
                                         onClick={() => {
                                             setIsGroupBooking(false);
                                             setCategoryId('');
                                         }}
-                                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(!isGroupBooking && categoryId === '')
+                                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(!isGroupBooking && categoryId === '')
                                             ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-500/30'
                                             : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
                                             }`}
@@ -328,7 +327,7 @@ export default function SearchInline({
                                         <Building className={`h-3 w-3 ${(!isGroupBooking && categoryId === '') ? 'text-white' : 'text-gray-400'}`} />
                                         All Stays
                                     </button>
-
+ 
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -336,7 +335,7 @@ export default function SearchInline({
                                             setGroupSize(Math.max(10, adults + children));
                                             setCategoryId('');
                                         }}
-                                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${isGroupBooking
+                                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${isGroupBooking
                                             ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-500/30'
                                             : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
                                             }`}
@@ -344,7 +343,7 @@ export default function SearchInline({
                                         <Users className={`h-3 w-3 ${isGroupBooking ? 'text-white' : 'text-gray-400'}`} />
                                         Group Stay
                                     </button>
-
+ 
                                     {categories.map(cat => {
                                         const Icon = getIcon(cat.icon);
                                         return (
@@ -355,7 +354,7 @@ export default function SearchInline({
                                                     setIsGroupBooking(false);
                                                     setCategoryId(cat.id);
                                                 }}
-                                                className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(categoryId === cat.id && !isGroupBooking)
+                                                className={`flex items-center gap-2 px-4 py-3 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(categoryId === cat.id && !isGroupBooking)
                                                     ? 'bg-primary-600 border-primary-600 text-white shadow-lg shadow-primary-500/30'
                                                     : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
                                                     }`}
@@ -367,10 +366,10 @@ export default function SearchInline({
                                     })}
                                 </div>
                             </div>
-
+ 
                             <button
                                 type="submit"
-                                className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white font-black py-4 rounded-xl shadow-lg shadow-primary-500/20 active:scale-95 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3"
+                                className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white font-black py-4 rounded-lg shadow-lg shadow-primary-500/20 active:scale-95 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3"
                             >
                                 <Search className="h-4 w-4" />
                                 Apply Changes
@@ -383,7 +382,7 @@ export default function SearchInline({
             {/* Desktop Horizontal Bar (Visible only on LG+) */}
             <form
                 onSubmit={handleSearch}
-                className="hidden lg:flex bg-white border border-gray-200 rounded-2xl shadow-sm items-center divide-x divide-gray-100 overflow-visible"
+                className="hidden lg:flex bg-white border border-gray-200 rounded-lg shadow-sm items-center divide-x divide-gray-100 overflow-visible"
             >
                 {/* Location */}
                 <div className="w-[30%] px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer group">
@@ -523,13 +522,12 @@ export default function SearchInline({
                 <div className="w-[10%] p-3">
                     <button
                         type="submit"
-                        className="w-full aspect-square lg:h-full bg-gradient-to-br from-primary-600 to-primary-800 hover:from-primary-700 hover:to-primary-900 text-white rounded-xl transition-all duration-500 flex items-center justify-center group shadow-[0_10px_20px_-5px_rgba(22,163,74,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(22,163,74,0.5)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+                        className="w-full aspect-square lg:h-full bg-gradient-to-br from-primary-600 to-primary-800 hover:from-primary-700 hover:to-primary-900 text-white rounded-lg transition-all duration-500 flex items-center justify-center group shadow-[0_10px_20px_-5px_rgba(22,163,74,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(22,163,74,0.5)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
                     >
                         <Search className="h-5 w-5 group-hover:scale-110 transition-transform duration-500" />
                     </button>
                 </div>
             </form>
-
             {/* Sub-categories (Compact Pills) */}
             <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar pb-1">
                 <button
@@ -538,7 +536,7 @@ export default function SearchInline({
                         setIsGroupBooking(false);
                         setCategoryId('');
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(!isGroupBooking && categoryId === '')
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(!isGroupBooking && categoryId === '')
                         ? 'bg-primary-50 border-primary-200 text-primary-600'
                         : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600'
                         }`}
@@ -546,7 +544,7 @@ export default function SearchInline({
                     <Building className={`h-3 w-3 ${(!isGroupBooking && categoryId === '') ? 'text-primary-600' : 'text-gray-300'}`} />
                     All Stays
                 </button>
-
+ 
                 <button
                     onClick={(e) => {
                         e.preventDefault();
@@ -554,7 +552,7 @@ export default function SearchInline({
                         setGroupSize(Math.max(10, adults + children));
                         setCategoryId('');
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${isGroupBooking
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${isGroupBooking
                         ? 'bg-primary-50 border-primary-200 text-primary-600'
                         : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600'
                         }`}
@@ -572,7 +570,7 @@ export default function SearchInline({
                                 setIsGroupBooking(false);
                                 setCategoryId(cat.id);
                             }}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(categoryId === cat.id && !isGroupBooking)
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${(categoryId === cat.id && !isGroupBooking)
                                 ? 'bg-primary-50 border-primary-200 text-primary-600'
                                 : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600'
                                 }`}

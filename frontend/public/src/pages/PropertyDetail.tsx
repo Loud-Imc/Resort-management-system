@@ -321,7 +321,7 @@ export default function PropertyDetail() {
 
                 {/* Property Info Overlay */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12">
-                    <div className="container mx-auto">
+                    <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12">
                         <div className="flex items-center gap-2 mb-2">
                             {property.isVerified && (
                                 <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-1">
@@ -335,7 +335,7 @@ export default function PropertyDetail() {
                                 {toTitleCase(property.name)}
                             </h1>
                             {property.roomTypes?.some(rt => rt.allowPayAtProperty) && (
-                                <div className="bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 backdrop-blur-md px-5 py-2.5 rounded-2xl flex flex-col items-center gap-0.5 text-white shadow-2xl shadow-emerald-500/40 border border-white/30 animate-badge-glow relative overflow-hidden group/pap mt-2 md:mt-0">
+                                <div className="bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 backdrop-blur-md px-5 py-2.5 rounded-lg flex flex-col items-center gap-0.5 text-white shadow-2xl shadow-emerald-500/40 border border-white/30 animate-badge-glow relative overflow-hidden group/pap mt-2 md:mt-0">
                                     <div className="flex items-center gap-2">
                                         <Wallet className="h-4 w-4 animate-bounce" />
                                         <span className="text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap">Pay At Property Available</span>
@@ -362,13 +362,13 @@ export default function PropertyDetail() {
             </div>
 
             {/* Content */}
-            <div className="container mx-auto px-4 py-12">
+            <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-12">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-8">
                         {/* Available Accommodations */}
                         {property.roomTypes && property.roomTypes.length > 0 && (
-                            <div id="accommodations" className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+                            <div id="accommodations" className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
                                 <div className="bg-gray-50/50 border-b border-gray-100 p-6">
                                     <h2 className="text-2xl font-bold text-gray-900">Available Accommodations</h2>
                                 </div>
@@ -400,7 +400,7 @@ export default function PropertyDetail() {
                                                     <div className="flex flex-col md:flex-row gap-0">
                                                         {/* Column 1: Image */}
                                                         <div className="w-full md:w-[280px] lg:w-[320px] shrink-0 p-5 lg:p-6 flex flex-col items-center">
-                                                            <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-md group w-full">
+                                                            <div className="relative aspect-[4/3] rounded-lg overflow-hidden shadow-md group w-full">
                                                                 <img
                                                                     src={groupStay.images?.[0] || property.coverImage}
                                                                     alt="Group Stay"
@@ -428,7 +428,7 @@ export default function PropertyDetail() {
                                                                         Exclusive Property Reservation
                                                                     </div>
                                                                 </div>
-                                                                <div className="px-3 py-1.5 bg-green-50 rounded-xl border border-green-100 flex items-center gap-1.5 text-[10px] font-black text-green-700 uppercase tracking-wider shrink-0 h-fit">
+                                                                <div className="px-3 py-1.5 bg-green-50 rounded-lg border border-green-100 flex items-center gap-1.5 text-[10px] font-black text-green-700 uppercase tracking-wider shrink-0 h-fit">
                                                                     <CheckCircle className="h-3 w-3" />
                                                                     Best Value
                                                                 </div>
@@ -501,7 +501,7 @@ export default function PropertyDetail() {
                                                                     </div>
                                                                 )}
                                                                 {(groupStay as any).offerName && (
-                                                                    <div className="mt-4 bg-orange-50 text-orange-600 p-3 rounded-xl border border-orange-100 text-center">
+                                                                    <div className="mt-4 bg-orange-50 text-orange-600 p-3 rounded-lg border border-orange-100 text-center">
                                                                         <div className="flex items-center justify-center gap-2 mb-1">
                                                                             <Sparkles className="h-3.5 w-3.5" />
                                                                             <span className="text-[10px] font-black uppercase tracking-wider">Special Offer</span>
@@ -513,16 +513,16 @@ export default function PropertyDetail() {
                                                             <div className="mt-6">
                                                                 {isExceedingCapacity ? (
                                                                     <div className="space-y-2">
-                                                                        <button disabled className="w-full py-4 bg-red-50 text-red-600 border border-red-100 font-black rounded-xl cursor-not-allowed text-[10px] uppercase tracking-widest leading-none">Limit Reached</button>
+                                                                        <button disabled className="w-full py-4 bg-red-50 text-red-600 border border-red-100 font-black rounded-lg cursor-not-allowed text-[10px] uppercase tracking-widest leading-none">Limit Reached</button>
                                                                         <p className="text-[10px] text-gray-400 font-bold text-center">Max {property.maxGroupCapacity} guests</p>
                                                                     </div>
                                                                 ) : isSoldOut ? (
-                                                                    <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-xl border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest leading-none">Fully Booked</button>
+                                                                    <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-lg border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest leading-none">Fully Booked</button>
                                                                 ) : (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
                                                                         to={checkIn && checkOut ? `/book?roomId=${groupStay.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=true&groupSize=${groupSize}` : '#'}
-                                                                        className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-xl shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
+                                                                        className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-lg shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
                                                                         {(!checkIn || !checkOut) ? 'See Availability' : 'Book Group Stay'}
                                                                         <ChevronRight className="h-4 w-4" />
@@ -556,7 +556,7 @@ export default function PropertyDetail() {
                                                 )}>
                                                     {isSoldOut && (
                                                         <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                                                            <div className="bg-white/90 shadow-xl border border-rose-200 px-6 py-3 rounded-2xl flex flex-col items-center gap-1 transform -rotate-3">
+                                                            <div className="bg-white/90 shadow-xl border border-rose-200 px-6 py-3 rounded-lg flex flex-col items-center gap-1 transform -rotate-3">
                                                                 <span className="text-rose-600 font-black text-xl uppercase tracking-tighter">Fully Booked</span>
                                                                 <span className="text-gray-500 text-[10px] font-bold">Try different dates for this room</span>
                                                             </div>
@@ -598,7 +598,7 @@ export default function PropertyDetail() {
                                                                             Verified Accommodation
                                                                         </div>
                                                                         {roomType.allowPayAtProperty && (
-                                                                            <div className="flex flex-col items-center bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 text-white px-5 py-2 rounded-2xl border border-white/20 shadow-xl shadow-emerald-500/30 relative overflow-hidden group/pap animate-badge-glow transition-transform hover:scale-105 cursor-default">
+                                                                            <div className="flex flex-col items-center bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 text-white px-5 py-2 rounded-lg border border-white/20 shadow-xl shadow-emerald-500/30 relative overflow-hidden group/pap animate-badge-glow transition-transform hover:scale-105 cursor-default">
                                                                                 <div className="flex items-center gap-2.5">
                                                                                     <Wallet className="h-4 w-4 animate-bounce" />
                                                                                     <span className="text-[11px] font-black uppercase tracking-[0.15em] whitespace-nowrap">Pay At Property</span>
@@ -718,7 +718,7 @@ export default function PropertyDetail() {
                                                                     )}
                                                                 </div>
                                                                 {(availabilityInfo?.offerName || Number(roomType.offerDiscountAmount) > 0) && (
-                                                                    <div className="bg-orange-50 text-orange-600 p-3 rounded-xl border border-orange-100 text-center">
+                                                                    <div className="bg-orange-50 text-orange-600 p-3 rounded-lg border border-orange-100 text-center">
                                                                         <div className="flex items-center justify-center gap-2 mb-1">
                                                                             <Sparkles className="h-3.5 w-3.5" />
                                                                             <span className="text-[10px] font-black uppercase tracking-wider">Special Offer</span>
@@ -729,12 +729,12 @@ export default function PropertyDetail() {
                                                             </div>
                                                             <div className="mt-6">
                                                                 {isSoldOut ? (
-                                                                    <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-xl border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest leading-none">Fully Booked</button>
+                                                                    <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-lg border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest leading-none">Fully Booked</button>
                                                                 ) : (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
                                                                         to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=false` : '#'}
-                                                                        className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-xl shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
+                                                                        className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-lg shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
                                                                         {(!checkIn || !checkOut) ? 'See Availability' : 'Book Now'}
                                                                         <ChevronRight className="h-4 w-4" />
@@ -753,7 +753,7 @@ export default function PropertyDetail() {
 
                         {/* Gallery */}
                         {property.images.length > 0 && (
-                            <div className="bg-white rounded-xl shadow-sm p-6">
+                            <div className="bg-white rounded-lg shadow-sm p-6">
                                 <h2 className="text-xl font-bold text-gray-900 mb-4">Gallery</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {property.images.map((image, index) => (
@@ -770,7 +770,7 @@ export default function PropertyDetail() {
 
                         {/* Amenities */}
                         {property.amenities.length > 0 && (
-                            <div className="bg-white rounded-xl shadow-sm p-6">
+                            <div className="bg-white rounded-lg shadow-sm p-6">
                                 <h2 className="text-xl font-bold text-gray-900 mb-4">Amenities</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {property.amenities.map(amenity => {
@@ -788,7 +788,7 @@ export default function PropertyDetail() {
                         )}
 
                         {/* Description */}
-                        <div className="bg-white rounded-xl shadow-sm p-6">
+                        <div className="bg-white rounded-lg shadow-sm p-6">
                             <h2 className="text-xl font-bold text-gray-900 mb-4">About</h2>
                             <p className="text-gray-600 leading-relaxed">
                                 {property.description || 'No description available.'}
@@ -796,14 +796,14 @@ export default function PropertyDetail() {
                         </div>
 
                         {/* Reviews */}
-                        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-gray-100 p-10 md:p-14">
+                        <div className="bg-white rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-gray-100 p-10 md:p-14">
                             <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-12 gap-6">
                                 <div>
                                     <h2 className="text-3xl font-bold text-gray-900 font-serif mb-2">Guest Experiences</h2>
                                     <p className="text-gray-400 text-sm font-medium">Genuine feedback from verified travelers who stayed with us.</p>
                                 </div>
                                 {stats && stats.count > 0 && (
-                                    <div className="flex items-center gap-4 bg-gray-50 px-6 py-4 rounded-3xl border border-gray-100 shadow-sm">
+                                    <div className="flex items-center gap-4 bg-gray-50 px-6 py-4 rounded-lg border border-gray-100 shadow-sm">
                                         <div className="flex items-center gap-1.5">
                                             {[...Array(5)].map((_, i) => (
                                                 <Star
@@ -828,7 +828,7 @@ export default function PropertyDetail() {
                             </div>
 
                             {reviews.length === 0 ? (
-                                <div className="text-center py-24 bg-[#fafafa] rounded-[2rem] border-2 border-dashed border-gray-100">
+                                <div className="text-center py-24 bg-[#fafafa] rounded-lg border-2 border-dashed border-gray-100">
                                     <div className="w-20 h-20 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-6 text-gray-200">
                                         <Star className="h-10 w-10" />
                                     </div>
@@ -842,7 +842,7 @@ export default function PropertyDetail() {
                                             <div className="flex flex-col md:flex-row gap-8">
                                                 <div className="flex-shrink-0">
                                                     <div className="relative">
-                                                        <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center overflow-hidden border-2 border-white shadow-xl ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-500">
+                                                        <div className="w-16 h-16 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden border-2 border-white shadow-xl ring-1 ring-gray-100 group-hover:scale-105 transition-transform duration-500">
                                                             {review.user?.avatar ? (
                                                                 <img src={review.user.avatar} alt={review.user.firstName} className="w-full h-full object-cover" />
                                                             ) : (
@@ -908,7 +908,7 @@ export default function PropertyDetail() {
                         </div>
 
                         {/* Location / Map */}
-                        <div className="bg-white rounded-xl shadow-sm p-6 overflow-hidden">
+                        <div className="bg-white rounded-lg shadow-sm p-6 overflow-hidden">
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-xl font-bold text-gray-900">Location</h2>
                                 <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-3 py-1 rounded-full flex items-center gap-1">
@@ -927,7 +927,7 @@ export default function PropertyDetail() {
                             </div>
 
                             {property.latitude && property.longitude ? (
-                                <div className="rounded-xl overflow-hidden border border-gray-100 shadow-inner h-[350px] relative bg-gray-50 group">
+                                <div className="rounded-lg overflow-hidden border border-gray-100 shadow-inner h-[350px] relative bg-gray-50 group">
                                     <iframe
                                         width="100%"
                                         height="100%"
@@ -959,7 +959,7 @@ export default function PropertyDetail() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="rounded-xl overflow-hidden border border-gray-100 shadow-inner h-[250px] flex flex-col items-center justify-center bg-gray-50 text-gray-400">
+                                <div className="rounded-lg overflow-hidden border border-gray-100 shadow-inner h-[250px] flex flex-col items-center justify-center bg-gray-50 text-gray-400">
                                     <MapPin className="h-10 w-10 mb-2 opacity-20" />
                                     <p className="text-sm font-medium">Exact location coordinates not available</p>
                                     <p className="text-[11px]">Contact the property for precise directions</p>
@@ -986,13 +986,13 @@ export default function PropertyDetail() {
 
                     {/* Sidebar - Booking CTA */}
                     <div className="lg:col-span-1">
-                        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sticky top-24">
+                        <div className="bg-white rounded-lg shadow-xl border border-gray-100 p-6 sticky top-24">
                             <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
                                 <Sparkles className="h-5 w-5 text-primary-500" />
                                 Perfect Stay Starts Here
                             </h3>
 
-                            <div ref={pickerRef} id="stay-selection" className="space-y-5 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 transition-all duration-300">
+                            <div ref={pickerRef} id="stay-selection" className="space-y-5 p-4 bg-gray-50/50 rounded-lg border border-gray-100 transition-all duration-300">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 px-1">CHECK IN & OUT</label>
                                     <div className="grid grid-cols-2 gap-2">
@@ -1008,7 +1008,7 @@ export default function PropertyDetail() {
                                                 dateFormat="dd MMM yyyy"
                                                 showPopperArrow={true}
                                                 placeholderText="Check In"
-                                                className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                                             />
                                         </div>
                                         <div className="relative">
@@ -1023,7 +1023,7 @@ export default function PropertyDetail() {
                                                 dateFormat="dd MMM yyyy"
                                                 showPopperArrow={true}
                                                 placeholderText="Check Out"
-                                                className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                                             />
                                         </div>
                                     </div>
@@ -1032,7 +1032,7 @@ export default function PropertyDetail() {
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between px-1">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-primary-600">Stay Context</label>
-                                        <div className="flex bg-gray-100 p-1 rounded-xl">
+                                        <div className="flex bg-gray-100 p-1 rounded-lg">
                                             <button
                                                 type="button"
                                                 onClick={() => setIsGroupBooking(false)}
@@ -1066,7 +1066,7 @@ export default function PropertyDetail() {
                                                         setAdults(val);
                                                         if (isGroupBooking) setGroupSize(val + children);
                                                     }}
-                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                                                 />
                                             </div>
                                         </div>
@@ -1082,13 +1082,13 @@ export default function PropertyDetail() {
                                                         setChildren(val);
                                                         if (isGroupBooking) setGroupSize(adults + val);
                                                     }}
-                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                                                 />
                                             </div>
                                         </div>
                                     </div>
                                     {isGroupBooking && (
-                                        <div className="flex items-center justify-center gap-2 py-2 bg-primary-50 rounded-xl border border-primary-100 animate-in fade-in zoom-in-95 duration-300">
+                                        <div className="flex items-center justify-center gap-2 py-2 bg-primary-50 rounded-lg border border-primary-100 animate-in fade-in zoom-in-95 duration-300">
                                             <span className="text-[9px] font-black text-primary-600 uppercase tracking-widest">Total Group Stay: {groupSize} Members</span>
                                         </div>
                                     )}
@@ -1109,7 +1109,7 @@ export default function PropertyDetail() {
                                         document.getElementById('accommodations')?.scrollIntoView({ behavior: 'smooth' });
                                     }
                                 }}
-                                className="block w-full py-4 mt-6 bg-primary-600 text-white text-center font-black rounded-xl hover:bg-primary-700 transition shadow-lg shadow-primary-500/30 uppercase tracking-[0.2em] text-xs active:scale-95 transform duration-200"
+                                className="block w-full py-4 mt-6 bg-primary-600 text-white text-center font-black rounded-lg hover:bg-primary-700 transition shadow-lg shadow-primary-500/30 uppercase tracking-[0.2em] text-xs active:scale-95 transform duration-200"
                             >
                                 {(!checkIn || !checkOut) ? 'Select Dates to View Price' : 'See Remaining Rooms'}
                             </button>
@@ -1148,7 +1148,7 @@ export default function PropertyDetail() {
                                 </div>
                                 <button
                                     onClick={() => pickerRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary-500/20 active:scale-95"
+                                    className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-lg shadow-primary-500/20 active:scale-95"
                                 >
                                     Pick Dates
                                 </button>
@@ -1161,13 +1161,13 @@ export default function PropertyDetail() {
                                     <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-1">Your Selected Stay</p>
                                     <div className="flex items-center gap-2 text-xs font-bold text-gray-900">
                                         <span>{format(checkIn!, 'MMM dd')} - {format(checkOut!, 'MMM dd')}</span>
-                                        <span className="text-gray-300">â€¢</span>
+                                        <span className="text-gray-300">•</span>
                                         <span>{adults} Guests</span>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => document.getElementById('accommodations')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary-500/20 active:scale-95"
+                                    className="px-6 py-3 bg-primary-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-lg shadow-primary-500/20 active:scale-95"
                                 >
                                     See Rooms
                                 </button>
