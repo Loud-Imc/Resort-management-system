@@ -152,21 +152,21 @@ export default function PropertyForm() {
                 amenities: property.amenities,
                 images: property.images,
                 coverImage: property.coverImage || '',
-                latitude: property.latitude,
-                longitude: property.longitude,
+                latitude: property.latitude ? Number(property.latitude) : undefined,
+                longitude: property.longitude ? Number(property.longitude) : undefined,
                 addedById: property.addedBy?.id || '',
-                marketingCommission: property.marketingCommission || 0,
+                marketingCommission: property.marketingCommission ? Number(property.marketingCommission) : 0,
                 ownerId: property.ownerId || '',
                 isFeatured: property.isFeatured || false,
                 isSponsored: property.isSponsored || false,
-                platformCommission: property.platformCommission || 10,
+                platformCommission: property.platformCommission ? Number(property.platformCommission) : 10,
                 whatsappNumber: property.whatsappNumber || '',
                 categoryId: property.categoryId || '',
                 allowsGroupBooking: property.allowsGroupBooking || false,
-                maxGroupCapacity: property.maxGroupCapacity || 40,
-                groupPricePerHead: property.groupPricePerHead || 0,
-                groupPriceAdult: property.groupPriceAdult || 0,
-                groupPriceChild: property.groupPriceChild || 0,
+                maxGroupCapacity: property.maxGroupCapacity ? Number(property.maxGroupCapacity) : 40,
+                groupPricePerHead: property.groupPricePerHead ? Number(property.groupPricePerHead) : 0,
+                groupPriceAdult: property.groupPriceAdult ? Number(property.groupPriceAdult) : 0,
+                groupPriceChild: property.groupPriceChild ? Number(property.groupPriceChild) : 0,
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -181,11 +181,17 @@ export default function PropertyForm() {
 
         try {
             setSaving(true);
-            // Convert commission to number if string
+            // Convert numeric fields to number if string to satisfy backend validation
             const submissionData = {
                 ...formData,
                 marketingCommission: Number(formData.marketingCommission),
                 platformCommission: Number(formData.platformCommission),
+                maxGroupCapacity: formData.maxGroupCapacity ? Number(formData.maxGroupCapacity) : 0,
+                groupPricePerHead: formData.groupPricePerHead ? Number(formData.groupPricePerHead) : 0,
+                groupPriceAdult: formData.groupPriceAdult ? Number(formData.groupPriceAdult) : 0,
+                groupPriceChild: formData.groupPriceChild ? Number(formData.groupPriceChild) : 0,
+                latitude: formData.latitude ? Number(formData.latitude) : undefined,
+                longitude: formData.longitude ? Number(formData.longitude) : undefined,
             };
 
             if (isEdit && id) {
