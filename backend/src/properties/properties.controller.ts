@@ -23,7 +23,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PropertyStatus, RequestStatus } from '@prisma/client';
 import axios from 'axios';
-import * as geoip from 'geoip-lite';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const geoip = require('offline-geo-from-ip');
 
 @ApiTags('Properties')
 @Controller('properties')
@@ -156,17 +157,17 @@ export class PropertiesController {
         }
 
         try {
-            // Geolocate the IP locally via geoip-lite
-            const geo = geoip.lookup(ip);
+            // Geolocate the IP locally via offline-geo-from-ip
+            const geo = geoip.allData(ip);
             console.log('[Geolocation] Lookup result:', geo);
             if (geo && geo.city) {
                 return {
                     city: geo.city,
-                    region: geo.region || null,
+                    region: geo.state || null,
                 };
             }
         } catch (error) {
-            console.error('[Geolocation] Failed to geolocate IP locally via geoip-lite:', error);
+            console.error('[Geolocation] Failed to geolocate IP locally via offline-geo-from-ip:', error);
         }
 
         return { city: null, region: null };
