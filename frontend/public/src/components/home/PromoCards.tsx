@@ -47,33 +47,71 @@ export default function PromoCards() {
     const [loading, setLoading] = useState(true);
     const [detectedCity, setDetectedCity] = useState<string>('');
 
-    // 1. Detect User City via IP (First-time default context)
+    // // 1. Detect User City via IP (First-time default context)
+    // useEffect(() => {
+    //     const detectLocation = async () => {
+    //         try {
+    //             // Check local storage first to avoid spamming public IP API
+    //             const cachedCity = localStorage.getItem('user_detected_city');
+    //             if (cachedCity) {
+    //                 setDetectedCity(cachedCity);
+    //                 return;
+    //             }
+
+    //             // Query public HTTPS IP lookup
+    //             const res = await fetch('https://free.freeipapi.com/api/json');
+    //             const data = await res.json();
+    //             if (data && data.cityName) {
+    //                 setDetectedCity(data.cityName);
+    //                 localStorage.setItem('user_detected_city', data.cityName);
+    //             }
+    //         } catch (err) {
+    //             console.warn('Failed to detect geolocation, falling back to global featured listings.', err);
+    //         }
+    //     };
+
+    //     detectLocation();
+    // }, []);
+
+    // 2. Reactively fetch Featured Properties whenever location changes
+   
+        // 1. Detect User City via Cloudflare (from our own backend)
     useEffect(() => {
         const detectLocation = async () => {
             try {
-                // Check local storage first to avoid spamming public IP API
+                // Check local storage first to avoid redundant hits
                 const cachedCity = localStorage.getItem('user_detected_city');
                 if (cachedCity) {
-                    setDetectedCity(cachedCity);
+                    // setDetectedCity(cachedCity);
+                    console.log('cahced',cachedCity)
+                    // localStorage.removeItem('user_detected_city')
                     return;
+                }else {
+                    console.log('no cache')
                 }
 
-                // Query public HTTPS IP lookup
-                const res = await fetch('https://free.freeipapi.com/api/json');
+                // Query our own backend location detector
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                const res = await fetch(`${API_URL}/api/properties/detect-location`);
                 const data = await res.json();
-                if (data && data.cityName) {
-                    setDetectedCity(data.cityName);
-                    localStorage.setItem('user_detected_city', data.cityName);
+                console.log(data)
+                // If Cloudflare successfully geolocated the city
+                if (data && data.city) {
+                    setDetectedCity(data.city);
+                    localStorage.setItem('user_detected_city', data.city);
+                } else {
+                    // Local development fallback (since localhost doesn't route through Cloudflare)
+                    setDetectedCity('Ernakulam'); 
                 }
             } catch (err) {
-                console.warn('Failed to detect geolocation, falling back to global featured listings.', err);
+                console.warn('Failed to detect geolocation, falling back to default.', err);
+                setDetectedCity('Idukki');
             }
         };
 
         detectLocation();
     }, []);
 
-    // 2. Reactively fetch Featured Properties whenever location changes
     useEffect(() => {
         const fetchPromotions = async () => {
             try {

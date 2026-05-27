@@ -116,6 +116,19 @@ export class PropertiesController {
         return this.propertiesService.findAll(query);
     }
 
+    @Get('detect-location')
+    @ApiOperation({ summary: 'Detect user location from Cloudflare headers (public)' })
+    detectLocation(@Request() req: any) {
+        // Cloudflare forwards headers as lowercase by default in Node.js
+        const cityHeader = req.headers['cf-ipcity'];
+        const regionHeader = req.headers['cf-region'];
+
+        return {
+            city: Array.isArray(cityHeader) ? cityHeader[0] : (cityHeader || null),
+            region: Array.isArray(regionHeader) ? regionHeader[0] : (regionHeader || null),
+        };
+    }
+
     @Get('autocomplete')
     @ApiOperation({ summary: 'Google Places autocomplete proxy (public)' })
     autocomplete(@Query('input') input: string) {
@@ -241,5 +254,6 @@ export class PropertiesController {
         // Implementation logic: Log the action and return property-scoped context
         return this.propertiesService.impersonate(req.user, id);
     }
+
 }
 
