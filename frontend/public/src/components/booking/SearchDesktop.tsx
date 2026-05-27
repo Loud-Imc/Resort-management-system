@@ -35,6 +35,7 @@ interface SearchProps {
     setGroupSize: (v: number) => void;
     onUseLocation?: () => void;
     isLocating?: boolean;
+    latitude?: number | null;
 }
 
 export default function SearchDesktop({
@@ -47,7 +48,8 @@ export default function SearchDesktop({
     handleSearch,
     isGroupBooking,
     groupSize, setGroupSize,
-    onUseLocation, isLocating
+    onUseLocation, isLocating,
+    latitude
 }: SearchProps) {
     const [showGuestModal, setShowGuestModal] = React.useState(false);
     const guestModalRef = React.useRef<HTMLDivElement>(null);
@@ -73,6 +75,7 @@ export default function SearchDesktop({
                                 hideIcon={true}
                                 onUseLocation={onUseLocation}
                                 isLocating={isLocating}
+                                latitude={latitude}
                                 inputClassName="w-full bg-transparent text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none border-none p-0 focus:ring-0"
                             />
                         </div>

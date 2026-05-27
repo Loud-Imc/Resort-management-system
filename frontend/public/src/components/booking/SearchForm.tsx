@@ -46,7 +46,7 @@ export default function SearchForm({
             (position) => {
                 setLatitude(position.coords.latitude);
                 setLongitude(position.coords.longitude);
-                setLocation('Current Location');
+                setLocation('');
                 setIsLocating(false);
             },
             () => {

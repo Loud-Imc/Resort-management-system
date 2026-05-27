@@ -44,6 +44,7 @@ interface SearchProps {
     setGroupSize: (v: number) => void;
     onUseLocation?: () => void;
     isLocating?: boolean;
+    latitude?: number | null;
 }
 
 export default function SearchMobile({
@@ -60,7 +61,8 @@ export default function SearchMobile({
     theme = 'dark',
     isGroupBooking, setIsGroupBooking,
     groupSize, setGroupSize,
-    onUseLocation, isLocating
+    onUseLocation, isLocating,
+    latitude
 }: SearchProps) {
     const isDark = theme === 'dark';
     const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -195,6 +197,7 @@ export default function SearchMobile({
                             theme={theme}
                             onUseLocation={onUseLocation}
                             isLocating={isLocating}
+                            latitude={latitude}
                             inputClassName={`w-full bg-transparent text-lg font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-200'} outline-none border-none p-0 focus:ring-0`}
                         />
                     </div>

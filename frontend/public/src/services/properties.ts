@@ -40,6 +40,15 @@ export const propertyApi = {
         return response.data.data;
     },
 
+    // Get homepage promo properties via single backend cascade (regional → global → any)
+    async getHomepageFeatured(limit = 3, city?: string): Promise<Property[]> {
+        const response = await api.get('/properties/homepage-featured', {
+            params: { limit, ...(city && { city }) }
+        });
+        return response.data;
+    },
+
+
     // Get all active property categories
     async getCategories(): Promise<PropertyCategory[]> {
         const response = await api.get('/property-categories');

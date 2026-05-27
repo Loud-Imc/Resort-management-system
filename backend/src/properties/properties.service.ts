@@ -643,7 +643,79 @@ export class PropertiesService {
         };
     }
 
+    /**
+     * Single endpoint for homepage promo cards.
+     * Returns exactly `limit` properties using cascade:
+     *   1. Regional featured (by city)
+     *   2. Global featured (any city)
+     *   3. Any active property
+     */
+    async getHomepageFeatured(limit: number = 3, city?: string) {
+        const baseWhere: Prisma.PropertyWhereInput = {
+            isActive: true,
+            status: PropertyStatus.APPROVED,
+            roomTypes: { some: { isPubliclyVisible: true } },
+        };
+
+        const includeOpts = {
+            category: true,
+            _count: { select: { rooms: true } },
+        };
+
+        const orderBy = [
+            { isFeatured: 'desc' as const },
+            { isSponsored: 'desc' as const },
+            { rating: 'desc' as const },
+        ];
+
+        let results: any[] = [];
+
+        // Step 1: Regional featured
+        if (city) {
+            results = await this.prisma.property.findMany({
+                where: { ...baseWhere, isFeatured: true, city: { contains: city, mode: 'insensitive' } },
+                take: limit,
+                orderBy,
+                include: includeOpts,
+            });
+        }
+
+        // Step 2: Global featured (backfill)
+        if (results.length < limit) {
+            const existingIds = results.map(p => p.id);
+            const globalFeatured = await this.prisma.property.findMany({
+                where: {
+                    ...baseWhere,
+                    isFeatured: true,
+                    ...(existingIds.length > 0 && { id: { notIn: existingIds } }),
+                },
+                take: limit - results.length,
+                orderBy,
+                include: includeOpts,
+            });
+            results = [...results, ...globalFeatured];
+        }
+
+        // Step 3: Any active property (ultimate backfill)
+        if (results.length < limit) {
+            const existingIds = results.map(p => p.id);
+            const anyActive = await this.prisma.property.findMany({
+                where: {
+                    ...baseWhere,
+                    ...(existingIds.length > 0 && { id: { notIn: existingIds } }),
+                },
+                take: limit - results.length,
+                orderBy: [{ rating: 'desc' as const }, { createdAt: 'desc' as const }],
+                include: includeOpts,
+            });
+            results = [...results, ...anyActive];
+        }
+
+        return results;
+    }
+
     async findAllAdmin(user: any, query: any) {
+
         const { city, state, type, search, page = 1, limit = 100, status } = query;
         const skip = (page - 1) * limit;
 

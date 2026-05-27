@@ -113,11 +113,24 @@ export class PropertiesController {
         return this.propertiesService.verifyCommissionOtp(phone, code);
     }
 
+    @Get('homepage-featured')
+    @ApiOperation({ summary: 'Get featured properties for homepage promo cards (single cascade)' })
+    async getHomepageFeatured(
+        @Query('limit') limit?: string,
+        @Query('city') city?: string,
+    ) {
+        return this.propertiesService.getHomepageFeatured(
+            limit ? parseInt(limit) : 3,
+            city || undefined,
+        );
+    }
+
     @Get()
     @ApiOperation({ summary: 'List all properties (public)' })
     findAll(@Query() query: PropertyQueryDto) {
         return this.propertiesService.findAll(query);
     }
+
 
     @Get('detect-location')
     @ApiOperation({ summary: 'Detect user location from Cloudflare headers or fallback IP (public)' })

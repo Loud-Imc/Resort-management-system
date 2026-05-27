@@ -21,6 +21,7 @@ interface Props {
     onUseLocation?: () => void;
     isLocating?: boolean;
     hideIcon?: boolean;
+    latitude?: number | null;
 }
 
 export default function LocationAutocomplete({
@@ -33,6 +34,7 @@ export default function LocationAutocomplete({
     onUseLocation,
     isLocating,
     hideIcon = false,
+    latitude,
 }: Props) {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -128,7 +130,7 @@ export default function LocationAutocomplete({
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={() => setIsOpen(true)}
-                    placeholder={placeholder}
+                    placeholder={!value && latitude ? '📍 Nearby' : placeholder}
                     className={inputClassName}
                     autoComplete="off"
                 />
