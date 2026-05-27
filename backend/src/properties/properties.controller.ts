@@ -120,20 +120,22 @@ export class PropertiesController {
 
     @Get('detect-location')
     @ApiOperation({ summary: 'Detect user location from Cloudflare headers or fallback IP (public)' })
-    async detectLocation(@Request() req: any) {
-        // 1. Try Cloudflare headers first
-        const cityHeader = req.headers['cf-ipcity'];
-        const regionHeader = req.headers['cf-region'];
+    async detectLocation(@Request() req: any, @Query('ip') queryIp?: string) {
+        // 1. Try Cloudflare headers first (unless queryIp is provided)
+        if (!queryIp) {
+            const cityHeader = req.headers['cf-ipcity'];
+            const regionHeader = req.headers['cf-region'];
 
-        if (cityHeader) {
-            return {
-                city: Array.isArray(cityHeader) ? cityHeader[0] : cityHeader,
-                region: Array.isArray(regionHeader) ? regionHeader[0] : (regionHeader || null),
-            };
+            if (cityHeader) {
+                return {
+                    city: Array.isArray(cityHeader) ? cityHeader[0] : cityHeader,
+                    region: Array.isArray(regionHeader) ? regionHeader[0] : (regionHeader || null),
+                };
+            }
         }
 
-        // 2. Fallback: Parse client IP from proxy headers (x-forwarded-for)
-        let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        // 2. Fallback: Parse client IP from query param, proxy headers (x-forwarded-for), or socket remote address
+        let ip = queryIp || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         if (Array.isArray(ip)) {
             ip = ip[0];
         } else if (typeof ip === 'string') {
