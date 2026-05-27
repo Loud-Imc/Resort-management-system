@@ -22,6 +22,8 @@ import { PERMISSIONS } from '../auth/constants/permissions.constant';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PropertyStatus, RequestStatus } from '@prisma/client';
+import axios from 'axios';
+import * as geoip from 'geoip-lite';
 
 @ApiTags('Properties')
 @Controller('properties')
@@ -117,16 +119,46 @@ export class PropertiesController {
     }
 
     @Get('detect-location')
-    @ApiOperation({ summary: 'Detect user location from Cloudflare headers (public)' })
-    detectLocation(@Request() req: any) {
-        // Cloudflare forwards headers as lowercase by default in Node.js
+    @ApiOperation({ summary: 'Detect user location from Cloudflare headers or fallback IP (public)' })
+    async detectLocation(@Request() req: any) {
+        // 1. Try Cloudflare headers first
         const cityHeader = req.headers['cf-ipcity'];
         const regionHeader = req.headers['cf-region'];
 
-        return {
-            city: Array.isArray(cityHeader) ? cityHeader[0] : (cityHeader || null),
-            region: Array.isArray(regionHeader) ? regionHeader[0] : (regionHeader || null),
-        };
+        if (cityHeader) {
+            return {
+                city: Array.isArray(cityHeader) ? cityHeader[0] : cityHeader,
+                region: Array.isArray(regionHeader) ? regionHeader[0] : (regionHeader || null),
+            };
+        }
+
+        // 2. Fallback: Parse client IP from proxy headers (x-forwarded-for)
+        let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        if (Array.isArray(ip)) {
+            ip = ip[0];
+        } else if (typeof ip === 'string') {
+            ip = ip.split(',')[0].trim();
+        }
+
+        // If local IP, return null (triggers dev fallback in frontend)
+        if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+            return { city: null, region: null };
+        }
+
+        try {
+            // Geolocate the IP locally via geoip-lite
+            const geo = geoip.lookup(ip);
+            if (geo && geo.city) {
+                return {
+                    city: geo.city,
+                    region: geo.region || null,
+                };
+            }
+        } catch (error) {
+            console.error('Failed to geolocate IP locally via geoip-lite:', error);
+        }
+
+        return { city: null, region: null };
     }
 
     @Get('autocomplete')
