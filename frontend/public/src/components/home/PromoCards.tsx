@@ -82,12 +82,8 @@ export default function PromoCards() {
                 // Check local storage first to avoid redundant hits
                 const cachedCity = localStorage.getItem('user_detected_city');
                 if (cachedCity) {
-                    // setDetectedCity(cachedCity);
-                    console.log('cahced',cachedCity)
-                    // localStorage.removeItem('user_detected_city')
+                    setDetectedCity(cachedCity);
                     return;
-                }else {
-                    console.log('no cache')
                 }
 
                 // Query our own backend location detector

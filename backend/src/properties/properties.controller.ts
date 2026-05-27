@@ -140,14 +140,23 @@ export class PropertiesController {
             ip = ip.split(',')[0].trim();
         }
 
+        // Clean up IPv6-mapped IPv4 addresses (e.g. ::ffff:192.168.1.1 or ::ffff:49.36.85.12)
+        if (ip && ip.startsWith('::ffff:')) {
+            ip = ip.substring(7);
+        }
+
+        console.log('[Geolocation] Detected Client IP:', ip);
+
         // If local IP, return null (triggers dev fallback in frontend)
         if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+            console.log('[Geolocation] Local/private IP detected, returning fallback null');
             return { city: null, region: null };
         }
 
         try {
             // Geolocate the IP locally via geoip-lite
             const geo = geoip.lookup(ip);
+            console.log('[Geolocation] Lookup result:', geo);
             if (geo && geo.city) {
                 return {
                     city: geo.city,
@@ -155,7 +164,7 @@ export class PropertiesController {
                 };
             }
         } catch (error) {
-            console.error('Failed to geolocate IP locally via geoip-lite:', error);
+            console.error('[Geolocation] Failed to geolocate IP locally via geoip-lite:', error);
         }
 
         return { city: null, region: null };
