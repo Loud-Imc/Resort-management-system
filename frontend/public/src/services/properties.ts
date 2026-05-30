@@ -40,6 +40,15 @@ export const propertyApi = {
         return response.data.data;
     },
 
+    // Get homepage promo properties via single backend cascade (regional → global → any)
+    async getHomepageFeatured(limit = 3, city?: string): Promise<Property[]> {
+        const response = await api.get('/properties/homepage-featured', {
+            params: { limit, ...(city && { city }) }
+        });
+        return response.data;
+    },
+
+
     // Get all active property categories
     async getCategories(): Promise<PropertyCategory[]> {
         const response = await api.get('/property-categories');
@@ -49,6 +58,12 @@ export const propertyApi = {
     // Get nearby properties by lat/lng
     async getNearby(lat: number, lng: number, radius?: number): Promise<{ properties: Property[], radiusKm: number }> {
         const response = await api.get('/properties/nearby', { params: { lat, lng, radius } });
+        return response.data;
+    },
+
+    // Reverse geocode lat/lng to city name (proxied through backend to keep Google API key secure)
+    async reverseGeocode(lat: number, lng: number): Promise<{ city: string | null; region: string | null }> {
+        const response = await api.get('/properties/reverse-geocode', { params: { lat, lng } });
         return response.data;
     },
 

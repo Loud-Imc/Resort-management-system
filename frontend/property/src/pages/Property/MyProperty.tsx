@@ -9,7 +9,7 @@ import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
     Camera, X, CheckCircle, XCircle, Star, Image as ImageIcon,
     Plus, Clock, Percent, ShieldAlert, Trash2, FileText,
-    Users
+    Users, Navigation
 } from 'lucide-react';
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
@@ -220,6 +220,26 @@ export default function MyProperty() {
             setLongitude(parseFloat(qMatch[2]));
             toast.success('Coordinates extracted!');
         }
+    };
+
+    const handleFetchLocation = () => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported by your browser');
+            return;
+        }
+
+        toast.loading('Fetching your location...', { id: 'geo' });
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLatitude(position.coords.latitude);
+                setLongitude(position.coords.longitude);
+                toast.success('Coordinates fetched successfully!', { id: 'geo' });
+            },
+            (error) => {
+                console.error('Geo error:', error);
+                toast.error('Unable to retrieve your location. Check browser permissions.', { id: 'geo' });
+            }
+        );
     };
 
     const handleSave = async () => {
@@ -663,9 +683,19 @@ export default function MyProperty() {
                                             className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none text-sm font-medium"
                                         />
                                     </div>
-                                    <p className="text-[10px] text-gray-400 font-medium italic">
-                                        * Link is not stored. It's used to automatically fill Latitude and Longitude below.
-                                    </p>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[10px] text-gray-400 font-medium italic">
+                                            * Link is not stored. It's used to automatically fill Latitude and Longitude below.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleFetchLocation}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg transition-colors border border-blue-100 dark:border-blue-800"
+                                        >
+                                            <Navigation className="h-3.5 w-3.5" />
+                                            Fetch Current Location
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-800">

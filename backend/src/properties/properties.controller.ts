@@ -23,7 +23,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PropertyStatus, RequestStatus } from '@prisma/client';
 import axios from 'axios';
-import * as geoip from 'geoip-lite';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const geoip = require('offline-geo-from-ip');
 
 @ApiTags('Properties')
 @Controller('properties')
@@ -112,28 +113,44 @@ export class PropertiesController {
         return this.propertiesService.verifyCommissionOtp(phone, code);
     }
 
+    @Get('homepage-featured')
+    @ApiOperation({ summary: 'Get featured properties for homepage promo cards (single cascade)' })
+    async getHomepageFeatured(
+        @Query('limit') limit?: string,
+        @Query('city') city?: string,
+    ) {
+        return this.propertiesService.getHomepageFeatured(
+            limit ? parseInt(limit) : 3,
+            city || undefined,
+        );
+    }
+
     @Get()
     @ApiOperation({ summary: 'List all properties (public)' })
     findAll(@Query() query: PropertyQueryDto) {
+        console.log('all propertis api has called ')
         return this.propertiesService.findAll(query);
     }
 
+
     @Get('detect-location')
     @ApiOperation({ summary: 'Detect user location from Cloudflare headers or fallback IP (public)' })
-    async detectLocation(@Request() req: any) {
-        // 1. Try Cloudflare headers first
-        const cityHeader = req.headers['cf-ipcity'];
-        const regionHeader = req.headers['cf-region'];
+    async detectLocation(@Request() req: any, @Query('ip') queryIp?: string) {
+        // 1. Try Cloudflare headers first (unless queryIp is provided)
+        if (!queryIp) {
+            const cityHeader = req.headers['cf-ipcity'];
+            const regionHeader = req.headers['cf-region'];
 
-        if (cityHeader) {
-            return {
-                city: Array.isArray(cityHeader) ? cityHeader[0] : cityHeader,
-                region: Array.isArray(regionHeader) ? regionHeader[0] : (regionHeader || null),
-            };
+            if (cityHeader) {
+                return {
+                    city: Array.isArray(cityHeader) ? cityHeader[0] : cityHeader,
+                    region: Array.isArray(regionHeader) ? regionHeader[0] : (regionHeader || null),
+                };
+            }
         }
 
-        // 2. Fallback: Parse client IP from proxy headers (x-forwarded-for)
-        let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        // 2. Fallback: Parse client IP from query param, proxy headers (x-forwarded-for), or socket remote address
+        let ip = queryIp || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         if (Array.isArray(ip)) {
             ip = ip[0];
         } else if (typeof ip === 'string') {
@@ -154,17 +171,17 @@ export class PropertiesController {
         }
 
         try {
-            // Geolocate the IP locally via geoip-lite
-            const geo = geoip.lookup(ip);
+            // Geolocate the IP locally via offline-geo-from-ip
+            const geo = geoip.allData(ip);
             console.log('[Geolocation] Lookup result:', geo);
             if (geo && geo.city) {
                 return {
                     city: geo.city,
-                    region: geo.region || null,
+                    region: geo.state || null,
                 };
             }
         } catch (error) {
-            console.error('[Geolocation] Failed to geolocate IP locally via geoip-lite:', error);
+            console.error('[Geolocation] Failed to geolocate IP locally via offline-geo-from-ip:', error);
         }
 
         return { city: null, region: null };
@@ -174,6 +191,13 @@ export class PropertiesController {
     @ApiOperation({ summary: 'Google Places autocomplete proxy (public)' })
     autocomplete(@Query('input') input: string) {
         return this.propertiesService.getPlaceAutocomplete(input || '');
+    }
+
+    @Get('place-details')
+    @ApiOperation({ summary: 'Get place details (lat/lng) by placeId proxy (public)' })
+    getPlaceDetails(@Query('placeId') placeId: string) {
+        if (!placeId) return { lat: null, lng: null };
+        return this.propertiesService.getPlaceDetails(placeId);
     }
 
     @Get('nearby')
@@ -187,6 +211,18 @@ export class PropertiesController {
             parseFloat(lat),
             parseFloat(lng),
             radius ? parseFloat(radius) : 100,
+        );
+    }
+
+    @Get('reverse-geocode')
+    @ApiOperation({ summary: 'Reverse geocode lat/lng to city name via Google API (public)' })
+    reverseGeocode(
+        @Query('lat') lat: string,
+        @Query('lng') lng: string,
+    ) {
+        return this.propertiesService.reverseGeocode(
+            parseFloat(lat),
+            parseFloat(lng),
         );
     }
 

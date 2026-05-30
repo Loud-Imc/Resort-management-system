@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useProperty } from '../../context/PropertyContext';
+
 import { usersService } from '../../services/users';
 import {
     Loader2,
@@ -17,15 +17,13 @@ import type { User } from '../../types/user';
 import toast from 'react-hot-toast';
 
 export default function UsersList() {
-    const { selectedProperty } = useProperty();
+    // const { selectedProperty } = useProperty();
     const [search, setSearch] = useState('');
     const queryClient = useQueryClient();
 
     const { data: users, isLoading } = useQuery<User[]>({
-        queryKey: ['users', selectedProperty?.id],
-        queryFn: () => usersService.getAll({
-            propertyId: selectedProperty?.id
-        }),
+        queryKey: ['users'],
+        queryFn: () => usersService.getAll(),
     });
 
     const deleteMutation = useMutation({

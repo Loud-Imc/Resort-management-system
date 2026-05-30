@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 
 import { useNavigation } from '../hooks/useNavigation';
 import { useEffect } from 'react';
+import PropertyReadiness from '../components/PropertyReadiness';
 
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
@@ -112,6 +113,8 @@ export default function DashboardHome() {
 
     return (
         <div className="space-y-6">
+            <PropertyReadiness />
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

@@ -43,11 +43,25 @@ export default function SearchForm({
 
         setIsLocating(true);
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                setLatitude(position.coords.latitude);
-                setLongitude(position.coords.longitude);
-                setLocation('Current Location');
-                setIsLocating(false);
+            async (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                setLatitude(lat);
+                setLongitude(lng);
+
+                try {
+                    const data = await propertyApi.reverseGeocode(lat, lng);
+                    if (data && data.city) {
+                        setLocation(data.city);
+                    } else {
+                        setLocation(''); // fallback to placeholder logic
+                    }
+                } catch (error) {
+                    console.error('Failed to reverse geocode:', error);
+                    setLocation('');
+                } finally {
+                    setIsLocating(false);
+                }
             },
             () => {
                 alert('Unable to retrieve your location');
@@ -78,8 +92,8 @@ export default function SearchForm({
         });
 
         if (latitude && longitude) {
-            params.set('latitude', latitude.toString());
-            params.set('longitude', longitude.toString());
+            params.set('lat', latitude.toString());
+            params.set('lng', longitude.toString());
             if (radius) params.set('radius', radius.toString());
         }
 

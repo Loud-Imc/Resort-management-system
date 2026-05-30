@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
-import { categoryService } from '../../services/category';
-import { PropertyCategory } from '../../types/category';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
+import clsx from 'clsx';
+import { useNavigate } from 'react-router-dom';
 
 const propertyTypeLabels: Record<PropertyType, string> = {
     RESORT: 'Resort',
@@ -21,10 +23,41 @@ const propertyTypeColors: Record<PropertyType, string> = {
     OTHER: 'bg-gray-100 text-gray-800',
 };
 
-import { useAuth } from '../../context/AuthContext';
-import toast from 'react-hot-toast';
-import clsx from 'clsx';
-import { useNavigate } from 'react-router-dom';
+// Maps a flag filter key to the API query params it represents
+type FlagFilter =
+    | ''
+    | 'APPROVED'
+    | 'PENDING'
+    | 'REJECTED'
+    | 'DISABLED'
+    | 'FEATURED'
+    | 'VERIFIED'
+    | 'UNIQUE';
+
+const FLAG_OPTIONS: { value: FlagFilter; label: string }[] = [
+    { value: '',         label: 'All Statuses' },
+    { value: 'APPROVED', label: '✅ Approved' },
+    { value: 'PENDING',  label: '🕐 Pending' },
+    { value: 'REJECTED', label: '❌ Rejected' },
+    { value: 'DISABLED', label: '🚫 Disabled' },
+    { value: 'FEATURED', label: '⭐ Featured' },
+    { value: 'VERIFIED', label: '🛡 Verified' },
+    { value: 'UNIQUE',   label: '⚡ Unique (Sponsored)' },
+];
+
+/** Convert a FlagFilter into the right set of API query params */
+function flagToParams(flag: FlagFilter): Partial<PropertyQueryParams> {
+    switch (flag) {
+        case 'APPROVED':  return { status: 'APPROVED', isActive: true };
+        case 'PENDING':   return { status: 'PENDING' };
+        case 'REJECTED':  return { status: 'REJECTED' };
+        case 'DISABLED':  return { status: 'APPROVED', isActive: false };
+        case 'FEATURED':  return { isFeatured: true };
+        case 'VERIFIED':  return { isVerified: true };
+        case 'UNIQUE':    return { isSponsored: true };
+        default:          return {}; // no filter = all
+    }
+}
 
 export default function PropertiesList() {
 
@@ -35,17 +68,17 @@ export default function PropertiesList() {
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState<PropertyType | ''>('');
-    const [categoryId, setCategoryId] = useState('');
-    const [categories, setCategories] = useState<PropertyCategory[]>([]);
+    const [flagFilter, setFlagFilter] = useState<FlagFilter>('');
 
+    // Auto-fetch on mount and whenever dropdown filters change
     useEffect(() => {
         loadProperties();
-        loadCategories();
-    }, []);
+    }, [typeFilter, flagFilter]);
 
-    const loadProperties = async () => {
+    const loadProperties = async (overrideSearch?: string) => {
         try {
             setLoading(true);
+            setError(null);
             const isManageable = user?.role === 'SuperAdmin' ||
                 user?.role === 'Admin' ||
                 user?.role === 'PropertyOwner' ||
@@ -53,10 +86,9 @@ export default function PropertiesList() {
                 user?.role === 'Marketing';
 
             const params: PropertyQueryParams = {
-                search,
+                search: (overrideSearch ?? search) || undefined,
                 type: typeFilter || undefined,
-                categoryId: categoryId || undefined,
-                status: 'APPROVED' // Default to approved only for this list
+                ...flagToParams(flagFilter),
             };
 
             const response = isManageable
@@ -70,18 +102,7 @@ export default function PropertiesList() {
         }
     };
 
-    const loadCategories = async () => {
-        try {
-            const data = await categoryService.getAll();
-            setCategories(data);
-        } catch (err) {
-            console.error('Failed to load categories', err);
-        }
-    };
-
-    const handleSearch = () => {
-        loadProperties();
-    };
+    const handleSearch = () => loadProperties();
 
     const handleToggleActive = async (id: string, isActive: boolean) => {
         try {
@@ -105,7 +126,6 @@ export default function PropertiesList() {
         }
 
         const propertyUrl = import.meta.env.VITE_PROPERTY_URL;
-        // Base64 encode user data for safe transmission
         const encodedUser = btoa(userData);
 
         const params = new URLSearchParams({
@@ -131,21 +151,27 @@ export default function PropertiesList() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">All Properties</h1>
-                    <p className="text-muted-foreground">Platform-wide overview of active and inactive properties</p>
+                    <p className="text-muted-foreground">Platform-wide overview of all properties</p>
                 </div>
+                <span className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-lg font-medium">
+                    {properties.length} result{properties.length !== 1 ? 's' : ''}
+                </span>
             </div>
 
             {/* Filters */}
             <div className="bg-card rounded-xl shadow-sm p-4 border border-border">
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Search */}
                     <input
                         type="text"
                         placeholder="Search by name, city, phone..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                         className="flex-1 px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                     />
+
+                    {/* Property Type */}
                     <select
                         value={typeFilter}
                         onChange={(e) => setTypeFilter(e.target.value as PropertyType | '')}
@@ -157,19 +183,20 @@ export default function PropertiesList() {
                         ))}
                     </select>
 
+                    {/* Status / Flag Filter */}
                     <select
-                        value={categoryId}
-                        onChange={(e) => setCategoryId(e.target.value)}
+                        value={flagFilter}
+                        onChange={(e) => setFlagFilter(e.target.value as FlagFilter)}
                         className="px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                     >
-                        <option value="">All Categories</option>
-                        {categories.map(cat => (
-                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        {FLAG_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                     </select>
+
                     <button
                         onClick={handleSearch}
-                        className="px-6 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+                        className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
                     >
                         Search
                     </button>
@@ -185,7 +212,7 @@ export default function PropertiesList() {
                 <div className="bg-card rounded-xl shadow-sm border border-border p-12 text-center">
                     <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
                     <h3 className="text-lg font-medium text-card-foreground">No properties found</h3>
-                    <p className="text-muted-foreground mt-1">Properties will appear here once approved through the Vetting process.</p>
+                    <p className="text-muted-foreground mt-1">Try adjusting your filters or search term.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -207,10 +234,12 @@ export default function PropertiesList() {
                                         <Building2 className="h-12 w-12 text-muted-foreground opacity-50" />
                                     </div>
                                 )}
+
                                 {/* Type/Category Badge */}
-                                <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold rounded shadow-sm ${propertyTypeColors[property.type]} opacity-90 transition-opacity hover:opacity-100`}>
+                                <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold rounded shadow-sm ${propertyTypeColors[property.type]} opacity-90`}>
                                     {property.category?.name || propertyTypeLabels[property.type]}
                                 </span>
+
                                 {/* Status Badges */}
                                 <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
                                     {property.isFeatured && (
@@ -221,27 +250,27 @@ export default function PropertiesList() {
                                     )}
                                     {property.isSponsored && (
                                         <span className="bg-indigo-600 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
-                                            <Building2 className="h-3 w-3 fill-current" />
+                                            <Zap className="h-3 w-3 fill-current" />
                                             Unique
                                         </span>
                                     )}
                                     {property.isVerified && (
-                                        <span className="bg-green-500 text-white px-2 py-1 text-xs rounded flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3" />
+                                        <span className="bg-green-500 text-white px-2 py-1 text-xs rounded flex items-center gap-1 shadow-sm">
+                                            <ShieldCheck className="h-3 w-3" />
                                             Verified
                                         </span>
                                     )}
                                     <span className={clsx(
                                         "px-2 py-1 text-xs rounded font-bold shadow-sm",
                                         property.status === 'APPROVED' ? 'bg-green-500 text-white' :
-                                            property.status === 'PENDING' ? 'bg-amber-500 text-white' :
-                                                property.status === 'REJECTED' ? 'bg-red-500 text-white' :
-                                                    'bg-gray-500 text-white'
+                                        property.status === 'PENDING'  ? 'bg-amber-500 text-white' :
+                                        property.status === 'REJECTED' ? 'bg-red-500 text-white' :
+                                                                         'bg-gray-500 text-white'
                                     )}>
                                         {property.status}
                                     </span>
                                     {!property.isActive && property.status === 'APPROVED' && (
-                                        <span className="bg-red-500 text-white px-2 py-1 text-xs rounded">
+                                        <span className="bg-red-600 text-white px-2 py-1 text-xs rounded font-bold">
                                             Disabled
                                         </span>
                                     )}
@@ -282,7 +311,7 @@ export default function PropertiesList() {
                                             Impersonate Property Dashboard
                                         </button>
 
-                                        {/* Tertiary Actions */}
+                                        {/* Secondary Actions */}
                                         <div className="flex gap-2.5">
                                             <button
                                                 onClick={() => navigate(`/properties/${property.id}/edit`)}

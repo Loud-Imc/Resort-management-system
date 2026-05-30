@@ -13,7 +13,7 @@ interface Suggestion {
 interface Props {
     value: string;
     onChange: (value: string) => void;
-    onSelect?: (description: string) => void;
+    onSelect?: (description: string, lat?: number, lng?: number) => void;
     placeholder?: string;
     className?: string;
     inputClassName?: string;
@@ -21,6 +21,7 @@ interface Props {
     onUseLocation?: () => void;
     isLocating?: boolean;
     hideIcon?: boolean;
+    latitude?: number | null;
 }
 
 export default function LocationAutocomplete({
@@ -33,6 +34,7 @@ export default function LocationAutocomplete({
     onUseLocation,
     isLocating,
     hideIcon = false,
+    latitude,
 }: Props) {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -43,7 +45,7 @@ export default function LocationAutocomplete({
     const isDark = theme === 'dark';
 
     const fetchSuggestions = useCallback(async (input: string) => {
-        if (input.length < 2) {
+        if (!input.trim() || input.length < 2) {
             setSuggestions([]);
             setIsOpen(false);
             return;
@@ -70,12 +72,27 @@ export default function LocationAutocomplete({
         debounceRef.current = setTimeout(() => fetchSuggestions(val), 300);
     };
 
-    const handleSelect = (suggestion: Suggestion) => {
+    const handleSelect = async (suggestion: Suggestion) => {
         onChange(suggestion.mainText);
-        onSelect?.(suggestion.description);
         setSuggestions([]);
         setIsOpen(false);
         setActiveIndex(-1);
+
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${API_URL}/api/properties/place-details?placeId=${suggestion.placeId}`);
+            const data = await res.json();
+            if (data && data.lat !== null && data.lng !== null) {
+                onSelect?.(suggestion.description, data.lat, data.lng);
+            } else {
+                onSelect?.(suggestion.description);
+            }
+        } catch (err) {
+            console.error('Error fetching place details:', err);
+            onSelect?.(suggestion.description);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -128,7 +145,7 @@ export default function LocationAutocomplete({
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={() => setIsOpen(true)}
-                    placeholder={placeholder}
+                    placeholder={!value && latitude ? '📍 Nearby' : placeholder}
                     className={inputClassName}
                     autoComplete="off"
                 />

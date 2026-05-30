@@ -116,6 +116,9 @@ export interface PropertyQueryParams {
     radius?: number;
     allowsGroupBooking?: boolean;
     isSponsored?: boolean;
+    isFeatured?: boolean;
+    isVerified?: boolean;
+    isActive?: boolean;
     status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
 }
 

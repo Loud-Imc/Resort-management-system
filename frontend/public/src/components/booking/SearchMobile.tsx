@@ -44,6 +44,8 @@ interface SearchProps {
     setGroupSize: (v: number) => void;
     onUseLocation?: () => void;
     isLocating?: boolean;
+    latitude?: number | null;
+    setLatitude?: (v: number | null) => void;
 }
 
 export default function SearchMobile({
@@ -60,7 +62,9 @@ export default function SearchMobile({
     theme = 'dark',
     isGroupBooking, setIsGroupBooking,
     groupSize, setGroupSize,
-    onUseLocation, isLocating
+    onUseLocation, isLocating,
+    latitude, setLatitude,
+    setLongitude
 }: SearchProps) {
     const isDark = theme === 'dark';
     const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -190,11 +194,21 @@ export default function SearchMobile({
                         <LocationAutocomplete
                             value={location}
                             onChange={setLocation}
-                            onSelect={(description) => setLocation(description.split(',')[0])}
+                            onSelect={(description, lat, lng) => {
+                                setLocation(description.split(',')[0]);
+                                if (lat !== undefined && lng !== undefined) {
+                                    setLatitude?.(lat);
+                                    setLongitude(lng);
+                                } else {
+                                    setLatitude?.(null);
+                                    setLongitude(null);
+                                }
+                            }}
                             placeholder="City or Resort Name"
                             theme={theme}
                             onUseLocation={onUseLocation}
                             isLocating={isLocating}
+                            latitude={latitude}
                             inputClassName={`w-full bg-transparent text-lg font-bold ${isDark ? 'text-white placeholder:text-white/20' : 'text-gray-900 placeholder:text-gray-200'} outline-none border-none p-0 focus:ring-0`}
                         />
                     </div>

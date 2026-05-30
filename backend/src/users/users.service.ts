@@ -103,26 +103,29 @@ export class UsersService {
         });
 
         if (existingUser) {
-            // If user exists, we only need to add missing roles
             const currentRoleIds = existingUser.roles.map(r => r.roleId);
             const rolesToAdd = roleIds?.filter(rid => !currentRoleIds.includes(rid)) || [];
 
-            if (rolesToAdd.length === 0) {
-                const { password: _, ...result } = existingUser as any;
-                return result;
+            const updateData: any = { ...userData };
+            if (password) {
+                updateData.password = await bcrypt.hash(password, 10);
+            }
+            if (rolesToAdd.length > 0) {
+                updateData.roles = {
+                    create: rolesToAdd.map(roleId => ({
+                        role: { connect: { id: roleId } }
+                    }))
+                };
             }
 
-            return this.prisma.user.update({
+            const updatedUser = await this.prisma.user.update({
                 where: { id: existingUser.id },
-                data: {
-                    roles: {
-                        create: rolesToAdd.map(roleId => ({
-                            role: { connect: { id: roleId } }
-                        }))
-                    }
-                },
+                data: updateData,
                 include: { roles: { include: { role: true } } }
             });
+
+            const { password: _, ...result } = updatedUser as any;
+            return result;
         }
 
         try {

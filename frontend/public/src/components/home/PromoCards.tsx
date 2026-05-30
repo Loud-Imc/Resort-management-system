@@ -3,7 +3,7 @@ import { Star, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { propertyApi } from '../../services/properties';
 
-import { useSearch } from '../../context/SearchContext';
+
 
 // Fallback static cards just in case the system holds absolutely zero properties
 const LOCAL_FALLBACKS = [
@@ -41,117 +41,97 @@ const LOCAL_FALLBACKS = [
 
 export default function PromoCards() {
     const navigate = useNavigate();
-    const { location: activeSearchLocation } = useSearch();
 
     const [properties, setProperties] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [detectedCity, setDetectedCity] = useState<string>('');
 
-    // // 1. Detect User City via IP (First-time default context)
-    // useEffect(() => {
-    //     const detectLocation = async () => {
-    //         try {
-    //             // Check local storage first to avoid spamming public IP API
-    //             const cachedCity = localStorage.getItem('user_detected_city');
-    //             if (cachedCity) {
-    //                 setDetectedCity(cachedCity);
-    //                 return;
-    //             }
-
-    //             // Query public HTTPS IP lookup
-    //             const res = await fetch('https://free.freeipapi.com/api/json');
-    //             const data = await res.json();
-    //             if (data && data.cityName) {
-    //                 setDetectedCity(data.cityName);
-    //                 localStorage.setItem('user_detected_city', data.cityName);
-    //             }
-    //         } catch (err) {
-    //             console.warn('Failed to detect geolocation, falling back to global featured listings.', err);
-    //         }
-    //     };
-
-    //     detectLocation();
-    // }, []);
-
-    // 2. Reactively fetch Featured Properties whenever location changes
-   
-        // 1. Detect User City via Cloudflare (from our own backend)
+    // Detect user city: Step 0 → GPS + Google Reverse Geocode, Step 1 → IP detection fallback
     useEffect(() => {
         const detectLocation = async () => {
             try {
-                // Check local storage first to avoid redundant hits
-                const cachedCity = localStorage.getItem('user_detected_city');
-                if (cachedCity) {
-                    setDetectedCity(cachedCity);
+                // Check local storage first (24h TTL) — avoids prompting the user on every visit
+                const cachedCityRaw = localStorage.getItem('user_detected_city');
+                if (cachedCityRaw) {
+                    try {
+                        const { city, timestamp } = JSON.parse(cachedCityRaw);
+                        if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+                            setDetectedCity(city);
+                            return;
+                        }
+                    } catch (e) {
+                        // ignore parse error, proceed to detect fresh
+                    }
+                }
+
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+                // ── STEP 0: Browser GPS → Google Reverse Geocoding ──────────────
+                // Ask the browser for permission. This shows the native "Allow location?" prompt.
+                // We only wait 8 seconds; if the user ignores/dismisses, we fall through.
+                const gpsCity = await new Promise<string | null>((resolve) => {
+                    if (!navigator.geolocation) {
+                        resolve(null);
+                        return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                            try {
+                                const { latitude, longitude } = position.coords;
+                                const res = await fetch(
+                                    `${API_URL}/api/properties/reverse-geocode?lat=${latitude}&lng=${longitude}`
+                                );
+                                const data = await res.json();
+                                resolve(data?.city || null);
+                            } catch {
+                                resolve(null);
+                            }
+                        },
+                        () => resolve(null), // user denied or error
+                        { timeout: 8000, maximumAge: 60000 }
+                    );
+                });
+
+                if (gpsCity) {
+                    setDetectedCity(gpsCity);
+                    localStorage.setItem('user_detected_city', JSON.stringify({
+                        city: gpsCity,
+                        timestamp: Date.now()
+                    }));
                     return;
                 }
 
-                // Query our own backend location detector
-                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                // ── STEP 1: IP-based detection via backend (Cloudflare / offline-geo-from-ip) ──
                 const res = await fetch(`${API_URL}/api/properties/detect-location`);
                 const data = await res.json();
-                console.log(data)
-                // If Cloudflare successfully geolocated the city
+
                 if (data && data.city) {
                     setDetectedCity(data.city);
-                    localStorage.setItem('user_detected_city', data.city);
+                    localStorage.setItem('user_detected_city', JSON.stringify({
+                        city: data.city,
+                        timestamp: Date.now()
+                    }));
                 } else {
-                    // Local development fallback (since localhost doesn't route through Cloudflare)
-                    setDetectedCity('Ernakulam'); 
+                    // IP unresolvable (e.g. localhost) → fetch global featured
+                    setDetectedCity('');
                 }
             } catch (err) {
-                console.warn('Failed to detect geolocation, falling back to default.', err);
-                setDetectedCity('Idukki');
+                console.warn('Failed to detect geolocation, falling back to global featured.', err);
+                setDetectedCity('');
             }
         };
 
         detectLocation();
     }, []);
 
+    // 2. Reactively fetch Featured Properties for detected location
     useEffect(() => {
         const fetchPromotions = async () => {
             try {
                 setLoading(true);
 
-                // Priority 1: Active User Search. Priority 2: IP Geo detection
-                const targetRegion = activeSearchLocation || detectedCity;
-
-                // Attempt to fetch 3 regional featured listings
-                let fetchedList = await propertyApi.getFeatured(3, targetRegion || undefined);
-
-                // If regional availability < 3, backfill with general globally featured properties
-                if (fetchedList.length < 3) {
-                    const globalList = await propertyApi.getFeatured(6);
-
-                    // Merge and remove duplicates
-                    const merged = [...fetchedList];
-                    for (const prop of globalList) {
-                        if (merged.length >= 3) break;
-                        if (!merged.some(p => p.id === prop.id)) {
-                            merged.push(prop);
-                        }
-                    }
-                    fetchedList = merged;
-                }
-
-                // 3. Ultimate Active DB Fallback: If STILL < 3, query regular active database properties
-                // This ensures that even if NOONE has requested promotions, we still display real live properties!
-                if (fetchedList.length < 3) {
-                    try {
-                        const res = await propertyApi.getAll({ limit: 10 });
-                        const allProperties = res?.data || [];
-                        const merged = [...fetchedList];
-                        for (const prop of allProperties) {
-                            if (merged.length >= 3) break;
-                            if (!merged.some(p => p.id === prop.id)) {
-                                merged.push(prop);
-                            }
-                        }
-                        fetchedList = merged;
-                    } catch (err) {
-                        console.warn('Failed to query ultimate fallback general properties.', err);
-                    }
-                }
+                // Use the new single-call cascade endpoint on the backend
+                let fetchedList = await propertyApi.getHomepageFeatured(3, detectedCity || undefined);
 
                 // Final Fallback to static design placeholders if DB contains 0 properties
                 if (fetchedList.length === 0) {
@@ -175,7 +155,7 @@ export default function PromoCards() {
         };
 
         fetchPromotions();
-    }, [activeSearchLocation, detectedCity]);
+    }, [detectedCity]);
 
     const handleCardClick = (prop: any) => {
         if (prop.slug) {
