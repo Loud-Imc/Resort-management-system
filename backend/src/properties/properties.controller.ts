@@ -128,6 +128,7 @@ export class PropertiesController {
     @Get()
     @ApiOperation({ summary: 'List all properties (public)' })
     findAll(@Query() query: PropertyQueryDto) {
+        console.log('all propertis api has called ')
         return this.propertiesService.findAll(query);
     }
 
@@ -192,6 +193,13 @@ export class PropertiesController {
         return this.propertiesService.getPlaceAutocomplete(input || '');
     }
 
+    @Get('place-details')
+    @ApiOperation({ summary: 'Get place details (lat/lng) by placeId proxy (public)' })
+    getPlaceDetails(@Query('placeId') placeId: string) {
+        if (!placeId) return { lat: null, lng: null };
+        return this.propertiesService.getPlaceDetails(placeId);
+    }
+
     @Get('nearby')
     @ApiOperation({ summary: 'Find nearby properties by lat/lng (public)' })
     findNearby(
@@ -203,6 +211,18 @@ export class PropertiesController {
             parseFloat(lat),
             parseFloat(lng),
             radius ? parseFloat(radius) : 100,
+        );
+    }
+
+    @Get('reverse-geocode')
+    @ApiOperation({ summary: 'Reverse geocode lat/lng to city name via Google API (public)' })
+    reverseGeocode(
+        @Query('lat') lat: string,
+        @Query('lng') lng: string,
+    ) {
+        return this.propertiesService.reverseGeocode(
+            parseFloat(lat),
+            parseFloat(lng),
         );
     }
 

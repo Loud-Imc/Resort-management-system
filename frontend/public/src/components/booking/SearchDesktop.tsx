@@ -36,6 +36,9 @@ interface SearchProps {
     onUseLocation?: () => void;
     isLocating?: boolean;
     latitude?: number | null;
+    setLatitude?: (v: number | null) => void;
+    longitude?: number | null;
+    setLongitude?: (v: number | null) => void;
 }
 
 export default function SearchDesktop({
@@ -49,7 +52,9 @@ export default function SearchDesktop({
     isGroupBooking,
     groupSize, setGroupSize,
     onUseLocation, isLocating,
-    latitude
+    latitude,
+    setLatitude,
+    setLongitude,
 }: SearchProps) {
     const [showGuestModal, setShowGuestModal] = React.useState(false);
     const guestModalRef = React.useRef<HTMLDivElement>(null);
@@ -69,7 +74,16 @@ export default function SearchDesktop({
                             <LocationAutocomplete
                                 value={location}
                                 onChange={(val) => setLocation(val)}
-                                onSelect={(description) => setLocation(description.split(',')[0])}
+                                onSelect={(description, lat, lng) => {
+                                    setLocation(description.split(',')[0]);
+                                    if (lat !== undefined && lng !== undefined) {
+                                        setLatitude?.(lat);
+                                        setLongitude?.(lng);
+                                    } else {
+                                        setLatitude?.(null);
+                                        setLongitude?.(null);
+                                    }
+                                }}
                                 placeholder="Search destinations"
                                 theme="light"
                                 hideIcon={true}

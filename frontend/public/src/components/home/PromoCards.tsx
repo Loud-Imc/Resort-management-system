@@ -46,31 +46,65 @@ export default function PromoCards() {
     const [loading, setLoading] = useState(true);
     const [detectedCity, setDetectedCity] = useState<string>('');
 
-    // 1. Detect User City via Cloudflare (from our own backend)
+    // Detect user city: Step 0 → GPS + Google Reverse Geocode, Step 1 → IP detection fallback
     useEffect(() => {
         const detectLocation = async () => {
             try {
-                // Check local storage first to avoid redundant hits, with 24h TTL
+                // Check local storage first (24h TTL) — avoids prompting the user on every visit
                 const cachedCityRaw = localStorage.getItem('user_detected_city');
                 if (cachedCityRaw) {
                     try {
                         const { city, timestamp } = JSON.parse(cachedCityRaw);
-                        // 24 hours TTL
                         if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
                             setDetectedCity(city);
                             return;
                         }
                     } catch (e) {
-                        // ignore parse error and proceed to fetch
+                        // ignore parse error, proceed to detect fresh
                     }
                 }
 
-                // Query our own backend location detector
                 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+                // ── STEP 0: Browser GPS → Google Reverse Geocoding ──────────────
+                // Ask the browser for permission. This shows the native "Allow location?" prompt.
+                // We only wait 8 seconds; if the user ignores/dismisses, we fall through.
+                const gpsCity = await new Promise<string | null>((resolve) => {
+                    if (!navigator.geolocation) {
+                        resolve(null);
+                        return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                            try {
+                                const { latitude, longitude } = position.coords;
+                                const res = await fetch(
+                                    `${API_URL}/api/properties/reverse-geocode?lat=${latitude}&lng=${longitude}`
+                                );
+                                const data = await res.json();
+                                resolve(data?.city || null);
+                            } catch {
+                                resolve(null);
+                            }
+                        },
+                        () => resolve(null), // user denied or error
+                        { timeout: 8000, maximumAge: 60000 }
+                    );
+                });
+
+                if (gpsCity) {
+                    setDetectedCity(gpsCity);
+                    localStorage.setItem('user_detected_city', JSON.stringify({
+                        city: gpsCity,
+                        timestamp: Date.now()
+                    }));
+                    return;
+                }
+
+                // ── STEP 1: IP-based detection via backend (Cloudflare / offline-geo-from-ip) ──
                 const res = await fetch(`${API_URL}/api/properties/detect-location`);
                 const data = await res.json();
-                
-                // If geolocated successfully
+
                 if (data && data.city) {
                     setDetectedCity(data.city);
                     localStorage.setItem('user_detected_city', JSON.stringify({
@@ -78,11 +112,11 @@ export default function PromoCards() {
                         timestamp: Date.now()
                     }));
                 } else {
-                    // Local development or undetected fallback (empty string means fetch global featured)
-                    setDetectedCity(''); 
+                    // IP unresolvable (e.g. localhost) → fetch global featured
+                    setDetectedCity('');
                 }
             } catch (err) {
-                console.warn('Failed to detect geolocation, falling back to default.', err);
+                console.warn('Failed to detect geolocation, falling back to global featured.', err);
                 setDetectedCity('');
             }
         };

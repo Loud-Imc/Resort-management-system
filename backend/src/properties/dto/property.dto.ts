@@ -413,5 +413,10 @@ export class PropertyQueryDto {
     @IsNumber()
     @Type(() => Number)
     groupPricePerHead?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    isActive?: boolean;
 }
 

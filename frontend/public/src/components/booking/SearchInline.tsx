@@ -41,6 +41,9 @@ interface SearchProps {
     onUseLocation?: () => void;
     isLocating?: boolean;
     latitude?: number | null;
+    setLatitude?: (v: number | null) => void;
+    longitude?: number | null;
+    setLongitude?: (v: number | null) => void;
 }
 
 export default function SearchInline({
@@ -57,7 +60,8 @@ export default function SearchInline({
     isGroupBooking, setIsGroupBooking,
     groupSize, setGroupSize,
     onUseLocation, isLocating,
-    latitude
+    latitude, setLatitude,
+    setLongitude
 }: SearchProps) {
     const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
@@ -120,7 +124,16 @@ export default function SearchInline({
                                     <LocationAutocomplete
                                         value={location}
                                         onChange={setLocation}
-                                        onSelect={(description) => setLocation(description.split(',')[0])}
+                                        onSelect={(description, lat, lng) => {
+                                            setLocation(description.split(',')[0]);
+                                            if (lat !== undefined && lng !== undefined) {
+                                                setLatitude?.(lat);
+                                                setLongitude?.(lng);
+                                            } else {
+                                                setLatitude?.(null);
+                                                setLongitude?.(null);
+                                            }
+                                        }}
                                         placeholder="Where to?"
                                         theme="light"
                                         onUseLocation={onUseLocation}
@@ -393,7 +406,16 @@ export default function SearchInline({
                     <LocationAutocomplete
                         value={location}
                         onChange={setLocation}
-                        onSelect={(description) => setLocation(description.split(',')[0])}
+                        onSelect={(description, lat, lng) => {
+                            setLocation(description.split(',')[0]);
+                            if (lat !== undefined && lng !== undefined) {
+                                setLatitude?.(lat);
+                                setLongitude?.(lng);
+                            } else {
+                                setLatitude?.(null);
+                                setLongitude?.(null);
+                            }
+                        }}
                         placeholder="Where to?"
                         theme="light"
                         onUseLocation={onUseLocation}

@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PropertyStatus } from '@prisma/client';
 import { PricingService } from './pricing.service';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 
 @Injectable()
 export class AvailabilityService {
     constructor(
         private prisma: PrismaService,
         private pricingService: PricingService,
+        private systemSettingsService: SystemSettingsService,
     ) { }
 
     /**
@@ -325,8 +327,10 @@ export class AvailabilityService {
 
         let geoPropertyIds: string[] | null = null;
 
-        // Handle geo-spatial search if lat/lng/radius are provided
-        if (latitude !== undefined && longitude !== undefined && radius !== undefined) {
+        // Handle geo-spatial search if lat/lng are provided
+        const defaultRadius = await this.systemSettingsService.getSetting('SEARCH_RADIUS') || 50;
+        const searchRadius = radius ?? defaultRadius;
+        if (latitude !== undefined && longitude !== undefined) {
             const results = await this.prisma.$queryRaw<any[]>`
                 SELECT id FROM properties
                 WHERE (
@@ -335,7 +339,7 @@ export class AvailabilityService {
                         cos(radians(CAST(longitude AS DOUBLE PRECISION)) - radians(${Number(longitude)})) +
                         sin(radians(${Number(latitude)})) * sin(radians(CAST(latitude AS DOUBLE PRECISION)))
                     )
-                ) <= ${Number(radius)}
+                ) <= ${Number(searchRadius)}
             `;
             geoPropertyIds = results.map(r => r.id);
         }
@@ -343,6 +347,35 @@ export class AvailabilityService {
         // Required capacity per room
         const minAdultsPerRoom = Math.ceil(adults / rooms);
         const minChildrenPerRoom = Math.ceil(children / rooms);
+
+        const locationFilter = location ? [
+            { city: { contains: location, mode: 'insensitive' } },
+            { city: { startsWith: location.substring(0, Math.min(location.length, 6)), mode: 'insensitive' } },
+            { address: { contains: location, mode: 'insensitive' } },
+            { state: { contains: location, mode: 'insensitive' } },
+            { name: { contains: location, mode: 'insensitive' } },
+        ] : [];
+
+        const geoOrLocationFilter = () => {
+            if (propertyId) return { id: propertyId };
+            if (geoPropertyIds !== null) {
+                return {
+                    OR: [
+                        { id: { in: geoPropertyIds } },
+                        ...(location ? [{
+                            AND: [
+                                { latitude: null },
+                                { OR: locationFilter as any }
+                            ]
+                        }] : [])
+                    ]
+                };
+            }
+            if (location) {
+                return { OR: locationFilter as any };
+            }
+            return {};
+        };
 
         const results: any[] = [];
 
@@ -367,15 +400,8 @@ export class AvailabilityService {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
                     categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
-                    id: propertyId || (geoPropertyIds !== null ? { in: geoPropertyIds } : undefined),
-                    ...(location && {
-                        OR: [
-                            { city: { contains: location, mode: 'insensitive' } },
-                            { address: { contains: location, mode: 'insensitive' } },
-                            { state: { contains: location, mode: 'insensitive' } },
-                            { name: { contains: location, mode: 'insensitive' } },
-                        ]
-                    }),
+                    ...geoOrLocationFilter(),
+
                     ...(type && type !== 'ALL' && { type: type as any }),
                 },
                 include: {
@@ -520,15 +546,7 @@ export class AvailabilityService {
                     isActive: true,
                     status: PropertyStatus.APPROVED,
                     categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
-                    ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
-                    ...(location && {
-                        OR: [
-                            { city: { contains: location, mode: 'insensitive' } },
-                            { address: { contains: location, mode: 'insensitive' } },
-                            { state: { contains: location, mode: 'insensitive' } },
-                            { name: { contains: location, mode: 'insensitive' } },
-                        ]
-                    }),
+                    ...geoOrLocationFilter(),
                     ...(type && type !== 'ALL' && { type: type as any }),
                 }
             },

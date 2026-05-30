@@ -61,6 +61,12 @@ export const propertyApi = {
         return response.data;
     },
 
+    // Reverse geocode lat/lng to city name (proxied through backend to keep Google API key secure)
+    async reverseGeocode(lat: number, lng: number): Promise<{ city: string | null; region: string | null }> {
+        const response = await api.get('/properties/reverse-geocode', { params: { lat, lng } });
+        return response.data;
+    },
+
     // Get location autocomplete suggestions
     async autocomplete(input: string): Promise<{ placeId: string; description: string; mainText: string; secondaryText: string }[]> {
         const response = await api.get('/properties/autocomplete', { params: { input } });

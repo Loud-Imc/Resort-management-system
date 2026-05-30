@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
@@ -6,7 +6,6 @@ import { useSearch } from '../context/SearchContext';
 import { useCurrency } from '../context/CurrencyContext';
 import SearchForm from '../components/booking/SearchForm';
 import PropertyCard from '../components/PropertyCard';
-import { propertyApi } from '../services/properties';
 
 import { Loader2, AlertCircle, Search, MapPin } from 'lucide-react';
 
@@ -54,9 +53,6 @@ export default function SearchResults() {
         enabled: !!checkInStr && !!checkOutStr,
     });
 
-    // Nearby fallback state
-    const [nearbyProperties, setNearbyProperties] = useState<any[]>([]);
-    const [isLoadingNearby, setIsLoadingNearby] = useState(false);
 
     const clearFilters = () => {
         setGlobalCategoryId('');
@@ -114,36 +110,16 @@ export default function SearchResults() {
         });
     }, [data]);
 
-    // When primary results are empty and a location/coordinates were searched, try to find nearby
-    useEffect(() => {
-        const triggerNearbyFallback = async () => {
-            if (!isLoading && groupedProperties.length === 0) {
-                setIsLoadingNearby(true);
-                try {
-                    let results: any[] = [];
-                    // 1. Try by coordinates if available
-                    if (latitude && longitude) {
-                        results = (await propertyApi.getNearby(latitude, longitude)).properties || [];
-                    } 
-                    // 2. Fallback to text search if no coordinates or no results found nearby
-                    if (results.length === 0 && location) {
-                        const searchResults = await propertyApi.getAll({ search: location, limit: 6 });
-                        results = searchResults.data || [];
-                    }
-                    setNearbyProperties(results.slice(0, 6));
-                } catch (err) {
-                    console.error('Error in nearby fallback:', err);
-                    setNearbyProperties([]);
-                } finally {
-                    setIsLoadingNearby(false);
-                }
-            } else {
-                setNearbyProperties([]);
-            }
-        };
+    // Split results into exact matches and nearby matches
+    const exactMatches = useMemo(() => {
+        if (!location) return groupedProperties;
+        return groupedProperties.filter(p => p.city?.toLowerCase() === location.toLowerCase());
+    }, [groupedProperties, location]);
 
-        triggerNearbyFallback();
-    }, [isLoading, groupedProperties.length, location, latitude, longitude]);
+    const nearbyMatches = useMemo(() => {
+        if (!location) return [];
+        return groupedProperties.filter(p => p.city?.toLowerCase() !== location.toLowerCase());
+    }, [groupedProperties, location]);
 
     if (error) {
         return (
@@ -205,8 +181,8 @@ export default function SearchResults() {
                         </div>
 
                         {/* Property Cards Grid */}
-                        {/* Property Cards Grid or Nearby Fallback */}
-                        {!isLoading && groupedProperties.length === 0 ? (
+                        {/* Property Cards Grid */}
+                        {!isLoading && exactMatches.length === 0 ? (
                             <div className="space-y-8">
                                 <div className="bg-white p-10 rounded-lg text-center border border-gray-100 shadow-sm max-w-2xl mx-auto">
                                     <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -216,7 +192,7 @@ export default function SearchResults() {
                                     <p className="text-gray-500 mb-6 font-medium">
                                         {isGroupBooking
                                             ? `We couldn't find any stays that can accommodate a group of ${groupSize} on these dates. Try a smaller group or different dates.`
-                                            : "We couldn't find any stays matching your filters. Try adjusting your search."
+                                            : "We couldn't find any exact stays matching your filters. Try adjusting your search."
                                         }
                                     </p>
                                     <button
@@ -226,47 +202,41 @@ export default function SearchResults() {
                                         Clear all filters
                                     </button>
                                 </div>
-
-                                {/* Nearby Fallback */}
-                                {(isLoadingNearby || nearbyProperties.length > 0) && (
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3 px-2">
-                                            <div className="h-px flex-1 bg-gray-200" />
-                                            <div className="flex items-center gap-2 text-sm font-bold text-gray-500 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
-                                                <MapPin className="h-4 w-4 text-primary-500" />
-                                                {isLoadingNearby ? 'Finding nearby stays...' : `Nearby stays you might like`}
-                                            </div>
-                                            <div className="h-px flex-1 bg-gray-200" />
-                                        </div>
-                                        {isLoadingNearby ? (
-                                            <div className="flex justify-center py-8">
-                                                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                                {nearbyProperties.map((property) => (
-                                                    <div key={property.id} className="relative group animate-in fade-in zoom-in-95 duration-300">
-                                                        <PropertyCard property={property} />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                {isLoading && groupedProperties.length === 0 ? (
+                                {isLoading && exactMatches.length === 0 ? (
                                     [1, 2, 3, 4, 5, 6].map(n => (
                                         <div key={n} className="h-[400px] bg-gray-100 rounded-lg animate-pulse" />
                                     ))
                                 ) : (
-                                    groupedProperties.map((property) => (
+                                    exactMatches.map((property) => (
                                         <div key={property.id} className="relative group animate-in fade-in zoom-in-95 duration-300">
                                             <PropertyCard property={property} />
                                         </div>
                                     ))
                                 )}
+                            </div>
+                        )}
+
+                        {/* Nearby Matches */}
+                        {!isLoading && nearbyMatches.length > 0 && (
+                            <div className="space-y-6 pt-8">
+                                <div className="flex items-center gap-3 px-2">
+                                    <div className="h-px flex-1 bg-gray-200" />
+                                    <div className="flex items-center gap-2 text-sm font-bold text-gray-500 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
+                                        <MapPin className="h-4 w-4 text-primary-500" />
+                                        Nearby stays you might like
+                                    </div>
+                                    <div className="h-px flex-1 bg-gray-200" />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {nearbyMatches.map((property) => (
+                                        <div key={property.id} className="relative group animate-in fade-in zoom-in-95 duration-300">
+                                            <PropertyCard property={property} />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>

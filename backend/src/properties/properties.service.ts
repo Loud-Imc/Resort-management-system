@@ -582,7 +582,8 @@ export class PropertiesService {
             status: PropertyStatus.APPROVED,
             roomTypes: {
                 some: {
-                    isPubliclyVisible: true
+                    isPubliclyVisible: true,
+                    rooms: { some: {} }
                 }
             },
             ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
@@ -654,7 +655,7 @@ export class PropertiesService {
         const baseWhere: Prisma.PropertyWhereInput = {
             isActive: true,
             status: PropertyStatus.APPROVED,
-            roomTypes: { some: { isPubliclyVisible: true } },
+            roomTypes: { some: { isPubliclyVisible: true, rooms: { some: {} } } },
         };
 
         const includeOpts = {
@@ -670,10 +671,19 @@ export class PropertiesService {
 
         let results: any[] = [];
 
-        // Step 1: Regional featured
+        // Step 1: Regional featured — uses prefix match to handle spelling variants
+        // e.g. Google returns "Kozhikode" but DB stores "Kozhikkode"
         if (city) {
+            const cityPrefix = city.substring(0, Math.min(city.length, 6));
             results = await this.prisma.property.findMany({
-                where: { ...baseWhere, isFeatured: true, city: { contains: city, mode: 'insensitive' } },
+                where: {
+                    ...baseWhere,
+                    isFeatured: true,
+                    OR: [
+                        { city: { contains: city, mode: 'insensitive' } },
+                        { city: { startsWith: cityPrefix, mode: 'insensitive' } },
+                    ],
+                },
                 take: limit,
                 orderBy,
                 include: includeOpts,
@@ -723,8 +733,8 @@ export class PropertiesService {
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
 
         const where: Prisma.PropertyWhereInput = {
-            // Default to APPROVED for "All Properties" separation, unless explicitly filtering
-            status: status || PropertyStatus.APPROVED,
+            // Apply status filter only when explicitly provided; otherwise show all statuses
+            ...(status && { status }),
 
             // If not global admin, restrict to assigned properties
             ...(!isGlobalAdmin && {
@@ -741,6 +751,8 @@ export class PropertiesService {
             ...(query.categoryId && { categoryId: query.categoryId }),
             ...(query.isFeatured !== undefined && { isFeatured: String(query.isFeatured) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
+            ...(query.isSponsored !== undefined && { isSponsored: String(query.isSponsored) === 'true' }),
+            ...(query.isActive !== undefined && { isActive: String(query.isActive) === 'true' }),
             ...(query.allowsGroupBooking !== undefined && { allowsGroupBooking: String(query.allowsGroupBooking) === 'true' }),
             ...(search && {
                 OR: [
@@ -1062,6 +1074,20 @@ export class PropertiesService {
         }));
     }
 
+    // Google Places Details proxy — fetch lat/lng from placeId
+    async getPlaceDetails(placeId: string) {
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        if (!apiKey) return null;
+        const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${apiKey}`;
+        const res = await fetch(url);
+        const data: any = await res.json();
+        if (!data.result?.geometry?.location) return null;
+        return {
+            lat: data.result.geometry.location.lat,
+            lng: data.result.geometry.location.lng,
+        };
+    }
+
     // Geocode a free-text location string to lat/lng (used for nearby fallback)
     async geocodeLocation(location: string): Promise<{ lat: number; lng: number } | null> {
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -1075,6 +1101,37 @@ export class PropertiesService {
             lat: result.geometry.location.lat,
             lng: result.geometry.location.lng,
         };
+    }
+
+    // Reverse geocode lat/lng to a city name via Google Geocoding API
+    async reverseGeocode(lat: number, lng: number): Promise<{ city: string | null; region: string | null }> {
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        if (!apiKey) return { city: null, region: null };
+
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+        const res = await fetch(url);
+        const data: any = await res.json();
+
+        const result = data.results?.[0];
+        if (!result) return { city: null, region: null };
+
+        let city: string | null = null;
+        let region: string | null = null;
+
+        for (const component of result.address_components) {
+            if (component.types.includes('locality')) {
+                city = component.long_name;
+            }
+            // Fallback to sublocality if no locality (common in India)
+            if (!city && component.types.includes('sublocality_level_1')) {
+                city = component.long_name;
+            }
+            if (component.types.includes('administrative_area_level_1')) {
+                region = component.long_name;
+            }
+        }
+
+        return { city, region };
     }
 
     // Find nearby properties by lat/lng within a radius (km)
