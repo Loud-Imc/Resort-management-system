@@ -388,6 +388,43 @@ export class BookingsService {
             }
         }
 
+        // Calculate Marketing Staff Commission
+        let marketingStaffId: string | undefined = undefined;
+        let marketingCommission = 0;
+        
+        // Resolve propertyId
+        let activePropertyIdForMarketing = (createBookingDto as any).propertyId;
+        if (!activePropertyIdForMarketing && roomTypeId) {
+            const baseRoomType = await this.prisma.roomType.findUnique({
+                where: { id: roomTypeId as string },
+                select: { propertyId: true }
+            });
+            activePropertyIdForMarketing = baseRoomType?.propertyId;
+        }
+
+        if (activePropertyIdForMarketing) {
+            const property = await this.prisma.property.findUnique({
+                where: { id: activePropertyIdForMarketing },
+                include: { propertyRequest: true }
+            });
+
+            if (property) {
+                const staffId = property.addedById || property.propertyRequest?.requestedById || property.propertyRequest?.referredById;
+                if (staffId) {
+                    const marketingStaff = await this.prisma.user.findUnique({
+                        where: { id: staffId },
+                        select: { id: true, commissionPercentage: true }
+                    });
+
+                    if (marketingStaff && marketingStaff.commissionPercentage) {
+                        marketingStaffId = marketingStaff.id;
+                        const commissionableAmount = pricing.totalAmount - pricing.taxAmount;
+                        marketingCommission = (commissionableAmount * Number(marketingStaff.commissionPercentage)) / 100;
+                    }
+                }
+            }
+        }
+
         // 7. Create booking & related entities in a transaction
         const booking = await this.prisma.$transaction(async (tx) => {
             // 7.1 For guest users, the user creation must be inside the transaction
@@ -599,6 +636,9 @@ export class BookingsService {
                     commissionAmount,
                     channelPartnerId,
                     cpCommission,
+                    marketingStaffId,
+                    marketingCommission,
+                    marketingPayoutStatus: 'PENDING',
                     cpDiscount: pricing.referralDiscountAmount,
                     commissionableAmount: pricing.totalAmount - pricing.taxAmount,
                     couponId,

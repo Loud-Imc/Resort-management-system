@@ -26,6 +26,7 @@ model User {
   fcmToken                  String?
   auditLogs                 AuditLog[]
   agentBookings             Booking[]                    @relation("AgentBookings")
+  marketingBookings         Booking[]                    @relation("BookingMarketingStaff")
   bookings                  Booking[]
   channelPartner            ChannelPartner?
   approvedCoupons           Coupon[]                     @relation("CouponApprovedBy")
@@ -245,6 +246,10 @@ model Booking {
   cpCommission            Decimal?               @db.Decimal(10, 2)
   cpDiscount              Decimal?               @db.Decimal(10, 2)
   propertyId              String?
+  marketingStaffId        String?
+  marketingCommission     Decimal?               @default(0) @db.Decimal(10, 2)
+  marketingPayoutStatus   PayoutStatus           @default(PENDING)
+  marketingStaff          User?                  @relation("BookingMarketingStaff", fields: [marketingStaffId], references: [id])
   couponDiscountAmount    Decimal                @default(0) @db.Decimal(10, 2)
   offerDiscountAmount     Decimal                @default(0) @db.Decimal(10, 2)
   whatsappNumber          String?

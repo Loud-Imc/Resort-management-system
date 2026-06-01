@@ -7,24 +7,33 @@ export class MarketingService {
     constructor(private prisma: PrismaService) { }
 
     async getStats(userId: string) {
-        // Aggregate stats for properties added by this user
+        // Find properties added by user or requested/referred by user
         const addedProperties = await this.prisma.property.findMany({
-            where: { addedById: userId },
-            select: {
-                id: true,
-                marketingCommission: true,
-                commissionStatus: true,
+            where: {
+                OR: [
+                    { addedById: userId },
+                    { propertyRequest: { requestedById: userId } },
+                    { propertyRequest: { referredById: userId } }
+                ]
             },
+            select: { id: true }
         });
 
         const totalProperties = addedProperties.length;
-        const totalEarnings = addedProperties
-            .filter(p => p.commissionStatus === 'PAID')
-            .reduce((sum, p) => sum + Number(p.marketingCommission), 0);
 
-        const pendingEarnings = addedProperties
-            .filter(p => p.commissionStatus === 'PENDING')
-            .reduce((sum, p) => sum + Number(p.marketingCommission), 0);
+        // Find bookings associated with this marketing staff
+        const bookings = await this.prisma.booking.findMany({
+            where: { marketingStaffId: userId },
+            select: { marketingCommission: true, marketingPayoutStatus: true }
+        });
+
+        const totalEarnings = bookings
+            .filter(b => b.marketingPayoutStatus === 'PAID')
+            .reduce((sum, b) => sum + Number(b.marketingCommission || 0), 0);
+
+        const pendingEarnings = bookings
+            .filter(b => b.marketingPayoutStatus === 'PENDING')
+            .reduce((sum, b) => sum + Number(b.marketingCommission || 0), 0);
 
         return {
             totalProperties,
@@ -34,8 +43,14 @@ export class MarketingService {
     }
 
     async getMyProperties(userId: string) {
-        return this.prisma.property.findMany({
-            where: { addedById: userId },
+        const properties = await this.prisma.property.findMany({
+            where: {
+                OR: [
+                    { addedById: userId },
+                    { propertyRequest: { requestedById: userId } },
+                    { propertyRequest: { referredById: userId } }
+                ]
+            },
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
@@ -45,11 +60,31 @@ export class MarketingService {
                 state: true,
                 isActive: true,
                 isVerified: true,
-                marketingCommission: true,
-                commissionStatus: true,
                 createdAt: true,
-                images: true
+                images: true,
+                bookings: {
+                    where: { marketingStaffId: userId },
+                    select: {
+                        marketingCommission: true,
+                        marketingPayoutStatus: true
+                    }
+                }
             }
+        });
+
+        return properties.map(p => {
+            const bookings = p.bookings || [];
+            const earnedCommission = bookings.reduce((sum, b) => sum + Number(b.marketingCommission || 0), 0);
+            
+            const pendingCount = bookings.filter(b => b.marketingPayoutStatus === 'PENDING').length;
+            const commissionStatus = pendingCount > 0 ? 'PENDING' : (bookings.length > 0 ? 'PAID' : 'NONE');
+
+            const { bookings: _, ...rest } = p;
+            return {
+                ...rest,
+                marketingCommission: earnedCommission,
+                commissionStatus
+            };
         });
     }
 
