@@ -339,10 +339,11 @@ export class PropertiesService {
         const where: any = status ? { status } : {};
 
         if (isMarketing && !isAdmin) {
-            // Marketing staff should see requests they manually created OR requests they referred via public registration
+            // Marketing staff should see requests they manually created OR requests they referred via public registration OR properties they were added to post-approval
             where.OR = [
                 { requestedById: user.id },
-                { referredById: user.id }
+                { referredById: user.id },
+                { property: { addedById: user.id } }
             ];
         }
 
@@ -353,7 +354,14 @@ export class PropertiesService {
                 referredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
                 approvedBy: { select: { id: true, firstName: true, email: true } },
                 rejectedBy: { select: { id: true, firstName: true, email: true } },
-                property: { select: { id: true, name: true, slug: true } }
+                property: { 
+                    select: { 
+                        id: true, 
+                        name: true, 
+                        slug: true,
+                        addedBy: { select: { id: true, firstName: true, lastName: true, email: true } }
+                    } 
+                }
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -759,7 +767,8 @@ export class PropertiesService {
                     { staff: { some: { userId: user.id } } },
                     ...(isMarketing ? [
                         { propertyRequest: { requestedById: user.id } },
-                        { propertyRequest: { referredById: user.id } }
+                        { propertyRequest: { referredById: user.id } },
+                        { addedById: user.id }
                     ] : [])
                 ]
             }),
