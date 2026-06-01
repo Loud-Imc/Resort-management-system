@@ -49,8 +49,8 @@ export class PropertiesController {
     @Permissions(PERMISSIONS.PROPERTIES.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'List all property onboarding requests' })
-    findAllRequests(@Query('status') status?: RequestStatus) {
-        return this.propertiesService.findAllRequests(status);
+    findAllRequests(@Request() req, @Query('status') status?: RequestStatus) {
+        return this.propertiesService.findAllRequests(req.user, status);
     }
 
     @Patch('requests/:id/approve')

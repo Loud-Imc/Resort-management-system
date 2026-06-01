@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { rolesService } from '../../services/roles';
 import { useAuth } from '../../context/AuthContext';
-import { Loader2, ArrowLeft, Save, AlertCircle, Shield, Building2, Calendar, Star } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, AlertCircle, Shield, Building2, Calendar, Star, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import { useEffect } from 'react';
 import { Role } from '../../types/user';
@@ -84,7 +84,22 @@ export default function ProcessRole() {
         mutation.mutate(data);
     };
 
+    const isMarketingRole = role?.name === 'Marketing';
+    const fixedMarketingPermissions = [
+        'marketing.read',
+        'properties.approve',
+        'properties.create',
+        'properties.delete',
+        'properties.read',
+        'properties.update'
+    ];
+
     const togglePermission = (permissionId: string) => {
+        if (isMarketingRole && fixedMarketingPermissions.includes(permissionId)) {
+            toast.error('This permission is required for the Marketing role and cannot be removed.');
+            return;
+        }
+        
         const current = selectedPermissions || [];
         const updated = current.includes(permissionId)
             ? current.filter(id => id !== permissionId)
@@ -97,9 +112,17 @@ export default function ProcessRole() {
         const groupIds = groupPermissions.map(p => p.name);
         const allSelected = groupIds.every(id => current.includes(id));
 
-        let updated;
+        let updated: string[];
         if (allSelected) {
             updated = current.filter(id => !groupIds.includes(id));
+            if (isMarketingRole) {
+                // Restore any fixed permissions that were filtered out
+                fixedMarketingPermissions.forEach(fixed => {
+                    if (groupIds.includes(fixed) && !updated.includes(fixed)) {
+                        updated.push(fixed);
+                    }
+                });
+            }
         } else {
             const unique = new Set([...current, ...groupIds]);
             updated = Array.from(unique);
@@ -112,7 +135,16 @@ export default function ProcessRole() {
         const allIds = availablePermissions.map(p => p.name);
         const allSelected = allIds.every(id => current.includes(id));
 
-        setValue('permissions', allSelected ? [] : allIds, { shouldDirty: true });
+        if (allSelected) {
+            let cleared = [] as string[];
+            if (isMarketingRole) {
+                cleared = fixedMarketingPermissions;
+                toast.success('Fixed Marketing permissions have been retained.');
+            }
+            setValue('permissions', cleared, { shouldDirty: true });
+        } else {
+            setValue('permissions', allIds, { shouldDirty: true });
+        }
     }
 
     if ((isEditing && isLoadingRole) || isLoadingPermissions) {
@@ -272,22 +304,27 @@ export default function ProcessRole() {
                                                 key={perm.id}
                                                 onClick={() => togglePermission(perm.name)}
                                                 className={clsx(
-                                                    "cursor-pointer p-3 rounded-lg border text-sm font-medium transition-all flex items-center gap-3",
+                                                    "cursor-pointer p-3 rounded-lg border text-sm font-medium transition-all flex items-center gap-3 relative",
                                                     selectedPermissions?.includes(perm.name)
                                                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                                        : "bg-card border-border text-muted-foreground hover:bg-muted"
+                                                        : "bg-card border-border text-muted-foreground hover:bg-muted",
+                                                    isMarketingRole && fixedMarketingPermissions.includes(perm.name) && "opacity-90 ring-1 ring-primary/50"
                                                 )}
                                             >
                                                 <div className={clsx(
-                                                    "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                                    "w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0",
                                                     selectedPermissions?.includes(perm.name)
                                                         ? "bg-white border-white"
                                                         : "border-muted-foreground bg-background"
                                                 )}>
                                                     {selectedPermissions?.includes(perm.name) && (
-                                                        <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
-                                                        </svg>
+                                                        isMarketingRole && fixedMarketingPermissions.includes(perm.name) ? (
+                                                            <Lock className="w-3 h-3 text-primary" />
+                                                        ) : (
+                                                            <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        )
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col">

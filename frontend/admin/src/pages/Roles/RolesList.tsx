@@ -104,12 +104,14 @@ export default function RolesList() {
                                         >
                                             <Edit2 className="h-4 w-4" />
                                         </button>
-                                        <button
-                                            onClick={() => handleDelete(role.id)}
-                                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
+                                        {role.name !== 'Marketing' && (
+                                            <button
+                                                onClick={() => handleDelete(role.id)}
+                                                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>

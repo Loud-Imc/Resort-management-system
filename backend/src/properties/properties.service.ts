@@ -331,11 +331,26 @@ export class PropertiesService {
         });
     }
 
-    async findAllRequests(status?: RequestStatus) {
+    async findAllRequests(user: any, status?: RequestStatus) {
+        const roles = user.roles || [];
+        const isMarketing = roles.includes('Marketing');
+        const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const where: any = status ? { status } : {};
+
+        if (isMarketing && !isAdmin) {
+            // Marketing staff should see requests they manually created OR requests they referred via public registration
+            where.OR = [
+                { requestedById: user.id },
+                { referredById: user.id }
+            ];
+        }
+
         return this.prisma.propertyRequest.findMany({
-            where: status ? { status } : {},
+            where,
             include: {
-                requestedBy: { select: { id: true, firstName: true, email: true } },
+                requestedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+                referredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
                 approvedBy: { select: { id: true, firstName: true, email: true } },
                 rejectedBy: { select: { id: true, firstName: true, email: true } },
                 property: { select: { id: true, name: true, slug: true } }
@@ -730,7 +745,8 @@ export class PropertiesService {
         const skip = (page - 1) * limit;
 
         const roles = user.roles || [];
-        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+        const isMarketing = roles.includes('Marketing');
 
         const where: Prisma.PropertyWhereInput = {
             // Apply status filter only when explicitly provided; otherwise show all statuses
@@ -740,7 +756,11 @@ export class PropertiesService {
             ...(!isGlobalAdmin && {
                 OR: [
                     { ownerId: user.id },
-                    { staff: { some: { userId: user.id } } }
+                    { staff: { some: { userId: user.id } } },
+                    ...(isMarketing ? [
+                        { propertyRequest: { requestedById: user.id } },
+                        { propertyRequest: { referredById: user.id } }
+                    ] : [])
                 ]
             }),
 

@@ -111,14 +111,21 @@ export default function SearchResults() {
     }, [data]);
 
     // Split results into exact matches and nearby matches
+    const isExactMatch = (city: string | undefined | null, search: string) => {
+        if (!city || !search) return false;
+        const c = city.toLowerCase();
+        const s = search.toLowerCase();
+        return c === s || c.includes(s) || s.includes(c) || c.startsWith(s.substring(0, Math.min(s.length, 6)));
+    };
+
     const exactMatches = useMemo(() => {
         if (!location) return groupedProperties;
-        return groupedProperties.filter(p => p.city?.toLowerCase() === location.toLowerCase());
+        return groupedProperties.filter(p => isExactMatch(p.city, location));
     }, [groupedProperties, location]);
 
     const nearbyMatches = useMemo(() => {
         if (!location) return [];
-        return groupedProperties.filter(p => p.city?.toLowerCase() !== location.toLowerCase());
+        return groupedProperties.filter(p => !isExactMatch(p.city, location));
     }, [groupedProperties, location]);
 
     if (error) {
@@ -150,9 +157,11 @@ export default function SearchResults() {
         <div className="min-h-screen bg-gray-50 pt-28">
             <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-8">
                 {/* Search Bar Refinement */}
-                <div className="mb-12">
+                <div className="mb-8">
                     <div className="max-w-4xl mx-auto">
                         <SearchForm variant="inline" theme="light" />
+                        
+
                     </div>
                 </div>
 
@@ -170,9 +179,21 @@ export default function SearchResults() {
                                     <>
                                         {groupedProperties.length} Accommodations Available
                                         {latitude && longitude && (
-                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-100 flex items-center gap-1.5 font-black uppercase tracking-tighter shadow-sm">
-                                                <MapPin className="h-3 w-3" />
-                                                {radius ? `Within ${radius} KM` : 'Nearby'}
+                                            <span className="text-[10px] bg-blue-50 text-blue-600 pl-3 pr-2 py-1 rounded-full border border-blue-100 flex items-center gap-1.5 font-black uppercase tracking-tighter shadow-sm">
+                                                <MapPin className="h-3 w-3 shrink-0" />
+                                                Within 
+                                                <input 
+                                                    type="number" 
+                                                    min="1" 
+                                                    max="500" 
+                                                    value={radius || 50} 
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value);
+                                                        if (!isNaN(val) && val > 0) setRadius(val);
+                                                    }}
+                                                    className="w-10 bg-white border border-blue-200 rounded px-1 py-0.5 text-center text-blue-700 outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                />
+                                                KM
                                             </span>
                                         )}
                                     </>

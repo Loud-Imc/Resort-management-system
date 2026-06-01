@@ -213,6 +213,28 @@ export default function PropertyRequestsList() {
                                 {isExpanded && (
                                     <div className="border-t border-border bg-muted/20 p-5 space-y-5">
 
+                                        {/* Onboarded By */}
+                                        {(request.referredBy || request.requestedBy) && (() => {
+                                            const onboarder = request.referredBy || request.requestedBy;
+                                            return (
+                                                <div className="mb-5">
+                                                    <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                                                        <User className="h-3.5 w-3.5" /> Onboarded By {request.referredBy ? '(Referrer)' : ''}
+                                                    </h3>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                        <div className="bg-card rounded-lg p-3 border border-border/50">
+                                                            <p className="text-xs text-muted-foreground">Name</p>
+                                                            <p className="font-semibold text-sm">{onboarder.firstName} {onboarder.lastName || ''}</p>
+                                                        </div>
+                                                        <div className="bg-card rounded-lg p-3 border border-border/50">
+                                                            <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> Email</p>
+                                                            <p className="font-semibold text-sm truncate">{onboarder.email}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
                                         {/* Owner Contact */}
                                         <div>
                                             <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
