@@ -233,6 +233,10 @@ export class RolesService {
         const role = await this.prisma.role.findUnique({ where: { id } });
         if (!role) throw new NotFoundException(`Role with ID ${id} not found`);
 
+        if (role.name === 'Marketing') {
+            throw new ForbiddenException('The Marketing role is a protected system role and cannot be deleted.');
+        }
+
         // Check if users allow deletion? Schema says UserRole onDelete: Cascade. 
         // RolePermission onDelete: Cascade for Role? no `RolePermission` definition needs check.
         // Wait, schema `UserRole`: `role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)`.
