@@ -140,21 +140,54 @@ export class ReportsService {
                 isEnabled: true,
                 status: 'AVAILABLE',
                 property: propertyFilter,
-                bookings: {
+                OR: [
+                    {
+                        bookings: {
+                            some: {
+                                status: 'CONFIRMED',
+                                checkInDate: { lte: today },
+                                checkOutDate: { gt: today }
+                            }
+                        }
+                    },
+                    {
+                        blocks: {
+                            some: {
+                                booking: {
+                                    status: 'CONFIRMED',
+                                    checkInDate: { lte: today },
+                                    checkOutDate: { gt: today }
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        });
+
+        const occupiedFromBlocksCount = await this.prisma.room.count({
+            where: {
+                isEnabled: true,
+                status: 'AVAILABLE',
+                property: propertyFilter,
+                blocks: {
                     some: {
-                        status: 'CONFIRMED',
-                        checkInDate: { lte: today },
-                        checkOutDate: { gt: today }
+                        booking: {
+                            status: 'CHECKED_IN',
+                            checkInDate: { lte: today },
+                            checkOutDate: { gt: today }
+                        }
                     }
                 }
             }
         });
 
-        const availableCount = rawAvailableCount - reservedCount;
+        const availableCount = rawAvailableCount - reservedCount - occupiedFromBlocksCount;
 
-        const occupiedCount = await this.prisma.room.count({
+        const dbOccupiedCount = await this.prisma.room.count({
             where: { isEnabled: true, status: 'OCCUPIED', property: propertyFilter }
         });
+        const occupiedCount = dbOccupiedCount + occupiedFromBlocksCount;
         const maintenanceCount = await this.prisma.room.count({
             where: { isEnabled: true, status: 'MAINTENANCE', property: propertyFilter }
         });
@@ -370,7 +403,7 @@ export class ReportsService {
             const adr = occupiedNights > 0 ? totalIncome / occupiedNights : 0;
             const revPar = availableNights > 0 ? totalIncome / availableNights : 0;
 
-            return { totalIncome, totalExpense, totalPlatformFees, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource }; // totalVolume as alias for totalIncome for legacy compatibility
+            return { totalIncome, totalExpenses: totalExpense, totalPlatformFees, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource }; // totalVolume as alias for totalIncome for legacy compatibility
         };
 
         const currentMetrics = await fetchMetrics(sDate, eDate);

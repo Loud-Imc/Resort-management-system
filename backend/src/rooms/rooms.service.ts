@@ -112,6 +112,11 @@ export class RoomsService {
                     where: {
                         endDate: { gte: new Date() },
                     },
+                    include: {
+                        booking: {
+                            select: { status: true, checkInDate: true, checkOutDate: true }
+                        }
+                    },
                     orderBy: {
                         startDate: 'asc',
                     },
@@ -124,10 +129,34 @@ export class RoomsService {
         });
 
         // Dynamic status adjustment for dashboard/listing consistency
-        // If room is AVAILABLE but has a confirmed booking for today, show as RESERVED
         return rooms.map(room => {
-            if (room.status === 'AVAILABLE' && room.bookings?.length > 0) {
-                return { ...room, status: 'RESERVED' };
+            if (room.status === 'AVAILABLE') {
+                const todayMidnight = new Date();
+                todayMidnight.setHours(0, 0, 0, 0);
+
+                if (room.bookings?.length > 0) {
+                    return { ...room, status: 'RESERVED' };
+                }
+
+                if (room.blocks && room.blocks.length > 0) {
+                    for (const block of room.blocks as any[]) {
+                        if (block.booking) {
+                            const b = block.booking;
+                            const checkIn = new Date(b.checkInDate);
+                            checkIn.setHours(0, 0, 0, 0);
+                            const checkOut = new Date(b.checkOutDate);
+                            checkOut.setHours(0, 0, 0, 0);
+
+                            if (checkIn <= todayMidnight && checkOut > todayMidnight) {
+                                if (b.status === 'CHECKED_IN') {
+                                    return { ...room, status: 'OCCUPIED' };
+                                } else if (b.status === 'CONFIRMED') {
+                                    return { ...room, status: 'RESERVED' };
+                                }
+                            }
+                        }
+                    }
+                }
             }
             return room;
         });
