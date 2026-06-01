@@ -211,7 +211,7 @@ export class PropertiesService {
                     email: details.propertyEmail || request.ownerEmail,
                     phone: details.propertyPhone || request.ownerPhone,
                     ownerId: owner.id,
-                    addedById: request.referredById || null,
+                    addedById: request.referredById || request.requestedById || null,
                     status: PropertyStatus.APPROVED,
                     isVerified: true,
                     description: details.description || '',

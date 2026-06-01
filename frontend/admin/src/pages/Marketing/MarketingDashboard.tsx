@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { marketingService, MarketingStats } from '../../services/marketing';
 import { Property } from '../../types/property';
-import { Loader2, Building2, CheckCircle, Clock, Link as LinkIcon, Copy } from 'lucide-react';
+import { Loader2, Building2, CheckCircle, Clock, Link as LinkIcon, Copy, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -86,7 +86,12 @@ export default function MarketingDashboard() {
                 <div className="bg-card p-6 rounded-xl shadow-sm border border-border group hover:shadow-md transition-all">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Pending Commissions</p>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending Commissions</p>
+                                <div title={`Calculated as ${user?.commissionPercentage || 0}% of the base booking amount (excluding taxes) for all bookings made at your referred properties.`}>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground/70 hover:text-foreground cursor-help transition-colors" />
+                                </div>
+                            </div>
                             <p className="text-3xl font-black text-amber-500">₹{stats?.pendingEarnings || 0}</p>
                         </div>
                         <div className="p-3 bg-amber-500/10 rounded-xl group-hover:bg-amber-500/20 transition-colors">
@@ -97,7 +102,12 @@ export default function MarketingDashboard() {
                 <div className="bg-card p-6 rounded-xl shadow-sm border border-border group hover:shadow-md transition-all">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Earnings (Paid)</p>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Earnings (Paid)</p>
+                                <div title={`Calculated as ${user?.commissionPercentage || 0}% of the base booking amount (excluding taxes) for all bookings made at your referred properties.`}>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground/70 hover:text-foreground cursor-help transition-colors" />
+                                </div>
+                            </div>
                             <p className="text-3xl font-black text-emerald-500">₹{stats?.totalEarnings || 0}</p>
                         </div>
                         <div className="p-3 bg-emerald-500/10 rounded-xl group-hover:bg-emerald-500/20 transition-colors">
