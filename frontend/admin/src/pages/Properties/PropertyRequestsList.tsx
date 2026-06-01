@@ -214,12 +214,13 @@ export default function PropertyRequestsList() {
                                     <div className="border-t border-border bg-muted/20 p-5 space-y-5">
 
                                         {/* Onboarded By */}
-                                        {(request.referredBy || request.requestedBy) && (() => {
-                                            const onboarder = request.referredBy || request.requestedBy;
+                                        {(request.property?.addedBy || request.referredBy || request.requestedBy) && (() => {
+                                            const onboarder = request.property?.addedBy || request.referredBy || request.requestedBy;
+                                            const roleLabel = request.property?.addedBy ? '(Manually Added)' : request.referredBy ? '(Referrer)' : '';
                                             return (
                                                 <div className="mb-5">
                                                     <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                                                        <User className="h-3.5 w-3.5" /> Onboarded By {request.referredBy ? '(Referrer)' : ''}
+                                                        <User className="h-3.5 w-3.5" /> Onboarded By {roleLabel}
                                                     </h3>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                                         <div className="bg-card rounded-lg p-3 border border-border/50">
