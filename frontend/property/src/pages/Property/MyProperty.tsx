@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { propertiesService } from '../../services/properties';
 import { uploadService } from '../../services/uploads';
 import type { Property } from '../../types/property';
+import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
@@ -56,6 +57,9 @@ export default function MyProperty() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [editMode, setEditMode] = useState(false);
+    
+    const { search } = useLocation();
+    const [highlightSection, setHighlightSection] = useState<string | null>(null);
 
     const isPlatformAdmin = user?.roles?.some(r => ['SuperAdmin', 'Admin', 'Marketing'].includes(r));
 
@@ -109,6 +113,21 @@ export default function MyProperty() {
             }
         }
     }, [selectedProperty?.id, selectedProperty?.isRequest]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(search);
+        const tab = params.get('tab');
+        if (tab) {
+            setEditMode(true);
+            setHighlightSection(tab);
+            setTimeout(() => {
+                const element = document.getElementById(`section-${tab}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300);
+        }
+    }, [search]);
 
     const loadPolicies = async () => {
         if (!selectedProperty?.id || selectedProperty.isRequest) return;
@@ -664,7 +683,12 @@ export default function MyProperty() {
                     <Field label="Pincode" value={pincode} onChange={setPincode} editMode={editMode} />
                 </div>
                 
-                <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-4">
+                <div id="section-location" className={clsx(
+                    "pt-4 space-y-4 transition-all duration-1000",
+                    (highlightSection === 'location' && (!latitude || !longitude))
+                        ? "ring-2 ring-amber-500 ring-offset-4 ring-offset-background bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4" 
+                        : "border-t border-gray-100 dark:border-gray-700"
+                )}>
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Geo-Location</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div className="md:col-span-2">
@@ -799,7 +823,12 @@ export default function MyProperty() {
             </div>
 
             {/* Gallery */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+            <div id="section-photos" className={clsx(
+                "rounded-2xl shadow-sm border p-6 space-y-4 transition-all duration-1000",
+                (highlightSection === 'photos' && (!coverImage || images.length === 0))
+                    ? "ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700"
+                    : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            )}>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <ImageIcon className="h-5 w-5 text-blue-600" /> Gallery
                 </h2>
@@ -831,7 +860,12 @@ export default function MyProperty() {
             </div>
 
             {/* Cancellation Policies Section */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-6">
+            <div id="section-policies" className={clsx(
+                "rounded-2xl shadow-sm border p-6 space-y-6 transition-all duration-1000",
+                (highlightSection === 'policies' && policies.length === 0)
+                    ? "ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700"
+                    : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            )}>
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         <ShieldAlert className="h-5 w-5 text-blue-600" /> Cancellation Policies
