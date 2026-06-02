@@ -610,7 +610,6 @@ export class PropertiesService {
                 }
             },
             ...(geoPropertyIds !== null && { id: { in: geoPropertyIds } }),
-            ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(state && { state: { contains: state, mode: 'insensitive' } }),
             ...(type && { type }),
             ...(query.categoryId && { categoryId: query.categoryId }),
@@ -618,16 +617,35 @@ export class PropertiesService {
             ...(query.isSponsored !== undefined && { isSponsored: String(query.isSponsored) === 'true' }),
             ...(query.isVerified !== undefined && { isVerified: String(query.isVerified) === 'true' }),
             ...(query.allowsGroupBooking !== undefined && { allowsGroupBooking: String(query.allowsGroupBooking) === 'true' }),
-            ...(search && {
+        };
+
+        const andConditions: Prisma.PropertyWhereInput[] = [];
+
+        if (city) {
+            andConditions.push({
+                OR: [
+                    { city: { contains: city, mode: 'insensitive' } },
+                    { address: { contains: city, mode: 'insensitive' } }
+                ]
+            });
+        }
+
+        if (search) {
+            andConditions.push({
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
                     { city: { contains: search, mode: 'insensitive' } },
+                    { address: { contains: search, mode: 'insensitive' } },
                     { phone: { contains: search, mode: 'insensitive' } },
                     { owner: { phone: { contains: search, mode: 'insensitive' } } },
                     { description: { contains: search, mode: 'insensitive' } },
-                ],
-            }),
-        };
+                ]
+            });
+        }
+
+        if (andConditions.length > 0) {
+            where.AND = andConditions;
+        }
 
         const [properties, total] = await Promise.all([
             this.prisma.property.findMany({
@@ -806,6 +824,15 @@ export class PropertiesService {
                     owner: {
                         select: { id: true, firstName: true, lastName: true, email: true },
                     },
+                    addedBy: {
+                        select: { id: true, firstName: true, lastName: true }
+                    },
+                    propertyRequest: {
+                        select: {
+                            requestedBy: { select: { firstName: true, lastName: true } },
+                            referredBy: { select: { firstName: true, lastName: true } }
+                        }
+                    },
                     category: true,
                     _count: {
                         select: { rooms: true, bookings: true },
@@ -902,6 +929,9 @@ export class PropertiesService {
             where: { id },
             include: {
                 owner: {
+                    select: { id: true, firstName: true, lastName: true, email: true },
+                },
+                addedBy: {
                     select: { id: true, firstName: true, lastName: true, email: true },
                 },
                 roomTypes: true,

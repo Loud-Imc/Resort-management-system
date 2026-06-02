@@ -105,6 +105,14 @@ export class RegisterPropertyDto {
     @IsNumber()
     maxGroupCapacity?: number;
 
+    @IsOptional()
+    @IsNumber()
+    latitude?: number;
+
+    @IsOptional()
+    @IsNumber()
+    longitude?: number;
+
     // Marketing System (Optional)
     @IsOptional()
     @IsString()

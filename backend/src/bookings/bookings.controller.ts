@@ -225,8 +225,8 @@ export class BookingsController {
             roomTypeId,
             propertyId,
             hasSettlement: hasSettlement === 'true' ? true : (hasSettlement === 'false' ? false : undefined),
-            checkInDate: start,
-            checkOutDate: end,
+            checkInDateStart: start,
+            checkInDateEnd: end,
         });
     }
 

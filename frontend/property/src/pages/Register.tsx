@@ -661,22 +661,55 @@ export default function Register() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Google Maps Link (Recommended)</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Globe className="h-4 w-4 text-gray-400" />
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <Globe className="h-4 w-4 text-gray-400" />
+                                            </div>
+                                            <input
+                                                name="googleMapsLink"
+                                                type="url"
+                                                value={formData.googleMapsLink}
+                                                onChange={handleMapsLinkChange}
+                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                placeholder="https://goo.gl/maps/..."
+                                            />
                                         </div>
-                                        <input
-                                            name="googleMapsLink"
-                                            type="url"
-                                            value={formData.googleMapsLink}
-                                            onChange={handleMapsLinkChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                            placeholder="https://goo.gl/maps/..."
-                                        />
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] text-gray-400 font-medium italic">
+                                                * Link is not stored. It's used to automatically extract coordinates.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!navigator.geolocation) {
+                                                        toast.error('Geolocation is not supported by your browser');
+                                                        return;
+                                                    }
+                                                    toast.loading('Fetching your location...', { id: 'geo' });
+                                                    navigator.geolocation.getCurrentPosition(
+                                                        (position) => {
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                latitude: position.coords.latitude.toString(),
+                                                                longitude: position.coords.longitude.toString(),
+                                                                googleMapsLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
+                                                            }));
+                                                            toast.success('Coordinates fetched successfully!', { id: 'geo' });
+                                                        },
+                                                        (error) => {
+                                                            console.error('Geo error:', error);
+                                                            toast.error('Unable to retrieve your location.', { id: 'geo' });
+                                                        }
+                                                    );
+                                                }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-colors border border-blue-100"
+                                            >
+                                                <MapPin className="h-3.5 w-3.5" />
+                                                Fetch Current Location
+                                            </button>
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] text-gray-400 mt-1">
-                                        Helps our staff verify your location quickly.
-                                    </p>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">

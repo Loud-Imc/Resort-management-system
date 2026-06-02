@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { reportsService } from '../../services/reports';
@@ -25,6 +26,16 @@ export default function Financials() {
     });
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
     const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    useEffect(() => {
+        if (searchParams.get('action') === 'add-expense') {
+            setIsExpenseModalOpen(true);
+            // Remove the query param to prevent re-opening on refresh
+            searchParams.delete('action');
+            setSearchParams(searchParams, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     const { data: report, isLoading } = useQuery<any>({
         queryKey: ['financialReport', dateRange, selectedProperty?.id],
