@@ -57,7 +57,12 @@ export interface Property {
     addedBy?: {
         id: string;
         firstName: string;
+        lastName?: string;
         email: string;
+    };
+    propertyRequest?: {
+        requestedBy?: any;
+        referredBy?: any;
     };
     maxGroupCapacity?: number;
     groupPricePerHead?: number;

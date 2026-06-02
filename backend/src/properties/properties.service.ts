@@ -806,6 +806,15 @@ export class PropertiesService {
                     owner: {
                         select: { id: true, firstName: true, lastName: true, email: true },
                     },
+                    addedBy: {
+                        select: { id: true, firstName: true, lastName: true }
+                    },
+                    propertyRequest: {
+                        select: {
+                            requestedBy: { select: { firstName: true, lastName: true } },
+                            referredBy: { select: { firstName: true, lastName: true } }
+                        }
+                    },
                     category: true,
                     _count: {
                         select: { rooms: true, bookings: true },
@@ -902,6 +911,9 @@ export class PropertiesService {
             where: { id },
             include: {
                 owner: {
+                    select: { id: true, firstName: true, lastName: true, email: true },
+                },
+                addedBy: {
                     select: { id: true, firstName: true, lastName: true, email: true },
                 },
                 roomTypes: true,

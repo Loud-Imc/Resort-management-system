@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { useAuth } from '../../context/AuthContext';
@@ -281,9 +281,20 @@ export default function PropertiesList() {
                             <div className="p-4">
                                 <h3 className="font-bold text-card-foreground truncate text-lg">{property.name}</h3>
                                 <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
-                                    <MapPin className="h-4 w-4" />
+                                    <MapPin className="h-4 w-4 shrink-0" />
                                     <span className="truncate font-medium">{property.city}, {property.state}</span>
                                 </div>
+                                
+                                {(property.addedBy || property.propertyRequest?.referredBy || property.propertyRequest?.requestedBy) && (() => {
+                                    const onboarder = property.addedBy || property.propertyRequest?.referredBy || property.propertyRequest?.requestedBy;
+                                    const roleLabel = property.addedBy ? 'Manual' : property.propertyRequest?.referredBy ? 'Referral' : 'Self';
+                                    return (
+                                        <div className="flex items-center gap-1.5 text-xs text-primary/80 mt-2 font-medium bg-primary/5 px-2 py-1 rounded-md w-fit border border-primary/10">
+                                            <User className="h-3 w-3 shrink-0" />
+                                            <span className="truncate">Onboarded by: {onboarder.firstName} {onboarder.lastName || ''} <span className="opacity-70">({roleLabel})</span></span>
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Stats */}
                                 <div className="flex flex-wrap items-center gap-2 mt-4 text-sm text-muted-foreground font-medium">
