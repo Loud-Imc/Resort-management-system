@@ -875,8 +875,8 @@ export class BookingsService {
      */
     async findAll(user: any, filters?: {
         status?: string;
-        checkInDate?: Date;
-        checkOutDate?: Date;
+        checkInDateStart?: Date;
+        checkInDateEnd?: Date;
         roomTypeId?: string;
         propertyId?: string;
         hasSettlement?: boolean;
@@ -887,8 +887,10 @@ export class BookingsService {
 
         const where: any = {
             status: filters?.status as any,
-            checkInDate: filters?.checkInDate ? { gte: filters.checkInDate } : undefined,
-            checkOutDate: filters?.checkOutDate ? { lte: filters.checkOutDate } : undefined,
+            checkInDate: (filters?.checkInDateStart || filters?.checkInDateEnd) ? {
+                ...(filters.checkInDateStart && { gte: filters.checkInDateStart }),
+                ...(filters.checkInDateEnd && { lte: filters.checkInDateEnd })
+            } : undefined,
             roomTypeId: filters?.roomTypeId,
             propertyId: filters?.propertyId,
         };

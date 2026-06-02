@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
@@ -25,12 +25,11 @@ import {
     Trash2,
     Pencil
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
 import { Banknote, Download, Wallet } from 'lucide-react';
-import { useRef } from 'react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 import { BookingInvoice } from '../../components/bookings/BookingInvoice';
@@ -66,8 +65,17 @@ export default function BookingsList() {
     const [dependencies, setDependencies] = useState<any>(null);
     const [isLoadingDeps, setIsLoadingDeps] = useState(false);
 
-    const [startDate, setStartDate] = useState<string>('');
-    const [endDate, setEndDate] = useState<string>('');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [startDate, setStartDate] = useState<string>(searchParams.get('startDate') || '');
+    const [endDate, setEndDate] = useState<string>(searchParams.get('endDate') || '');
+
+    // Sync state with URL params on changes
+    useEffect(() => {
+        const queryStart = searchParams.get('startDate');
+        const queryEnd = searchParams.get('endDate');
+        if (queryStart !== null && queryStart !== startDate) setStartDate(queryStart);
+        if (queryEnd !== null && queryEnd !== endDate) setEndDate(queryEnd);
+    }, [searchParams]);
 
     const handleOpenCheckIn = (booking: Booking) => {
         setCheckInBooking(booking);
@@ -160,6 +168,30 @@ export default function BookingsList() {
             bookingNumber.includes(searchStr) ||
             email.includes(searchStr) ||
             hasPhoneMatch;
+    }).sort((a, b) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const dateA = new Date(a.checkInDate);
+        dateA.setHours(0, 0, 0, 0);
+        
+        const dateB = new Date(b.checkInDate);
+        dateB.setHours(0, 0, 0, 0);
+        
+        const isPastA = dateA.getTime() < today.getTime();
+        const isPastB = dateB.getTime() < today.getTime();
+
+        // If one is past and the other is not, the upcoming/today comes first
+        if (isPastA && !isPastB) return 1;
+        if (!isPastA && isPastB) return -1;
+
+        // If both are upcoming/today, sort ascending (today, tomorrow, next week...)
+        if (!isPastA && !isPastB) {
+            return dateA.getTime() - dateB.getTime();
+        }
+
+        // If both are past, sort descending (yesterday, last week...)
+        return dateB.getTime() - dateA.getTime();
     });
 
     const checkInMutation = useMutation({
@@ -420,13 +452,14 @@ export default function BookingsList() {
                                     <option value="CANCELLED">Cancelled</option>
                                 </select>
                             </div>
-                            {(startDate !== '' || endDate !== '' || statusFilter !== '') && (
+                            {(startDate !== '' || endDate !== '' || statusFilter !== '' || searchParams.has('startDate') || searchParams.has('endDate')) && (
                                 <button
                                     onClick={() => {
                                         setStartDate('');
                                         setEndDate('');
                                         setStatusFilter('');
                                         setSearchTerm('');
+                                        setSearchParams(new URLSearchParams());
                                     }}
                                     className="text-xs font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-widest whitespace-nowrap"
                                 >

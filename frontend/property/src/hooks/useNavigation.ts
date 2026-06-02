@@ -15,7 +15,8 @@ import {
     Building2,
     RefreshCw,
     Tag,
-    Rocket
+    Rocket,
+    Plus
 } from 'lucide-react';
 
 export function useNavigation() {
@@ -66,6 +67,7 @@ export function useNavigation() {
 
             ...(hasPermission('reports.viewFinancial') ? [
                 { icon: DollarSign, label: 'Financials', path: '/financials' },
+                { icon: Plus, label: 'Add Expenses', path: '/financials?action=add-expense' },
             ] : []),
 
             ...(hasPermission('marketing.read') ? [
