@@ -230,18 +230,18 @@ export default function PropertyRequestsList() {
                                             const onboarder = request.property?.addedBy || request.referredBy || request.requestedBy;
                                             const roleLabel = request.property?.addedBy ? '(Manually Added)' : request.referredBy ? '(Referrer)' : '';
                                             return (
-                                                <div className="mb-6 bg-indigo-500 rounded-xl p-4 shadow-md text-white">
-                                                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-100 mb-3 flex items-center gap-2">
+                                                <div className="mb-6 bg-indigo-50 rounded-xl p-4 border border-indigo-100 shadow-sm">
+                                                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-3 flex items-center gap-2">
                                                         <User className="h-4 w-4" /> Onboarded By <span className="opacity-80 font-semibold">{roleLabel}</span>
                                                     </h3>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                        <div className="bg-indigo-600 rounded-lg p-3 border border-indigo-400/30 shadow-sm">
-                                                            <p className="text-xs text-indigo-200 font-semibold mb-0.5">Name</p>
-                                                            <p className="font-bold text-sm text-white">{onboarder.firstName} {onboarder.lastName || ''}</p>
+                                                        <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-sm">
+                                                            <p className="text-xs text-indigo-500/80 font-semibold mb-0.5">Name</p>
+                                                            <p className="font-bold text-sm text-indigo-950">{onboarder.firstName} {onboarder.lastName || ''}</p>
                                                         </div>
-                                                        <div className="bg-indigo-600 rounded-lg p-3 border border-indigo-400/30 shadow-sm">
-                                                            <p className="text-xs text-indigo-200 font-semibold flex items-center gap-1 mb-0.5"><Mail className="h-3 w-3" /> Email</p>
-                                                            <p className="font-bold text-sm text-white truncate">{onboarder.email}</p>
+                                                        <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-sm">
+                                                            <p className="text-xs text-indigo-500/80 font-semibold flex items-center gap-1 mb-0.5"><Mail className="h-3 w-3" /> Email</p>
+                                                            <p className="font-bold text-sm text-indigo-950 truncate">{onboarder.email}</p>
                                                         </div>
                                                     </div>
                                                 </div>

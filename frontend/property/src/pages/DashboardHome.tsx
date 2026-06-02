@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { useNavigation } from '../hooks/useNavigation';
 import { useEffect } from 'react';
 import PropertyReadiness from '../components/PropertyReadiness';
+import BookingsCalendarWidget from '../components/Dashboard/BookingsCalendarWidget';
 
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
@@ -222,55 +223,63 @@ export default function DashboardHome() {
                 </div>
             </div>
 
-            {/* Room Status Grid */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <BedDouble className="h-5 w-5 text-blue-600" />
-                        Room Status
-                    </h2>
-                    <button
-                        onClick={() => navigate('/rooms')}
-                        className="text-sm text-blue-600 hover:underline font-medium flex items-center gap-1"
-                    >
-                        All Rooms <ArrowRight className="h-3.5 w-3.5" />
-                    </button>
-                </div>
-
-                {roomsList.length === 0 ? (
-                    <div className="text-center py-12">
-                        <BedDouble className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">No rooms found.</p>
-                        <button onClick={() => navigate('/rooms/create')}
-                            className="mt-3 text-sm text-blue-600 hover:underline font-medium">
-                            + Add your first room
-                        </button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
-                        {roomsList.map((room: Room) => (
+            {/* Split Grid for Room Status and Calendar */}
+            <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    {/* Room Status Grid */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 h-full">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <BedDouble className="h-5 w-5 text-blue-600" />
+                                Room Status
+                            </h2>
                             <button
-                                key={room.id}
-                                onClick={() => handleRoomClick(room)}
-                                title={room.status === 'AVAILABLE' ? `Book Room ${room.roomNumber}` : `${room.roomNumber} — ${room.status}`}
-                                className={clsx(
-                                    `p-3 rounded-xl border text-center text-xs font-medium transition-all`,
-                                    getStatusColor(room.status),
-                                    (room.status === 'AVAILABLE' || room.status === 'OCCUPIED') && 'cursor-pointer hover:shadow-md hover:scale-105',
-                                    (room.status !== 'AVAILABLE' && room.status !== 'OCCUPIED') && 'cursor-default'
-                                )}
+                                onClick={() => navigate('/rooms')}
+                                className="text-sm text-blue-600 hover:underline font-medium flex items-center gap-1"
                             >
-                                <div className="font-bold text-sm">{room.roomNumber}</div>
-                                <div className="mt-0.5 capitalize text-[10px]">{room.status?.toLowerCase()}</div>
+                                All Rooms <ArrowRight className="h-3.5 w-3.5" />
                             </button>
-                        ))}
+                        </div>
+
+                        {roomsList.length === 0 ? (
+                            <div className="text-center py-12">
+                                <BedDouble className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">No rooms found.</p>
+                                <button onClick={() => navigate('/rooms/create')}
+                                    className="mt-3 text-sm text-blue-600 hover:underline font-medium">
+                                    + Add your first room
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                                {roomsList.map((room: Room) => (
+                                    <button
+                                        key={room.id}
+                                        onClick={() => handleRoomClick(room)}
+                                        title={room.status === 'AVAILABLE' ? `Book Room ${room.roomNumber}` : `${room.roomNumber} — ${room.status}`}
+                                        className={clsx(
+                                            `p-3 rounded-xl border text-center text-xs font-medium transition-all`,
+                                            getStatusColor(room.status),
+                                            (room.status === 'AVAILABLE' || room.status === 'OCCUPIED') && 'cursor-pointer hover:shadow-md hover:scale-105',
+                                            (room.status !== 'AVAILABLE' && room.status !== 'OCCUPIED') && 'cursor-default'
+                                        )}
+                                    >
+                                        <div className="font-bold text-sm">{room.roomNumber}</div>
+                                        <div className="mt-0.5 capitalize text-[10px]">{room.status?.toLowerCase()}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {roomsList.some(r => r.status === 'AVAILABLE') && (
+                            <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 italic">
+                                💡 Click an available room to create a walk-in booking
+                            </p>
+                        )}
                     </div>
-                )}
-                {roomsList.some(r => r.status === 'AVAILABLE') && (
-                    <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 italic">
-                        💡 Click an available room to create a walk-in booking
-                    </p>
-                )}
+                </div>
+                <div className="lg:col-span-1">
+                    <BookingsCalendarWidget />
+                </div>
             </div>
 
             {/* Quick Actions */}

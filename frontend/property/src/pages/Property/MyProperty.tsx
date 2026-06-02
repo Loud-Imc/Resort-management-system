@@ -211,6 +211,11 @@ export default function MyProperty() {
         setIsGroupGstInclusive(p.isGroupGstInclusive ?? false);
         setLatitude(p.latitude ?? '');
         setLongitude(p.longitude ?? '');
+        if (p.latitude && p.longitude) {
+            setGoogleMapsLink(`https://www.google.com/maps?q=${p.latitude},${p.longitude}`);
+        } else {
+            setGoogleMapsLink('');
+        }
     };
 
     const handleMapsLinkChange = (value: string) => {
@@ -723,8 +728,14 @@ export default function MyProperty() {
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-800">
-                                    <Globe className="h-4 w-4 text-gray-400" />
-                                    <p className="text-sm text-gray-500 italic">Enter edit mode to update location via Maps link</p>
+                                    <Globe className="h-4 w-4 text-gray-400 shrink-0" />
+                                    {googleMapsLink ? (
+                                        <a href={googleMapsLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                                            {googleMapsLink}
+                                        </a>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic">Enter edit mode to update location via Maps link</p>
+                                    )}
                                 </div>
                             )}
                         </div>
