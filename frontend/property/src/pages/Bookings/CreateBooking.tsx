@@ -3,7 +3,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { format, addDays } from 'date-fns';
 import { bookingsService } from '../../services/bookings';
@@ -101,13 +101,18 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 export default function CreateBooking() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const location = useLocation();
+    const state = location.state as { roomId?: string, roomTypeId?: string, startDate?: string, endDate?: string } | null;
+
     const { selectedProperty } = useProperty();
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; roomList?: any[]; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
 
-    const preSelectedRoomId = searchParams.get('roomId');
-    const preSelectedRoomTypeId = searchParams.get('roomTypeId');
+    const preSelectedRoomId = state?.roomId || searchParams.get('roomId');
+    const preSelectedRoomTypeId = state?.roomTypeId || searchParams.get('roomTypeId');
+    const preSelectedStartDate = state?.startDate;
+    const preSelectedEndDate = state?.endDate;
 
     const {
         register, control, handleSubmit, watch,
@@ -116,8 +121,8 @@ export default function CreateBooking() {
         resolver: zodResolver(bookingSchema),
         defaultValues: {
             propertyId: selectedProperty?.id || '',
-            checkInDate: format(new Date(), 'yyyy-MM-dd'),
-            checkOutDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+            checkInDate: preSelectedStartDate || format(new Date(), 'yyyy-MM-dd'),
+            checkOutDate: preSelectedEndDate || format(addDays(new Date(), 1), 'yyyy-MM-dd'),
             adultsCount: 1, childrenCount: 0,
             roomTypeId: preSelectedRoomTypeId || '',
             roomId: preSelectedRoomId || undefined,
