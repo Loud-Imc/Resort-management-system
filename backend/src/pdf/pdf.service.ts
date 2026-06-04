@@ -1,15 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as path from 'path';
 import * as fs from 'fs';
-const PdfPrinter = require('pdfmake');
+import { SystemSettingsService } from '../system-settings/system-settings.service';
+
+const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
+let PdfPrinter: any;
+let URLResolver: any;
+let virtualFs: any;
+
+try {
+    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'Printer')).default || require(path.join(pdfmakeDir, 'js', 'Printer'));
+    URLResolver = require(path.join(pdfmakeDir, 'js', 'URLResolver')).default || require(path.join(pdfmakeDir, 'js', 'URLResolver'));
+    virtualFs = require(path.join(pdfmakeDir, 'js', 'virtual-fs')).default || require(path.join(pdfmakeDir, 'js', 'virtual-fs'));
+} catch {
+    PdfPrinter = require(path.join(pdfmakeDir, 'js', 'printer')).default || require(path.join(pdfmakeDir, 'js', 'printer'));
+    URLResolver = require(path.join(pdfmakeDir, 'js', 'urlresolver')).default || require(path.join(pdfmakeDir, 'js', 'urlresolver'));
+    virtualFs = require(path.join(pdfmakeDir, 'js', 'virtual-fs')).default || require(path.join(pdfmakeDir, 'js', 'virtual-fs'));
+}
 
 @Injectable()
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
-  private pdfmakeManager: any;
+  private printer: any;
 
-  constructor() {
-    // Better path resolution relative to this file
+  constructor(private readonly systemSettingsService: SystemSettingsService) {
     const fontsPath = path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto');
     
     const fonts = {
@@ -21,17 +35,8 @@ export class PdfService {
       },
     };
     
-    this.pdfmakeManager = PdfPrinter;
-    this.pdfmakeManager.setFonts(fonts);
-
-    // Set URL access policy for pdfmake 0.3.x to allow base64 images
-    try {
-      this.pdfmakeManager.setUrlAccessPolicy((url: string) => {
-        return url.startsWith('data:');
-      });
-    } catch (e) {
-      this.logger.warn(`Failed to set URL access policy: ${e.message}`);
-    }
+    const urlResolver = new URLResolver(virtualFs);
+    this.printer = new PdfPrinter(fonts, virtualFs, urlResolver);
   }
 
   private getLogoBase64(): string | null {
@@ -53,25 +58,28 @@ export class PdfService {
     return null;
   }
 
+  private async fetchImageAsBase64(url: string): Promise<string | null> {
+    try {
+        if (!url || !url.startsWith('http')) return null;
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const mimeType = response.headers.get('content-type') || 'image/jpeg';
+        return `data:${mimeType};base64,${buffer.toString('base64')}`;
+    } catch (e) {
+        this.logger.error(`Error fetching image ${url}: ${e.message}`);
+        return null;
+    }
+  }
+
   async generateBookingConfirmation(booking: any, recipientType: 'GUEST' | 'PARTNER' = 'GUEST'): Promise<Buffer> {
-    console.log(`[PdfService] [DEBUG] Incoming Booking Data:`, JSON.stringify(booking, null, 2));
-    console.log(`[PdfService] [DEBUG] Recipient Type: ${recipientType}`);
-
-    const property = booking.property || booking.room?.property;
-    const roomType = booking.roomType;
+    const property = booking.property || booking.room?.property || booking.room?.roomType?.property;
+    const roomType = booking.roomType || booking.room?.roomType;
     const user = booking.user;
-
-    console.log(`[PdfService] [DEBUG] Extracted Property:`, property?.name);
-    console.log(`[PdfService] [DEBUG] Extracted RoomType:`, roomType?.name);
-    console.log(`[PdfService] [DEBUG] Extracted User:`, user?.firstName);
 
     const isPartner = recipientType === 'PARTNER';
 
-    if (!property) console.error(`[PdfService] [ERROR] property is undefined for booking ${booking.bookingNumber}`);
-    if (!roomType) console.error(`[PdfService] [ERROR] roomType is undefined for booking ${booking.bookingNumber}`);
-    if (!user) console.error(`[PdfService] [ERROR] user is undefined for booking ${booking.bookingNumber}`);
-
-    // Calculation Logic for Invoices
     const totalAmount = Number(booking.totalAmount || 0);
     const cpCommission = Number(booking.cpCommission || 0);
     const cpDiscount = Number(booking.cpDiscount || 0);
@@ -80,9 +88,27 @@ export class PdfService {
     const paidAmount = Number(booking.paidAmount || 0);
     const netInvestment = totalAmount - cpCommission;
 
-    console.log(`[PdfService] [DEBUG] Values - Total: ${totalAmount}, Commission: ${cpCommission}, Net: ${netInvestment}`);
+    // Fetch the property or room image
+    let propertyImageBase64: string | null = null;
+    const imageUrl = property?.images?.[0] || roomType?.images?.[0];
+    if (imageUrl) {
+        propertyImageBase64 = await this.fetchImageAsBase64(imageUrl);
+    }
+
+    const defaultInstructions = [
+      'Please present a valid photo ID upon check-in.',
+      'Standard check-in time is 2:00 PM and check-out is 11:00 AM.',
+      'Early check-in and late check-out are subject to availability.',
+      'All special requests are subject to availability upon arrival.'
+    ];
+    let guestInstructions = await this.systemSettingsService.getSetting('INVOICE_GUEST_INSTRUCTIONS');
+    if (!Array.isArray(guestInstructions) || guestInstructions.length === 0) {
+      guestInstructions = defaultInstructions;
+    }
 
     const docDefinition: any = {
+      pageSize: 'A4',
+      pageMargins: [30, 25, 30, 25],
       content: [
         // Header with Logo
         {
@@ -113,7 +139,7 @@ export class PdfService {
               alignment: 'right',
             },
           ],
-          margin: [0, 0, 0, 30],
+          margin: [0, 0, 0, 12],
         },
 
         // Status Banner
@@ -125,69 +151,98 @@ export class PdfService {
                 {
                   text: (booking.status || 'PENDING').replace('_', ' '),
                   style: 'statusBanner',
-                  fillColor: booking.status === 'CONFIRMED' ? '#227c8a' : '#333333',
+                  fillColor: booking.status === 'CONFIRMED' ? '#227c8a' : (booking.status === 'RESERVED' ? '#f59e0b' : '#333333'),
                 },
               ],
             ],
           },
           layout: 'noBorders',
-          margin: [0, 0, 0, 30],
+          margin: [0, 0, 0, 10],
         },
 
         // Main info grid
         {
-          columns: [
-            {
-              width: '*',
-              stack: [
+          table: {
+            widths: [150, '*'],
+            body: [
+              // GUEST DETAILS
+              [
                 { text: 'GUEST DETAILS', style: 'sectionHeader' },
-                { text: `${user?.firstName || 'Guest'} ${user?.lastName || ''}`, style: 'guestName' },
-                { text: user?.email || 'N/A', style: 'guestInfo' },
-                { text: user?.phone || 'N/A', style: 'guestInfo' },
-                ...(booking.gstNumber ? [{ text: `GST: ${booking.gstNumber}`, style: 'guestInfo' }] : []),
-                { text: '\n' },
-                { text: 'PROPERTY', style: 'sectionHeader' },
-                { text: property?.name || 'Property Name', style: 'propertyName' },
-                { text: property?.address || 'Address not available', style: 'propertyAddress' },
-                { text: `${property?.city || ''}, ${property?.state || ''}`, style: 'propertyAddress' },
-              ],
-            },
-            {
-              width: '*',
-              stack: [
-                { text: 'STAY SUMMARY', style: 'sectionHeader' },
                 {
-                  table: {
-                    widths: ['*', '*'],
-                    body: [
-                      [
-                        { border: [false, false, false, false], text: 'CHECK-IN', style: 'stayLabel' },
-                        { border: [false, false, false, false], text: 'CHECK-OUT', style: 'stayLabel' },
-                      ],
-                      [
-                        { border: [false, false, false, false], text: booking.checkInDate ? new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
-                        { border: [false, false, false, false], text: booking.checkOutDate ? new Date(booking.checkOutDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
-                      ],
-                      [
-                        { border: [false, false, false, false], text: '2:00 PM', style: 'stayTime' },
-                        { border: [false, false, false, false], text: '11:00 AM', style: 'stayTime' },
-                      ],
-                    ],
-                  },
-                },
-                { text: '\n' },
-                { text: 'ACCOMMODATION', style: 'sectionHeader' },
-                { text: roomType?.name || 'Room Type', style: 'roomName' },
-                { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },
-                { text: `${booking.numberOfNights || 0} Night(s)`, style: 'guestCount' },
+                  stack: [
+                    { text: `${user?.firstName || 'Guest'} ${user?.lastName || ''}`, style: 'guestName' },
+                    { text: user?.email || 'N/A', style: 'guestInfo' },
+                    { text: user?.phone || 'N/A', style: 'guestInfo' },
+                    ...(booking.gstNumber ? [{ text: `GST: ${booking.gstNumber}`, style: 'guestInfo' }] : []),
+                  ]
+                }
               ],
-            },
-          ],
-          margin: [0, 0, 0, 40],
+              // PROPERTY DETAILS
+              [
+                { text: 'PROPERTY DETAILS', style: 'sectionHeader', margin: [0, 15, 0, 0] },
+                {
+                  stack: [
+                    { text: property?.name || 'Property Name', style: 'propertyName' },
+                    { text: property?.address || 'Address not available', style: 'propertyAddress' },
+                    { text: `${property?.city || ''}, ${property?.state || ''}`, style: 'propertyAddress' },
+                    ...(propertyImageBase64 ? [{
+                      image: propertyImageBase64,
+                      width: 200,
+                      height: 80,
+                      margin: [0, 6, 0, 0],
+                    }] : []),
+                  ],
+                  margin: [0, 15, 0, 0]
+                }
+              ],
+              // STAY SUMMARY
+              [
+                { text: 'STAY SUMMARY', style: 'sectionHeader', margin: [0, 15, 0, 0] },
+                {
+                  stack: [
+                    {
+                      table: {
+                        widths: ['*', '*'],
+                        body: [
+                          [
+                            { border: [false, false, false, false], text: 'CHECK-IN', style: 'stayLabel' },
+                            { border: [false, false, false, false], text: 'CHECK-OUT', style: 'stayLabel' },
+                          ],
+                          [
+                            { border: [false, false, false, false], text: booking.checkInDate ? new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
+                            { border: [false, false, false, false], text: booking.checkOutDate ? new Date(booking.checkOutDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', style: 'stayDate' },
+                          ],
+                          [
+                            { border: [false, false, false, false], text: '2:00 PM', style: 'stayTime' },
+                            { border: [false, false, false, false], text: '11:00 AM', style: 'stayTime' },
+                          ],
+                        ],
+                      },
+                    },
+                  ],
+                  margin: [0, 15, 0, 0]
+                }
+              ],
+              // ACCOMMODATION
+              [
+                { text: 'ACCOMMODATION', style: 'sectionHeader', margin: [0, 15, 0, 0] },
+                {
+                  stack: [
+                    { text: roomType?.name || 'Room Type', style: 'roomName' },
+                    { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },
+                    { text: `${booking.numberOfNights || 0} Night(s)`, style: 'guestCount' },
+                  ],
+                  margin: [0, 15, 0, 0]
+                }
+              ]
+            ]
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 15],
         },
 
         // Payment Table
-        { text: isPartner ? 'SETTLEMENT SUMMARY' : 'PAYMENT SUMMARY', style: 'sectionHeader', margin: [0, 0, 0, 10] },
+        { text: isPartner ? 'SETTLEMENT SUMMARY' : 'PAYMENT SUMMARY', style: 'sectionHeader', margin: [0, 0, 0, 6] },
         {
           table: {
             headerRows: 1,
@@ -245,10 +300,10 @@ export class PdfService {
             hLineWidth: (i) => (i === 0 || i === 1 || i >= 4) ? 0.5 : 0,
             vLineWidth: () => 0,
             hLineColor: () => '#e2e8f0',
-            paddingTop: () => 8,
-            paddingBottom: () => 8,
+            paddingTop: () => 5,
+            paddingBottom: () => 5,
           },
-          margin: [0, 0, 0, 40],
+          margin: [0, 0, 0, 14],
         },
 
         // QR and Notes
@@ -259,12 +314,9 @@ export class PdfService {
               stack: [
                 { text: 'IMPORTANT INFORMATION', style: 'infoTitle' },
                 {
-                  ul: [
-                    'Please carry a valid photo ID for all guests.',
-                    'Standard check-in is 2 PM. Early check-in is subject to availability.',
-                    'Cancellation policy applies as per the selected rate plan.',
-                    'For any assistance, contact the resort at ' + (property.phone || '+91-XXXXXXXXXX'),
-                  ],
+                  ul: guestInstructions.map((instruction: string) => 
+                    instruction.replace('{{PROPERTY_PHONE}}', property?.phone || '+91-XXXXXXXXXX')
+                  ),
                   style: 'infoList',
                 },
               ],
@@ -290,41 +342,49 @@ export class PdfService {
       },
 
       styles: {
-        brandLogo: { fontSize: 28, bold: true, color: '#227c8a', letterSpacing: 2 },
-        brandTagline: { fontSize: 9, color: '#64748b', margin: [0, -5, 0, 0] },
-        docTitle: { fontSize: 16, bold: true, color: '#0f172a' },
-        bookingId: { fontSize: 12, bold: true, color: '#227c8a', margin: [0, 2, 0, 0] },
-        docDate: { fontSize: 9, color: '#64748b' },
-        statusBanner: { color: 'white', fontSize: 14, bold: true, alignment: 'center', margin: [0, 8, 0, 8] },
-        sectionHeader: { fontSize: 10, bold: true, color: '#64748b', letterSpacing: 1, margin: [0, 0, 0, 8] },
-        guestName: { fontSize: 14, bold: true, color: '#0f172a' },
-        guestInfo: { fontSize: 10, color: '#475569' },
-        propertyName: { fontSize: 14, bold: true, color: '#0f172a' },
-        propertyAddress: { fontSize: 10, color: '#475569' },
-        roomName: { fontSize: 12, bold: true, color: '#0f172a' },
-        guestCount: { fontSize: 10, color: '#475569' },
-        stayLabel: { fontSize: 9, color: '#94a3b8', bold: true },
-        stayDate: { fontSize: 11, bold: true, color: '#0f172a' },
-        stayTime: { fontSize: 9, color: '#64748b' },
-        tableHeader: { fontSize: 10, bold: true, color: '#475569', margin: [0, 5, 0, 5] },
-        tableCell: { fontSize: 10, color: '#1e293b' },
-        tableTotalLabel: { fontSize: 11, bold: true, color: '#0f172a', margin: [0, 5, 0, 5] },
-        tableTotalValue: { fontSize: 12, bold: true, color: '#0f172a', margin: [0, 5, 0, 5] },
-        tablePaidLabel: { fontSize: 10, bold: true, color: '#059669' },
-        tablePaidValue: { fontSize: 11, bold: true, color: '#059669' },
-        tableBalanceLabel: { fontSize: 10, bold: true, color: '#d97706' },
-        tableBalanceValue: { fontSize: 11, bold: true, color: '#d97706' },
-        infoTitle: { fontSize: 11, bold: true, color: '#0f172a', margin: [0, 0, 0, 10] },
-        infoList: { fontSize: 9, color: '#475569', lineHeight: 1.4 },
-        qrLabel: { fontSize: 8, color: '#94a3b8', italic: true },
-        footerText: { fontSize: 8, color: '#cbd5e1' },
+        brandLogo: { fontSize: 22, bold: true, color: '#227c8a', letterSpacing: 2 },
+        brandTagline: { fontSize: 8, color: '#64748b', margin: [0, -3, 0, 0] },
+        docTitle: { fontSize: 13, bold: true, color: '#0f172a' },
+        bookingId: { fontSize: 10, bold: true, color: '#227c8a', margin: [0, 2, 0, 0] },
+        docDate: { fontSize: 8, color: '#64748b' },
+        statusBanner: { color: 'white', fontSize: 11, bold: true, alignment: 'center', margin: [0, 5, 0, 5] },
+        sectionHeader: { fontSize: 8, bold: true, color: '#64748b', letterSpacing: 1, margin: [0, 0, 0, 5] },
+        guestName: { fontSize: 11, bold: true, color: '#0f172a' },
+        guestInfo: { fontSize: 9, color: '#475569' },
+        propertyName: { fontSize: 11, bold: true, color: '#0f172a' },
+        propertyAddress: { fontSize: 9, color: '#475569' },
+        roomName: { fontSize: 10, bold: true, color: '#0f172a' },
+        guestCount: { fontSize: 9, color: '#475569' },
+        stayLabel: { fontSize: 8, color: '#94a3b8', bold: true },
+        stayDate: { fontSize: 9, bold: true, color: '#0f172a' },
+        stayTime: { fontSize: 8, color: '#64748b' },
+        tableHeader: { fontSize: 9, bold: true, color: '#475569', margin: [0, 3, 0, 3] },
+        tableCell: { fontSize: 9, color: '#1e293b' },
+        tableTotalLabel: { fontSize: 10, bold: true, color: '#0f172a', margin: [0, 3, 0, 3] },
+        tableTotalValue: { fontSize: 11, bold: true, color: '#0f172a', margin: [0, 3, 0, 3] },
+        tablePaidLabel: { fontSize: 9, bold: true, color: '#059669' },
+        tablePaidValue: { fontSize: 10, bold: true, color: '#059669' },
+        tableBalanceLabel: { fontSize: 9, bold: true, color: '#d97706' },
+        tableBalanceValue: { fontSize: 10, bold: true, color: '#d97706' },
+        infoTitle: { fontSize: 9, bold: true, color: '#0f172a', margin: [0, 0, 0, 6] },
+        infoList: { fontSize: 8, color: '#475569', lineHeight: 1.3 },
+        qrLabel: { fontSize: 7, color: '#94a3b8', italic: true },
+        footer: { fontSize: 7, color: '#cbd5e1' },
+        footerText: { fontSize: 7, color: '#cbd5e1' },
       },
       defaultStyle: { font: 'Roboto' },
     };
 
     try {
-      const pdfDoc = this.pdfmakeManager.createPdf(docDefinition);
-      return await pdfDoc.getBuffer();
+      const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
+      
+      return new Promise((resolve, reject) => {
+        const chunks: any[] = [];
+        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', (err: any) => reject(err));
+        pdfDoc.end();
+      });
     } catch (error) {
       this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
       throw error;

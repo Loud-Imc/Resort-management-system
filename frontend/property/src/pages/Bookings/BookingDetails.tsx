@@ -21,11 +21,12 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import api from '../../services/api';
 import { BookingInvoice } from '../../components/bookings/BookingInvoice';
 import type { Booking } from '../../types/booking';
 import { useRef } from 'react';
-import jsPDF from 'jspdf';
-import { toPng } from 'html-to-image';
+// import jsPDF from 'jspdf';
+// import { toPng } from 'html-to-image';
 
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
@@ -68,59 +69,85 @@ const BookingDetails = () => {
     const roomType = (booking.room?.roomType || (booking as any).roomType) as any;
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
 
-    const handleDownloadPDF = async () => {
-        setIsDownloading(true);
-        setTimeout(async () => {
-            if (!invoiceRef.current) {
-                setIsDownloading(false);
-                return;
-            }
+    // const handleDownloadPDF = async () => {
+    //     setIsDownloading(true);
+    //     setTimeout(async () => {
+    //         if (!invoiceRef.current) {
+    //             setIsDownloading(false);
+    //             return;
+    //         }
 
-            const element = invoiceRef.current;
-            element.classList.add('pdf-capture-mode');
+    //         const element = invoiceRef.current;
+    //         element.classList.add('pdf-capture-mode');
 
-            try {
-                const dataUrl = await toPng(element, {
-                    width: 800,
-                    quality: 1,
-                    pixelRatio: 2,
-                    backgroundColor: '#ffffff',
-                    cacheBust: true,
-                    style: {
-                        borderRadius: '0',
-                        boxShadow: 'none',
-                        border: 'none',
-                    }
-                });
+    //         try {
+    //             const dataUrl = await toPng(element, {
+    //                 width: 800,
+    //                 quality: 1,
+    //                 pixelRatio: 2,
+    //                 backgroundColor: '#ffffff',
+    //                 cacheBust: true,
+    //                 style: {
+    //                     borderRadius: '0',
+    //                     boxShadow: 'none',
+    //                     border: 'none',
+    //                 }
+    //             });
 
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const imgWidth = 210;
+    //             const pdf = new jsPDF('p', 'mm', 'a4');
+    //             const imgWidth = 210;
 
-                const img = new Image();
-                img.src = dataUrl;
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = reject;
-                    setTimeout(() => reject(new Error('Image load timeout')), 5000);
-                });
+    //             const img = new Image();
+    //             img.src = dataUrl;
+    //             await new Promise((resolve, reject) => {
+    //                 img.onload = resolve;
+    //                 img.onerror = reject;
+    //                 setTimeout(() => reject(new Error('Image load timeout')), 5000);
+    //             });
 
-                const imgHeight = (img.height * imgWidth) / img.width;
-                pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
+    //             const imgHeight = (img.height * imgWidth) / img.width;
+    //             pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
 
-                const fileName = balanceDue > 0
-                    ? `Invoice_Performa_${booking.bookingNumber}.pdf`
-                    : `Invoice_${booking.bookingNumber}.pdf`;
+    //             const fileName = balanceDue > 0
+    //                 ? `Invoice_Performa_${booking.bookingNumber}.pdf`
+    //                 : `Invoice_${booking.bookingNumber}.pdf`;
 
-                pdf.save(fileName);
-                toast.success('Invoice downloaded');
-            } catch (error) {
-                console.error('Error generating PDF:', error);
-                toast.error('Failed to generate PDF');
-            } finally {
-                element.classList.remove('pdf-capture-mode');
-                setIsDownloading(false);
-            }
-        }, 500);
+    //             pdf.save(fileName);
+    //             toast.success('Invoice downloaded');
+    //         } catch (error) {
+    //             console.error('Error generating PDF:', error);
+    //             toast.error('Failed to generate PDF');
+    //         } finally {
+    //             element.classList.remove('pdf-capture-mode');
+    //             setIsDownloading(false);
+    //         }
+    //     }, 500);
+    // };
+
+    const handleDownloadBackendPDF = async () => {
+        try {
+            setIsDownloading(true);
+            const response = await api.get(`/bookings/invoice/${booking.id}/PARTNER`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
+            const fileName = balanceDue > 0
+                ? `Invoice_Performa_${booking.bookingNumber}.pdf`
+                : `Invoice_${booking.bookingNumber}.pdf`;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('Invoice downloaded from server');
+        } catch (error) {
+            console.error('Failed to download backend PDF', error);
+            toast.error('Failed to generate PDF from server');
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     return (
@@ -166,8 +193,16 @@ const BookingDetails = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button
+                    {/* <button
                         onClick={handleDownloadPDF}
+                        disabled={isDownloading}
+                        className="inline-flex items-center gap-2 bg-primary text-primary-foreground hover:shadow-xl hover:shadow-primary/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                    >
+                        {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        Download Invoice
+                    </button> */}
+                    <button
+                        onClick={handleDownloadBackendPDF}
                         disabled={isDownloading}
                         className="inline-flex items-center gap-2 bg-primary text-primary-foreground hover:shadow-xl hover:shadow-primary/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
                     >

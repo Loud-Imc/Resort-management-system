@@ -69,7 +69,7 @@ export default function BookingsCalendarWidget() {
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <CalendarIcon className="h-5 w-5 text-blue-600" />
-                    Booking Check-Ins
+                    Booking
                 </h2>
                 
                 <div className="flex items-center gap-4">

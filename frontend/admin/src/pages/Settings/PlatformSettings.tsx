@@ -52,6 +52,14 @@ export default function PlatformSettings() {
     const [autoNoShowHours, setAutoNoShowHours] = useState<number>(6);
     const [autoCheckoutHours, setAutoCheckoutHours] = useState<number>(2);
 
+    // Invoice Instructions
+    const [invoiceInstructions, setInvoiceInstructions] = useState<string[]>([
+        'Please carry a valid photo ID for all guests.',
+        'Standard check-in is 2 PM. Early check-in is subject to availability.',
+        'Cancellation policy applies as per the selected rate plan.',
+        'For any assistance, contact the resort at {{PROPERTY_PHONE}}'
+    ]);
+
     // Tiers State
     const [levels, setLevels] = useState<PartnerLevel[]>([]);
     const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
@@ -109,6 +117,11 @@ export default function PlatformSettings() {
 
             const checkoutSetting = settingsData.find((s: GlobalSetting) => s.key === 'AUTO_CHECKOUT_HOURS');
             if (checkoutSetting) setAutoCheckoutHours(Number(checkoutSetting.value));
+
+            const invoiceInstructionsSetting = settingsData.find((s: GlobalSetting) => s.key === 'INVOICE_GUEST_INSTRUCTIONS');
+            if (invoiceInstructionsSetting && Array.isArray(invoiceInstructionsSetting.value)) {
+                setInvoiceInstructions(invoiceInstructionsSetting.value);
+            }
 
             // Map Tiers & Rewards
             setLevels(levelsData.sort((a, b) => a.minPoints - b.minPoints));
@@ -218,6 +231,7 @@ export default function PlatformSettings() {
                 settingsService.update('MAX_DISCOUNT_PCT', maxBookingDiscountPct, 'Global maximum combined discount percentage allowed on any booking'),
                 settingsService.update('AUTO_NO_SHOW_HOURS', autoNoShowHours, 'Grace period (hours) before marking unarrived guests as NO_SHOW'),
                 settingsService.update('AUTO_CHECKOUT_HOURS', autoCheckoutHours, 'Grace period (hours) before automatically checking out guests'),
+                settingsService.update('INVOICE_GUEST_INSTRUCTIONS', invoiceInstructions, 'Important information/instructions displayed on the guest invoice. Use {{PROPERTY_PHONE}} to inject the property contact number.'),
             ]);
             toast.success('Platform configurations updated successfully');
         } catch (error) {
@@ -233,6 +247,14 @@ export default function PlatformSettings() {
         const newTiers = [...gstTiers];
         newTiers[index] = { ...newTiers[index], [field]: value === '' ? null : Number(value) };
         setGstTiers(newTiers);
+    };
+
+    const addInvoiceInstruction = () => setInvoiceInstructions([...invoiceInstructions, '']);
+    const removeInvoiceInstruction = (index: number) => setInvoiceInstructions(invoiceInstructions.filter((_, i) => i !== index));
+    const updateInvoiceInstruction = (index: number, value: string) => {
+        const newInstructions = [...invoiceInstructions];
+        newInstructions[index] = value;
+        setInvoiceInstructions(newInstructions);
     };
 
     // ================= TIERS ACTIONS =================
@@ -476,6 +498,45 @@ export default function PlatformSettings() {
                                         Update Platform Configuration
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Invoice Instructions Block */}
+                    <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden flex flex-col mt-8">
+                        <div className="p-6 border-b border-border flex items-center justify-between bg-muted/30">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg"><Info className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /></div>
+                                <div><h2 className="text-lg font-bold text-foreground">Invoice Guest Instructions</h2><p className="text-xs text-muted-foreground">Dynamic notes printed on guest invoices</p></div>
+                            </div>
+                            <button onClick={addInvoiceInstruction} className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors"><Plus className="h-5 w-5" /></button>
+                        </div>
+                        <div className="p-6 flex-1 space-y-4">
+                            {invoiceInstructions.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground"><Info className="h-8 w-8 mx-auto mb-2 opacity-20" /><p>No instructions defined.</p></div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <p className="text-xs text-muted-foreground mb-4">Use <code className="bg-muted px-1.5 py-0.5 rounded text-amber-600">{'{{PROPERTY_PHONE}}'}</code> to dynamically insert the property's contact number.</p>
+                                    {invoiceInstructions.map((instruction, index) => (
+                                        <div key={index} className="flex items-center gap-3">
+                                            <div className="flex-1">
+                                                <input 
+                                                    type="text" 
+                                                    value={instruction} 
+                                                    onChange={(e) => updateInvoiceInstruction(index, e.target.value)} 
+                                                    placeholder="Enter instruction..."
+                                                    className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                                                />
+                                            </div>
+                                            <button onClick={() => removeInvoiceInstruction(index)} className="p-2 bg-destructive/10 text-destructive rounded-xl hover:bg-destructive hover:text-white transition-colors">
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <div className="mt-6 pt-6 border-t border-border flex items-center justify-end">
+                                <button onClick={handleSavePlatformConfig} disabled={isSaving} className="flex items-center gap-2 px-6 py-2 bg-foreground text-background rounded-xl font-bold">{isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Instructions</button>
                             </div>
                         </div>
                     </div>

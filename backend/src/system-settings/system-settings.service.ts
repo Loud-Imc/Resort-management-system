@@ -85,6 +85,16 @@ export class SystemSettingsService implements OnModuleInit {
                 key: 'AUTO_CHECKOUT_HOURS',
                 value: 2,
                 description: 'Grace period (in hours) after the scheduled check-out time before automatically checking out guests.'
+            },
+            {
+                key: 'INVOICE_GUEST_INSTRUCTIONS',
+                value: [
+                    'Please carry a valid photo ID for all guests.',
+                    'Standard check-in is 2 PM. Early check-in is subject to availability.',
+                    'Cancellation policy applies as per the selected rate plan.',
+                    'For any assistance, contact the resort at {{PROPERTY_PHONE}}'
+                ],
+                description: 'Important information/instructions displayed on the guest invoice. Use {{PROPERTY_PHONE}} to inject the property contact number.'
             }
         ];
 

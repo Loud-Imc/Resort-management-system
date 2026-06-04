@@ -236,13 +236,13 @@ export const BookingInvoice = forwardRef<HTMLDivElement, BookingInvoiceProps>(({
                             <div className="flex flex-col items-center justify-center pt-8 border-t border-gray-200 mt-4 gap-4">
                                 <div className="p-2.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
                                     <QRCodeSVG
-                                        value={`BOOKING_VERIFY:${booking.bookingNumber}:${booking.id}`}
+                                        value={`${window.location.origin.replace('5174', '5173').replace('property.', '')}/confirmation?bookingId=${booking.id}`}
                                         size={70}
                                         level="H"
                                     />
                                 </div>
                                 <div className="text-center">
-                                    <p className="text-[9px] text-gray-400 font-black uppercase tracking-[0.2em] mb-1">Authenticated Document</p>
+                                    <p className="text-[9px] text-gray-400 font-black uppercase tracking-[0.2em] mb-1">Scan to Pay / Verify</p>
                                     <p className="text-[8px] text-gray-300 font-medium font-mono lowercase">{booking.id}</p>
                                 </div>
                             </div>
