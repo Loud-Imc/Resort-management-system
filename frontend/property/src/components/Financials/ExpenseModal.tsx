@@ -17,6 +17,8 @@ const expenseSchema = z.object({
     categoryId: z.string().min(1, 'Category is required'),
     date: z.string().min(1, 'Date is required'),
     propertyId: z.string().optional(),
+    isPaid: z.boolean().optional(),
+    paymentMethod: z.string().optional(),
 });
 
 type ExpenseFormData = z.infer<typeof expenseSchema>;
@@ -56,6 +58,8 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
                 categoryId: expense?.categoryId || '',
                 date: expense?.date ? format(new Date(expense.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
                 propertyId: expense?.propertyId || selectedProperty?.id || '',
+                isPaid: expense?.isPaid ?? true,
+                paymentMethod: expense?.paymentMethod || '',
             });
         }
     }, [expense, isOpen, reset, selectedProperty?.id]);
@@ -168,6 +172,35 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
                                 className="block w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
                         </div>
                         {errors.date && <p className="text-xs text-red-500">{errors.date.message}</p>}
+                    </div>
+
+                    {/* Paid Status & Payment Method */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                            <div className="relative">
+                                <select {...register('isPaid', { setValueAs: (v) => String(v) === 'true' })}
+                                    className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none">
+                                    <option value="true">Paid</option>
+                                    <option value="false">Not Paid</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Payment Method</label>
+                            <div className="relative">
+                                <select {...register('paymentMethod')}
+                                    className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none">
+                                    <option value="">Select Method</option>
+                                    <option value="UPI">UPI</option>
+                                    <option value="CASH">CASH</option>
+                                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                                    <option value="CREDIT_CARD">Credit Card</option>
+                                    <option value="DEBIT_CARD">Debit Card</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Description */}

@@ -432,17 +432,19 @@ model Income {
 }
 
 model Expense {
-  id          String          @id @default(uuid())
-  amount      Decimal         @db.Decimal(10, 2)
-  description String
-  date        DateTime        @default(now())
-  categoryId  String
-  receipts    String[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  propertyId  String?
-  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
-  property    Property?       @relation(fields: [propertyId], references: [id])
+  id            String          @id @default(uuid())
+  amount        Decimal         @db.Decimal(10, 2)
+  description   String
+  date          DateTime        @default(now())
+  categoryId    String
+  receipts      String[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  propertyId    String?
+  isPaid        Boolean         @default(true)
+  paymentMethod String?
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  property      Property?       @relation(fields: [propertyId], references: [id])
 
   @@map("expenses")
 }
