@@ -12,6 +12,8 @@ export interface Expense {
     category: ExpenseCategory;
     propertyId?: string;
     property?: { id: string; name: string };
+    isPaid?: boolean;
+    paymentMethod?: string;
     createdAt: string;
     updatedAt: string;
 }

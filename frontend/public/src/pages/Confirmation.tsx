@@ -7,9 +7,10 @@ import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
 import { formatPrice } from '../utils/currency';
 import { QRCodeSVG } from 'qrcode.react';
-import jsPDF from 'jspdf';
-import { toCanvas } from 'html-to-image';
+// import jsPDF from 'jspdf';
+// import { toCanvas } from 'html-to-image';
 import logo from '../assets/routeguide.svg';
+import api from '../services/api';
 
 
 export default function Confirmation() {
@@ -155,39 +156,64 @@ export default function Confirmation() {
         }
     };
 
-    const handleDownloadPDF = async () => {
-        if (!invoiceRef.current) return;
-        setIsDownloading(true);
+    // const handleDownloadPDF = async () => {
+    //     if (!invoiceRef.current) return;
+    //     setIsDownloading(true);
 
-        // Add a temporary class to the container to trigger "Invoice Mode"
-        const element = invoiceRef.current;
-        element.classList.add('pdf-capture-mode');
+    //     // Add a temporary class to the container to trigger "Invoice Mode"
+    //     const element = invoiceRef.current;
+    //     element.classList.add('pdf-capture-mode');
 
+    //     try {
+    //         const canvas = await toCanvas(element, {
+    //             quality: 1,
+    //             pixelRatio: 2,
+    //             backgroundColor: '#ffffff',
+    //             cacheBust: true,
+    //             style: {
+    //                 borderRadius: '0', // Invoices should be flat
+    //                 boxShadow: 'none',
+    //                 border: 'none',
+    //             }
+    //         });
+    //         const imgData = canvas.toDataURL('image/png');
+    //         const pdf = new jsPDF('p', 'mm', 'a4');
+    //         const imgWidth = 210;
+    //         const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    //         pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    //         const fileName = balanceDue > 0
+    //             ? `RouteGuide_Performa_Invoice_${booking.bookingNumber}.pdf`
+    //             : `RouteGuide_Invoice_${booking.bookingNumber}.pdf`;
+    //         pdf.save(fileName);
+    //     } catch (error) {
+    //         console.error('Error generating PDF:', error);
+    //     } finally {
+    //         element.classList.remove('pdf-capture-mode');
+    //         setIsDownloading(false);
+    //     }
+    // };
+
+    const handleDownloadBackendPDF = async () => {
         try {
-            const canvas = await toCanvas(element, {
-                quality: 1,
-                pixelRatio: 2,
-                backgroundColor: '#ffffff',
-                cacheBust: true,
-                style: {
-                    borderRadius: '0', // Invoices should be flat
-                    boxShadow: 'none',
-                    border: 'none',
-                }
+            setIsDownloading(true);
+            const response = await api.get(`/bookings/public/${booking.id}/invoice`, {
+                responseType: 'blob'
             });
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 210;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
             const fileName = balanceDue > 0
                 ? `RouteGuide_Performa_Invoice_${booking.bookingNumber}.pdf`
                 : `RouteGuide_Invoice_${booking.bookingNumber}.pdf`;
-            pdf.save(fileName);
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
         } catch (error) {
-            console.error('Error generating PDF:', error);
+            console.error('Failed to download backend PDF', error);
+            alert('Failed to generate PDF from server.');
         } finally {
-            element.classList.remove('pdf-capture-mode');
             setIsDownloading(false);
         }
     };
@@ -454,8 +480,16 @@ export default function Confirmation() {
 
                                         {!isCancelled && (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <button
+                                                {/* <button
                                                     onClick={handleDownloadPDF}
+                                                    disabled={isDownloading}
+                                                    className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                >
+                                                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                                    {balanceDue > 0 ? 'Performa invoice (PDF)' : 'Invoice (PDF)'}
+                                                </button> */}
+                                                <button
+                                                    onClick={handleDownloadBackendPDF}
                                                     disabled={isDownloading}
                                                     className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                 >

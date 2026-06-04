@@ -14,7 +14,7 @@ export class ExpensesService {
      * Create expense
      */
     async create(createExpenseDto: CreateExpenseDto, userId: string) {
-        const { amount, description, categoryId, propertyId, date, receipts = [] } = createExpenseDto;
+        const { amount, description, categoryId, propertyId, date, receipts = [], isPaid, paymentMethod } = createExpenseDto;
 
         // Verify category exists
         const category = await this.prisma.expenseCategory.findUnique({
@@ -33,6 +33,8 @@ export class ExpensesService {
                 propertyId,
                 date: date ? new Date(date) : new Date(),
                 receipts,
+                isPaid,
+                paymentMethod,
             },
             include: {
                 category: true,
@@ -155,6 +157,8 @@ export class ExpensesService {
                 categoryId: updateExpenseDto.categoryId,
                 date: updateExpenseDto.date ? new Date(updateExpenseDto.date) : undefined,
                 receipts: updateExpenseDto.receipts,
+                isPaid: updateExpenseDto.isPaid,
+                paymentMethod: updateExpenseDto.paymentMethod,
             },
             include: {
                 category: true,

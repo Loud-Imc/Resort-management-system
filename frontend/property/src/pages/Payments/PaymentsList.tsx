@@ -11,7 +11,8 @@ import {
     Clock,
     RefreshCcw,
     Download,
-    Filter
+    Filter,
+    Info
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Payment } from '../../types/payment';
@@ -169,8 +170,22 @@ export default function PaymentsList() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Booking</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount Details</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payout Status</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    <div className="flex items-center gap-1.5">
+                                        Payout Status
+                                        <button onClick={() => toast("Payout Status: Indicates if the platform has transferred these funds to your bank account.", { icon: 'ℹ️', duration: 4000 })} className="text-muted-foreground hover:text-foreground transition-colors" title="Indicates if the platform has transferred these funds to your bank account.">
+                                            <Info className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    <div className="flex items-center gap-1.5">
+                                        Payment Status
+                                        <button onClick={() => toast("Payment Status: Indicates if the guest successfully paid the platform.", { icon: 'ℹ️', duration: 4000 })} className="text-muted-foreground hover:text-foreground transition-colors" title="Indicates if the guest successfully paid the platform.">
+                                            <Info className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">

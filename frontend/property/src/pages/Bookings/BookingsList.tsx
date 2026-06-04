@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
+import api from '../../services/api';
 import { BookingStatus } from '../../types/booking';
 import type { Booking } from '../../types/booking';
 import { format } from 'date-fns';
@@ -30,8 +31,8 @@ import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
 import { Banknote, Download, Wallet } from 'lucide-react';
-import jsPDF from 'jspdf';
-import { toPng } from 'html-to-image';
+// import jsPDF from 'jspdf';
+// import { toPng } from 'html-to-image';
 import { BookingInvoice } from '../../components/bookings/BookingInvoice';
 
 const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
@@ -281,77 +282,106 @@ export default function BookingsList() {
         },
     });
 
-    const handleDownloadPDF = async (booking: Booking) => {
-        setDownloadBooking(booking);
-        setIsDownloading(true);
-
-        // Wait for state update and re-render
-        setTimeout(async () => {
-            if (!invoiceRef.current) {
-                setIsDownloading(false);
-                return;
-            }
-
-            const element = invoiceRef.current;
-            element.classList.add('pdf-capture-mode');
-
-            try {
-                const elementWidth = element.offsetWidth;
-                const elementHeight = element.offsetHeight;
-                console.log(`[DEBUG] Capturing element: ${elementWidth}x${elementHeight}`);
-
-                if (elementWidth === 0 || elementHeight === 0) {
-                    console.warn('[DEBUG] Element has 0 dimensions! Capture might fail.');
-                }
-
-                const dataUrl = await toPng(element, {
-                    width: 800,
-                    quality: 1,
-                    pixelRatio: 2,
-                    backgroundColor: '#ffffff',
-                    cacheBust: true,
-                    style: {
-                        borderRadius: '0',
-                        boxShadow: 'none',
-                        border: 'none',
-                    }
-                });
-
-                console.log('[DEBUG] PDF imgData start:', dataUrl.substring(0, 50));
-
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const imgWidth = 210;
-
-                // Helper to get image dimensions
-                const img = new Image();
-                img.src = dataUrl;
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = reject;
-                    // Add timeout to prevent hang
-                    setTimeout(() => reject(new Error('Image load timeout')), 5000);
-                });
-
-                const imgHeight = (img.height * imgWidth) / img.width;
-                pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
-
-                const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
-                const fileName = balanceDue > 0
-                    ? `Invoice_Performa_${booking.bookingNumber}.pdf`
-                    : `Invoice_${booking.bookingNumber}.pdf`;
-
-                pdf.save(fileName);
-                toast.success('Invoice downloaded');
-            } catch (error) {
-                console.error('Error generating PDF:', error);
-                toast.error('Failed to generate PDF');
-            } finally {
-                element.classList.remove('pdf-capture-mode');
-                setIsDownloading(false);
-                setDownloadBooking(null);
-            }
-        }, 1000);
+    const handleDownloadBackendPDF = async (booking: Booking) => {
+        try {
+            setDownloadBooking(booking);
+            setIsDownloading(true);
+            const response = await api.get(`/bookings/invoice/${booking.id}/PARTNER`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
+            const balanceDue = (booking.totalAmount || 0) - (booking.paidAmount || 0);
+            const fileName = balanceDue > 0
+                ? `Invoice_Performa_${booking.bookingNumber}.pdf`
+                : `Invoice_${booking.bookingNumber}.pdf`;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('Invoice downloaded from server');
+        } catch (error) {
+            console.error('Failed to download backend PDF', error);
+            toast.error('Failed to generate PDF from server');
+        } finally {
+            setIsDownloading(false);
+            setDownloadBooking(null);
+        }
     };
+
+    // const handleDownloadPDF = async (booking: Booking) => {
+    //     setDownloadBooking(booking);
+    //     setIsDownloading(true);
+
+    //     // Wait for state update and re-render
+    //     setTimeout(async () => {
+    //         if (!invoiceRef.current) {
+    //             setIsDownloading(false);
+    //             return;
+    //         }
+
+    //         const element = invoiceRef.current;
+    //         element.classList.add('pdf-capture-mode');
+
+    //         try {
+    //             const elementWidth = element.offsetWidth;
+    //             const elementHeight = element.offsetHeight;
+    //             console.log(`[DEBUG] Capturing element: ${elementWidth}x${elementHeight}`);
+
+    //             if (elementWidth === 0 || elementHeight === 0) {
+    //                 console.warn('[DEBUG] Element has 0 dimensions! Capture might fail.');
+    //             }
+
+    //             const dataUrl = await toPng(element, {
+    //                 width: 800,
+    //                 quality: 1,
+    //                 pixelRatio: 2,
+    //                 backgroundColor: '#ffffff',
+    //                 cacheBust: true,
+    //                 style: {
+    //                     borderRadius: '0',
+    //                     boxShadow: 'none',
+    //                     border: 'none',
+    //                 }
+    //             });
+
+    //             console.log('[DEBUG] PDF imgData start:', dataUrl.substring(0, 50));
+
+    //             const pdf = new jsPDF('p', 'mm', 'a4');
+    //             const imgWidth = 210;
+
+    //             // Helper to get image dimensions
+    //             const img = new Image();
+    //             img.src = dataUrl;
+    //             await new Promise((resolve, reject) => {
+    //                 img.onload = resolve;
+    //                 img.onerror = reject;
+    //                 // Add timeout to prevent hang
+    //                 setTimeout(() => reject(new Error('Image load timeout')), 5000);
+    //             });
+
+    //             const imgHeight = (img.height * imgWidth) / img.width;
+    //             pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
+
+    //             const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
+    //             const fileName = balanceDue > 0
+    //                 ? `Invoice_Performa_${booking.bookingNumber}.pdf`
+    //                 : `Invoice_${booking.bookingNumber}.pdf`;
+
+    //             pdf.save(fileName);
+    //             toast.success('Invoice downloaded');
+    //         } catch (error) {
+    //             console.error('Error generating PDF:', error);
+    //             toast.error('Failed to generate PDF');
+    //         } finally {
+    //             element.classList.remove('pdf-capture-mode');
+    //             setIsDownloading(false);
+    //             setDownloadBooking(null);
+    //         }
+    //     }, 1000);
+    // };
 
     const getStatusColor = (status: BookingStatus) => {
         switch (status) {
@@ -636,10 +666,25 @@ export default function BookingsList() {
                                                                 onClick={() => setActiveMenu(null)}
                                                             ></div>
                                                             <div className={`absolute right-0 w-48 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in transition-all duration-200 ${filteredBookings.length > 3 && index >= filteredBookings.length - 2 ? 'bottom-full mb-2 slide-in-from-bottom-2' : 'top-full mt-2 slide-in-from-top-2'}`}>
-                                                                <button
+                                                                {/* <button
                                                                     onClick={() => {
                                                                         setActiveMenu(null);
                                                                         handleDownloadPDF(booking);
+                                                                    }}
+                                                                    disabled={isDownloading}
+                                                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                                                                >
+                                                                    {isDownloading && downloadBooking?.id === booking.id ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Download className="h-4 w-4" />
+                                                                    )}
+                                                                    Download Invoice
+                                                                </button> */}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setActiveMenu(null);
+                                                                        handleDownloadBackendPDF(booking);
                                                                     }}
                                                                     disabled={isDownloading}
                                                                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"

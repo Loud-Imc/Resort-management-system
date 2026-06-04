@@ -190,6 +190,23 @@ export class BookingsController {
         return this.bookingsService.create(createBookingDto, null);
     }
 
+    @Get('public/:id/invoice')
+    @ApiOperation({ summary: 'Get booking invoice PDF (Public)' })
+    async getPublicInvoice(
+        @Param('id') id: string,
+        @Res() res: any,
+    ) {
+        const buffer = await this.bookingsService.generateInvoice(id, 'GUEST');
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="GUEST_Invoice_${id}.pdf"`,
+            'Content-Length': buffer.length,
+        });
+
+        res.end(buffer);
+    }
+
     @Post()
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @ApiBearerAuth()
