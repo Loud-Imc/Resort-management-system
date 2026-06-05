@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import { PropertyType, CreatePropertyDto } from '../../types/property';
 import { User } from '../../types/user';
 import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
-import { categoryService } from '../../services/category';
-import { PropertyCategory } from '../../types/category';
+// import { PropertyCategory } from '../../types/category';
 import SearchableSelect from '../../components/SearchableSelect';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
@@ -39,7 +38,6 @@ export default function PropertyForm() {
     const [error, setError] = useState<string | null>(null);
     const [marketingUsers, setMarketingUsers] = useState<User[]>([]);
     const [propertyOwners, setPropertyOwners] = useState<User[]>([]);
-    const [categories, setCategories] = useState<PropertyCategory[]>([]);
 
     // Check roles
     const isAdmin = user?.roles?.some(r => r === 'SuperAdmin' || r === 'Admin');
@@ -75,6 +73,9 @@ export default function PropertyForm() {
         groupPricePerHead: 0,
         groupPriceAdult: 500,
         groupPriceChild: 300,
+        licenceImage: '',
+        ownerAadhaarImage: '',
+        ownerAadhaarNumber: '',
     });
 
     useEffect(() => {
@@ -84,7 +85,6 @@ export default function PropertyForm() {
 
         if (isAdmin || isMarketing) {
             loadUsers();
-            loadCategories();
         }
 
         // Auto-set defaults for non-admins
@@ -104,14 +104,6 @@ export default function PropertyForm() {
         }
     }, [id, isEdit, isAdmin, isMarketing, isPropertyOwner, user]);
 
-    const loadCategories = async () => {
-        try {
-            const data = await categoryService.getAll();
-            setCategories(data);
-        } catch (err) {
-            console.error('Failed to load categories', err);
-        }
-    };
 
     const loadUsers = async () => {
         try {
@@ -167,6 +159,9 @@ export default function PropertyForm() {
                 groupPricePerHead: property.groupPricePerHead ? Number(property.groupPricePerHead) : 0,
                 groupPriceAdult: property.groupPriceAdult ? Number(property.groupPriceAdult) : 0,
                 groupPriceChild: property.groupPriceChild ? Number(property.groupPriceChild) : 0,
+                licenceImage: property.licenceImage || '',
+                ownerAadhaarImage: property.ownerAadhaarImage || '',
+                ownerAadhaarNumber: property.ownerAadhaarNumber || '',
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -414,32 +409,7 @@ export default function PropertyForm() {
                             </select>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-muted-foreground mb-1">
-                                Category *
-                            </label>
-                            <select
-                                name="categoryId"
-                                value={formData.categoryId}
-                                onChange={(e) => {
-                                    const catId = e.target.value;
-                                    const selectedCat = categories.find(c => c.id === catId);
-                                    setFormData(prev => ({
-                                        ...prev,
-                                        categoryId: catId,
-                                        // Auto-sync type if possible for backward compatibility
-                                        type: (selectedCat?.slug?.toUpperCase() as any) || prev.type
-                                    }));
-                                }}
-                                required
-                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-                            >
-                                <option value="">-- Select Category --</option>
-                                {categories.map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                ))}
-                            </select>
-                        </div>
+
 
                         <div>
                             <label className="block text-sm font-bold text-muted-foreground mb-1">
@@ -817,6 +787,58 @@ export default function PropertyForm() {
                             <p className="text-xs text-muted-foreground mt-2 font-medium">
                                 Add up to 10 photos of the property.
                             </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Compliance & Documents */}
+                <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
+                    <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        Compliance & Documents
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-2">
+                                Trade / Business Licence
+                            </label>
+                            <ImageUpload
+                                images={formData.licenceImage ? [formData.licenceImage] : []}
+                                onChange={(urls) => setFormData(prev => ({ ...prev, licenceImage: urls[0] || '' }))}
+                                maxImages={1}
+                            />
+                            <p className="text-xs text-muted-foreground mt-2 font-medium">
+                                Upload a clear image or scan of the property's business licence.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-2">
+                                Owner Aadhaar Card (Front & Back)
+                            </label>
+                            <ImageUpload
+                                images={formData.ownerAadhaarImage ? [formData.ownerAadhaarImage] : []}
+                                onChange={(urls) => setFormData(prev => ({ ...prev, ownerAadhaarImage: urls[0] || '' }))}
+                                maxImages={1}
+                            />
+                            <p className="text-xs text-muted-foreground mt-2 font-medium">
+                                Upload the owner's Aadhaar card image.
+                            </p>
+
+                            <div className="mt-4">
+                                <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                    Aadhaar Number
+                                </label>
+                                <input
+                                    type="text"
+                                    name="ownerAadhaarNumber"
+                                    value={formData.ownerAadhaarNumber}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                    placeholder="e.g. 1234 5678 9012"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
