@@ -78,11 +78,12 @@ export default function BookingsCalendarWidget({
             const end = new Date(b.checkOutDate);
             end.setHours(0, 0, 0, 0);
 
+            // Compute unique room count for this booking (including blocks)
+            const roomsCount = new Set([b.roomId, ...(b.roomBlocks?.map(rb => rb.roomId) || [])]).size;
+
             while (curr < end) {
                 const dateStr = format(curr, 'yyyy-MM-dd');
-                // Count rooms (if group booking has multiple rooms, we might need a better way, but for now 1 booking = 1 room, 
-                // or if it has groupSize/allocatedRooms we could use that. We'll default to 1 room per booking object).
-                occupancyCounts[dateStr] = (occupancyCounts[dateStr] || 0) + 1; 
+                occupancyCounts[dateStr] = (occupancyCounts[dateStr] || 0) + roomsCount; 
                 curr = addDays(curr, 1);
             }
         });
@@ -180,6 +181,32 @@ export default function BookingsCalendarWidget({
                     // Content based on tab
                     const bookingsCount = bookingsPerDay[dateKey] || 0;
                     const occupiedRooms = occupancyPerDay[dateKey] || 0;
+                    const hasData = activeTab === 'bookings' ? bookingsCount > 0 : occupiedRooms > 0;
+                    const isFullyBooked = activeTab === 'occupancy' && occupiedRooms >= totalRooms && totalRooms > 0;
+
+                    // Dynamic styling classes for cell and text
+                    let cellBgClass = "";
+                    let dateNumClass = "";
+
+                    if (!isCurrentMonth) {
+                        cellBgClass = "bg-transparent border-transparent opacity-40 hover:opacity-100";
+                        dateNumClass = "text-gray-400 dark:text-gray-500";
+                    } else if (isSelected) {
+                        cellBgClass = "bg-blue-50 dark:bg-blue-900/20 border-blue-500 shadow-sm ring-1 ring-blue-500";
+                        dateNumClass = "text-blue-700 dark:text-blue-400";
+                    } else if (hasData) {
+                        if (isFullyBooked) {
+                            cellBgClass = "bg-emerald-600 border-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:border-emerald-700 dark:hover:bg-emerald-600 shadow-sm text-white";
+                            dateNumClass = "text-white";
+                        } else {
+                            cellBgClass = "bg-emerald-100 border-emerald-200 hover:bg-emerald-200/80 dark:bg-emerald-950/40 dark:border-emerald-900/50 shadow-sm text-emerald-900 dark:text-emerald-300";
+                            dateNumClass = "text-emerald-900 dark:text-emerald-200";
+                        }
+                    } else {
+                        // Empty/no data state for current month
+                        cellBgClass = "bg-gray-50/50 dark:bg-gray-800/50 border-transparent hover:border-gray-200 dark:hover:border-gray-700";
+                        dateNumClass = "text-gray-900 dark:text-white";
+                    }
 
                     return (
                         <button
@@ -187,30 +214,15 @@ export default function BookingsCalendarWidget({
                             onClick={() => handleDayClick(day)}
                             className={clsx(
                                 "flex flex-col items-center justify-center p-2 rounded-xl transition-all border",
+                                cellBgClass,
                                 {
-                                    // Base styling
-                                    "bg-gray-50/50 dark:bg-gray-800/50": isCurrentMonth && !isSelected && (activeTab === 'bookings' ? bookingsCount === 0 : occupiedRooms === 0),
-                                    "bg-green-50/40 dark:bg-green-900/10 border-green-100 dark:border-green-900/30": isCurrentMonth && !isSelected && (activeTab === 'bookings' ? bookingsCount > 0 : occupiedRooms > 0),
-                                    "border-transparent": !isSelected && !isTodayDate,
-                                    "opacity-40 hover:opacity-100": !isCurrentMonth,
-                                    
-                                    // Interactive
-                                    "hover:border-gray-300 dark:hover:border-gray-600": !isSelected,
-                                    
-                                    // Today highlighting
+                                    // Today highlighting (applied on top as ring)
                                     "ring-2 ring-blue-500/30": isTodayDate && !isSelected,
                                     "font-bold": isTodayDate,
-
-                                    // Selected state (mostly for occupancy tab)
-                                    "bg-blue-50 dark:bg-blue-900/20 border-blue-500 shadow-sm ring-1 ring-blue-500": isSelected,
                                 }
                             )}
                         >
-                            <span className={clsx(
-                                "text-sm mb-1",
-                                isCurrentMonth ? (isSelected ? "text-blue-700 dark:text-blue-400" : "text-gray-900 dark:text-white") : "text-gray-400",
-                                isTodayDate && !isSelected && "text-blue-600 dark:text-blue-400"
-                            )}>
+                            <span className={clsx("text-sm mb-1", dateNumClass)}>
                                 {format(day, 'd')}
                             </span>
                             
@@ -220,9 +232,13 @@ export default function BookingsCalendarWidget({
                                     bookingsCount > 0 ? (
                                         <span className={clsx(
                                             "text-[10px] font-bold px-1.5 py-0.5 rounded-md min-w-[20px] max-w-full truncate text-center shadow-sm",
-                                            bookingsCount > 3 ? "bg-green-600 text-white dark:bg-green-600 dark:text-white" : 
-                                            bookingsCount > 1 ? "bg-green-200 text-green-800 dark:bg-green-900/50 dark:text-green-300" : 
-                                            "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                            isFullyBooked
+                                                ? "bg-white text-emerald-700"
+                                                : bookingsCount > 3
+                                                    ? "bg-emerald-700 text-white dark:bg-emerald-600 dark:text-white"
+                                                    : bookingsCount > 1
+                                                        ? "bg-emerald-200 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+                                                        : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200/20"
                                         )}>
                                             {bookingsCount}
                                         </span>
@@ -230,13 +246,13 @@ export default function BookingsCalendarWidget({
                                         <span className="w-1 h-1 rounded-full bg-gray-200 dark:bg-gray-700"></span>
                                     )
                                 ) : (
-                                    /* Occupancy display: 3/10 or 25/110 */
+                                    /* Occupancy display */
                                     <div className={clsx(
-                                        "text-[9px] sm:text-[10px] font-bold px-1 py-0.5 rounded-md w-full max-w-full truncate text-center shadow-sm whitespace-nowrap",
-                                        occupiedRooms > 0 
-                                            ? (occupiedRooms >= totalRooms && totalRooms > 0)
-                                                ? "bg-green-600 text-white dark:bg-green-600 dark:text-white" // Fully booked
-                                                : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400"
+                                        "text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md w-full max-w-full truncate text-center shadow-sm whitespace-nowrap",
+                                        occupiedRooms > 0
+                                            ? isFullyBooked
+                                                ? "bg-white text-emerald-700 dark:bg-gray-100 dark:text-emerald-800"
+                                                : "bg-emerald-200 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
                                             : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
                                     )}>
                                         {occupiedRooms}/{totalRooms}

@@ -111,13 +111,25 @@ export class ReportsService {
             where: { isEnabled: true, property: propertyFilter },
         });
 
-        const occupiedRooms = await this.prisma.booking.count({
+        const activeBookings = await this.prisma.booking.findMany({
             where: {
                 status: 'CHECKED_IN',
                 checkInDate: { lte: new Date() },
                 checkOutDate: { gt: new Date() },
                 room: { property: propertyFilter }
             },
+            select: {
+                roomId: true,
+                roomBlocks: {
+                    select: { roomId: true }
+                }
+            }
+        });
+
+        let occupiedRooms = 0;
+        activeBookings.forEach(b => {
+            const uniqueRooms = new Set([b.roomId, ...(b.roomBlocks?.map(rb => rb.roomId) || [])]);
+            occupiedRooms += uniqueRooms.size;
         });
 
         const bookedToday = await this.prisma.booking.count({
@@ -648,13 +660,25 @@ export class ReportsService {
             const nextDay = new Date(date);
             nextDay.setDate(date.getDate() + 1);
 
-            const occupied = await this.prisma.booking.count({
+            const activeBookings = await this.prisma.booking.findMany({
                 where: {
                     status: { in: ['CHECKED_IN', 'CONFIRMED'] }, // Include confirmed for future dates
                     checkInDate: { lte: date },
                     checkOutDate: { gt: date },
                     room: { property: propertyFilter }
                 },
+                select: {
+                    roomId: true,
+                    roomBlocks: {
+                        select: { roomId: true }
+                    }
+                }
+            });
+
+            let occupied = 0;
+            activeBookings.forEach(b => {
+                const uniqueRooms = new Set([b.roomId, ...(b.roomBlocks?.map(rb => rb.roomId) || [])]);
+                occupied += uniqueRooms.size;
             });
 
             report.push({

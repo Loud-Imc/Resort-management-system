@@ -84,7 +84,7 @@ export default function DashboardHome() {
             // Find an active booking for this room that covers selectedDate
             const booking = monthBookings.find(b => {
                 if (b.status === 'CANCELLED' || b.status === 'PENDING_PAYMENT') return false;
-                if (b.roomId !== room.id) return false;
+                if (b.roomId !== room.id && !b.roomBlocks?.some(rb => rb.roomId === room.id)) return false;
                 
                 const checkIn = new Date(b.checkInDate);
                 checkIn.setHours(0, 0, 0, 0);
