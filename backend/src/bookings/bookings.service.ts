@@ -144,13 +144,29 @@ export class BookingsService {
         // (Initial guest check moved inside transaction for atomicity, but we define variables here)
         let finalTotal = 0;
 
+        // Calculate required rooms for standard booking
+        let requiredRooms = 1;
+        if (!isGroupBooking) {
+            const roomType = await this.prisma.roomType.findUnique({
+                where: { id: roomTypeId },
+            });
+            if (!roomType) {
+                throw new NotFoundException('Room type not found');
+            }
+            const maxAdults = roomType.maxAdults || 2;
+            const maxChildren = roomType.maxChildren || 2;
+            const requiredRoomsByAdults = Math.ceil(adultsCount / (maxAdults + 1));
+            const requiredRoomsByChildren = maxChildren > 0 ? Math.ceil(childrenCount / (maxChildren + 1)) : (childrenCount > 0 ? childrenCount : 1);
+            requiredRooms = Math.max(requiredRoomsByAdults, requiredRoomsByChildren, 1);
+        }
+
         // 2. Check availability (standard booking only — group bookings validate via allocateRoomsForGroup below)
         if (!isGroupBooking) {
             // For historical entries, we still check availability for *those dates* to prevent internal double booking, 
             // but we don't care about "Today's" status.
-            const isAvailable = await this.availabilityService.checkAvailability(roomTypeId!, checkIn, checkOut);
-            if (!isAvailable) {
-                throw new BadRequestException('No rooms available for the selected dates');
+            const availableCount = await this.availabilityService.getAvailableRoomCount(roomTypeId!, checkIn, checkOut);
+            if (availableCount < requiredRooms) {
+                throw new BadRequestException(`Not enough rooms available for the selected dates. Required: ${requiredRooms}, Available: ${availableCount}`);
             }
         }
 
@@ -174,7 +190,7 @@ export class BookingsService {
         // Determine room count for pricing
         const roomCount = (selectedRoomIds && selectedRoomIds.length > 0)
             ? selectedRoomIds.length
-            : 1;
+            : (isGroupBooking ? 1 : requiredRooms);
 
         if (!isGroupBooking) {
             pricing = await this.pricingService.calculatePrice(
@@ -188,7 +204,7 @@ export class BookingsService {
                 createBookingDto.currency || 'INR',
                 isGroupBooking,
                 groupSize,
-                (selectedRoomIds?.length || 1),
+                roomCount,
                 generalCode,
                 overrideTotal,
                 createBookingDto.isOverrideInclusive ?? true,
@@ -298,7 +314,7 @@ export class BookingsService {
             isPriceOverridden = true;
         }
 
-        // 5. Get an available room
+        // 5. Get available room(s)
         let selectedRooms: any[] = [];
         if (isGroupBooking && allocatedRooms.length > 0) {
             selectedRooms = allocatedRooms;
@@ -317,6 +333,10 @@ export class BookingsService {
                 if (selectedRooms.some(r => r.roomTypeId !== roomTypeId)) {
                     throw new BadRequestException('One or more selected rooms do not match the selected room type');
                 }
+
+                if (selectedRooms.length < requiredRooms) {
+                    throw new BadRequestException(`Guest count requires at least ${requiredRooms} rooms, but only ${selectedRooms.length} rooms were selected.`);
+                }
             } else if (roomId) {
                 const sr = await this.prisma.room.findUnique({
                     where: { id: roomId },
@@ -325,12 +345,17 @@ export class BookingsService {
                 if (!sr || sr.roomTypeId !== roomTypeId) {
                     throw new BadRequestException('Selected room is not available for this room type');
                 }
+                if (requiredRooms > 1) {
+                    throw new BadRequestException(`Guest count requires at least ${requiredRooms} rooms, but only 1 room was selected.`);
+                }
                 selectedRooms = [sr];
             } else {
-                // Auto-allocate
+                // Auto-allocate standard booking rooms up to requiredRooms count
                 const availableRooms = await this.availabilityService.getAvailableRooms(roomTypeId!, checkIn, checkOut);
-                if (availableRooms.length === 0) throw new BadRequestException('No rooms available for these dates');
-                selectedRooms = [availableRooms[0]];
+                if (availableRooms.length < requiredRooms) {
+                    throw new BadRequestException(`Not enough rooms available of this type. Required: ${requiredRooms}, Available: ${availableRooms.length}`);
+                }
+                selectedRooms = availableRooms.slice(0, requiredRooms);
             }
         }
 
@@ -1234,8 +1259,9 @@ export class BookingsService {
             });
 
             // Update room status
-            await tx.room.update({
-                where: { id: booking.roomId },
+            const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+            await tx.room.updateMany({
+                where: { id: { in: roomIds } },
                 data: { status: 'OCCUPIED' },
             });
 
@@ -1297,8 +1323,9 @@ export class BookingsService {
         });
 
         // Update room status
-        await this.prisma.room.update({
-            where: { id: booking.roomId },
+        const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+        await this.prisma.room.updateMany({
+            where: { id: { in: roomIds } },
             data: { status: 'AVAILABLE' },
         });
 
@@ -1344,8 +1371,9 @@ export class BookingsService {
         });
 
         // Update room status to AVAILABLE
-        await this.prisma.room.update({
-            where: { id: booking.roomId },
+        const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+        await this.prisma.room.updateMany({
+            where: { id: { in: roomIds } },
             data: { status: 'AVAILABLE' },
         });
 

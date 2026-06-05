@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,7 +10,7 @@ import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { uploadService } from '../../services/uploads';
-import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, Eye } from 'lucide-react';
+import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, Eye, X } from 'lucide-react';
 import clsx from 'clsx';
 import SearchableSelect from '../../components/SearchableSelect';
 import type { PriceCalculationResult, CreateBookingDto } from '../../types/booking';
@@ -108,6 +108,7 @@ export default function CreateBooking() {
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; roomList?: any[]; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
+    const [showInsufficientModal, setShowInsufficientModal] = useState(false);
 
     const preSelectedRoomId = state?.roomId || searchParams.get('roomId');
     const preSelectedRoomTypeId = state?.roomTypeId || searchParams.get('roomTypeId');
@@ -176,6 +177,27 @@ export default function CreateBooking() {
         enabled: !!selectedProperty?.id,
     });
 
+    const selectedRoomTypeId = watch('roomTypeId');
+    const selectedRoomType = useMemo(() => {
+        return roomTypes?.find(rt => rt.id === selectedRoomTypeId);
+    }, [roomTypes, selectedRoomTypeId]);
+
+    const requiredRooms = useMemo(() => {
+        if (!selectedRoomType) return 1;
+        const maxAdults = selectedRoomType.maxAdults || 2;
+        const maxChildren = selectedRoomType.maxChildren || 2;
+        const adultsCount = Number(watch('adultsCount')) || 1;
+        const childrenCount = Number(watch('childrenCount')) || 0;
+
+        const maxAdultsPerRoom = maxAdults + 1;
+        const maxChildrenPerRoom = maxChildren > 0 ? (maxChildren + 1) : 1;
+
+        const roomsByAdults = Math.ceil(adultsCount / maxAdultsPerRoom);
+        const roomsByChildren = Math.ceil(childrenCount / maxChildrenPerRoom);
+
+        return Math.max(roomsByAdults, roomsByChildren, 1);
+    }, [selectedRoomType, watch('adultsCount'), watch('childrenCount')]);
+
     const { data: bookingSources } = useQuery<any[]>({
         queryKey: ['bookingSources'],
         queryFn: () => bookingSourcesService.getAll(),
@@ -231,29 +253,45 @@ export default function CreateBooking() {
             setAvailability(avail);
 
             if (avail.available) {
-                const values = getValues();
+                let currentValues = getValues();
 
                 // For group bookings, auto-populate suggested rooms if none selected yet
-                if (isGroup && avail.allocationPreview && (!values.selectedRoomIds || values.selectedRoomIds.length === 0)) {
+                if (isGroup && avail.allocationPreview && (!currentValues.selectedRoomIds || currentValues.selectedRoomIds.length === 0)) {
                     const suggestedIds = avail.allocationPreview.map((r: any) => r.id);
                     setValue('selectedRoomIds', suggestedIds);
+                    currentValues = getValues();
                 }
 
-                const roomCount = (getValues('selectedRoomIds') && getValues('selectedRoomIds')!.length > 0)
-                    ? getValues('selectedRoomIds')!.length
-                    : (isGroup ? (avail.allocationPreview?.length || 1) : 1);
+                // For standard bookings, if no selectedRoomIds yet, auto-select the required rooms from available rooms
+                if (!isGroup && (!currentValues.selectedRoomIds || currentValues.selectedRoomIds.length === 0) && avail.roomList && avail.roomList.length > 0) {
+                    const autoSelected = avail.roomList.slice(0, requiredRooms).map((r: any) => r.id);
+                    setValue('selectedRoomIds', autoSelected);
+                    currentValues = getValues();
+                }
+
+                // If check availability returns less rooms than required, show the modal warning
+                if (!isGroup) {
+                    const selectedCount = (currentValues.selectedRoomIds || []).length;
+                    if (selectedCount < requiredRooms) {
+                        setShowInsufficientModal(true);
+                    }
+                }
+
+                const roomCount = (currentValues.selectedRoomIds && currentValues.selectedRoomIds.length > 0)
+                    ? currentValues.selectedRoomIds.length
+                    : (isGroup ? (avail.allocationPreview?.length || 1) : requiredRooms);
                 const price = await (bookingsService as any).calculatePrice({
-                    roomTypeId: isGroup ? (avail.allocationPreview?.[0]?.roomTypeId || values.roomTypeId) : values.roomTypeId,
-                    checkInDate: values.checkInDate,
-                    checkOutDate: values.checkOutDate,
-                    adultsCount: Number(values.adultsCount),
-                    childrenCount: Number(values.childrenCount),
+                    roomTypeId: isGroup ? (avail.allocationPreview?.[0]?.roomTypeId || currentValues.roomTypeId) : currentValues.roomTypeId,
+                    checkInDate: currentValues.checkInDate,
+                    checkOutDate: currentValues.checkOutDate,
+                    adultsCount: Number(currentValues.adultsCount),
+                    childrenCount: Number(currentValues.childrenCount),
                     isGroupBooking: isGroup,
-                    groupSize: isGroup ? Number(values.groupSize) : undefined,
+                    groupSize: isGroup ? Number(currentValues.groupSize) : undefined,
                     roomCount,
-                    generalCode: values.appliedCode,
-                    overrideTotal: values.overrideTotal ? Number(values.overrideTotal) : undefined,
-                    isOverrideInclusive: values.isOverrideInclusive,
+                    generalCode: currentValues.appliedCode,
+                    overrideTotal: currentValues.overrideTotal ? Number(currentValues.overrideTotal) : undefined,
+                    isOverrideInclusive: currentValues.isOverrideInclusive,
                 });
                 setPriceDetails(price);
             }
@@ -279,6 +317,14 @@ export default function CreateBooking() {
 
     const onSubmit = (data: BookingFormData) => {
         if (!availability?.available) { toast.error('Please check availability first'); return; }
+
+        if (!data.isGroupBooking) {
+            const selectedCount = (data.selectedRoomIds || []).length;
+            if (selectedCount < requiredRooms) {
+                setShowInsufficientModal(true);
+                return;
+            }
+        }
 
         // Remove propertyId (unless needed for group allocation) and other non-DTO fields
         const { propertyId, paymentOption, appliedCode, ...rest } = data;
@@ -603,6 +649,18 @@ export default function CreateBooking() {
                                                                             : "bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]")}
                                                                     style={{ width: `${Math.min(100, (availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) / (watch('groupSize') || 1) * 100)}%` }}
                                                                 ></div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {!isGroupMode && (watch('selectedRoomIds') || []).length < requiredRooms && (
+                                                        <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3 text-amber-700 dark:text-amber-300 animate-in fade-in slide-in-from-top-2">
+                                                            <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                                                            <div>
+                                                                <p className="font-bold text-sm">Insufficient Rooms Selected</p>
+                                                                <p className="text-xs mt-1">
+                                                                    Guest count ({watch('adultsCount')} Adults, {watch('childrenCount')} Children) requires at least <strong>{requiredRooms} rooms</strong>. You have selected only <strong>{(watch('selectedRoomIds') || []).length} rooms</strong>.
+                                                                </p>
                                                             </div>
                                                         </div>
                                                     )}
@@ -1008,6 +1066,85 @@ export default function CreateBooking() {
                     </div>
                 </div >
             </div >
+
+            {showInsufficientModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-amber-50/50 dark:bg-amber-950/20">
+                            <div>
+                                <h2 className="text-lg font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                                    <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                    Insufficient Rooms
+                                </h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowInsufficientModal(false)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-4">
+                            <div className="flex flex-col items-center text-center space-y-3">
+                                <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                                    <AlertCircle className="h-10 w-10" />
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+                                    {(availability?.roomList || []).length < requiredRooms ? (
+                                        <span>
+                                            Not enough rooms available on these dates! The guest count requires at least <strong>{requiredRooms} rooms</strong>, but only <strong>{(availability?.roomList || []).length} rooms</strong> are available of this type. Please choose different dates, select a different room type, reduce the guest count, <strong className="text-amber-600 dark:text-amber-400 font-black">or split the booking into multiple room types</strong>.
+                                        </span>
+                                    ) : (
+                                        <span>
+                                            The selected guest count cannot fit in the number of rooms currently selected. Please select additional available rooms to accommodate all guests.
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+
+                            <div className="p-4 bg-gray-50 dark:bg-gray-900/30 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400 font-medium">Guests:</span>
+                                    <span className="font-bold text-gray-900 dark:text-white">
+                                        {watch('adultsCount')} Adult(s), {watch('childrenCount')} Child(ren)
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400 font-medium">Room Type:</span>
+                                    <span className="font-bold text-gray-900 dark:text-white">
+                                        {selectedRoomType?.name || 'N/A'}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-xs border-t border-gray-100 dark:border-gray-800 pt-2">
+                                    <span className="text-gray-500 dark:text-gray-400 font-bold">Required Rooms:</span>
+                                    <span className="font-black text-amber-600 dark:text-amber-400">{requiredRooms} Room(s)</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400 font-bold">Currently Selected:</span>
+                                    <span className="font-black text-red-600 dark:text-red-400">
+                                        {(watch('selectedRoomIds') || []).length} Room(s)
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="pt-2 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowInsufficientModal(false)}
+                                    className="w-full px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center"
+                                >
+                                    {(availability?.roomList || []).length < requiredRooms ? 'Modify Search' : 'Select More Rooms'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

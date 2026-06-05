@@ -78,7 +78,9 @@ export interface Booking {
     commissionAmount: number;
     guests: BookingGuest[];
     roomBlocks?: {
+        roomId: string;
         room: {
+            id: string;
             roomNumber: string;
             roomType: {
                 name: string;
