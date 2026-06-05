@@ -8,7 +8,7 @@ import {
     BedDouble,
     Users,
     CreditCard,
-    DollarSign,
+    IndianRupee,
     PieChart,
     Briefcase,
     Shield,
@@ -66,7 +66,7 @@ export function useNavigation() {
             ] : []),
 
             ...(hasPermission('reports.viewFinancial') ? [
-                { icon: DollarSign, label: 'Financials', path: '/financials' },
+                { icon: IndianRupee, label: 'Financials', path: '/financials' },
                 { icon: Plus, label: 'Add Expenses', path: '/financials?action=add-expense' },
             ] : []),
 

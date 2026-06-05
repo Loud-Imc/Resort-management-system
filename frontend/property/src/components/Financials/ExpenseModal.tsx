@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Loader2, DollarSign, Calendar, FileText, Tag } from 'lucide-react';
+import { X, Loader2, IndianRupee, Calendar, FileText, Tag } from 'lucide-react';
 import { expensesService } from '../../services/expenses';
 import type { Expense, ExpenseCategory } from '../../types/expense';
 import { useProperty } from '../../context/PropertyContext';
@@ -124,7 +124,7 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Amount (₹)</label>
                         <div className="relative">
-                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                             <input type="number" step="0.01" {...register('amount', { valueAsNumber: true })} placeholder="0.00"
                                 className="block w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
                         </div>

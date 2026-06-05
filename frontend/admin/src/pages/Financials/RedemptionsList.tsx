@@ -11,7 +11,7 @@ import {
     ChevronRight,
     Clock,
     Search,
-    DollarSign,
+    IndianRupee,
     Gift,
     Edit2,
     X,
@@ -124,7 +124,7 @@ export default function RedemptionsList() {
                         mainTab === 'PAYOUTS' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
                 >
-                    <DollarSign className="h-4 w-4" /> Payout Requests
+                    <IndianRupee className="h-4 w-4" /> Payout Requests
                 </button>
                 <button
                     onClick={() => setMainTab('REWARDS')}

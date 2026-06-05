@@ -10,7 +10,7 @@ import {
     // BedDouble,
     Users,
     CreditCard,
-    DollarSign,
+    IndianRupee,
     LogOut,
     Menu,
     X,
@@ -92,13 +92,13 @@ export default function DashboardLayout() {
             { icon: Users, label: 'CP Onboarding', path: '/channel-partners', badgePath: '/channel-partners' },
         ] : []),
         ...(hasPermission('payments.read') ? [
-            { icon: DollarSign, label: 'CP Redemptions', path: '/financials/redemptions', badgePath: '/financials/redemptions' },
+            { icon: IndianRupee, label: 'CP Redemptions', path: '/financials/redemptions', badgePath: '/financials/redemptions' },
         ] : []),
 
         // PILLAR 4: FINANCIAL OPERATIONS
         ...(hasPermission('payments.read') ? [
             { icon: CreditCard, label: 'Settlements', path: '/financials/settlements', badgePath: '/financials/settlements' },
-            { icon: DollarSign, label: 'Wallet Adjustments', path: '/financials/adjustments', badgePath: '/financials/adjustments' },
+            { icon: IndianRupee, label: 'Wallet Adjustments', path: '/financials/adjustments', badgePath: '/financials/adjustments' },
             { icon: CreditCard, label: 'Refund Requests', path: '/financials/refunds', badgePath: '/financials/refunds' },
             { icon: Shield, label: 'Reconciliation', path: '/financials/reconciliation' },
         ] : []),

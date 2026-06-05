@@ -6,7 +6,7 @@ import { reportsService } from '../../services/reports';
 import { expensesService } from '../../services/expenses';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import {
-    Loader2, DollarSign, TrendingUp, TrendingDown,
+    Loader2, IndianRupee, TrendingUp, TrendingDown,
     PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight
 } from 'lucide-react';
 import {
@@ -99,7 +99,7 @@ export default function Financials() {
                 <SummaryCard title="Total Income" value={`₹${report?.summary?.totalIncome?.toLocaleString() || '0'}`} icon={<TrendingUp className="h-6 w-6 text-emerald-500" />} color="emerald" />
                 <SummaryCard title="Total Expenses" value={`₹${report?.summary?.totalExpenses?.toLocaleString() || '0'}`} icon={<TrendingDown className="h-6 w-6 text-rose-500" />} color="rose" />
                 <SummaryCard title="Platform Fees" value={`₹${report?.summary?.totalPlatformFees?.toLocaleString() || '0'}`} icon={<Tag className="h-6 w-6 text-orange-500" />} color="orange" />
-                <SummaryCard title="Net Profit" value={`₹${report?.summary?.netProfit?.toLocaleString() || '0'}`} icon={<DollarSign className="h-6 w-6 text-blue-500" />} color="blue" isNegative={report?.summary?.netProfit < 0} />
+                <SummaryCard title="Net Profit" value={`₹${report?.summary?.netProfit?.toLocaleString() || '0'}`} icon={<IndianRupee className="h-6 w-6 text-blue-500" />} color="blue" isNegative={report?.summary?.netProfit < 0} />
                 <SummaryCard title="Profit Margin" value={`${typeof report?.summary?.profitMargin === 'number' ? report.summary.profitMargin.toFixed(1) : '0'}%`} icon={<PieChartIcon className="h-6 w-6 text-purple-500" />} color="purple" />
             </div>
 

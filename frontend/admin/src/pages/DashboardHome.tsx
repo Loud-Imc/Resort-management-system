@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService, DashboardStats } from '../services/reports';
-import { Building2, Shield, Users, DollarSign, LayoutGrid, Loader2, Tag } from 'lucide-react';
+import { Building2, Shield, Users, IndianRupee, LayoutGrid, Loader2, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -122,7 +122,7 @@ export default function DashboardHome() {
                             </div>
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
-                                    <DollarSign className="h-6 w-6 text-amber-400" />
+                                    <IndianRupee className="h-6 w-6 text-amber-400" />
                                 </div>
                                 <div>
                                     <p className="text-gray-400 text-xs uppercase tracking-wider">Partner Commissions</p>
@@ -185,7 +185,7 @@ export default function DashboardHome() {
                 >
                     <div className="flex items-center gap-3 mb-4">
                         <div className="p-2 bg-muted rounded-lg group-hover:bg-emerald-500/10 transition-colors">
-                            <DollarSign className="h-5 w-5 text-emerald-500" />
+                            <IndianRupee className="h-5 w-5 text-emerald-500" />
                         </div>
                         <h3 className="font-bold">Financial Integrity</h3>
                     </div>

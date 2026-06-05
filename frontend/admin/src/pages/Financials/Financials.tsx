@@ -6,7 +6,7 @@ import { expensesService } from '../../services/expenses';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import {
     Loader2,
-    DollarSign,
+    IndianRupee,
     TrendingUp,
     TrendingDown,
     PieChart as PieChartIcon,
@@ -199,7 +199,7 @@ export default function Financials() {
                             </p>
                         </div>
                         <div className="p-3 bg-primary/10 rounded-xl group-hover:scale-110 transition-transform">
-                            <DollarSign className="h-6 w-6 text-primary" />
+                            <IndianRupee className="h-6 w-6 text-primary" />
                         </div>
                     </div>
                 </div>
