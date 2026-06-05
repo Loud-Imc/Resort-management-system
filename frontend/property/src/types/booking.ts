@@ -57,6 +57,13 @@ export interface Booking {
     whatsappNumber?: string;
     isManualBooking: boolean;
     roomId: string;
+    roomTypeId: string;
+    couponCode?: string;
+    channelPartner?: {
+        id: string;
+        name: string;
+        referralCode: string;
+    };
     room: {
         roomNumber: string;
         floor: number;
@@ -163,6 +170,8 @@ export interface PriceCalculationDto {
     generalCode?: string;
     isGroupBooking?: boolean;
     groupSize?: number;
+    currency?: string;
+    roomCount?: number;
 }
 
 export interface PriceCalculationResult {

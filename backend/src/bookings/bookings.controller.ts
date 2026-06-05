@@ -15,6 +15,7 @@ import { PERMISSIONS } from '../auth/constants/permissions.constant';
 import { CheckInDto } from './dto/check-in.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 
 @ApiTags('Bookings')
 @Controller('bookings')
@@ -366,6 +367,19 @@ export class BookingsController {
         @Request() req
     ) {
         return this.bookingsService.checkIn(id, req.user, dto);
+    }
+
+    @Post(':id/reschedule')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.BOOKINGS.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Reschedule booking within 3 months' })
+    reschedule(
+        @Param('id') id: string,
+        @Body() dto: RescheduleBookingDto,
+        @Request() req
+    ) {
+        return this.bookingsService.reschedule(id, dto, req.user);
     }
 
     @Post(':id/check-out')

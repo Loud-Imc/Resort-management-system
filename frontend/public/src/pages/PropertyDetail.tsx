@@ -171,6 +171,8 @@ export default function PropertyDetail() {
     const [nearbyProperties, setNearbyProperties] = useState<Property[]>([]);
     const [nearbyRadius, setNearbyRadius] = useState<number>(50);
     const [loadingNearby, setLoadingNearby] = useState(false);
+    const [flexiRates, setFlexiRates] = useState<any[]>([]);
+    const [loadingFlexi, setLoadingFlexi] = useState(false);
 
     useEffect(() => {
         if (slug) {
@@ -220,6 +222,109 @@ export default function PropertyDetail() {
             fetchAvailability();
         }
     }, [property, checkIn, checkOut, adults, children, rooms, isGroupBooking, groupSize]);
+
+    // Fetch flexible travel dates rates in parallel
+    useEffect(() => {
+        if (!property?.id || !checkIn || !checkOut) return;
+
+        const loadFlexiDates = async () => {
+            try {
+                setLoadingFlexi(true);
+
+                // Stay length N
+                const nights = differenceInDays(checkOut, checkIn);
+                const stayLength = nights > 0 ? nights : 1;
+
+                // Offsets surrounding selected date
+                let offsets = [-1, 0, 1, 2, 3];
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // Check if check-in minus 1 day is in the past
+                const checkInMinus1 = addDays(checkIn, -1);
+                checkInMinus1.setHours(0, 0, 0, 0);
+
+                if (checkInMinus1.getTime() < today.getTime()) {
+                    // Shift range forward to only check future/present dates
+                    offsets = [0, 1, 2, 3, 4];
+                }
+
+                // Generate ranges
+                const ranges = offsets.map(offset => {
+                    const cin = addDays(checkIn, offset);
+                    const cout = addDays(cin, stayLength);
+                    return { checkIn: cin, checkOut: cout };
+                });
+
+                // Fetch availability for all ranges in parallel
+                const promises = ranges.map(async (range) => {
+                    try {
+                        const data = await bookingService.checkAvailability({
+                            checkInDate: range.checkIn.toISOString(),
+                            checkOutDate: range.checkOut.toISOString(),
+                            adults,
+                            children,
+                            rooms,
+                            includeSoldOut: true,
+                            propertyId: property.id,
+                            isGroupBooking,
+                            groupSize
+                        });
+
+                        // Calculate lowest starting price in this range
+                        let price: number | null = null;
+                        let isSoldOut = true;
+
+                        if (isGroupBooking) {
+                            const groupStay = data.availableRoomTypes?.[0];
+                            if (groupStay && !groupStay.isSoldOut) {
+                                price = groupStay.totalPrice;
+                                isSoldOut = false;
+                            }
+                        } else {
+                            const availableRoomTypes = data.availableRoomTypes || [];
+                            const nonSoldOut = availableRoomTypes.filter((rt: any) => !rt.isSoldOut);
+                            if (nonSoldOut.length > 0) {
+                                isSoldOut = false;
+                                // Find minimum price
+                                const prices = nonSoldOut.map((rt: any) => {
+                                    if (rt.totalPrice) return rt.totalPrice;
+                                    return (rt.discountedPricePerNight || rt.basePrice) * stayLength;
+                                });
+                                price = Math.min(...prices);
+                            }
+                        }
+
+                        return {
+                            checkIn: range.checkIn,
+                            checkOut: range.checkOut,
+                            price,
+                            isSoldOut,
+                            isSelected: range.checkIn.toDateString() === checkIn.toDateString()
+                        };
+                    } catch (err) {
+                        console.error('Error fetching flexi rate for range', range, err);
+                        return {
+                            checkIn: range.checkIn,
+                            checkOut: range.checkOut,
+                            price: null,
+                            isSoldOut: true,
+                            isSelected: range.checkIn.toDateString() === checkIn.toDateString()
+                        };
+                    }
+                });
+
+                const results = await Promise.all(promises);
+                setFlexiRates(results);
+            } catch (err) {
+                console.error('Error loading flexible dates:', err);
+            } finally {
+                setLoadingFlexi(false);
+            }
+        };
+
+        loadFlexiDates();
+    }, [property?.id, checkIn, checkOut, adults, children, rooms, isGroupBooking, groupSize]);
 
     const fetchAvailability = async () => {
         if (!property || !checkIn || !checkOut) return;
@@ -366,6 +471,159 @@ export default function PropertyDetail() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-8">
+                        {/* Flexible Dates Widget */}
+                        {/* Flexible Dates Widget */}
+                        {checkIn && checkOut && flexiRates.length > 0 && (
+                            <div className="bg-gradient-to-br from-indigo-50/40 via-white to-blue-50/20 rounded-xl border border-indigo-100/60 p-3 shadow-sm mb-4 overflow-hidden relative">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
+                                
+                                <div className="flex items-center justify-between gap-4 mb-2.5">
+                                    <div>
+                                        <h3 className="text-xs font-black tracking-tight text-gray-900 flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-indigo-600 animate-pulse animate-duration-1000" />
+                                            Are you flexible with travel dates?
+                                        </h3>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            pickerRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                            pickerRef.current?.classList.add('ring-4', 'ring-indigo-500/30', 'bg-indigo-50/50');
+                                            setTimeout(() => {
+                                                pickerRef.current?.classList.remove('ring-4', 'ring-indigo-500/30', 'bg-indigo-50/50');
+                                            }, 2000);
+                                        }}
+                                        className="px-2 py-0.5 border border-indigo-200 text-indigo-600 rounded-md hover:bg-indigo-50 font-black text-[8px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shrink-0"
+                                    >
+                                        Modify
+                                    </button>
+                                </div>
+
+                                {loadingFlexi ? (
+                                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                                        {[1, 2, 3, 4, 5].map((i) => (
+                                            <div key={i} className="min-w-[145px] h-[82px] bg-gray-50 animate-pulse rounded-lg border border-gray-100 shrink-0" />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2.5 overflow-x-auto pb-1 snap-x scroll-smooth no-scrollbar">
+                                        {(() => {
+                                            const selectedRate = flexiRates.find(r => r.isSelected);
+                                            const selectedPrice = selectedRate?.price;
+                                            const availableRates = flexiRates.filter(r => !r.isSoldOut && r.price !== null);
+                                            const minPrice = availableRates.length > 0 ? Math.min(...availableRates.map(r => r.price!)) : null;
+
+                                            return flexiRates.map((rate, idx) => {
+                                                const isCheapest = rate.price !== null && minPrice !== null && rate.price <= minPrice;
+                                                
+                                                let badgeText = '';
+                                                let badgeType: 'cheapest' | 'expensive' | 'cheaper' | 'soldout' | 'same' = 'same';
+
+                                                if (rate.isSoldOut || rate.price === null) {
+                                                    badgeText = 'Sold Out';
+                                                    badgeType = 'soldout';
+                                                } else if (rate.isSelected) {
+                                                    badgeText = isCheapest ? 'Cheapest Price' : 'Selected Date';
+                                                    badgeType = isCheapest ? 'cheapest' : 'same';
+                                                } else if (selectedPrice !== undefined && selectedPrice !== null) {
+                                                    if (isCheapest) {
+                                                        badgeText = 'Cheapest Price';
+                                                        badgeType = 'cheapest';
+                                                    } else if (rate.price > selectedPrice) {
+                                                        badgeText = `+ ₹${(rate.price - selectedPrice).toLocaleString('en-IN')}`;
+                                                        badgeType = 'expensive';
+                                                    } else if (rate.price < selectedPrice) {
+                                                        badgeText = `- ₹${(selectedPrice - rate.price).toLocaleString('en-IN')}`;
+                                                        badgeType = 'cheaper';
+                                                    } else {
+                                                        badgeText = 'Same Price';
+                                                        badgeType = 'same';
+                                                    }
+                                                }
+
+                                                return (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => {
+                                                            if (rate.isSoldOut || rate.price === null || rate.isSelected) return;
+                                                            setCheckIn(rate.checkIn);
+                                                            setCheckOut(rate.checkOut);
+                                                        }}
+                                                        disabled={rate.isSoldOut || rate.price === null}
+                                                        className={clsx(
+                                                            "min-w-[145px] flex-1 text-left flex flex-col justify-between pt-4 pb-2 px-2.5 rounded-lg border transition-all snap-start relative overflow-hidden group/card shadow-sm h-[82px]",
+                                                            rate.isSelected
+                                                                ? "bg-white border-indigo-600 ring-1 ring-indigo-600/20 text-gray-900"
+                                                                : rate.isSoldOut || rate.price === null
+                                                                    ? "bg-gray-50/50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60"
+                                                                    : "bg-white border-indigo-50 text-gray-800 hover:border-indigo-400 hover:scale-[1.01]"
+                                                        )}
+                                                    >
+                                                        {rate.isSelected && (
+                                                            <div className="absolute top-0 left-0 right-0 bg-indigo-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5 border-b border-indigo-500/10">
+                                                                Selected Date
+                                                            </div>
+                                                        )}
+                                                        
+                                                        <div className="flex flex-col space-y-0.5">
+                                                            <span className={clsx(
+                                                                "text-[9px] font-extrabold uppercase tracking-tight",
+                                                                rate.isSelected ? "text-indigo-600" : "text-gray-400"
+                                                            )}>
+                                                                {format(rate.checkIn, 'eee, dd MMM')}
+                                                            </span>
+                                                            {rate.price !== null ? (
+                                                                <span className="text-base font-black tracking-tight text-gray-900 flex items-baseline gap-0.5">
+                                                                    <span className="text-xs font-bold text-gray-500">₹</span>
+                                                                    {rate.price.toLocaleString('en-IN')}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-sm font-black tracking-tight text-gray-400">
+                                                                    N/A
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="mt-1 flex items-center gap-1">
+                                                            {badgeType === 'cheapest' && (
+                                                                <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
+                                                                    Cheapest Price
+                                                                </span>
+                                                            )}
+                                                            {badgeType === 'expensive' && (
+                                                                <span className="text-[8px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded px-1.5 py-0.5">
+                                                                    {badgeText}
+                                                                </span>
+                                                            )}
+                                                            {badgeType === 'cheaper' && (
+                                                                <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
+                                                                    {badgeText}
+                                                                </span>
+                                                            )}
+                                                            {badgeType === 'same' && !rate.isSelected && (
+                                                                <span className="text-[8px] font-medium text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5">
+                                                                    {badgeText}
+                                                                </span>
+                                                            )}
+                                                            {badgeType === 'same' && rate.isSelected && !isCheapest && (
+                                                                <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5">
+                                                                    Selected
+                                                                </span>
+                                                            )}
+                                                            {badgeType === 'soldout' && (
+                                                                <span className="text-[8px] font-bold text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
+                                                                    {badgeText}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Available Accommodations */}
                         {property.roomTypes && property.roomTypes.length > 0 && (
                             <div id="accommodations" className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">

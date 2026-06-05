@@ -10,6 +10,7 @@ import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
+import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -1207,8 +1208,8 @@ export class BookingsService {
     async checkIn(id: string, user: any, dto?: any) {
         const booking = await this.findOne(id, user);
 
-        if (!['CONFIRMED', 'RESERVED'].includes(booking.status)) {
-            throw new BadRequestException('Only confirmed or reserved bookings can be checked in');
+        if (!['CONFIRMED', 'RESERVED', 'NO_SHOW'].includes(booking.status)) {
+            throw new BadRequestException('Only confirmed, reserved, or no-show bookings can be checked in');
         }
 
         // Logic Check: Guests must complete full payment before check-in
@@ -1813,6 +1814,222 @@ export class BookingsService {
 
             return updated;
         });
+    }
+
+    async reschedule(id: string, dto: RescheduleBookingDto, user: any) {
+        // Fetch booking with all relevant relations
+        const booking = await this.prisma.booking.findUnique({
+            where: { id },
+            include: {
+                room: { include: { roomType: true } },
+                roomType: true,
+                roomBlocks: true,
+                coupon: true,
+                channelPartner: true,
+            }
+        });
+
+        if (!booking) {
+            throw new NotFoundException('Booking not found');
+        }
+
+        // Only allow rescheduling for NO_SHOW, CONFIRMED, or RESERVED bookings
+        if (!['NO_SHOW', 'CONFIRMED', 'RESERVED'].includes(booking.status)) {
+            throw new BadRequestException('Only confirmed, reserved, or no-show bookings can be rescheduled.');
+        }
+
+        const newCheckIn = new Date(dto.checkInDate);
+        newCheckIn.setHours(0, 0, 0, 0);
+        const newCheckOut = new Date(dto.checkOutDate);
+        newCheckOut.setHours(0, 0, 0, 0);
+
+        if (newCheckIn >= newCheckOut) {
+            throw new BadRequestException('Check-out date must be after check-in date.');
+        }
+
+        // Validate that new check-in date is within 3 months (90 days) of the original check-in date
+        const originalCheckIn = new Date(booking.checkInDate);
+        originalCheckIn.setHours(0, 0, 0, 0);
+        
+        // Difference in days between the new check-in and original check-in
+        const diffDays = Math.ceil(Math.abs(newCheckIn.getTime() - originalCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays > 90) {
+            throw new BadRequestException('Rescheduling is only allowed within 3 months (90 days) of the original check-in date.');
+        }
+
+        const numberOfNights = differenceInDays(newCheckOut, newCheckIn);
+        const roomCount = 1 + (booking.roomBlocks?.length || 0);
+
+        let roomsToAllocate: any[] = [];
+        if (dto.selectedRoomIds && dto.selectedRoomIds.length > 0) {
+            if (dto.selectedRoomIds.length !== roomCount) {
+                throw new BadRequestException(`Must select exactly ${roomCount} rooms for this booking.`);
+            }
+
+            roomsToAllocate = await this.prisma.room.findMany({
+                where: { id: { in: dto.selectedRoomIds } },
+                include: { roomType: true }
+            });
+
+            if (roomsToAllocate.length !== roomCount) {
+                throw new BadRequestException('One or more selected rooms were not found.');
+            }
+
+            if (roomsToAllocate.some(r => r.roomTypeId !== booking.roomTypeId)) {
+                throw new BadRequestException('All selected rooms must match the booking room type.');
+            }
+
+            // Verify availability for each room (excluding current booking)
+            for (const room of roomsToAllocate) {
+                const isAvailable = await this.availabilityService.isRoomAvailable(room.id, newCheckIn, newCheckOut, booking.id);
+                if (!isAvailable) {
+                    throw new BadRequestException(`Room ${room.roomNumber} is not available for the new dates.`);
+                }
+            }
+        } else {
+            // Check if current rooms are available
+            const originalRoomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+            let originalRoomsAvailable = true;
+            for (const roomId of originalRoomIds) {
+                const isAvailable = await this.availabilityService.isRoomAvailable(roomId, newCheckIn, newCheckOut, booking.id);
+                if (!isAvailable) {
+                    originalRoomsAvailable = false;
+                    break;
+                }
+            }
+
+            if (originalRoomsAvailable) {
+                roomsToAllocate = await this.prisma.room.findMany({
+                    where: { id: { in: originalRoomIds } },
+                    include: { roomType: true }
+                });
+            } else {
+                // Find other available rooms
+                const availableRooms = await this.availabilityService.getAvailableRooms(
+                    booking.roomTypeId,
+                    newCheckIn,
+                    newCheckOut,
+                    true
+                );
+
+                if (availableRooms.length < roomCount) {
+                    throw new BadRequestException(`Not enough rooms available for the new dates. Required: ${roomCount}, Available: ${availableRooms.length}`);
+                }
+
+                roomsToAllocate = availableRooms.slice(0, roomCount);
+            }
+        }
+
+        // Calculate pricing for the new date range (supports seasonal/peak rules)
+        const pricing = await this.pricingService.calculatePrice(
+            booking.roomTypeId,
+            newCheckIn,
+            newCheckOut,
+            booking.adultsCount,
+            booking.childrenCount,
+            booking.coupon?.code || undefined,
+            booking.channelPartner?.referralCode || undefined,
+            booking.bookingCurrency || 'INR',
+            booking.isGroupBooking,
+            booking.groupSize || undefined,
+            roomCount,
+            booking.couponCode || undefined,
+        );
+
+        // Update in a transaction
+        const updatedBooking = await this.prisma.$transaction(async (tx) => {
+            // Remove old room blocks
+            await tx.roomBlock.deleteMany({
+                where: { bookingId: id }
+            });
+
+            // Re-allocate primary and blocks
+            const primaryRoomId = roomsToAllocate[0].id;
+            const extraRooms = roomsToAllocate.slice(1);
+
+            const newBlocksData = extraRooms.map(room => ({
+                bookingId: id,
+                roomId: room.id,
+                startDate: newCheckIn,
+                endDate: newCheckOut,
+                reason: `Rescheduled Booking: ${booking.bookingNumber}`,
+                createdById: user.id,
+                notes: 'Rescheduled'
+            }));
+
+            if (newBlocksData.length > 0) {
+                await tx.roomBlock.createMany({
+                    data: newBlocksData
+                });
+            }
+
+            // Determine status and paymentStatus
+            const newStatus = booking.paymentStatus === 'FULL' ? 'CONFIRMED' : 'RESERVED';
+            const paid = Number(booking.paidAmount);
+            const total = Number(pricing.totalAmount);
+            let paymentStatus = booking.paymentStatus;
+            
+            if (paid >= total - 0.01) {
+                paymentStatus = 'FULL';
+            } else if (paid > 0) {
+                paymentStatus = 'PARTIAL';
+            } else {
+                paymentStatus = 'UNPAID';
+            }
+
+            const updated = await tx.booking.update({
+                where: { id },
+                data: {
+                    checkInDate: newCheckIn,
+                    checkOutDate: newCheckOut,
+                    numberOfNights,
+                    roomId: primaryRoomId,
+                    baseAmount: pricing.baseAmount,
+                    extraAdultAmount: pricing.extraAdultAmount,
+                    extraChildAmount: pricing.extraChildAmount,
+                    taxAmount: pricing.taxAmount,
+                    totalAmount: pricing.totalAmount,
+                    couponDiscountAmount: pricing.couponDiscountAmount,
+                    offerDiscountAmount: pricing.offerDiscountAmount,
+                    status: newStatus,
+                    paymentStatus,
+                    cancelledAt: null, // Reset no-show cancellation date
+                },
+                include: {
+                    room: true,
+                    roomType: true,
+                    guests: true,
+                    roomBlocks: {
+                        include: { room: { include: { roomType: true } } }
+                    }
+                }
+            });
+
+            // Log the action
+            await this.auditService.createLog({
+                action: 'RESCHEDULE',
+                entity: 'Booking',
+                entityId: id,
+                userId: user.id,
+                oldValue: {
+                    checkInDate: booking.checkInDate,
+                    checkOutDate: booking.checkOutDate,
+                    totalAmount: booking.totalAmount,
+                    status: booking.status
+                },
+                newValue: {
+                    checkInDate: updated.checkInDate,
+                    checkOutDate: updated.checkOutDate,
+                    totalAmount: updated.totalAmount,
+                    status: updated.status
+                },
+                bookingId: id
+            }, tx);
+
+            return updated;
+        });
+
+        return updatedBooking;
     }
 
     async getDeleteDependencies(id: string, user: any) {
