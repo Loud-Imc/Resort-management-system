@@ -189,7 +189,8 @@ export default function BookingsCalendarWidget({
                                 "flex flex-col items-center justify-center p-2 rounded-xl transition-all border",
                                 {
                                     // Base styling
-                                    "bg-gray-50/50 dark:bg-gray-800/50": isCurrentMonth && !isSelected,
+                                    "bg-gray-50/50 dark:bg-gray-800/50": isCurrentMonth && !isSelected && (activeTab === 'bookings' ? bookingsCount === 0 : occupiedRooms === 0),
+                                    "bg-green-50/40 dark:bg-green-900/10 border-green-100 dark:border-green-900/30": isCurrentMonth && !isSelected && (activeTab === 'bookings' ? bookingsCount > 0 : occupiedRooms > 0),
                                     "border-transparent": !isSelected && !isTodayDate,
                                     "opacity-40 hover:opacity-100": !isCurrentMonth,
                                     
@@ -218,10 +219,10 @@ export default function BookingsCalendarWidget({
                                 {activeTab === 'bookings' ? (
                                     bookingsCount > 0 ? (
                                         <span className={clsx(
-                                            "text-[10px] font-bold px-1.5 py-0.5 rounded-md min-w-[20px] text-center shadow-sm",
-                                            bookingsCount > 3 ? "bg-blue-600 text-white" : 
-                                            bookingsCount > 1 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300" : 
-                                            "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                                            "text-[10px] font-bold px-1.5 py-0.5 rounded-md min-w-[20px] max-w-full truncate text-center shadow-sm",
+                                            bookingsCount > 3 ? "bg-green-600 text-white dark:bg-green-600 dark:text-white" : 
+                                            bookingsCount > 1 ? "bg-green-200 text-green-800 dark:bg-green-900/50 dark:text-green-300" : 
+                                            "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                                         )}>
                                             {bookingsCount}
                                         </span>
@@ -229,13 +230,13 @@ export default function BookingsCalendarWidget({
                                         <span className="w-1 h-1 rounded-full bg-gray-200 dark:bg-gray-700"></span>
                                     )
                                 ) : (
-                                    /* Occupancy display: 3/10 */
+                                    /* Occupancy display: 3/10 or 25/110 */
                                     <div className={clsx(
-                                        "text-[10px] font-bold px-1.5 py-0.5 rounded-md w-full max-w-[40px] text-center shadow-sm whitespace-nowrap",
+                                        "text-[9px] sm:text-[10px] font-bold px-1 py-0.5 rounded-md w-full max-w-full truncate text-center shadow-sm whitespace-nowrap",
                                         occupiedRooms > 0 
                                             ? (occupiedRooms >= totalRooms && totalRooms > 0)
-                                                ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400" // Fully booked
-                                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                                                ? "bg-green-600 text-white dark:bg-green-600 dark:text-white" // Fully booked
+                                                : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400"
                                             : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
                                     )}>
                                         {occupiedRooms}/{totalRooms}

@@ -68,6 +68,9 @@ export interface Property {
     groupPricePerHead?: number;
     groupPriceAdult?: number;
     groupPriceChild?: number;
+    licenceImage?: string;
+    ownerAadhaarImage?: string;
+    ownerAadhaarNumber?: string;
 }
 
 export interface CreatePropertyDto {
@@ -100,6 +103,9 @@ export interface CreatePropertyDto {
     groupPricePerHead?: number;
     groupPriceAdult?: number;
     groupPriceChild?: number;
+    licenceImage?: string;
+    ownerAadhaarImage?: string;
+    ownerAadhaarNumber?: string;
 }
 
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {

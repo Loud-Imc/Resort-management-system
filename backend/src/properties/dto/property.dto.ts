@@ -164,6 +164,21 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsBoolean()
     isGroupGstInclusive?: boolean;
+
+    @ApiProperty({ description: 'Property trade/business licence image URL' })
+    @IsOptional()
+    @IsString()
+    licenceImage?: string;
+
+    @ApiProperty({ description: 'Owner Aadhaar card image URL' })
+    @IsOptional()
+    @IsString()
+    ownerAadhaarImage?: string;
+
+    @ApiProperty({ description: 'Owner Aadhaar number' })
+    @IsOptional()
+    @IsString()
+    ownerAadhaarNumber?: string;
 }
 
 export class UpdatePropertyDto {
@@ -313,6 +328,18 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsBoolean()
     isGroupGstInclusive?: boolean;
+
+    @IsOptional()
+    @IsString()
+    licenceImage?: string;
+
+    @IsOptional()
+    @IsString()
+    ownerAadhaarImage?: string;
+
+    @IsOptional()
+    @IsString()
+    ownerAadhaarNumber?: string;
 }
 
 export class PropertyQueryDto {
