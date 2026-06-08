@@ -1058,7 +1058,7 @@ export class PropertiesService {
                 ...updateData,
                 latitude: data.latitude ? new Prisma.Decimal(data.latitude) : undefined,
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : undefined,
-                categoryId: data.categoryId !== undefined ? data.categoryId : undefined,
+                categoryId: data.categoryId !== undefined ? (data.categoryId || null) : undefined,
             },
         });
     }
