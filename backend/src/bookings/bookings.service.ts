@@ -11,6 +11,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
+import { CheckOutDto } from './dto/check-out.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -1249,7 +1250,7 @@ export class BookingsService {
                 where: { id },
                 data: {
                     status: 'CHECKED_IN',
-                    checkedInAt: new Date(),
+                    checkedInAt: dto?.checkedInAt ? new Date(dto.checkedInAt) : new Date(),
                 },
                 include: {
                     room: true,
@@ -1302,7 +1303,7 @@ export class BookingsService {
     /**
      * Check-out a booking
      */
-    async checkOut(id: string, user: any) {
+    async checkOut(id: string, user: any, dto?: CheckOutDto) {
         const booking = await this.findOne(id, user);
 
         if (booking.status !== 'CHECKED_IN') {
@@ -1313,8 +1314,8 @@ export class BookingsService {
             where: { id },
             data: {
                 status: 'CHECKED_OUT',
-                checkedOutAt: new Date(),
-                checkOutDate: new Date(), // Release the room for others immediately
+                checkedOutAt: dto?.checkedOutAt ? new Date(dto.checkedOutAt) : new Date(),
+                checkOutDate: dto?.checkedOutAt ? new Date(dto.checkedOutAt) : new Date(), // Release the room for others immediately
             },
             include: {
                 room: true,
