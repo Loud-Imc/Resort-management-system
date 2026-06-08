@@ -49,6 +49,14 @@ export default function BookingsList() {
     const { selectedProperty } = useProperty();
     const queryClient = useQueryClient();
     const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
+    const [useCustomCheckIn, setUseCustomCheckIn] = useState<boolean>(false);
+    const [customCheckInAt, setCustomCheckInAt] = useState<string>('');
+
+    const [showCheckOutModal, setShowCheckOutModal] = useState<boolean>(false);
+    const [checkOutBooking, setCheckOutBooking] = useState<Booking | null>(null);
+    const [useCustomCheckOut, setUseCustomCheckOut] = useState<boolean>(false);
+    const [customCheckOutAt, setCustomCheckOutAt] = useState<string>('');
+
     const [idErrors, setIdErrors] = useState<Record<string, string>>({});
     const [uploadingGuestId, setUploadingGuestId] = useState<string | null>(null);
     const [verificationData, setVerificationData] = useState<any[]>([]);
@@ -139,6 +147,15 @@ export default function BookingsList() {
             idImage: g.idImage || ''
         })));
         setIdErrors({});
+        setUseCustomCheckIn(false);
+        setCustomCheckInAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+    };
+
+    const handleOpenCheckOut = (booking: Booking) => {
+        setCheckOutBooking(booking);
+        setShowCheckOutModal(true);
+        setUseCustomCheckOut(false);
+        setCustomCheckOutAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
     };
 
     const handleIdChange = (idx: number, field: string, value: string) => {
@@ -720,9 +737,7 @@ export default function BookingsList() {
 
                                                 {booking.status === BookingStatus.CHECKED_IN && (
                                                     <button
-                                                        onClick={() => {
-                                                            if (confirm('Check-out this guest?')) checkOutMutation.mutate(booking.id);
-                                                        }}
+                                                        onClick={() => handleOpenCheckOut(booking)}
                                                         className="inline-flex items-center gap-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-blue-500/20 active:scale-95 text-[10px] font-black uppercase tracking-widest"
                                                     >
                                                         <LogOut className="h-3.5 w-3.5" />
@@ -903,7 +918,10 @@ export default function BookingsList() {
 
                                     checkInMutation.mutate({
                                         id: checkInBooking?.id || '',
-                                        data: { guests: verificationData }
+                                        data: {
+                                            guests: verificationData,
+                                            ...(useCustomCheckIn && customCheckInAt ? { checkedInAt: new Date(customCheckInAt).toISOString() } : {})
+                                        }
                                     });
                                 }}>
                                     <div className="p-8 max-h-[70vh] overflow-y-auto space-y-8">
@@ -1182,6 +1200,35 @@ export default function BookingsList() {
                                                 </div>
                                             ))}
                                         </div>
+
+                                        {/* Custom Check-In Time Override */}
+                                        <div className="p-6 rounded-[2rem] border border-border/50 bg-muted/20 space-y-4">
+                                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={useCustomCheckIn}
+                                                    onChange={(e) => setUseCustomCheckIn(e.target.checked)}
+                                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer"
+                                                />
+                                                <span className="text-xs font-black text-foreground uppercase tracking-wider">
+                                                    Custom Check-In Time (Staff Override)
+                                                </span>
+                                            </label>
+
+                                            {useCustomCheckIn && (
+                                                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">
+                                                        Actual Check-In Date & Time
+                                                    </label>
+                                                    <input
+                                                        type="datetime-local"
+                                                        value={customCheckInAt}
+                                                        onChange={(e) => setCustomCheckInAt(e.target.value)}
+                                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-sm font-bold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-foreground"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="p-8 border-t border-border/50 bg-muted/10 flex gap-4">
@@ -1438,6 +1485,122 @@ export default function BookingsList() {
                                     >
                                         {rescheduleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
                                         Confirm Reschedule
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Custom Check-Out Modal */}
+                {showCheckOutModal && checkOutBooking && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl">
+                        <div className="bg-card w-full max-w-lg rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-border/50 overflow-hidden animate-in fade-in zoom-in duration-300">
+                            <div className="relative p-6 border-b border-border/50 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-blue-500 text-white rounded-2xl shadow-lg rotate-3">
+                                            <LogOut className="h-6 w-6" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-black tracking-tight text-foreground">Confirm Check-Out</h2>
+                                            <p className="text-xs text-muted-foreground font-medium">
+                                                Booking: <span className="text-blue-500 font-bold">{checkOutBooking.bookingNumber}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setShowCheckOutModal(false);
+                                            setCheckOutBooking(null);
+                                        }}
+                                        className="p-2 hover:bg-muted rounded-xl transition-all"
+                                    >
+                                        <X className="h-5 w-5 text-muted-foreground" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-6 space-y-6">
+                                <div className="space-y-4">
+                                    <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                                        Are you sure you want to check-out the guest <span className="text-foreground font-bold">{checkOutBooking.isManualBooking && checkOutBooking.guests?.[0] ? `${checkOutBooking.guests[0].firstName} ${checkOutBooking.guests[0].lastName}` : `${checkOutBooking.user?.firstName || ''} ${checkOutBooking.user?.lastName || ''}`}</span>?
+                                    </p>
+                                    
+                                    <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 space-y-2">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="font-bold text-muted-foreground">Unit:</span>
+                                            <span className="font-black text-foreground">{checkOutBooking.room?.roomNumber} ({checkOutBooking.room?.roomType?.name})</span>
+                                        </div>
+                                        {checkOutBooking.roomBlocks && checkOutBooking.roomBlocks.length > 0 && checkOutBooking.roomBlocks.map((block, idx) => (
+                                            <div key={idx} className="flex justify-between text-xs">
+                                                <span className="font-bold text-muted-foreground">Unit {idx + 2}:</span>
+                                                <span className="font-black text-foreground">{block.room.roomNumber} ({block.room.roomType.name})</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between text-xs pt-2 border-t border-border/30">
+                                            <span className="font-bold text-muted-foreground">Stay:</span>
+                                            <span className="font-black text-foreground">{format(new Date(checkOutBooking.checkInDate), 'MMM d')} - {format(new Date(checkOutBooking.checkOutDate), 'MMM d')}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Custom Check-Out Time Override */}
+                                <div className="p-5 rounded-3xl border border-border bg-muted/20 space-y-4">
+                                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={useCustomCheckOut}
+                                            onChange={(e) => setUseCustomCheckOut(e.target.checked)}
+                                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer"
+                                        />
+                                        <span className="text-xs font-black text-foreground uppercase tracking-wider">
+                                            Custom Check-Out Time (Staff Override)
+                                        </span>
+                                    </label>
+
+                                    {useCustomCheckOut && (
+                                        <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">
+                                                Actual Check-Out Date & Time
+                                            </label>
+                                            <input
+                                                type="datetime-local"
+                                                value={customCheckOutAt}
+                                                onChange={(e) => setCustomCheckOutAt(e.target.value)}
+                                                className="w-full bg-background border border-border/50 rounded-xl px-4 py-2 text-sm font-bold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-foreground"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-3 pt-2">
+                                    <button
+                                        onClick={() => {
+                                            setShowCheckOutModal(false);
+                                            setCheckOutBooking(null);
+                                        }}
+                                        className="flex-1 px-4 py-2.5 rounded-xl border border-border font-bold text-sm hover:bg-muted transition-colors text-foreground"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            checkOutMutation.mutate({
+                                                id: checkOutBooking.id,
+                                                data: useCustomCheckOut && customCheckOutAt ? { checkedOutAt: new Date(customCheckOutAt).toISOString() } : undefined
+                                            }, {
+                                                onSuccess: () => {
+                                                    setShowCheckOutModal(false);
+                                                    setCheckOutBooking(null);
+                                                }
+                                            });
+                                        }}
+                                        disabled={checkOutMutation.isPending}
+                                        className="flex-1 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        {checkOutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                                        Confirm Check-Out
                                     </button>
                                 </div>
                             </div>

@@ -41,8 +41,8 @@ export const bookingsService = {
         return data;
     },
 
-    checkOut: async (id: string) => {
-        const { data } = await api.post<Booking>(`/bookings/${id}/check-out`);
+    checkOut: async ({ id, data: checkOutData }: { id: string; data?: any }) => {
+        const { data } = await api.post<Booking>(`/bookings/${id}/check-out`, checkOutData);
         return data;
     },
 

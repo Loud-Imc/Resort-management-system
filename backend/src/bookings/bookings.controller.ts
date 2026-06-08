@@ -13,6 +13,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
 import { CheckInDto } from './dto/check-in.dto';
+import { CheckOutDto } from './dto/check-out.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
@@ -387,8 +388,12 @@ export class BookingsController {
     @Permissions(PERMISSIONS.BOOKINGS.CHECK_OUT)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Check-out booking' })
-    checkOut(@Param('id') id: string, @Request() req) {
-        return this.bookingsService.checkOut(id, req.user);
+    checkOut(
+        @Param('id') id: string,
+        @Body() dto: CheckOutDto,
+        @Request() req
+    ) {
+        return this.bookingsService.checkOut(id, req.user, dto);
     }
 
     @Post(':id/cancel')

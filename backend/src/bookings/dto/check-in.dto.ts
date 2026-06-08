@@ -30,4 +30,9 @@ export class CheckInDto {
     @ValidateNested({ each: true })
     @Type(() => GuestVerificationDto)
     guests?: GuestVerificationDto[];
+
+    @ApiProperty({ example: '2026-06-08T12:00:00.000Z', required: false })
+    @IsString()
+    @IsOptional()
+    checkedInAt?: string;
 }
