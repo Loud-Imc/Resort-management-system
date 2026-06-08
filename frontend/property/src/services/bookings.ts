@@ -70,4 +70,9 @@ export const bookingsService = {
         const { data } = await api.get<any>(`/bookings/${id}/delete-dependencies`);
         return data;
     },
+
+    reschedule: async ({ id, data }: { id: string; data: { checkInDate: string; checkOutDate: string; selectedRoomIds?: string[] } }) => {
+        const response = await api.post<Booking>(`/bookings/${id}/reschedule`, data);
+        return response.data;
+    },
 };

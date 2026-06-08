@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-    Users, DollarSign, TrendingUp, Gift, Copy, Check,
+    Users, IndianRupee, TrendingUp, Gift, Copy, Check,
     Loader2, Star
 } from 'lucide-react';
 import { channelPartnerService } from '../../services/channel-partners';
@@ -150,7 +150,7 @@ export default function CPDashboard() {
                             <p className="text-2xl font-bold text-gray-900">₹{stats.totalEarnings.toLocaleString()}</p>
                         </div>
                         <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <DollarSign className="h-6 w-6 text-green-600" />
+                            <IndianRupee className="h-6 w-6 text-green-600" />
                         </div>
                     </div>
                 </div>

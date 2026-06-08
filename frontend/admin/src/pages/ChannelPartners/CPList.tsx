@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-    Users, Loader2, CheckCircle, XCircle, DollarSign, Percent,
+    Users, Loader2, CheckCircle, XCircle, IndianRupee, Percent,
     Eye, X, Calendar, ArrowRight, TrendingUp, Hash, Search, Filter, Award
 } from 'lucide-react';
 import { channelPartnerService } from '../../services/channel-partners';
@@ -399,13 +399,13 @@ export default function CPList() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-1 text-foreground font-bold">
-                                                    <DollarSign className="h-4 w-4 text-primary" />
+                                                    <IndianRupee className="h-4 w-4 text-primary" />
                                                     ₹{partner.walletBalance?.toLocaleString() || 0}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-1 text-foreground">
-                                                    <DollarSign className="h-4 w-4 text-green-600" />
+                                                    <IndianRupee className="h-4 w-4 text-green-600" />
                                                     ₹{partner.totalEarnings.toLocaleString()}
                                                 </div>
                                             </td>
@@ -533,7 +533,7 @@ export default function CPList() {
 
                                     {/* Stats Grid */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                        <StatCard label="Total Earnings" value={`₹${selectedPartner.totalEarnings.toLocaleString()}`} icon={<DollarSign className="h-5 w-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
+                                        <StatCard label="Total Earnings" value={`₹${selectedPartner.totalEarnings.toLocaleString()}`} icon={<IndianRupee className="h-5 w-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
                                         <StatCard label="Pending" value={`₹${selectedPartner.pendingBalance.toLocaleString()}`} icon={<TrendingUp className="h-5 w-5 text-amber-600" />} bg="bg-amber-100 dark:bg-amber-900/30" />
                                         <StatCard label="Total Referrals" value={selectedPartner.totalReferrals.toString()} icon={<Users className="h-5 w-5 text-blue-600" />} bg="bg-blue-100 dark:bg-blue-900/30" />
                                         <StatCard label="This Month" value={selectedPartner.thisMonthReferrals.toString()} icon={<Calendar className="h-5 w-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService, type DashboardStats } from '../services/reports';
 import { roomsService } from '../services/rooms';
-import { Loader2, DollarSign, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight } from 'lucide-react';
+import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
 import clsx from 'clsx';
@@ -257,7 +257,7 @@ export default function DashboardHome() {
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center group-hover:bg-green-100 transition-colors">
-                            <DollarSign className="h-5 w-5 text-green-600" />
+                            <IndianRupee className="h-5 w-5 text-green-600" />
                         </div>
                         <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Today's Revenue</p>

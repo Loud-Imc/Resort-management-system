@@ -5,7 +5,7 @@ import {
     Loader2, Search, Filter,
     User, Mail, Phone, CheckCircle,
     Clock, Download, Ticket,
-    DollarSign
+    IndianRupee
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -82,7 +82,7 @@ export default function EventBookings() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-card p-6 rounded-xl border border-border shadow-sm group hover:shadow-md transition-all">
                     <div className="flex items-center gap-3 text-emerald-500 mb-2">
-                        <DollarSign className="h-5 w-5" />
+                        <IndianRupee className="h-5 w-5" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Total Revenue</span>
                     </div>
                     <div className="text-2xl font-black text-foreground">₹{totalRevenue.toLocaleString()}</div>

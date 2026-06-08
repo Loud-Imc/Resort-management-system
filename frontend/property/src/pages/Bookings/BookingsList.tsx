@@ -78,6 +78,58 @@ export default function BookingsList() {
         if (queryEnd !== null && queryEnd !== endDate) setEndDate(queryEnd);
     }, [searchParams]);
 
+    // Rescheduling Modal State
+    const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
+    const [newCheckInDate, setNewCheckInDate] = useState<string>('');
+    const [newCheckOutDate, setNewCheckOutDate] = useState<string>('');
+    const [newPricePreview, setNewPricePreview] = useState<any>(null);
+    const [isCalculatingPreview, setIsCalculatingPreview] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (!rescheduleBooking || !newCheckInDate || !newCheckOutDate) {
+            setNewPricePreview(null);
+            return;
+        }
+
+        const fetchPreview = async () => {
+            try {
+                setIsCalculatingPreview(true);
+                const roomCount = 1 + (rescheduleBooking.roomBlocks?.length || 0);
+                const preview = await bookingsService.calculatePrice({
+                    roomTypeId: rescheduleBooking.roomTypeId,
+                    checkInDate: newCheckInDate,
+                    checkOutDate: newCheckOutDate,
+                    adultsCount: rescheduleBooking.adultsCount,
+                    childrenCount: rescheduleBooking.childrenCount,
+                    couponCode: rescheduleBooking.couponCode || undefined,
+                    referralCode: rescheduleBooking.channelPartner?.referralCode || undefined,
+                    currency: rescheduleBooking.bookingCurrency || 'INR',
+                    isGroupBooking: rescheduleBooking.isGroupBooking,
+                    groupSize: rescheduleBooking.groupSize || undefined,
+                    roomCount: roomCount,
+                });
+                setNewPricePreview(preview);
+            } catch (err) {
+                console.error('Failed to calculate price preview', err);
+                setNewPricePreview(null);
+            } finally {
+                setIsCalculatingPreview(false);
+            }
+        };
+
+        const timer = setTimeout(fetchPreview, 400);
+        return () => clearTimeout(timer);
+    }, [rescheduleBooking, newCheckInDate, newCheckOutDate]);
+
+    const handleOpenReschedule = (booking: Booking) => {
+        setRescheduleBooking(booking);
+        const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
+        const originalCheckOut = format(new Date(booking.checkOutDate), 'yyyy-MM-dd');
+        setNewCheckInDate(originalCheckIn);
+        setNewCheckOutDate(originalCheckOut);
+        setNewPricePreview(null);
+    };
+
     const handleOpenCheckIn = (booking: Booking) => {
         setCheckInBooking(booking);
         setVerificationData(booking.guests.map((g: any) => ({
@@ -258,6 +310,42 @@ export default function BookingsList() {
         onError: () => toast.error('Failed to cancel booking'),
     });
 
+    const rescheduleMutation = useMutation({
+        mutationFn: bookingsService.reschedule,
+        onSuccess: () => {
+            toast.success('Booking rescheduled successfully');
+            setRescheduleBooking(null);
+            setNewPricePreview(null);
+            queryClient.invalidateQueries({ queryKey: ['bookings'] });
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to reschedule booking');
+        },
+    });
+
+    const handleRescheduleSubmit = () => {
+        if (!rescheduleBooking || !newCheckInDate || !newCheckOutDate) return;
+
+        const originalCheckIn = new Date(rescheduleBooking.checkInDate);
+        originalCheckIn.setHours(0, 0, 0, 0);
+        const newCheckIn = new Date(newCheckInDate);
+        newCheckIn.setHours(0, 0, 0, 0);
+
+        const diffDays = Math.ceil(Math.abs(newCheckIn.getTime() - originalCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays > 90) {
+            toast.error('Rescheduling is only allowed within 3 months (90 days) of the original check-in date.');
+            return;
+        }
+
+        rescheduleMutation.mutate({
+            id: rescheduleBooking.id,
+            data: {
+                checkInDate: newCheckInDate,
+                checkOutDate: newCheckOutDate,
+            }
+        });
+    };
+
     const handleOpenDelete = async (booking: Booking) => {
         setDeletingBooking(booking);
         setIsLoadingDeps(true);
@@ -397,6 +485,8 @@ export default function BookingsList() {
                 return 'bg-orange-500/10 text-orange-600 dark:text-orange-400';
             case BookingStatus.CANCELLED:
                 return 'bg-destructive/10 text-destructive';
+            case BookingStatus.NO_SHOW:
+                return 'bg-rose-500/10 text-rose-600 dark:text-rose-400';
             default:
                 return 'bg-muted text-muted-foreground';
         }
@@ -618,7 +708,7 @@ export default function BookingsList() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-2">
-                                                {(booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.RESERVED) && (
+                                                {(booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.RESERVED || booking.status === BookingStatus.NO_SHOW) && (
                                                     <button
                                                         onClick={() => handleOpenCheckIn(booking)}
                                                         className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-xl transition-all shadow-sm hover:shadow-emerald-500/20 active:scale-95 text-[10px] font-black uppercase tracking-widest"
@@ -703,6 +793,18 @@ export default function BookingsList() {
                                                                     <Eye className="h-4 w-4" />
                                                                     View Details
                                                                 </Link>
+                                                                {booking.status === BookingStatus.NO_SHOW && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setActiveMenu(null);
+                                                                            handleOpenReschedule(booking);
+                                                                        }}
+                                                                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                                                                    >
+                                                                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                                        Reschedule Booking
+                                                                    </button>
+                                                                )}
                                                                 {booking.isManualBooking && (
                                                                     <>
                                                                         <Link
@@ -1214,6 +1316,130 @@ export default function BookingsList() {
                                         </div>
                                     </>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Reschedule Booking Modal */}
+                {rescheduleBooking && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl">
+                        <div className="bg-card w-full max-w-lg rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-border/50 overflow-hidden animate-in fade-in zoom-in duration-300">
+                            <div className="relative p-6 border-b border-border/50 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-primary text-primary-foreground rounded-2xl shadow-lg rotate-3">
+                                            <Calendar className="h-6 w-6" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-black tracking-tight text-foreground">Reschedule Booking</h2>
+                                            <p className="text-xs text-muted-foreground font-medium">
+                                                Booking: <span className="text-primary font-bold">{rescheduleBooking.bookingNumber}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setRescheduleBooking(null);
+                                            setNewPricePreview(null);
+                                        }}
+                                        className="p-2 hover:bg-muted rounded-xl transition-all"
+                                    >
+                                        <X className="h-5 w-5 text-muted-foreground" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-6 space-y-6">
+                                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex gap-3">
+                                    <AlertCircle className="h-5 w-5 text-primary shrink-0" />
+                                    <p className="text-sm text-primary font-medium leading-relaxed">
+                                        Rescheduling must be scheduled within 3 months (90 days) from the original check-in date: <span className="font-bold">{format(new Date(rescheduleBooking.checkInDate), 'MMM d, yyyy')}</span>.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">New Check-In Date</label>
+                                        <input
+                                            type="date"
+                                            value={newCheckInDate}
+                                            onChange={(e) => setNewCheckInDate(e.target.value)}
+                                            className="w-full border border-border bg-background text-foreground rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">New Check-Out Date</label>
+                                        <input
+                                            type="date"
+                                            value={newCheckOutDate}
+                                            onChange={(e) => setNewCheckOutDate(e.target.value)}
+                                            className="w-full border border-border bg-background text-foreground rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Price Comparison Preview */}
+                                {isCalculatingPreview ? (
+                                    <div className="flex justify-center items-center py-6 gap-2">
+                                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Recalculating rates for new dates...</span>
+                                    </div>
+                                ) : newPricePreview ? (
+                                    <div className="bg-muted/50 border border-border rounded-2xl p-4 space-y-3">
+                                        <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Pricing Comparison:</h3>
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-sm">
+                                                <span className="font-medium text-muted-foreground">Original Total:</span>
+                                                <span className="font-bold text-foreground">₹{Number(rescheduleBooking.totalAmount).toLocaleString('en-IN')}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                                <span className="font-medium text-muted-foreground">New Calculated Total:</span>
+                                                <span className="font-bold text-foreground">₹{Number(newPricePreview.totalAmount).toLocaleString('en-IN')}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm pt-2 border-t border-border/50">
+                                                <span className="font-bold text-foreground">Adjustment:</span>
+                                                {newPricePreview.totalAmount > rescheduleBooking.totalAmount ? (
+                                                    <span className="font-black text-orange-600 dark:text-orange-400">
+                                                        + ₹{(newPricePreview.totalAmount - rescheduleBooking.totalAmount).toLocaleString('en-IN')} (Additional Due)
+                                                    </span>
+                                                ) : newPricePreview.totalAmount < rescheduleBooking.totalAmount ? (
+                                                    <span className="font-black text-emerald-600 dark:text-emerald-400">
+                                                        - ₹{(rescheduleBooking.totalAmount - newPricePreview.totalAmount).toLocaleString('en-IN')} (Refund/Credit)
+                                                    </span>
+                                                ) : (
+                                                    <span className="font-black text-muted-foreground">
+                                                        No Price Change
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (newCheckInDate && newCheckOutDate) && (
+                                    <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-3 text-xs text-destructive font-medium text-center">
+                                        Could not load price comparison. Please ensure dates are valid and check-out is after check-in.
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3 pt-2">
+                                    <button
+                                        onClick={() => {
+                                            setRescheduleBooking(null);
+                                            setNewPricePreview(null);
+                                        }}
+                                        className="flex-1 px-4 py-2.5 rounded-xl border border-border font-bold text-sm hover:bg-muted transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleRescheduleSubmit}
+                                        disabled={rescheduleMutation.isPending || !newCheckInDate || !newCheckOutDate}
+                                        className="flex-1 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {rescheduleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
+                                        Confirm Reschedule
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

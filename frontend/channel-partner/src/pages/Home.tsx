@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import StatsCard from '../components/StatsCard';
 import ProgressBar from '../components/ProgressBar';
 import WalletTopUpModal from '../components/WalletTopUpModal';
-import { DollarSign, Star, TrendingUp, Handshake, Copy, Check, Wallet, ExternalLink, Plus } from 'lucide-react';
+import { IndianRupee, Star, TrendingUp, Handshake, Copy, Check, Wallet, ExternalLink, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 
@@ -350,7 +350,7 @@ const Home: React.FC = () => {
                 <StatsCard
                     title="Total Earnings"
                     value={`₹${stats?.totalEarnings?.toLocaleString() || '0'}`}
-                    icon={DollarSign}
+                    icon={IndianRupee}
                     trend={`₹${stats?.pendingEarnings?.toLocaleString() || '0'} pending`}
                     isPositive={true}
                 />
