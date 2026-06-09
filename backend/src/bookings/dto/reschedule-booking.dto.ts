@@ -17,4 +17,18 @@ export class RescheduleBookingDto {
     @IsString({ each: true })
     @IsOptional()
     selectedRoomIds?: string[];
+
+    @ApiProperty({ example: 4500, required: false })
+    @IsOptional()
+    overrideTotal?: number;
+
+    @ApiProperty({ example: 'Staff adjustment', required: false })
+    @IsString()
+    @IsOptional()
+    overrideReason?: string;
+
+    @ApiProperty({ example: 'room-type-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    roomTypeId?: string;
 }
