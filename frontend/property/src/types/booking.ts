@@ -104,6 +104,8 @@ export interface Booking {
     paymentOption?: 'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY';
     createdBy?: string;
     createdAt: string;
+    isPriceOverridden?: boolean;
+    overrideReason?: string;
 }
 
 export interface CreateBookingDto {
@@ -172,6 +174,7 @@ export interface PriceCalculationDto {
     groupSize?: number;
     currency?: string;
     roomCount?: number;
+    overrideTotal?: number;
 }
 
 export interface PriceCalculationResult {

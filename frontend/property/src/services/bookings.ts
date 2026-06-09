@@ -71,7 +71,7 @@ export const bookingsService = {
         return data;
     },
 
-    reschedule: async ({ id, data }: { id: string; data: { checkInDate: string; checkOutDate: string; selectedRoomIds?: string[] } }) => {
+    reschedule: async ({ id, data }: { id: string; data: { checkInDate: string; checkOutDate: string; selectedRoomIds?: string[]; overrideTotal?: number; overrideReason?: string; roomTypeId?: string } }) => {
         const response = await api.post<Booking>(`/bookings/${id}/reschedule`, data);
         return response.data;
     },

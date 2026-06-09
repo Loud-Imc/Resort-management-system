@@ -999,6 +999,7 @@ export class BookingsService {
                     }
                 },
                 payments: { where: { status: 'PAID' } },
+                channelPartner: true,
             },
             orderBy: {
                 createdAt: 'desc',
@@ -1129,6 +1130,7 @@ export class BookingsService {
                 },
                 bookingSource: true,
                 payments: true,
+                channelPartner: true,
                 roomBlocks: {
                     include: {
                         room: {
@@ -1860,6 +1862,7 @@ export class BookingsService {
 
         const numberOfNights = differenceInDays(newCheckOut, newCheckIn);
         const roomCount = 1 + (booking.roomBlocks?.length || 0);
+        const targetRoomTypeId = dto.roomTypeId || booking.roomTypeId;
 
         let roomsToAllocate: any[] = [];
         if (dto.selectedRoomIds && dto.selectedRoomIds.length > 0) {
@@ -1876,8 +1879,8 @@ export class BookingsService {
                 throw new BadRequestException('One or more selected rooms were not found.');
             }
 
-            if (roomsToAllocate.some(r => r.roomTypeId !== booking.roomTypeId)) {
-                throw new BadRequestException('All selected rooms must match the booking room type.');
+            if (roomsToAllocate.some(r => r.roomTypeId !== targetRoomTypeId)) {
+                throw new BadRequestException('All selected rooms must match the target room type.');
             }
 
             // Verify availability for each room (excluding current booking)
@@ -1888,14 +1891,16 @@ export class BookingsService {
                 }
             }
         } else {
-            // Check if current rooms are available
+            // Check if current rooms are of the same type and are available
             const originalRoomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
-            let originalRoomsAvailable = true;
-            for (const roomId of originalRoomIds) {
-                const isAvailable = await this.availabilityService.isRoomAvailable(roomId, newCheckIn, newCheckOut, booking.id);
-                if (!isAvailable) {
-                    originalRoomsAvailable = false;
-                    break;
+            let originalRoomsAvailable = booking.roomTypeId === targetRoomTypeId;
+            if (originalRoomsAvailable) {
+                for (const roomId of originalRoomIds) {
+                    const isAvailable = await this.availabilityService.isRoomAvailable(roomId, newCheckIn, newCheckOut, booking.id);
+                    if (!isAvailable) {
+                        originalRoomsAvailable = false;
+                        break;
+                    }
                 }
             }
 
@@ -1905,9 +1910,9 @@ export class BookingsService {
                     include: { roomType: true }
                 });
             } else {
-                // Find other available rooms
+                // Find other available rooms for target room type
                 const availableRooms = await this.availabilityService.getAvailableRooms(
-                    booking.roomTypeId,
+                    targetRoomTypeId,
                     newCheckIn,
                     newCheckOut,
                     true
@@ -1923,7 +1928,7 @@ export class BookingsService {
 
         // Calculate pricing for the new date range (supports seasonal/peak rules)
         const pricing = await this.pricingService.calculatePrice(
-            booking.roomTypeId,
+            targetRoomTypeId,
             newCheckIn,
             newCheckOut,
             booking.adultsCount,
@@ -1935,6 +1940,8 @@ export class BookingsService {
             booking.groupSize || undefined,
             roomCount,
             booking.couponCode || undefined,
+            dto.overrideTotal !== undefined && dto.overrideTotal !== null ? Number(dto.overrideTotal) : undefined,
+            true,
         );
 
         // Update in a transaction
@@ -1985,6 +1992,7 @@ export class BookingsService {
                     checkOutDate: newCheckOut,
                     numberOfNights,
                     roomId: primaryRoomId,
+                    roomTypeId: targetRoomTypeId,
                     baseAmount: pricing.baseAmount,
                     extraAdultAmount: pricing.extraAdultAmount,
                     extraChildAmount: pricing.extraChildAmount,
@@ -1995,6 +2003,8 @@ export class BookingsService {
                     status: newStatus,
                     paymentStatus,
                     cancelledAt: null, // Reset no-show cancellation date
+                    isPriceOverridden: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? true : booking.isPriceOverridden,
+                    overrideReason: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? (dto.overrideReason || 'Rescheduled Price Override') : booking.overrideReason,
                 },
                 include: {
                     room: true,
