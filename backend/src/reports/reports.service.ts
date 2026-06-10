@@ -126,11 +126,14 @@ export class ReportsService {
             }
         });
 
-        let occupiedRooms = 0;
+        const uniqueOccupiedRooms = new Set<string>();
         activeBookings.forEach(b => {
-            const uniqueRooms = new Set([b.roomId, ...(b.roomBlocks?.map(rb => rb.roomId) || [])]);
-            occupiedRooms += uniqueRooms.size;
+            if (b.roomId) uniqueOccupiedRooms.add(b.roomId);
+            b.roomBlocks?.forEach(rb => {
+                if (rb.roomId) uniqueOccupiedRooms.add(rb.roomId);
+            });
         });
+        const occupiedRooms = uniqueOccupiedRooms.size;
 
         const bookedToday = await this.prisma.booking.count({
             where: {
@@ -675,11 +678,14 @@ export class ReportsService {
                 }
             });
 
-            let occupied = 0;
+            const uniqueOccupiedRooms = new Set<string>();
             activeBookings.forEach(b => {
-                const uniqueRooms = new Set([b.roomId, ...(b.roomBlocks?.map(rb => rb.roomId) || [])]);
-                occupied += uniqueRooms.size;
+                if (b.roomId) uniqueOccupiedRooms.add(b.roomId);
+                b.roomBlocks?.forEach(rb => {
+                    if (rb.roomId) uniqueOccupiedRooms.add(rb.roomId);
+                });
             });
+            const occupied = uniqueOccupiedRooms.size;
 
             report.push({
                 date,

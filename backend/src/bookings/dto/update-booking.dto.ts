@@ -74,4 +74,15 @@ export class UpdateBookingDto {
     @IsString()
     @IsOptional()
     gstNumber?: string;
+
+    @ApiProperty({ example: 'room-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    roomId?: string;
+
+    @ApiProperty({ example: ['room-uuid'], required: false })
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    selectedRoomIds?: string[];
 }

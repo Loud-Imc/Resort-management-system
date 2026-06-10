@@ -27,7 +27,7 @@ import {
     Trash2,
     Pencil
 } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
@@ -48,6 +48,7 @@ export default function BookingsList() {
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState<string>('');
     const { selectedProperty } = useProperty();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
     const [useCustomCheckIn, setUseCustomCheckIn] = useState<boolean>(false);
@@ -181,6 +182,13 @@ export default function BookingsList() {
             }
         }
     }, [availableRooms, rescheduleBooking]);
+
+    const handleRowClick = (e: React.MouseEvent, bookingId: string) => {
+        if ((e.target as HTMLElement).closest('button, a, select, input, [role="button"]')) {
+            return;
+        }
+        navigate(`/bookings/${bookingId}`);
+    };
 
     const handleOpenReschedule = (booking: Booking) => {
         setRescheduleBooking(booking);
@@ -727,7 +735,7 @@ export default function BookingsList() {
                             </thead>
                             <tbody className="bg-card divide-y divide-border">
                                 {filteredBookings.map((booking: Booking, index: number) => (
-                                    <tr key={booking.id} className="hover:bg-muted/30 transition-colors">
+                                    <tr key={booking.id} onClick={(e) => handleRowClick(e, booking.id)} className="hover:bg-muted/30 transition-colors cursor-pointer">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>
                                             <div className="text-xs text-muted-foreground">

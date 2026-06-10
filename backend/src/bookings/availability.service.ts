@@ -24,6 +24,7 @@ export class AvailabilityService {
         groupSize?: number,
         propertyId?: string,
         includeAllStatus: boolean = false,
+        excludeBookingId?: string,
     ): Promise<boolean> {
         if (isGroupBooking && groupSize && propertyId) {
             const allocated = await this.allocateRoomsForGroup(
@@ -31,7 +32,8 @@ export class AvailabilityService {
                 checkInDate,
                 checkOutDate,
                 groupSize,
-                includeAllStatus
+                includeAllStatus,
+                excludeBookingId
             );
             return allocated.length > 0;
         }
@@ -42,7 +44,8 @@ export class AvailabilityService {
             roomTypeId,
             checkInDate,
             checkOutDate,
-            includeAllStatus
+            includeAllStatus,
+            excludeBookingId
         );
         return availableRooms.length > 0;
     }
@@ -57,6 +60,7 @@ export class AvailabilityService {
         checkOut: Date,
         groupSize: number,
         includeAllStatus: boolean = false,
+        excludeBookingId?: string,
     ) {
         // Find all RoomTypes in the Group Pool for this property
         const groupPoolTypes = await this.prisma.roomType.findMany({
@@ -73,7 +77,7 @@ export class AvailabilityService {
         // Find all available rooms across these types
         let allAvailableRooms: any[] = [];
         for (const type of groupPoolTypes) {
-            const availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut, includeAllStatus);
+            const availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut, includeAllStatus, excludeBookingId);
             allAvailableRooms.push(...availableForType.map(r => ({
                 ...r,
                 roomType: type,
@@ -116,6 +120,7 @@ export class AvailabilityService {
         checkInDate: Date,
         checkOutDate: Date,
         includeAllStatus: boolean = false,
+        excludeBookingId?: string,
     ) {
         const checkIn = new Date(checkInDate);
         const checkOut = new Date(checkOutDate);
@@ -149,6 +154,7 @@ export class AvailabilityService {
                 room.id,
                 checkInDate,
                 checkOutDate,
+                excludeBookingId,
             );
 
             if (isAvailable) {
@@ -205,7 +211,7 @@ export class AvailabilityService {
                 AND: [
                     {
                         OR: [
-                            { status: { in: ['CONFIRMED', 'CHECKED_IN'] } }, 
+                            { status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] } }, 
                             {
                                 AND: [
                                     { status: 'PENDING_PAYMENT' },
@@ -290,12 +296,14 @@ export class AvailabilityService {
         checkInDate: Date,
         checkOutDate: Date,
         includeAllStatus: boolean = false,
+        excludeBookingId?: string,
     ): Promise<number> {
         const availableRooms = await this.getAvailableRooms(
             roomTypeId,
             checkInDate,
             checkOutDate,
-            includeAllStatus
+            includeAllStatus,
+            excludeBookingId,
         );
         return availableRooms.length;
     }

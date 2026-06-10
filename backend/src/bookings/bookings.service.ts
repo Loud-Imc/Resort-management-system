@@ -1722,13 +1722,68 @@ export class BookingsService {
             throw new ForbiddenException('Only manual bookings can be edited');
         }
 
-        // Update basic info
+        // Resolve checkIn/checkOut stay dates
+        const checkIn = dto.checkInDate ? new Date(dto.checkInDate) : new Date(booking.checkInDate);
+        const checkOut = dto.checkOutDate ? new Date(dto.checkOutDate) : new Date(booking.checkOutDate);
+
+        checkIn.setHours(0, 0, 0, 0);
+        checkOut.setHours(0, 0, 0, 0);
+
+        if (checkIn >= checkOut) {
+            throw new BadRequestException('Check-out date must be after check-in date.');
+        }
+
+        const numberOfNights = differenceInDays(checkOut, checkIn);
+
+        // Resolve rooms being allocated
+        const currentRoomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+        const newRoomIds = dto.selectedRoomIds && dto.selectedRoomIds.length > 0
+            ? dto.selectedRoomIds
+            : (dto.roomId ? [dto.roomId] : currentRoomIds);
+
+        // Verify availability of target rooms on target dates (excluding current booking)
+        for (const roomId of newRoomIds) {
+            const isAvailable = await this.availabilityService.isRoomAvailable(roomId, checkIn, checkOut, booking.id);
+            if (!isAvailable) {
+                const room = await this.prisma.room.findUnique({ where: { id: roomId } });
+                throw new BadRequestException(`Room ${room?.roomNumber || roomId} is not available for the selected dates`);
+            }
+        }
+
+        // Update stay details & rooms
         return this.prisma.$transaction(async (tx) => {
+            // Delete old room blocks
+            await tx.roomBlock.deleteMany({
+                where: { bookingId: id }
+            });
+
+            // Re-allocate blocks for any extra rooms
+            const primaryRoomId = newRoomIds[0];
+            const extraRooms = newRoomIds.slice(1);
+
+            const newBlocksData = extraRooms.map(roomId => ({
+                bookingId: id,
+                roomId,
+                startDate: checkIn,
+                endDate: checkOut,
+                reason: booking.isGroupBooking ? `Group Booking ${booking.bookingNumber}` : `Multi-Room Booking ${booking.bookingNumber}`,
+                createdById: user.id || booking.userId,
+                notes: 'Updated stay details'
+            }));
+
+            if (newBlocksData.length > 0) {
+                await tx.roomBlock.createMany({
+                    data: newBlocksData
+                });
+            }
+
             const updated = await tx.booking.update({
                 where: { id },
                 data: {
-                    checkInDate: dto.checkInDate ? new Date(dto.checkInDate) : undefined,
-                    checkOutDate: dto.checkOutDate ? new Date(dto.checkOutDate) : undefined,
+                    checkInDate: checkIn,
+                    checkOutDate: checkOut,
+                    numberOfNights,
+                    roomId: primaryRoomId,
                     adultsCount: dto.adultsCount,
                     childrenCount: dto.childrenCount,
                     specialRequests: dto.specialRequests,

@@ -39,6 +39,7 @@ export class BookingsController {
             dto.groupSize,
             dto.propertyId,
             dto.isAdmin,
+            dto.excludeBookingId,
         );
 
         const availableCount = await this.availabilityService.getAvailableRoomCount(
@@ -46,6 +47,7 @@ export class BookingsController {
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
             dto.isAdmin,
+            dto.excludeBookingId,
         );
 
         let allocationPreview: any[] = [];
@@ -57,7 +59,9 @@ export class BookingsController {
                 dto.propertyId,
                 new Date(dto.checkInDate),
                 new Date(dto.checkOutDate),
-                dto.groupSize
+                dto.groupSize,
+                dto.isAdmin,
+                dto.excludeBookingId,
             );
 
             // Fetch ALL available pool rooms for group-side manual selection
@@ -70,7 +74,8 @@ export class BookingsController {
                     type.id,
                     new Date(dto.checkInDate),
                     new Date(dto.checkOutDate),
-                    dto.isAdmin
+                    dto.isAdmin,
+                    dto.excludeBookingId,
                 );
                 roomList.push(...availableForType.map(r => ({
                     id: r.id,
@@ -91,7 +96,8 @@ export class BookingsController {
                 dto.roomTypeId,
                 new Date(dto.checkInDate),
                 new Date(dto.checkOutDate),
-                dto.isAdmin
+                dto.isAdmin,
+                dto.excludeBookingId,
             );
             roomList = availableRooms.map(r => ({
                 id: r.id,

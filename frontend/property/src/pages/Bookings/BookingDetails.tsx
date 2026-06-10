@@ -17,7 +17,8 @@ import {
     Clock,
     House,
     X,
-    Receipt
+    Receipt,
+    Pencil
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -209,6 +210,15 @@ const BookingDetails = () => {
                         {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                         Download Invoice
                     </button>
+                    {booking.isManualBooking && (
+                        <button
+                            onClick={() => navigate(`/bookings/${booking.id}/edit`)}
+                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-xl hover:shadow-indigo-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest"
+                        >
+                            <Pencil className="h-4 w-4" />
+                            Edit Booking
+                        </button>
+                    )}
                     {/* Additional actions if needed */}
                 </div>
             </div>

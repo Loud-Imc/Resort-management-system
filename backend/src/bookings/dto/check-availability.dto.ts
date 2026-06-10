@@ -39,4 +39,9 @@ export class CheckAvailabilityDto {
     @IsBoolean()
     @IsOptional()
     isAdmin?: boolean;
+
+    @ApiProperty({ example: 'booking-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    excludeBookingId?: string;
 }

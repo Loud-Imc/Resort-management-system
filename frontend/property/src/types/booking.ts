@@ -1,3 +1,5 @@
+import  { type RoomType } from './room';
+
 export const BookingStatus = {
     PENDING_PAYMENT: 'PENDING_PAYMENT',
     RESERVED: 'RESERVED',
@@ -58,6 +60,8 @@ export interface Booking {
     isManualBooking: boolean;
     roomId: string;
     roomTypeId: string;
+    propertyId?: string;
+    roomType?: RoomType;
     couponCode?: string;
     channelPartner?: {
         id: string;
@@ -151,6 +155,7 @@ export interface CheckAvailabilityDto {
     groupSize?: number;
     propertyId?: string;
     isAdmin?: boolean;
+    excludeBookingId?: string;
 }
 
 export interface CheckAvailabilityResult {
