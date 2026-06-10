@@ -229,6 +229,9 @@ export class PdfService {
                 {
                   stack: [
                     { text: roomType?.name || 'Room Type', style: 'roomName' },
+                    ...(booking.isGroupBooking ? [
+                      { text: `Group Booking of ${booking.groupSize || 0} People`, style: 'groupBookingInfo', margin: [0, 0, 0, 4] }
+                    ] : []),
                     { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },
                     { text: `${booking.numberOfNights || 0} Night(s)`, style: 'guestCount' },
                   ],
@@ -355,6 +358,7 @@ export class PdfService {
         propertyAddress: { fontSize: 9, color: '#475569' },
         roomName: { fontSize: 10, bold: true, color: '#0f172a' },
         guestCount: { fontSize: 9, color: '#475569' },
+        groupBookingInfo: { fontSize: 9, bold: true, color: '#227c8a' },
         stayLabel: { fontSize: 8, color: '#94a3b8', bold: true },
         stayDate: { fontSize: 9, bold: true, color: '#0f172a' },
         stayTime: { fontSize: 8, color: '#64748b' },

@@ -215,7 +215,7 @@ export class PricingService {
 
             // 3. Convert inclusive total to base total using accurate roomCount-based slab
             if (isGroupInclusive) {
-                const normalized = await this.calculateReverseGST(totalInclusivePerNight, 1, finalRoomCount);
+                const normalized = await this.calculateReverseGST(totalInclusivePerNight, 1, finalRoomCount, groupSize);
                 basePricePerNight = Number((normalized.baseAmount / groupSize).toFixed(2));
                 baseAmount = normalized.baseAmount * Math.max(1, numberOfNights);
             } else {
@@ -275,9 +275,15 @@ export class PricingService {
 
         for (let i = 0; i < originalEffectiveNights; i++) {
             const subtotalThisNight = subtotalBeforeDiscounts / originalEffectiveNights;
-            const roomTariffThisNight = subtotalThisNight / finalRoomCount;
-            for (let r = 0; r < finalRoomCount; r++) {
-                originalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiersForOriginal);
+            if (isGroupBooking && groupSize && groupSize > 0) {
+                const headTariffThisNight = subtotalThisNight / groupSize;
+                const headTax = this.calculateTaxForTariff(headTariffThisNight, gstTiersForOriginal);
+                originalTaxAmount += headTax * groupSize;
+            } else {
+                const roomTariffThisNight = subtotalThisNight / finalRoomCount;
+                for (let r = 0; r < finalRoomCount; r++) {
+                    originalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiersForOriginal);
+                }
             }
         }
         const originalTotal = subtotalBeforeDiscounts + originalTaxAmount;
@@ -378,11 +384,16 @@ export class PricingService {
         for (let i = 0; i < taxEffectiveNights; i++) {
             // Per-night taxable amount (average across nights)
             const subtotalThisNight = subtotal / taxEffectiveNights;
-            const roomTariffThisNight = subtotalThisNight / finalRoomCount;
-
-            // Apply GST slab separately for each room
-            for (let r = 0; r < finalRoomCount; r++) {
-                totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
+            if (isGroupBooking && groupSize && groupSize > 0) {
+                const headTariffThisNight = subtotalThisNight / groupSize;
+                const headTax = this.calculateTaxForTariff(headTariffThisNight, gstTiers);
+                totalTaxAmount += headTax * groupSize;
+            } else {
+                const roomTariffThisNight = subtotalThisNight / finalRoomCount;
+                // Apply GST slab separately for each room
+                for (let r = 0; r < finalRoomCount; r++) {
+                    totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
+                }
             }
         }
 
@@ -439,14 +450,16 @@ export class PricingService {
                 finalOverrideBreakdown = await this.calculateReverseGST(
                     overrideTotal,
                     numberOfNights,
-                    roomCount
+                    roomCount,
+                    isGroupBooking ? groupSize : undefined
                 );
             } else {
                 // Return base is forced to overrideTotal, add tax on top
                 finalOverrideBreakdown = await this.calculateExclusiveGST(
                     overrideTotal,
                     numberOfNights,
-                    roomCount
+                    roomCount,
+                    isGroupBooking ? groupSize : undefined
                 );
             }
 
@@ -475,19 +488,21 @@ export class PricingService {
     async calculateExclusiveGST(
         overrideBase: number,
         numberOfNights: number,
-        roomCount: number
+        roomCount: number,
+        groupSize?: number
     ): Promise<{ baseAmount: number; taxAmount: number }> {
         const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
 
-        // Target base per room per night
-        const basePerRoomPerNight = overrideBase / (numberOfNights * roomCount);
+        // Target base per unit (head or room) per night
+        const divisor = (groupSize && groupSize > 0) ? groupSize : roomCount;
+        const basePerUnitPerNight = overrideBase / (numberOfNights * divisor);
 
         let targetTaxRate = 0.12; // default fallback
 
         if (gstTiers && Array.isArray(gstTiers)) {
             // Find which tier this base price falls into
             for (const tier of gstTiers) {
-                if (basePerRoomPerNight >= tier.min && (tier.max === null || tier.max === undefined || basePerRoomPerNight <= tier.max)) {
+                if (basePerUnitPerNight >= tier.min && (tier.max === null || tier.max === undefined || basePerUnitPerNight <= tier.max)) {
                     targetTaxRate = tier.rate / 100;
                     break;
                 }
@@ -620,12 +635,14 @@ export class PricingService {
     async calculateReverseGST(
         overrideTotal: number,
         numberOfNights: number,
-        roomCount: number
+        roomCount: number,
+        groupSize?: number
     ): Promise<{ baseAmount: number; taxAmount: number }> {
         const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
 
-        // Target total per room per night
-        const totalPerRoomPerNight = overrideTotal / (numberOfNights * roomCount);
+        // Target total per unit (head or room) per night
+        const divisor = (groupSize && groupSize > 0) ? groupSize : roomCount;
+        const totalPerUnitPerNight = overrideTotal / (numberOfNights * divisor);
 
         let targetTaxRate = 0;
         let validTariff = 0;
@@ -639,7 +656,7 @@ export class PricingService {
 
                 // Test tariff if this tier's rate was applied:
                 // Since Total = Tariff + (Tariff * Rate), Tariff = Total / (1 + Rate)
-                const testTariff = totalPerRoomPerNight / (1 + tierRate);
+                const testTariff = totalPerUnitPerNight / (1 + tierRate);
 
                 // Check if this testTariff actually falls into this tier's bracket
                 if (testTariff >= tier.min && (tier.max === null || tier.max === undefined || testTariff <= tier.max)) {
