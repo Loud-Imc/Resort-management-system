@@ -99,10 +99,15 @@ export class BookingsController {
                 dto.isAdmin,
                 dto.excludeBookingId,
             );
+            const roomType = await (this.availabilityService as any).prisma.roomType.findUnique({
+                where: { id: dto.roomTypeId }
+            });
             roomList = availableRooms.map(r => ({
                 id: r.id,
                 name: r.name,
-                roomNumber: r.roomNumber
+                roomNumber: r.roomNumber,
+                roomType: roomType?.name || 'N/A',
+                capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0
             }));
         }
 

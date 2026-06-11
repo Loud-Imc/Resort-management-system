@@ -39,13 +39,17 @@ const bookingSchema = z.object({
     paidAmount: z.number().optional(),
     isHistoricalEntry: z.boolean().optional(),
     transactionDate: z.string().optional(),
-    guestPhone: z.string().optional(),
+    guestFirstName: z.string().min(1, 'First name is required'),
+    guestLastName: z.string().optional(),
+    guestEmail: z.string().email('Invalid email').optional().or(z.literal('')),
+    guestPhone: z.string().min(1, 'Primary phone number is required'),
     whatsappNumber: z.string().optional(),
+    isBookerAlsoGuest: z.boolean().optional(),
     gstNumber: z.string().optional(),
     specialRequests: z.string().optional(),
     guests: z.array(z.object({
         firstName: z.string().min(1, 'First name is required'),
-        lastName: z.string().min(1, 'Last name is required'),
+        lastName: z.string().optional(),
         email: z.string().email('Invalid email').optional().or(z.literal('')),
         phone: z.string().optional(),
         whatsappNumber: z.string().optional(),
@@ -127,6 +131,7 @@ export default function CreateBooking() {
             adultsCount: 1, childrenCount: 0,
             roomTypeId: preSelectedRoomTypeId || '',
             roomId: preSelectedRoomId || undefined,
+            selectedRoomIds: preSelectedRoomId ? [preSelectedRoomId] : [],
             isManualBooking: true,
             isGroupBooking: false,
             groupSize: undefined,
@@ -139,6 +144,12 @@ export default function CreateBooking() {
             appliedCode: '',
             isHistoricalEntry: false,
             transactionDate: format(new Date(), 'yyyy-MM-dd'),
+            guestFirstName: '',
+            guestLastName: '',
+            guestEmail: '',
+            guestPhone: '',
+            whatsappNumber: '',
+            isBookerAlsoGuest: true,
             guests: [{ firstName: '', lastName: '' }],
         },
     });
@@ -170,6 +181,23 @@ export default function CreateBooking() {
             }
         }
     }, [watchedCheckInDate, setValue]);
+
+    const isBookerAlsoGuest = watch('isBookerAlsoGuest');
+    const guestFirstName = watch('guestFirstName');
+    const guestLastName = watch('guestLastName');
+    const guestEmail = watch('guestEmail');
+    const guestPhone = watch('guestPhone');
+    const whatsappNumber = watch('whatsappNumber');
+
+    useEffect(() => {
+        if (isBookerAlsoGuest) {
+            setValue('guests.0.firstName', guestFirstName || '');
+            setValue('guests.0.lastName', guestLastName || '');
+            setValue('guests.0.email', guestEmail || '');
+            setValue('guests.0.phone', guestPhone || '');
+            setValue('guests.0.whatsappNumber', whatsappNumber || '');
+        }
+    }, [isBookerAlsoGuest, guestFirstName, guestLastName, guestEmail, guestPhone, whatsappNumber, setValue]);
 
     const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes', selectedProperty?.id],
@@ -262,10 +290,34 @@ export default function CreateBooking() {
                     currentValues = getValues();
                 }
 
-                // For standard bookings, if no selectedRoomIds yet, auto-select the required rooms from available rooms
-                if (!isGroup && (!currentValues.selectedRoomIds || currentValues.selectedRoomIds.length === 0) && avail.roomList && avail.roomList.length > 0) {
-                    const autoSelected = avail.roomList.slice(0, requiredRooms).map((r: any) => r.id);
-                    setValue('selectedRoomIds', autoSelected);
+                // For standard bookings, filter out any selected rooms that are no longer available, and auto-select up to requiredRooms
+                if (!isGroup) {
+                    const validSelectedRoomIds = (currentValues.selectedRoomIds || []).filter(id =>
+                        avail.roomList?.some((r: any) => r.id === id)
+                    );
+
+                    if (validSelectedRoomIds.length < requiredRooms && avail.roomList && avail.roomList.length > 0) {
+                        const additionalNeeded = requiredRooms - validSelectedRoomIds.length;
+                        const unselectedAvailableRooms = avail.roomList
+                            .filter((r: any) => !validSelectedRoomIds.includes(r.id))
+                            .map((r: any) => r.id);
+
+                        let autoSelected: string[] = [];
+                        // Prioritize pre-selected roomId if it is in available list and not yet selected
+                        if (validSelectedRoomIds.length === 0 && currentValues.roomId && avail.roomList.some((r: any) => r.id === currentValues.roomId)) {
+                            autoSelected.push(currentValues.roomId);
+                        }
+
+                        const remainingPool = unselectedAvailableRooms.filter(id => !autoSelected.includes(id));
+                        const newSelection = [
+                            ...validSelectedRoomIds,
+                            ...autoSelected,
+                            ...remainingPool.slice(0, additionalNeeded - autoSelected.length)
+                        ];
+                        setValue('selectedRoomIds', newSelection);
+                    } else {
+                        setValue('selectedRoomIds', validSelectedRoomIds);
+                    }
                     currentValues = getValues();
                 }
 
@@ -327,10 +379,13 @@ export default function CreateBooking() {
         }
 
         // Remove propertyId (unless needed for group allocation) and other non-DTO fields
-        const { propertyId, paymentOption, appliedCode, ...rest } = data;
+        const { propertyId, paymentOption, appliedCode, guestFirstName, guestLastName, guestEmail, guestPhone, isBookerAlsoGuest, ...rest } = data;
 
         const sanitizedData = {
             ...rest,
+            guestName: `${guestFirstName} ${guestLastName || ''}`.trim(),
+            guestEmail: guestEmail || undefined,
+            guestPhone: guestPhone,
             transactionDate: data.isHistoricalEntry ? data.transactionDate : undefined,
             generalCode: appliedCode || undefined,
             roomTypeId: data.isGroupBooking ? undefined : rest.roomTypeId,  // clear stale roomTypeId for group bookings
@@ -344,7 +399,7 @@ export default function CreateBooking() {
             paidAmount: data.isHistoricalEntry
                 ? (data.overrideTotal || priceDetails?.totalAmount)
                 : (data.isManualBooking
-                    ? (data.paymentOption === 'FULL'
+                    ? (paymentOption === 'FULL'
                         ? (data.overrideTotal || priceDetails?.totalAmount)
                         : (data.paidAmount || 0))
                     : undefined),
@@ -427,6 +482,7 @@ export default function CreateBooking() {
                                             onChange={(val: string) => {
                                                 setValue('roomTypeId', val);
                                                 setValue('roomId', '');
+                                                setValue('selectedRoomIds', []);
                                                 setAvailability(null);
                                             }}
                                             required
@@ -723,13 +779,44 @@ export default function CreateBooking() {
                                         </h2>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                                                <input
+                                                    type="text"
+                                                    {...register('guestFirstName')}
+                                                    placeholder="Enter first name"
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                />
+                                                {errors.guestFirstName && <p className="text-red-500 text-xs mt-1">{errors.guestFirstName.message}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name (Optional)</label>
+                                                <input
+                                                    type="text"
+                                                    {...register('guestLastName')}
+                                                    placeholder="Enter last name"
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                />
+                                                {errors.guestLastName && <p className="text-red-500 text-xs mt-1">{errors.guestLastName.message}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email (Optional)</label>
+                                                <input
+                                                    type="email"
+                                                    {...register('guestEmail')}
+                                                    placeholder="Enter email address"
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                />
+                                                {errors.guestEmail && <p className="text-red-500 text-xs mt-1">{errors.guestEmail.message}</p>}
+                                            </div>
+                                            <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary Phone Number</label>
                                                 <input
                                                     type="text"
                                                     {...register('guestPhone')}
                                                     placeholder="Enter primary contact number"
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10"
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
                                                 />
+                                                {errors.guestPhone && <p className="text-red-500 text-xs mt-1">{errors.guestPhone.message}</p>}
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary WhatsApp Number (Optional)</label>
@@ -737,8 +824,21 @@ export default function CreateBooking() {
                                                     type="text"
                                                     {...register('whatsappNumber')}
                                                     placeholder="Enter WhatsApp number"
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10"
+                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
                                                 />
+                                                {errors.whatsappNumber && <p className="text-red-500 text-xs mt-1">{errors.whatsappNumber.message}</p>}
+                                            </div>
+                                            <div className="md:col-span-2 flex items-center mt-2">
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        {...register('isBookerAlsoGuest')}
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                    />
+                                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                                        Add Booker as the Primary Guest (Guest 1)
+                                                    </span>
+                                                </label>
                                             </div>
                                         </div>
                                     </div>
@@ -763,22 +863,70 @@ export default function CreateBooking() {
                                                     {fields.length > 1 && (
                                                         <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-sm opacity-0 group-hover:opacity-100 transition-opacity">Remove</button>
                                                     )}
-                                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Guest {index + 1} {index === 0 && '(Primary)'}</h3>
+                                                    <div className="flex justify-between items-center mb-2">
+                                                         <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Guest {index + 1} {index === 0 && '(Primary)'}</h3>
+                                                         {index === 0 && isBookerAlsoGuest && (
+                                                             <span className="text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                                 Synced with Booker
+                                                             </span>
+                                                         )}
+                                                     </div>
 
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <div>
-                                                            <input {...register(`guests.${index}.firstName`)} placeholder="First Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                            {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.firstName?.message}</p>}
-                                                        </div>
-                                                        <div>
-                                                            <input {...register(`guests.${index}.lastName`)} placeholder="Last Name" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                            {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
-                                                        </div>
-                                                        <input {...register(`guests.${index}.email`)} type="email" placeholder="Email (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <input {...register(`guests.${index}.phone`)} placeholder="Phone (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                            <input {...register(`guests.${index}.whatsappNumber`)} placeholder="WhatsApp (Optional)" className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm" />
-                                                        </div>
+                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                         <div>
+                                                             <input
+                                                                 {...register(`guests.${index}.firstName`)}
+                                                                 placeholder="First Name"
+                                                                 readOnly={index === 0 && isBookerAlsoGuest}
+                                                                 className={clsx(
+                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                 )}
+                                                             />
+                                                             {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.firstName?.message}</p>}
+                                                         </div>
+                                                         <div>
+                                                             <input
+                                                                 {...register(`guests.${index}.lastName`)}
+                                                                 placeholder="Last Name (Optional)"
+                                                                 readOnly={index === 0 && isBookerAlsoGuest}
+                                                                 className={clsx(
+                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                 )}
+                                                             />
+                                                             {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
+                                                         </div>
+                                                         <input
+                                                             {...register(`guests.${index}.email`)}
+                                                             type="email"
+                                                             placeholder="Email (Optional)"
+                                                             readOnly={index === 0 && isBookerAlsoGuest}
+                                                             className={clsx(
+                                                                 "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
+                                                                 index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                             )}
+                                                         />
+                                                         <div className="grid grid-cols-2 gap-2">
+                                                             <input
+                                                                 {...register(`guests.${index}.phone`)}
+                                                                 placeholder="Phone (Optional)"
+                                                                 readOnly={index === 0 && isBookerAlsoGuest}
+                                                                 className={clsx(
+                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                 )}
+                                                             />
+                                                             <input
+                                                                 {...register(`guests.${index}.whatsappNumber`)}
+                                                                 placeholder="WhatsApp (Optional)"
+                                                                 readOnly={index === 0 && isBookerAlsoGuest}
+                                                                 className={clsx(
+                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                 )}
+                                                             />
+                                                         </div>
                                                         <div className="relative">
                                                             <select {...register(`guests.${index}.idType`)} className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500")}>
                                                                 <option value="">-- ID Type (Optional) --</option>
