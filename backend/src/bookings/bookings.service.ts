@@ -1918,7 +1918,17 @@ export class BookingsService {
 
         const numberOfNights = differenceInDays(newCheckOut, newCheckIn);
         const roomCount = 1 + (booking.roomBlocks?.length || 0);
-        const targetRoomTypeId = dto.roomTypeId || booking.roomTypeId;
+        let targetRoomTypeId = dto.roomTypeId || booking.roomTypeId;
+
+        const propId = booking.propertyId || booking.room?.roomType?.propertyId;
+        if (booking.isGroupBooking && !targetRoomTypeId && propId) {
+            const groupPoolType = await this.prisma.roomType.findFirst({
+                where: { propertyId: propId, isAvailableForGroupBooking: true }
+            });
+            if (groupPoolType) {
+                targetRoomTypeId = groupPoolType.id;
+            }
+        }
 
         let roomsToAllocate: any[] = [];
         if (dto.selectedRoomIds && dto.selectedRoomIds.length > 0) {
@@ -1935,8 +1945,12 @@ export class BookingsService {
                 throw new BadRequestException('One or more selected rooms were not found.');
             }
 
-            if (roomsToAllocate.some(r => r.roomTypeId !== targetRoomTypeId)) {
-                throw new BadRequestException('All selected rooms must match the target room type.');
+            if (booking.isGroupBooking) {
+                targetRoomTypeId = roomsToAllocate[0]?.roomTypeId || targetRoomTypeId;
+            } else {
+                if (roomsToAllocate.some(r => r.roomTypeId !== targetRoomTypeId)) {
+                    throw new BadRequestException('All selected rooms must match the target room type.');
+                }
             }
 
             // Verify availability for each room (excluding current booking)
@@ -1993,7 +2007,10 @@ export class BookingsService {
             booking.channelPartner?.referralCode || undefined,
             booking.bookingCurrency || 'INR',
             booking.isGroupBooking,
-            booking.groupSize || undefined,
+            booking.isGroupBooking
+                ? (Number(dto.adultsCount !== undefined ? dto.adultsCount : booking.adultsCount) +
+                   Number(dto.childrenCount !== undefined ? dto.childrenCount : booking.childrenCount))
+                : undefined,
             roomCount,
             booking.couponCode || undefined,
             dto.overrideTotal !== undefined && dto.overrideTotal !== null ? Number(dto.overrideTotal) : undefined,
@@ -2099,6 +2116,10 @@ export class BookingsService {
                     roomTypeId: targetRoomTypeId,
                     adultsCount: dto.adultsCount !== undefined ? Number(dto.adultsCount) : undefined,
                     childrenCount: dto.childrenCount !== undefined ? Number(dto.childrenCount) : undefined,
+                    groupSize: booking.isGroupBooking
+                        ? (Number(dto.adultsCount !== undefined ? dto.adultsCount : booking.adultsCount) +
+                           Number(dto.childrenCount !== undefined ? dto.childrenCount : booking.childrenCount))
+                        : undefined,
                     whatsappNumber: dto.whatsappNumber !== undefined ? dto.whatsappNumber : undefined,
                     baseAmount: pricing.baseAmount,
                     extraAdultAmount: pricing.extraAdultAmount,
