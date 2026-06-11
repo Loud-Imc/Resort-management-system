@@ -26,6 +26,7 @@ interface RescheduleCalendarModalProps {
     roomTypeId: string;
     roomTypeName: string;
     propertyId: string;
+    roomTypes: any[] | undefined;
     onClose: () => void;
     onSelectDates: (checkIn: string, checkOut: string) => void;
 }
@@ -35,6 +36,7 @@ export function RescheduleCalendarModal({
     roomTypeId,
     roomTypeName,
     propertyId,
+    roomTypes,
     onClose,
     onSelectDates
 }: RescheduleCalendarModalProps) {
@@ -63,17 +65,23 @@ export function RescheduleCalendarModal({
         enabled: !!propertyId,
     });
 
-    // Calculate total rooms of this type
+    // Get group pool room types
+    const groupPoolRoomTypeIds = useMemo(() => {
+        if (!booking.isGroupBooking) return [roomTypeId];
+        return roomTypes?.filter((rt: any) => rt.isAvailableForGroupBooking || rt.isGroupPool).map((rt: any) => rt.id) || [];
+    }, [booking.isGroupBooking, roomTypeId, roomTypes]);
+
+    // Calculate total rooms of this type (or total pool rooms for group bookings)
     const totalRoomsOfType = useMemo(() => {
-        return rooms.filter((r: any) => r.roomTypeId === roomTypeId).length;
-    }, [rooms, roomTypeId]);
+        return rooms.filter((r: any) => groupPoolRoomTypeIds.includes(r.roomTypeId)).length;
+    }, [rooms, groupPoolRoomTypeIds]);
 
     // Generate calendar grid days
     const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
     const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-    // Calculate daily occupancy specifically for the selected room type
+    // Calculate daily occupancy specifically for the selected room type(s)
     const occupancyPerDay = useMemo(() => {
         const counts: Record<string, number> = {};
 
@@ -91,12 +99,13 @@ export function RescheduleCalendarModal({
                 
                 // Count rooms of the selected type occupied by this booking
                 let occupiedRoomsInThisBooking = 0;
-                if (b.roomTypeId === roomTypeId) {
+                if (b.roomTypeId && groupPoolRoomTypeIds.includes(b.roomTypeId)) {
                     occupiedRoomsInThisBooking += 1;
                 }
                 if (b.roomBlocks) {
                     b.roomBlocks.forEach(block => {
-                        if ((block.room as any)?.roomTypeId === roomTypeId) {
+                        const rTypeId = (block.room as any)?.roomTypeId || (block as any).roomTypeId;
+                        if (rTypeId && groupPoolRoomTypeIds.includes(rTypeId)) {
                             occupiedRoomsInThisBooking += 1;
                         }
                     });
@@ -108,7 +117,7 @@ export function RescheduleCalendarModal({
         });
 
         return counts;
-    }, [bookings, roomTypeId, booking.id]);
+    }, [bookings, groupPoolRoomTypeIds, booking.id]);
 
     const handlePreviousMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
     const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -158,9 +167,15 @@ export function RescheduleCalendarModal({
                                 <CalendarIcon className="h-6 w-6" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-black tracking-tight text-foreground">Room Availability Calendar</h2>
+                                <h2 className="text-xl font-black tracking-tight text-foreground">
+                                    {booking.isGroupBooking ? 'Group Availability Calendar' : 'Room Availability Calendar'}
+                                </h2>
                                 <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                                    Room Type: <span className="text-primary font-bold">{roomTypeName}</span> ({totalRoomsOfType} total rooms)
+                                    {booking.isGroupBooking ? (
+                                        <>Group Booking Pool (<span className="text-primary font-bold">{totalRoomsOfType}</span> total rooms in pool)</>
+                                    ) : (
+                                        <>Room Type: <span className="text-primary font-bold">{roomTypeName}</span> ({totalRoomsOfType} total rooms)</>
+                                    )}
                                 </p>
                             </div>
                         </div>

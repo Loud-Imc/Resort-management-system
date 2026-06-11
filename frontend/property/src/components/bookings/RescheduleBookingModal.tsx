@@ -36,7 +36,16 @@ export function RescheduleBookingModal({
     const [availableRooms, setAvailableRooms] = useState<any[]>([]);
     const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(() => [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])]);
     const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
-    const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string>(booking.roomTypeId);
+    const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string>(booking.roomTypeId || '');
+
+    useEffect(() => {
+        if (!rescheduleRoomTypeId && roomTypes && roomTypes.length > 0) {
+            const defaultType = roomTypes.find(rt => rt.isAvailableForGroupBooking || rt.isGroupPool)?.id || roomTypes[0]?.id;
+            if (defaultType) {
+                setRescheduleRoomTypeId(defaultType);
+            }
+        }
+    }, [roomTypes, rescheduleRoomTypeId]);
 
     const [keepOriginalAmount, setKeepOriginalAmount] = useState<boolean>(false);
     const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);
@@ -93,7 +102,7 @@ export function RescheduleBookingModal({
     }, [showKeepOriginalOption, keepOriginalAmount]);
 
     useEffect(() => {
-        if (!newCheckInDate || !newCheckOutDate || !rescheduleRoomTypeId) {
+        if (!newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId)) {
             setNewPricePreview(null);
             return;
         }
@@ -130,7 +139,7 @@ export function RescheduleBookingModal({
     }, [booking, newCheckInDate, newCheckOutDate, useRescheduleOverride, rescheduleOverrideTotal, rescheduleRoomTypeId, adultsCount, childrenCount]);
 
     useEffect(() => {
-        if (!newCheckInDate || !newCheckOutDate || !rescheduleRoomTypeId) {
+        if (!newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId)) {
             setAvailableRooms([]);
             return;
         }
@@ -139,7 +148,7 @@ export function RescheduleBookingModal({
             try {
                 setIsLoadingRooms(true);
                 const checkRes = await bookingsService.checkAvailability({
-                    roomTypeId: rescheduleRoomTypeId,
+                    roomTypeId: booking.isGroupBooking ? undefined : rescheduleRoomTypeId,
                     checkInDate: newCheckInDate,
                     checkOutDate: newCheckOutDate,
                     propertyId: propertyId,
@@ -253,7 +262,7 @@ export function RescheduleBookingModal({
                 selectedRoomIds: selectedRoomIds,
                 overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
                 overrideReason: useRescheduleOverride ? rescheduleOverrideReason : undefined,
-                roomTypeId: rescheduleRoomTypeId,
+                roomTypeId: booking.isGroupBooking ? undefined : rescheduleRoomTypeId,
                 adultsCount: Number(adultsCount),
                 childrenCount: Number(childrenCount),
                 guestName: `${bookerFirstName} ${bookerLastName}`.trim(),
@@ -551,37 +560,43 @@ export function RescheduleBookingModal({
                         </div>
 
                         {/* 4. Room & Stay Details Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div>
-                                <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Room Type</label>
-                                <select
-                                    value={rescheduleRoomTypeId}
-                                    onChange={(e) => setRescheduleRoomTypeId(e.target.value)}
-                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                >
-                                    {roomTypes?.map((rt) => (
-                                        <option key={rt.id} value={rt.id}>
-                                            {rt.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                        <div className={booking.isGroupBooking ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "grid grid-cols-1 md:grid-cols-3 gap-6"}>
+                            {!booking.isGroupBooking && (
+                                <div>
+                                    <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Room Type</label>
+                                    <select
+                                        value={rescheduleRoomTypeId}
+                                        onChange={(e) => setRescheduleRoomTypeId(e.target.value)}
+                                        className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
+                                    >
+                                        {roomTypes?.map((rt) => (
+                                            <option key={rt.id} value={rt.id}>
+                                                {rt.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">New Check-In Date</label>
                                 <input
-                                    type="date"
-                                    value={newCheckInDate}
-                                    onChange={(e) => setNewCheckInDate(e.target.value)}
-                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
+                                    type="text"
+                                    value={newCheckInDate ? newCheckInDate.split('-').reverse().join('/') : ''}
+                                    onClick={() => setShowCalendarModal(true)}
+                                    readOnly
+                                    placeholder="Select Check-In Date"
+                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none cursor-pointer"
                                 />
                             </div>
                             <div>
                                 <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">New Check-Out Date</label>
                                 <input
-                                    type="date"
-                                    value={newCheckOutDate}
-                                    onChange={(e) => setNewCheckOutDate(e.target.value)}
-                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
+                                    type="text"
+                                    value={newCheckOutDate ? newCheckOutDate.split('-').reverse().join('/') : ''}
+                                    onClick={() => setShowCalendarModal(true)}
+                                    readOnly
+                                    placeholder="Select Check-Out Date"
+                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none cursor-pointer"
                                 />
                             </div>
                         </div>
@@ -639,7 +654,7 @@ export function RescheduleBookingModal({
                                     <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Checking room availability...</p>
                                 </div>
                             ) : availableRooms.length > 0 ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {availableRooms.map((room) => {
                                         const isSelected = selectedRoomIds.includes(room.id);
                                         return (
@@ -647,16 +662,25 @@ export function RescheduleBookingModal({
                                                 key={room.id}
                                                 type="button"
                                                 onClick={() => toggleRoomSelection(room.id)}
-                                                className={`flex flex-col items-center justify-center p-4 rounded-xl border text-center transition-all ${
+                                                className={`relative overflow-hidden group p-3 rounded-xl border text-left transition-all ${
                                                     isSelected
                                                         ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20 scale-95'
                                                         : 'bg-muted/30 text-foreground border-border/50 hover:bg-muted/50'
                                                 }`}
                                             >
-                                                <span className="text-base font-bold">Unit {room.roomNumber}</span>
-                                                <span className={`text-[10px] uppercase font-black tracking-widest mt-0.5 ${isSelected ? 'text-primary-foreground/85' : 'text-muted-foreground'}`}>
-                                                    Available
-                                                </span>
+                                                <div className="flex flex-col relative z-10">
+                                                    <span className={`text-xs font-black uppercase mb-1 tracking-tight ${isSelected ? 'text-primary-foreground/90' : 'text-primary'}`}>
+                                                        {room.roomNumber || room.name}
+                                                    </span>
+                                                    <div className="flex items-baseline gap-1">
+                                                        <span className={`text-[10px] font-bold ${isSelected ? 'text-primary-foreground/90' : 'text-foreground/90'}`}>
+                                                            Cap: {room.capacity || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <span className={`text-[8px] mt-1 truncate font-medium ${isSelected ? 'text-primary-foreground/75' : 'text-muted-foreground'}`}>
+                                                        {room.roomType || 'Standard Room'}
+                                                    </span>
+                                                </div>
                                             </button>
                                         );
                                     })}
@@ -873,6 +897,7 @@ export function RescheduleBookingModal({
                     roomTypeId={rescheduleRoomTypeId}
                     roomTypeName={roomTypes?.find(rt => rt.id === rescheduleRoomTypeId)?.name || 'Selected Room Type'}
                     propertyId={propertyId}
+                    roomTypes={roomTypes}
                     onClose={() => setShowCalendarModal(false)}
                     onSelectDates={(checkIn, checkOut) => {
                         setNewCheckInDate(checkIn);

@@ -10,7 +10,6 @@ import { format } from 'date-fns';
 import {
     Loader2,
     Search,
-    Filter,
     LogOut,
     XCircle,
     MoreVertical,
@@ -426,27 +425,6 @@ export default function BookingsList() {
     //     }, 1000);
     // };
 
-    const getStatusColor = (status: BookingStatus) => {
-        switch (status) {
-            case BookingStatus.CONFIRMED:
-                return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
-            case BookingStatus.CHECKED_IN:
-                return 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
-            case BookingStatus.CHECKED_OUT:
-                return 'bg-muted text-muted-foreground';
-            case BookingStatus.PENDING_PAYMENT:
-                return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
-            case BookingStatus.RESERVED:
-                return 'bg-orange-500/10 text-orange-600 dark:text-orange-400';
-            case BookingStatus.CANCELLED:
-                return 'bg-destructive/10 text-destructive';
-            case BookingStatus.NO_SHOW:
-                return 'bg-rose-500/10 text-rose-600 dark:text-rose-400';
-            default:
-                return 'bg-muted text-muted-foreground';
-        }
-    };
-
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -481,6 +459,35 @@ export default function BookingsList() {
                 </div>
 
                 <div className="bg-card rounded-lg shadow-sm border border-border">
+                    {/* Status Tabs */}
+                    <div className="flex border-b border-border overflow-x-auto bg-muted/5 scrollbar-none rounded-t-lg">
+                        {[
+                            { label: 'All Bookings', value: '', dotColor: 'bg-primary' },
+                            { label: 'Reserved', value: 'RESERVED', dotColor: 'bg-orange-500' },
+                            { label: 'Confirmed', value: 'CONFIRMED', dotColor: 'bg-emerald-500' },
+                            { label: 'Checked In', value: 'CHECKED_IN', dotColor: 'bg-blue-500' },
+                            { label: 'Checked Out', value: 'CHECKED_OUT', dotColor: 'bg-neutral-400 dark:bg-neutral-600' },
+                            { label: 'Cancelled', value: 'CANCELLED', dotColor: 'bg-red-500' },
+                            { label: 'No Show', value: 'NO_SHOW', dotColor: 'bg-rose-500' }
+                        ].map((tab) => {
+                            const isActive = statusFilter === tab.value;
+                            return (
+                                <button
+                                    key={tab.value}
+                                    onClick={() => setStatusFilter(tab.value)}
+                                    className={`px-5 py-3.5 text-xs md:text-sm font-bold border-b-2 transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${
+                                        isActive
+                                            ? 'border-primary text-primary font-black bg-primary/5'
+                                            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                                    }`}
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${tab.dotColor}`} />
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
                     {/* Filters */}
                     <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
                         <div className="relative flex-1">
@@ -512,21 +519,6 @@ export default function BookingsList() {
                                     className="border border-border bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                 />
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Filter className="h-4 w-4 text-muted-foreground" />
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="border border-border bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[140px]"
-                                >
-                                    <option value="">All Statuses</option>
-                                    <option value="CONFIRMED">Confirmed</option>
-                                    <option value="RESERVED">Reserved</option>
-                                    <option value="CHECKED_IN">Checked In</option>
-                                    <option value="CHECKED_OUT">Checked Out</option>
-                                    <option value="CANCELLED">Cancelled</option>
-                                </select>
-                            </div>
                             {(startDate !== '' || endDate !== '' || statusFilter !== '' || searchParams.has('startDate') || searchParams.has('endDate')) && (
                                 <button
                                     onClick={() => {
@@ -545,30 +537,29 @@ export default function BookingsList() {
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-border">
+                    <div className="overflow-x-auto w-full">
+                        <table className="min-w-full divide-y divide-border table-auto">
                             <thead className="bg-muted/50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Booking Info</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Guest</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phone</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Room</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Booking Info</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Guest</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phone</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Room</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment</th>
+                                    <th className="px-4 lg:px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-card divide-y divide-border">
                                 {filteredBookings.map((booking: Booking, index: number) => (
                                     <tr key={booking.id} onClick={(e) => handleRowClick(e, booking.id)} className="hover:bg-muted/30 transition-colors cursor-pointer">
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>
                                             <div className="text-xs text-muted-foreground">
                                                 {booking.isManualBooking ? 'Manual' : 'Online'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-foreground">
                                                 {booking.isManualBooking && booking.guests?.[0]
                                                     ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
@@ -587,14 +578,14 @@ export default function BookingsList() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">
                                                 {booking.isManualBooking && booking.guests?.[0]
                                                     ? booking.guests[0].phone
                                                     : booking.user.phone || 'N/A'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-2">
                                                 <div>
                                                     <div className="text-sm font-bold text-foreground">Unit {booking.room.roomNumber}</div>
@@ -604,15 +595,15 @@ export default function BookingsList() {
                                                     <div className="pt-1.5 space-y-2 border-t border-border/50">
                                                         {booking.roomBlocks.map((block, idx) => (
                                                             <div key={idx}>
-                                                                <div className="text-sm font-bold text-foreground">Unit {block.room.roomNumber}</div>
-                                                                <div className="text-[10px] text-muted-foreground uppercase font-medium">{block.room.roomType?.name}</div>
+                                                                 <div className="text-sm font-bold text-foreground">Unit {block.room.roomNumber}</div>
+                                                                 <div className="text-[10px] text-muted-foreground uppercase font-medium">{block.room.roomType?.name}</div>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">
                                                 {format(new Date(booking.checkInDate), 'MMM d, yyyy')}
                                             </div>
@@ -620,7 +611,7 @@ export default function BookingsList() {
                                                 {booking.numberOfNights} nights
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-1.5">
                                                 <div className="flex flex-wrap gap-1.5">
                                                     <span className={`px-2.5 py-0.5 inline-flex text-[10px] leading-4 font-black rounded-full border ${booking.paymentStatus === 'FULL'
@@ -652,16 +643,7 @@ export default function BookingsList() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span
-                                                className={`px-2.5 inline-flex text-[11px] leading-5 font-bold rounded-full border ${getStatusColor(
-                                                    booking.status
-                                                )}`}
-                                            >
-                                                {booking.status.replace('_', ' ')}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-2">
                                                 {(booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.RESERVED || booking.status === BookingStatus.NO_SHOW) && (
                                                     <button
