@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
-import { roomTypesService } from '../../services/roomTypes';
 import api from '../../services/api';
 import { BookingStatus } from '../../types/booking';
 import type { Booking } from '../../types/booking';
@@ -10,7 +9,6 @@ import { format } from 'date-fns';
 import {
     Loader2,
     Search,
-    Filter,
     LogOut,
     XCircle,
     MoreVertical,
@@ -35,6 +33,7 @@ import { Banknote, Download, Wallet } from 'lucide-react';
 // import jsPDF from 'jspdf';
 // import { toPng } from 'html-to-image';
 import { BookingInvoice } from '../../components/bookings/BookingInvoice';
+
 
 const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
     AADHAR: { pattern: /^\d{12}$/, message: 'Aadhar must be exactly 12 digits', sample: 'e.g. 1234 5678 9012' },
@@ -88,101 +87,6 @@ export default function BookingsList() {
         if (queryEnd !== null && queryEnd !== endDate) setEndDate(queryEnd);
     }, [searchParams]);
 
-    // Rescheduling Modal State
-    const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
-    const [newCheckInDate, setNewCheckInDate] = useState<string>('');
-    const [newCheckOutDate, setNewCheckOutDate] = useState<string>('');
-    const [newPricePreview, setNewPricePreview] = useState<any>(null);
-    const [isCalculatingPreview, setIsCalculatingPreview] = useState<boolean>(false);
-    
-    // Phase 2 states
-    const [useRescheduleOverride, setUseRescheduleOverride] = useState<boolean>(false);
-    const [rescheduleOverrideTotal, setRescheduleOverrideTotal] = useState<string>('');
-    const [rescheduleOverrideReason, setRescheduleOverrideReason] = useState<string>('');
-    const [availableRooms, setAvailableRooms] = useState<any[]>([]);
-    const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
-    const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
-    const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string>('');
-
-    useEffect(() => {
-        if (!rescheduleBooking || !newCheckInDate || !newCheckOutDate || !rescheduleRoomTypeId) {
-            setNewPricePreview(null);
-            return;
-        }
-
-        const fetchPreview = async () => {
-            try {
-                setIsCalculatingPreview(true);
-                const roomCount = 1 + (rescheduleBooking.roomBlocks?.length || 0);
-                const preview = await bookingsService.calculatePrice({
-                    roomTypeId: rescheduleRoomTypeId,
-                    checkInDate: newCheckInDate,
-                    checkOutDate: newCheckOutDate,
-                    adultsCount: rescheduleBooking.adultsCount,
-                    childrenCount: rescheduleBooking.childrenCount,
-                    couponCode: rescheduleBooking.couponCode || undefined,
-                    referralCode: rescheduleBooking.channelPartner?.referralCode || undefined,
-                    currency: rescheduleBooking.bookingCurrency || 'INR',
-                    isGroupBooking: rescheduleBooking.isGroupBooking,
-                    groupSize: rescheduleBooking.groupSize || undefined,
-                    roomCount: roomCount,
-                    overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
-                });
-                setNewPricePreview(preview);
-            } catch (err) {
-                console.error('Failed to calculate price preview', err);
-                setNewPricePreview(null);
-            } finally {
-                setIsCalculatingPreview(false);
-            }
-        };
-
-        const timer = setTimeout(fetchPreview, 400);
-        return () => clearTimeout(timer);
-    }, [rescheduleBooking, newCheckInDate, newCheckOutDate, useRescheduleOverride, rescheduleOverrideTotal, rescheduleRoomTypeId]);
-
-    useEffect(() => {
-        if (!rescheduleBooking || !newCheckInDate || !newCheckOutDate || !rescheduleRoomTypeId) {
-            setAvailableRooms([]);
-            return;
-        }
-
-        const fetchAvailableRooms = async () => {
-            try {
-                setIsLoadingRooms(true);
-                const checkRes = await bookingsService.checkAvailability({
-                    roomTypeId: rescheduleRoomTypeId,
-                    checkInDate: newCheckInDate,
-                    checkOutDate: newCheckOutDate,
-                    propertyId: selectedProperty?.id || '',
-                    isGroupBooking: rescheduleBooking.isGroupBooking,
-                    groupSize: rescheduleBooking.groupSize || undefined,
-                    isAdmin: true,
-                });
-                setAvailableRooms(checkRes.roomList || []);
-            } catch (err) {
-                console.error('Failed to fetch available rooms', err);
-                setAvailableRooms([]);
-            } finally {
-                setIsLoadingRooms(false);
-            }
-        };
-
-        const timer = setTimeout(fetchAvailableRooms, 500);
-        return () => clearTimeout(timer);
-    }, [rescheduleBooking, newCheckInDate, newCheckOutDate, selectedProperty?.id, rescheduleRoomTypeId]);
-
-    useEffect(() => {
-        if (availableRooms.length > 0 && rescheduleBooking) {
-            const roomCount = 1 + (rescheduleBooking.roomBlocks?.length || 0);
-            const allSelectedValid = selectedRoomIds.every(id => availableRooms.some(r => r.id === id));
-            if (!allSelectedValid || selectedRoomIds.length !== roomCount) {
-                const autoSelect = availableRooms.slice(0, roomCount).map(r => r.id);
-                setSelectedRoomIds(autoSelect);
-            }
-        }
-    }, [availableRooms, rescheduleBooking]);
-
     const handleRowClick = (e: React.MouseEvent, bookingId: string) => {
         if ((e.target as HTMLElement).closest('button, a, select, input, [role="button"]')) {
             return;
@@ -190,37 +94,9 @@ export default function BookingsList() {
         navigate(`/bookings/${bookingId}`);
     };
 
+    // Rescheduling — navigate to dedicated page
     const handleOpenReschedule = (booking: Booking) => {
-        setRescheduleBooking(booking);
-        const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
-        const originalCheckOut = format(new Date(booking.checkOutDate), 'yyyy-MM-dd');
-        setNewCheckInDate(originalCheckIn);
-        setNewCheckOutDate(originalCheckOut);
-        setNewPricePreview(null);
-        setUseRescheduleOverride(booking.isPriceOverridden || false);
-        setRescheduleOverrideTotal(booking.isPriceOverridden ? Number(booking.totalAmount).toString() : '');
-        setRescheduleOverrideReason(booking.overrideReason || '');
-        setAvailableRooms([]);
-        setSelectedRoomIds([booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])]);
-        setRescheduleRoomTypeId(booking.roomTypeId);
-    };
-
-    const toggleRoomSelection = (roomId: string) => {
-        if (!rescheduleBooking) return;
-        const roomCount = 1 + (rescheduleBooking.roomBlocks?.length || 0);
-        setSelectedRoomIds(prev => {
-            if (prev.includes(roomId)) {
-                return prev.filter(id => id !== roomId);
-            } else {
-                if (prev.length >= roomCount) {
-                    if (roomCount === 1) {
-                        return [roomId];
-                    }
-                    return [...prev.slice(1), roomId];
-                }
-                return [...prev, roomId];
-            }
-        });
+        navigate(`/bookings/${booking.id}/reschedule`);
     };
 
     const handleOpenCheckIn = (booking: Booking) => {
@@ -297,11 +173,6 @@ export default function BookingsList() {
         enabled: !!selectedProperty?.id,
     });
 
-    const { data: roomTypes } = useQuery<any[]>({
-        queryKey: ['roomTypes', selectedProperty?.id],
-        queryFn: () => roomTypesService.getAll({ propertyId: selectedProperty?.id }),
-        enabled: !!selectedProperty?.id,
-    });
 
     const filteredBookings = (bookings || []).filter(booking => {
         if (!searchTerm) return true;
@@ -418,62 +289,7 @@ export default function BookingsList() {
         onError: () => toast.error('Failed to cancel booking'),
     });
 
-    const rescheduleMutation = useMutation({
-        mutationFn: bookingsService.reschedule,
-        onSuccess: () => {
-            toast.success('Booking rescheduled successfully');
-            setRescheduleBooking(null);
-            setNewPricePreview(null);
-            queryClient.invalidateQueries({ queryKey: ['bookings'] });
-        },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to reschedule booking');
-        },
-    });
 
-    const handleRescheduleSubmit = () => {
-        if (!rescheduleBooking || !newCheckInDate || !newCheckOutDate) return;
-
-        const originalCheckIn = new Date(rescheduleBooking.checkInDate);
-        originalCheckIn.setHours(0, 0, 0, 0);
-        const newCheckIn = new Date(newCheckInDate);
-        newCheckIn.setHours(0, 0, 0, 0);
-
-        const diffDays = Math.ceil(Math.abs(newCheckIn.getTime() - originalCheckIn.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays > 90) {
-            toast.error('Rescheduling is only allowed within 3 months (90 days) of the original check-in date.');
-            return;
-        }
-
-        const roomCount = 1 + (rescheduleBooking.roomBlocks?.length || 0);
-        if (selectedRoomIds.length !== roomCount) {
-            toast.error(`Please select exactly ${roomCount} room(s). Currently selected: ${selectedRoomIds.length}`);
-            return;
-        }
-
-        if (useRescheduleOverride) {
-            if (!rescheduleOverrideTotal) {
-                toast.error('Please specify the override total price.');
-                return;
-            }
-            if (!rescheduleOverrideReason.trim()) {
-                toast.error('Please specify the reason for the price override.');
-                return;
-            }
-        }
-
-        rescheduleMutation.mutate({
-            id: rescheduleBooking.id,
-            data: {
-                checkInDate: newCheckInDate,
-                checkOutDate: newCheckOutDate,
-                selectedRoomIds: selectedRoomIds,
-                overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
-                overrideReason: useRescheduleOverride ? rescheduleOverrideReason : undefined,
-                roomTypeId: rescheduleRoomTypeId,
-            }
-        });
-    };
 
     const handleOpenDelete = async (booking: Booking) => {
         setDeletingBooking(booking);
@@ -600,27 +416,6 @@ export default function BookingsList() {
     //     }, 1000);
     // };
 
-    const getStatusColor = (status: BookingStatus) => {
-        switch (status) {
-            case BookingStatus.CONFIRMED:
-                return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
-            case BookingStatus.CHECKED_IN:
-                return 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
-            case BookingStatus.CHECKED_OUT:
-                return 'bg-muted text-muted-foreground';
-            case BookingStatus.PENDING_PAYMENT:
-                return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
-            case BookingStatus.RESERVED:
-                return 'bg-orange-500/10 text-orange-600 dark:text-orange-400';
-            case BookingStatus.CANCELLED:
-                return 'bg-destructive/10 text-destructive';
-            case BookingStatus.NO_SHOW:
-                return 'bg-rose-500/10 text-rose-600 dark:text-rose-400';
-            default:
-                return 'bg-muted text-muted-foreground';
-        }
-    };
-
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -655,6 +450,35 @@ export default function BookingsList() {
                 </div>
 
                 <div className="bg-card rounded-lg shadow-sm border border-border">
+                    {/* Status Tabs */}
+                    <div className="flex border-b border-border overflow-x-auto bg-muted/5 scrollbar-none rounded-t-lg">
+                        {[
+                            { label: 'All Bookings', value: '', dotColor: 'bg-primary' },
+                            { label: 'Reserved', value: 'RESERVED', dotColor: 'bg-orange-500' },
+                            { label: 'Confirmed', value: 'CONFIRMED', dotColor: 'bg-emerald-500' },
+                            { label: 'Checked In', value: 'CHECKED_IN', dotColor: 'bg-blue-500' },
+                            { label: 'Checked Out', value: 'CHECKED_OUT', dotColor: 'bg-neutral-400 dark:bg-neutral-600' },
+                            { label: 'Cancelled', value: 'CANCELLED', dotColor: 'bg-red-500' },
+                            { label: 'No Show', value: 'NO_SHOW', dotColor: 'bg-rose-500' }
+                        ].map((tab) => {
+                            const isActive = statusFilter === tab.value;
+                            return (
+                                <button
+                                    key={tab.value}
+                                    onClick={() => setStatusFilter(tab.value)}
+                                    className={`px-5 py-3.5 text-xs md:text-sm font-bold border-b-2 transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${
+                                        isActive
+                                            ? 'border-primary text-primary font-black bg-primary/5'
+                                            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                                    }`}
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${tab.dotColor}`} />
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
                     {/* Filters */}
                     <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
                         <div className="relative flex-1">
@@ -686,21 +510,6 @@ export default function BookingsList() {
                                     className="border border-border bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                 />
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Filter className="h-4 w-4 text-muted-foreground" />
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="border border-border bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[140px]"
-                                >
-                                    <option value="">All Statuses</option>
-                                    <option value="CONFIRMED">Confirmed</option>
-                                    <option value="RESERVED">Reserved</option>
-                                    <option value="CHECKED_IN">Checked In</option>
-                                    <option value="CHECKED_OUT">Checked Out</option>
-                                    <option value="CANCELLED">Cancelled</option>
-                                </select>
-                            </div>
                             {(startDate !== '' || endDate !== '' || statusFilter !== '' || searchParams.has('startDate') || searchParams.has('endDate')) && (
                                 <button
                                     onClick={() => {
@@ -719,30 +528,29 @@ export default function BookingsList() {
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-border">
+                    <div className="overflow-x-auto w-full">
+                        <table className="min-w-full divide-y divide-border table-auto">
                             <thead className="bg-muted/50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Booking Info</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Guest</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phone</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Room</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Booking Info</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Guest</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phone</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Room</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
+                                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment</th>
+                                    <th className="px-4 lg:px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-card divide-y divide-border">
                                 {filteredBookings.map((booking: Booking, index: number) => (
                                     <tr key={booking.id} onClick={(e) => handleRowClick(e, booking.id)} className="hover:bg-muted/30 transition-colors cursor-pointer">
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>
                                             <div className="text-xs text-muted-foreground">
                                                 {booking.isManualBooking ? 'Manual' : 'Online'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-foreground">
                                                 {booking.isManualBooking && booking.guests?.[0]
                                                     ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
@@ -761,14 +569,14 @@ export default function BookingsList() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">
                                                 {booking.isManualBooking && booking.guests?.[0]
                                                     ? booking.guests[0].phone
                                                     : booking.user.phone || 'N/A'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-2">
                                                 <div>
                                                     <div className="text-sm font-bold text-foreground">Unit {booking.room.roomNumber}</div>
@@ -778,15 +586,15 @@ export default function BookingsList() {
                                                     <div className="pt-1.5 space-y-2 border-t border-border/50">
                                                         {booking.roomBlocks.map((block, idx) => (
                                                             <div key={idx}>
-                                                                <div className="text-sm font-bold text-foreground">Unit {block.room.roomNumber}</div>
-                                                                <div className="text-[10px] text-muted-foreground uppercase font-medium">{block.room.roomType?.name}</div>
+                                                                 <div className="text-sm font-bold text-foreground">Unit {block.room.roomNumber}</div>
+                                                                 <div className="text-[10px] text-muted-foreground uppercase font-medium">{block.room.roomType?.name}</div>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-foreground">
                                                 {format(new Date(booking.checkInDate), 'MMM d, yyyy')}
                                             </div>
@@ -794,7 +602,7 @@ export default function BookingsList() {
                                                 {booking.numberOfNights} nights
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-1.5">
                                                 <div className="flex flex-wrap gap-1.5">
                                                     <span className={`px-2.5 py-0.5 inline-flex text-[10px] leading-4 font-black rounded-full border ${booking.paymentStatus === 'FULL'
@@ -826,16 +634,7 @@ export default function BookingsList() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span
-                                                className={`px-2.5 inline-flex text-[11px] leading-5 font-bold rounded-full border ${getStatusColor(
-                                                    booking.status
-                                                )}`}
-                                            >
-                                                {booking.status.replace('_', ' ')}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-2">
                                                 {(booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.RESERVED || booking.status === BookingStatus.NO_SHOW) && (
                                                     <button
@@ -920,7 +719,7 @@ export default function BookingsList() {
                                                                     <Eye className="h-4 w-4" />
                                                                     View Details
                                                                 </Link>
-                                                                {booking.status === BookingStatus.NO_SHOW && (
+                                                                {(booking.status === BookingStatus.NO_SHOW || booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.RESERVED) && (
                                                                     <button
                                                                         onClick={() => {
                                                                             setActiveMenu(null);
@@ -1475,306 +1274,6 @@ export default function BookingsList() {
                                         </div>
                                     </>
                                 )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Reschedule Booking Modal */}
-                {rescheduleBooking && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-background/40 backdrop-blur-xl">
-                        <div className="bg-card w-full max-w-[94vw] xl:max-w-7xl rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-border/50 overflow-hidden animate-in fade-in zoom-in duration-300">
-                            {/* Header */}
-                            <div className="relative p-6 border-b border-border/50 bg-gradient-to-br from-primary/10 via-transparent to-transparent flex-shrink-0">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-4 bg-primary text-primary-foreground rounded-2xl shadow-lg rotate-3">
-                                            <Calendar className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-2xl font-black tracking-tight text-foreground">Reschedule Booking</h2>
-                                            <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                                                Booking: <span className="text-primary font-bold">{rescheduleBooking.bookingNumber}</span>
-                                                {rescheduleBooking.channelPartner && (
-                                                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded text-xs font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 uppercase tracking-wider">
-                                                        Channel Partner: {rescheduleBooking.channelPartner.name}
-                                                    </span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setRescheduleBooking(null);
-                                            setNewPricePreview(null);
-                                        }}
-                                        className="p-2.5 hover:bg-muted rounded-xl transition-all"
-                                    >
-                                        <X className="h-6 w-6 text-muted-foreground" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Content Grid */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border/50 max-h-[62vh] overflow-y-auto">
-                                {/* Left Side: Dates & Room Selection */}
-                                <div className="p-8 space-y-6">
-                                    <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex gap-4">
-                                        <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                                        <p className="text-sm text-primary font-medium leading-relaxed">
-                                            Rescheduling must be scheduled within 3 months (90 days) from the original check-in date: <span className="font-bold underline">{format(new Date(rescheduleBooking.checkInDate), 'MMM d, yyyy')}</span>.
-                                        </p>
-                                    </div>
-
-                                    {/* Room & Stay Details Row */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div>
-                                            <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Room Type</label>
-                                            <select
-                                                value={rescheduleRoomTypeId}
-                                                onChange={(e) => setRescheduleRoomTypeId(e.target.value)}
-                                                className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                            >
-                                                {roomTypes?.map((rt) => (
-                                                    <option key={rt.id} value={rt.id}>
-                                                        {rt.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">New Check-In Date</label>
-                                            <input
-                                                type="date"
-                                                value={newCheckInDate}
-                                                onChange={(e) => setNewCheckInDate(e.target.value)}
-                                                className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">New Check-Out Date</label>
-                                            <input
-                                                type="date"
-                                                value={newCheckOutDate}
-                                                onChange={(e) => setNewCheckOutDate(e.target.value)}
-                                                className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Room Selection Grid */}
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest pl-1">
-                                                Select Room(s)
-                                            </label>
-                                            <span className="text-xs font-black text-muted-foreground uppercase tracking-wide">
-                                                Select {1 + (rescheduleBooking.roomBlocks?.length || 0)} Unit(s)
-                                            </span>
-                                        </div>
-
-                                        {isLoadingRooms ? (
-                                            <div className="flex flex-col items-center justify-center py-16 gap-4 bg-muted/20 border border-border/30 rounded-2xl">
-                                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                                <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Checking room availability...</p>
-                                            </div>
-                                        ) : availableRooms.length > 0 ? (
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                                                {availableRooms.map((room) => {
-                                                    const isSelected = selectedRoomIds.includes(room.id);
-                                                    return (
-                                                        <button
-                                                            key={room.id}
-                                                            type="button"
-                                                            onClick={() => toggleRoomSelection(room.id)}
-                                                            className={`flex flex-col items-center justify-center p-4 rounded-xl border text-center transition-all ${
-                                                                isSelected
-                                                                    ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20 scale-95'
-                                                                    : 'bg-muted/30 text-foreground border-border/50 hover:bg-muted/50'
-                                                            }`}
-                                                        >
-                                                            <span className="text-base font-bold">Unit {room.roomNumber}</span>
-                                                            <span className={`text-[10px] uppercase font-black tracking-widest mt-0.5 ${isSelected ? 'text-primary-foreground/85' : 'text-muted-foreground'}`}>
-                                                                Available
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <div className="p-8 border border-dashed border-destructive/30 bg-destructive/5 rounded-2xl text-center">
-                                                <p className="text-sm font-bold text-destructive">No rooms available for the selected dates.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Right Side: Price Comparison, Overrides, Actions */}
-                                <div className="p-8 flex flex-col justify-between space-y-6">
-                                    <div className="space-y-6">
-                                        {/* Price Comparison Preview */}
-                                        {isCalculatingPreview ? (
-                                            <div className="flex flex-col justify-center items-center py-12 gap-3 bg-muted/20 border border-border/30 rounded-2xl">
-                                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                                <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">Recalculating rates for new dates...</span>
-                                            </div>
-                                        ) : (
-                                            (() => {
-                                                const isDatesInvalid = !newCheckInDate || !newCheckOutDate || (new Date(newCheckInDate) >= new Date(newCheckOutDate));
-                                                if (isDatesInvalid) {
-                                                    return (
-                                                        <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-4 text-sm text-destructive font-bold text-center">
-                                                            Please select valid check-in and check-out dates.
-                                                        </div>
-                                                    );
-                                                }
-
-                                                const paidAmount = Number(rescheduleBooking.paidAmount || 0);
-                                                const activeNewTotal = useRescheduleOverride && rescheduleOverrideTotal 
-                                                    ? Number(rescheduleOverrideTotal) 
-                                                    : (newPricePreview?.totalAmount ?? Number(rescheduleBooking.totalAmount));
-                                                const newBalanceDue = activeNewTotal - paidAmount;
-                                                const originalTotal = Number(rescheduleBooking.totalAmount);
-                                                const rateDiff = activeNewTotal - originalTotal;
-
-                                                return (
-                                                    <div className="bg-muted/30 border border-border/50 rounded-2xl p-5 space-y-4">
-                                                        <div className="flex items-center justify-between pl-1">
-                                                            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Pricing Comparison</h3>
-                                                            {rescheduleBooking.status === 'NO_SHOW' && (
-                                                                 <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-rose-500/10 text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-                                                                    Original No-Show
-                                                                 </span>
-                                                            )}
-                                                        </div>
-                                                        
-                                                        {/* Top Row: Totals Metrics Dashboard */}
-                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                            <div className="bg-background/50 p-3 rounded-xl border border-border/20 flex flex-col justify-center">
-                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Original Total</span>
-                                                                <span className="font-black text-foreground text-lg mt-0.5">₹{originalTotal.toLocaleString('en-IN')}</span>
-                                                            </div>
-                                                            <div className="bg-background/50 p-3 rounded-xl border border-border/20 flex flex-col justify-center">
-                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Amount Paid</span>
-                                                                <span className="font-black text-emerald-600 dark:text-emerald-400 text-lg mt-0.5">₹{paidAmount.toLocaleString('en-IN')}</span>
-                                                            </div>
-                                                            <div className="bg-background/50 p-3 rounded-xl border border-border/20 flex flex-col justify-center">
-                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">New Total Price</span>
-                                                                <span className="font-black text-foreground text-lg mt-0.5">₹{activeNewTotal.toLocaleString('en-IN')}</span>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Bottom Row: Adjustments and Balance Metrics Dashboard */}
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                                                            <div className="bg-background/50 p-3 rounded-xl border border-border/20 flex flex-col justify-center">
-                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Rate Adjustment</span>
-                                                                <span className="mt-0.5">
-                                                                    {rateDiff > 0 ? (
-                                                                        <span className="text-base font-black text-orange-600 dark:text-orange-400">
-                                                                            + ₹{rateDiff.toLocaleString('en-IN')} (Due)
-                                                                        </span>
-                                                                    ) : rateDiff < 0 ? (
-                                                                        <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
-                                                                            - ₹{Math.abs(rateDiff).toLocaleString('en-IN')} (Credit)
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="text-base font-black text-muted-foreground">
-                                                                            No Change
-                                                                        </span>
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                            <div className="bg-primary/5 p-3 rounded-xl border border-primary/20 flex flex-col justify-center">
-                                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">New Remaining Balance</span>
-                                                                <span className="mt-0.5">
-                                                                    {newBalanceDue > 0 ? (
-                                                                        <span className="text-lg font-black text-orange-600 dark:text-orange-400">
-                                                                            ₹{newBalanceDue.toLocaleString('en-IN')} (Due)
-                                                                        </span>
-                                                                    ) : newBalanceDue < 0 ? (
-                                                                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
-                                                                            - ₹{Math.abs(newBalanceDue).toLocaleString('en-IN')} (Credit)
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="text-lg font-black text-muted-foreground">
-                                                                            ₹0 (Fully Paid)
-                                                                        </span>
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()
-                                        )}
-                                    </div>
-
-                                    {/* Price Override Section */}
-                                    <div className="p-5 rounded-2xl border border-border/50 bg-muted/20 space-y-3">
-                                        <label className="flex items-center gap-3 cursor-pointer select-none">
-                                            <input
-                                                type="checkbox"
-                                                checked={useRescheduleOverride}
-                                                onChange={(e) => setUseRescheduleOverride(e.target.checked)}
-                                                className="h-5 w-5 rounded border-border/50 text-primary focus:ring-primary/20 cursor-pointer"
-                                            />
-                                            <span className="text-sm font-black text-foreground uppercase tracking-wider">
-                                                Override Rescheduled Price
-                                            </span>
-                                        </label>
-
-                                        {useRescheduleOverride && (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                <div>
-                                                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1 block mb-1.5">
-                                                        Overridden Total Amount (₹)
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="e.g. 4500"
-                                                        value={rescheduleOverrideTotal}
-                                                        onChange={(e) => setRescheduleOverrideTotal(e.target.value)}
-                                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-base font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-foreground"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1 block mb-1.5">
-                                                        Reason for Override
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="e.g. Customer relationship discount"
-                                                        value={rescheduleOverrideReason}
-                                                        onChange={(e) => setRescheduleOverrideReason(e.target.value)}
-                                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-base font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-foreground"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex gap-4 pt-4 border-t border-border/50">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setRescheduleBooking(null);
-                                                setNewPricePreview(null);
-                                            }}
-                                            className="flex-1 px-6 py-3.5 rounded-xl border border-border/50 font-black text-sm uppercase tracking-widest hover:bg-muted transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={handleRescheduleSubmit}
-                                            disabled={rescheduleMutation.isPending || !newCheckInDate || !newCheckOutDate}
-                                            className="flex-1 bg-primary text-primary-foreground px-6 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-                                        >
-                                            {rescheduleMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Calendar className="h-5 w-5" />}
-                                            Confirm Reschedule
-                                        </button>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>

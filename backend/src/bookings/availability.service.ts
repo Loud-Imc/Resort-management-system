@@ -123,12 +123,14 @@ export class AvailabilityService {
         excludeBookingId?: string,
     ) {
         const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
+        checkOut.setHours(0, 0, 0, 0);
 
         // For same-day availability checks, we don't normalize to start-of-day 
         // to allow booking a room immediately after someone else checked out.
         // However, we want to ensure we don't miss accidental overlaps if input times are weird.
-        if (checkIn.getTime() === checkOut.getTime()) {
+        if (new Date(checkInDate).getTime() === new Date(checkOutDate).getTime()) {
             // Same day: ensure it spans a bit of time for the query
             checkOut.setHours(23, 59, 59, 999);
         }
@@ -192,12 +194,19 @@ export class AvailabilityService {
         }
 
         const checkInDate = new Date(checkIn);
+        checkInDate.setHours(0, 0, 0, 0);
         const checkOutDate = new Date(checkOut);
+        checkOutDate.setHours(0, 0, 0, 0);
+
+        if (checkInDate.getTime() === checkOutDate.getTime()) {
+            checkOutDate.setHours(23, 59, 59, 999);
+        }
 
         // Smart "Today" check: If the booking starts today or earlier, and the room is currently OCCUPIED,
         // it means there's a guest physically there (or manual status override).
         const todayStr = new Date().toISOString().split('T')[0];
-        if (checkIn <= todayStr && room.status === 'OCCUPIED') {
+        const checkInStr = checkInDate.toISOString().split('T')[0];
+        if (checkInStr <= todayStr && room.status === 'OCCUPIED') {
             return false;
         }
 
@@ -278,6 +287,9 @@ export class AvailabilityService {
                         ],
                     },
                 ],
+                ...(excludeBookingId ? {
+                    NOT: { bookingId: excludeBookingId }
+                } : {}),
             },
         });
 

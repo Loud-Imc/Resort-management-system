@@ -145,6 +145,9 @@ export interface CreateBookingDto {
     gstNumber?: string;
     isHistoricalEntry?: boolean;
     transactionDate?: string;
+    guestName?: string;
+    guestEmail?: string;
+    guestPhone?: string;
 }
 
 export interface CheckAvailabilityDto {
@@ -161,7 +164,7 @@ export interface CheckAvailabilityDto {
 export interface CheckAvailabilityResult {
     available: boolean;
     availableRooms: number;
-    roomList?: { id: string; name: string; roomNumber: string }[];
+    roomList?: { id: string; name: string; roomNumber: string; capacity?: number; roomType?: string }[];
     allocationPreview?: any[];
     groupUnavailableReason?: string;
 }
@@ -180,6 +183,7 @@ export interface PriceCalculationDto {
     currency?: string;
     roomCount?: number;
     overrideTotal?: number;
+    isOverrideInclusive?: boolean;
 }
 
 export interface PriceCalculationResult {

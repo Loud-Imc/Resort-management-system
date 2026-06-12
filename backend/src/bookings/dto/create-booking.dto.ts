@@ -8,10 +8,10 @@ export class GuestInfoDto {
     @IsNotEmpty()
     firstName: string;
 
-    @ApiProperty({ example: 'Doe' })
+    @ApiProperty({ example: 'Doe', required: false })
     @IsString()
-    @IsNotEmpty()
-    lastName: string;
+    @IsOptional()
+    lastName?: string;
 
     @ApiProperty({ example: 'john@example.com', required: false })
     @IsString()

@@ -692,7 +692,7 @@ export class BookingsService {
                     guests: {
                         create: (isGroupBooking && guests.length === 0) ? [] : guests.map(g => ({
                             firstName: g.firstName,
-                            lastName: g.lastName,
+                            lastName: g.lastName || '',
                             email: g.email,
                             phone: g.phone,
                             whatsappNumber: g.whatsappNumber,
@@ -1814,7 +1814,7 @@ export class BookingsService {
                 for (const g of dto.guests) {
                     const guestData = {
                         firstName: g.firstName,
-                        lastName: g.lastName,
+                        lastName: g.lastName || '',
                         email: g.email || null,
                         phone: g.phone || null,
                         whatsappNumber: g.whatsappNumber || null,
@@ -1884,6 +1884,7 @@ export class BookingsService {
                 roomBlocks: true,
                 coupon: true,
                 channelPartner: true,
+                guests: true,
             }
         });
 
@@ -1916,15 +1917,24 @@ export class BookingsService {
         }
 
         const numberOfNights = differenceInDays(newCheckOut, newCheckIn);
-        const roomCount = 1 + (booking.roomBlocks?.length || 0);
-        const targetRoomTypeId = dto.roomTypeId || booking.roomTypeId;
+        const originalRoomCount = 1 + (booking.roomBlocks?.length || 0);
+        const roomCount = (dto.selectedRoomIds && dto.selectedRoomIds.length > 0)
+            ? dto.selectedRoomIds.length
+            : originalRoomCount;
+        let targetRoomTypeId = dto.roomTypeId || booking.roomTypeId;
+
+        const propId = booking.propertyId || booking.room?.roomType?.propertyId;
+        if (booking.isGroupBooking && !targetRoomTypeId && propId) {
+            const groupPoolType = await this.prisma.roomType.findFirst({
+                where: { propertyId: propId, isAvailableForGroupBooking: true }
+            });
+            if (groupPoolType) {
+                targetRoomTypeId = groupPoolType.id;
+            }
+        }
 
         let roomsToAllocate: any[] = [];
         if (dto.selectedRoomIds && dto.selectedRoomIds.length > 0) {
-            if (dto.selectedRoomIds.length !== roomCount) {
-                throw new BadRequestException(`Must select exactly ${roomCount} rooms for this booking.`);
-            }
-
             roomsToAllocate = await this.prisma.room.findMany({
                 where: { id: { in: dto.selectedRoomIds } },
                 include: { roomType: true }
@@ -1934,8 +1944,12 @@ export class BookingsService {
                 throw new BadRequestException('One or more selected rooms were not found.');
             }
 
-            if (roomsToAllocate.some(r => r.roomTypeId !== targetRoomTypeId)) {
-                throw new BadRequestException('All selected rooms must match the target room type.');
+            if (booking.isGroupBooking) {
+                targetRoomTypeId = roomsToAllocate[0]?.roomTypeId || targetRoomTypeId;
+            } else {
+                if (roomsToAllocate.some(r => r.roomTypeId !== targetRoomTypeId)) {
+                    throw new BadRequestException('All selected rooms must match the target room type.');
+                }
             }
 
             // Verify availability for each room (excluding current booking)
@@ -1986,13 +2000,16 @@ export class BookingsService {
             targetRoomTypeId,
             newCheckIn,
             newCheckOut,
-            booking.adultsCount,
-            booking.childrenCount,
+            dto.adultsCount !== undefined ? Number(dto.adultsCount) : booking.adultsCount,
+            dto.childrenCount !== undefined ? Number(dto.childrenCount) : booking.childrenCount,
             booking.coupon?.code || undefined,
             booking.channelPartner?.referralCode || undefined,
             booking.bookingCurrency || 'INR',
             booking.isGroupBooking,
-            booking.groupSize || undefined,
+            booking.isGroupBooking
+                ? (Number(dto.adultsCount !== undefined ? dto.adultsCount : booking.adultsCount) +
+                   Number(dto.childrenCount !== undefined ? dto.childrenCount : booking.childrenCount))
+                : undefined,
             roomCount,
             booking.couponCode || undefined,
             dto.overrideTotal !== undefined && dto.overrideTotal !== null ? Number(dto.overrideTotal) : undefined,
@@ -2001,6 +2018,54 @@ export class BookingsService {
 
         // Update in a transaction
         const updatedBooking = await this.prisma.$transaction(async (tx) => {
+            // Update user/primary guest info if provided
+            if (dto.guestName || dto.guestEmail || dto.guestPhone) {
+                await tx.user.update({
+                    where: { id: booking.userId },
+                    data: {
+                        firstName: dto.guestName?.split(' ')[0],
+                        lastName: dto.guestName?.split(' ').slice(1).join(' '),
+                        email: dto.guestEmail || undefined,
+                        phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
+                        whatsappNumber: dto.whatsappNumber,
+                    }
+                });
+            }
+
+            // Update guests if provided
+            if (dto.guests && dto.guests.length > 0) {
+                for (const g of dto.guests) {
+                    const guestData = {
+                        firstName: g.firstName,
+                        lastName: g.lastName || '',
+                        email: g.email || null,
+                        phone: g.phone || null,
+                        whatsappNumber: g.whatsappNumber || null,
+                        idType: g.idType || null,
+                        idNumber: g.idNumber || null,
+                        idImage: g.idImage || null,
+                    };
+
+                    if ((g as any).id) {
+                        await tx.bookingGuest.update({
+                            where: { id: (g as any).id },
+                            data: guestData
+                        });
+                    } else if (g.email || g.phone) {
+                        const existingGuest = booking.guests?.find(eg =>
+                            (g.email && eg.email === g.email) || (g.phone && eg.phone === g.phone)
+                        );
+
+                        if (existingGuest) {
+                            await tx.bookingGuest.update({
+                                where: { id: existingGuest.id },
+                                data: guestData
+                            });
+                        }
+                    }
+                }
+            }
+
             // Remove old room blocks
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
@@ -2048,6 +2113,13 @@ export class BookingsService {
                     numberOfNights,
                     roomId: primaryRoomId,
                     roomTypeId: targetRoomTypeId,
+                    adultsCount: dto.adultsCount !== undefined ? Number(dto.adultsCount) : undefined,
+                    childrenCount: dto.childrenCount !== undefined ? Number(dto.childrenCount) : undefined,
+                    groupSize: booking.isGroupBooking
+                        ? (Number(dto.adultsCount !== undefined ? dto.adultsCount : booking.adultsCount) +
+                           Number(dto.childrenCount !== undefined ? dto.childrenCount : booking.childrenCount))
+                        : undefined,
+                    whatsappNumber: dto.whatsappNumber !== undefined ? dto.whatsappNumber : undefined,
                     baseAmount: pricing.baseAmount,
                     extraAdultAmount: pricing.extraAdultAmount,
                     extraChildAmount: pricing.extraChildAmount,

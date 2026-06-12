@@ -99,10 +99,15 @@ export class BookingsController {
                 dto.isAdmin,
                 dto.excludeBookingId,
             );
+            const roomType = await (this.availabilityService as any).prisma.roomType.findUnique({
+                where: { id: dto.roomTypeId }
+            });
             roomList = availableRooms.map(r => ({
                 id: r.id,
                 name: r.name,
-                roomNumber: r.roomNumber
+                roomNumber: r.roomNumber,
+                roomType: roomType?.name || 'N/A',
+                capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0
             }));
         }
 
@@ -168,6 +173,8 @@ export class BookingsController {
             dto.groupSize,
             dto.roomCount,
             dto.generalCode,
+            dto.overrideTotal,
+            dto.isOverrideInclusive ?? true,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {
