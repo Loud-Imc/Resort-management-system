@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
-import { roomTypesService } from '../../services/roomTypes';
 import api from '../../services/api';
 import { BookingStatus } from '../../types/booking';
 import type { Booking } from '../../types/booking';
@@ -34,7 +33,6 @@ import { Banknote, Download, Wallet } from 'lucide-react';
 // import jsPDF from 'jspdf';
 // import { toPng } from 'html-to-image';
 import { BookingInvoice } from '../../components/bookings/BookingInvoice';
-import { RescheduleBookingModal } from '../../components/bookings/RescheduleBookingModal';
 
 
 const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
@@ -89,9 +87,6 @@ export default function BookingsList() {
         if (queryEnd !== null && queryEnd !== endDate) setEndDate(queryEnd);
     }, [searchParams]);
 
-    // Rescheduling Modal State
-    const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
-
     const handleRowClick = (e: React.MouseEvent, bookingId: string) => {
         if ((e.target as HTMLElement).closest('button, a, select, input, [role="button"]')) {
             return;
@@ -99,8 +94,9 @@ export default function BookingsList() {
         navigate(`/bookings/${bookingId}`);
     };
 
+    // Rescheduling — navigate to dedicated page
     const handleOpenReschedule = (booking: Booking) => {
-        setRescheduleBooking(booking);
+        navigate(`/bookings/${booking.id}/reschedule`);
     };
 
     const handleOpenCheckIn = (booking: Booking) => {
@@ -177,11 +173,6 @@ export default function BookingsList() {
         enabled: !!selectedProperty?.id,
     });
 
-    const { data: roomTypes } = useQuery<any[]>({
-        queryKey: ['roomTypes', selectedProperty?.id],
-        queryFn: () => roomTypesService.getAll({ propertyId: selectedProperty?.id }),
-        enabled: !!selectedProperty?.id,
-    });
 
     const filteredBookings = (bookings || []).filter(booking => {
         if (!searchTerm) return true;
@@ -1286,17 +1277,6 @@ export default function BookingsList() {
                             </div>
                         </div>
                     </div>
-                )}
-
-                {/* Reschedule Booking Modal */}
-                {rescheduleBooking && (
-                    <RescheduleBookingModal
-                        booking={rescheduleBooking}
-                        onClose={() => setRescheduleBooking(null)}
-                        onSuccess={() => setRescheduleBooking(null)}
-                        roomTypes={roomTypes}
-                        propertyId={selectedProperty?.id || ''}
-                    />
                 )}
 
                 {/* Custom Check-Out Modal */}

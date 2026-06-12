@@ -16,6 +16,7 @@ import BookingsList from './pages/Bookings/BookingsList';
 import CreateBooking from './pages/Bookings/CreateBooking';
 import EditBooking from './pages/Bookings/EditBooking';
 import BookingDetails from './pages/Bookings/BookingDetails';
+import ReschedulePage from './pages/Bookings/ReschedulePage';
 import RoomsList from './pages/Rooms/RoomsList';
 import CreateRoom from './pages/Rooms/CreateRoom';
 import EditRoom from './pages/Rooms/EditRoom';
@@ -64,6 +65,7 @@ function App() {
                     <Route path="bookings" element={<BookingsList />} />
                     <Route path="bookings/create" element={<CreateBooking />} />
                     <Route path="bookings/:id/edit" element={<EditBooking />} />
+                    <Route path="bookings/:id/reschedule" element={<ReschedulePage />} />
                     <Route path="bookings/:id" element={<BookingDetails />} />
 
                     {/* Guests */}
