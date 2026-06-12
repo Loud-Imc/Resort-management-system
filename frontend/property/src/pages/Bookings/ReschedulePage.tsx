@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -75,6 +75,27 @@ export default function ReschedulePage() {
     const [adultsCount, setAdultsCount] = useState<number>(1);
     const [childrenCount, setChildrenCount] = useState<number>(0);
     const [isGuestSameAsBooker, setIsGuestSameAsBooker] = useState<boolean>(true);
+
+    const selectedRoomType = useMemo(() => {
+        return roomTypes?.find(rt => rt.id === rescheduleRoomTypeId);
+    }, [roomTypes, rescheduleRoomTypeId]);
+
+    const requiredRooms = useMemo(() => {
+        if (booking?.isGroupBooking) return 1;
+        if (!selectedRoomType) return 1;
+        const maxAdults = selectedRoomType.maxAdults || 2;
+        const maxChildren = selectedRoomType.maxChildren || 2;
+        const parsedAdults = Number(adultsCount) || 1;
+        const parsedChildren = Number(childrenCount) || 0;
+
+        const maxAdultsPerRoom = maxAdults + 1;
+        const maxChildrenPerRoom = maxChildren > 0 ? (maxChildren + 1) : 1;
+
+        const roomsByAdults = Math.ceil(parsedAdults / maxAdultsPerRoom);
+        const roomsByChildren = Math.ceil(parsedChildren / maxChildrenPerRoom);
+
+        return Math.max(roomsByAdults, roomsByChildren, 1);
+    }, [booking, selectedRoomType, adultsCount, childrenCount]);
 
     // ── Hydrate state from fetched booking ────────────────────────────────────
     useEffect(() => {
@@ -204,8 +225,10 @@ export default function ReschedulePage() {
                     excludeBookingId: booking.id,
                 });
                 setAvailableRooms(checkRes.roomList || []);
-            } catch {
+            } catch (err: any) {
                 setAvailableRooms([]);
+                const msg = err.response?.data?.message || 'Failed to check availability';
+                toast.error(msg);
             } finally {
                 setIsLoadingRooms(false);
             }
@@ -215,23 +238,101 @@ export default function ReschedulePage() {
         return () => clearTimeout(timer);
     }, [booking, newCheckInDate, newCheckOutDate, propertyId, rescheduleRoomTypeId, adultsCount, childrenCount]);
 
+    // ── Helpers to resolve selected rooms ─────────────────────────────────────
+    const getRoomNumber = (roomId: string) => {
+        const roomInAvailable = availableRooms.find(r => r.id === roomId);
+        if (roomInAvailable) return roomInAvailable.roomNumber;
+
+        if (booking?.roomId === roomId && booking?.room) {
+            return booking.room.roomNumber;
+        }
+
+        if (booking?.roomBlocks) {
+            const block = booking.roomBlocks.find((rb: any) => rb.roomId === roomId);
+            if (block?.room) return block.room.roomNumber;
+        }
+
+        return null;
+    };
+
+    const displayRooms = useMemo(() => {
+        const list = [...availableRooms];
+        if (!booking) return list;
+        
+        if (selectedRoomIds.includes(booking.roomId) && !list.some(r => r.id === booking.roomId)) {
+            list.push({
+                id: booking.roomId,
+                name: `Unit ${booking.room?.roomNumber}`,
+
+                roomNumber: booking.room?.roomNumber,
+                roomType: booking.roomType?.name || 'Standard',
+                capacity: booking.roomType 
+                    ? (booking.roomType.groupMaxOccupancy || (booking.roomType.maxAdults + (booking.roomType.maxChildren || 0))) 
+                    : 2,
+            });
+        }
+
+        booking.roomBlocks?.forEach((rb: any) => {
+            if (selectedRoomIds.includes(rb.roomId) && !list.some(r => r.id === rb.roomId)) {
+                list.push({
+                    id: rb.roomId,
+                    name: rb.room?.name || `Unit ${rb.room?.roomNumber}`,
+                    roomNumber: rb.room?.roomNumber,
+                    roomType: rb.room?.roomType?.name || 'Standard',
+                    capacity: rb.room?.roomType
+                        ? (rb.room.roomType.groupMaxOccupancy || (rb.room.roomType.maxAdults + (rb.room.roomType.maxChildren || 0)))
+                        : 2,
+                });
+            }
+        });
+
+        return list;
+    }, [availableRooms, selectedRoomIds, booking]);
+
     // ── Auto-select rooms when list loads ─────────────────────────────────────
     useEffect(() => {
         if (!booking || availableRooms.length === 0) return;
-        const roomCount = 1 + (booking.roomBlocks?.length || 0);
-        const allSelectedValid = selectedRoomIds.every((id) => availableRooms.some((r) => r.id === id));
-        if (!allSelectedValid || selectedRoomIds.length !== roomCount) {
-            setSelectedRoomIds(availableRooms.slice(0, roomCount).map((r) => r.id));
+        
+        // If dates are unchanged from the original booking, keep the original rooms selected
+        const originalRoomIds = [booking.roomId, ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])];
+        const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
+        const originalCheckOut = format(new Date(booking.checkOutDate), 'yyyy-MM-dd');
+        const isSameDates = newCheckInDate === originalCheckIn && newCheckOutDate === originalCheckOut;
+
+        // Filter current selection to only keep rooms that are still available OR are original rooms on same dates
+        const validSelectedRoomIds = selectedRoomIds.filter(id =>
+            availableRooms.some(r => r.id === id) || (isSameDates && originalRoomIds.includes(id))
+        );
+
+        if (booking.isGroupBooking) {
+            // For group bookings, if nothing valid is selected, auto-select a default count
+            if (validSelectedRoomIds.length === 0) {
+                const defaultCount = 1 + (booking.roomBlocks?.length || 0);
+                setSelectedRoomIds(availableRooms.slice(0, defaultCount).map(r => r.id));
+            } else {
+                setSelectedRoomIds(validSelectedRoomIds);
+            }
+        } else {
+            // For standard bookings, make sure we select up to requiredRooms
+            if (validSelectedRoomIds.length < requiredRooms) {
+                const additionalNeeded = requiredRooms - validSelectedRoomIds.length;
+                const unselectedAvailable = availableRooms
+                    .filter(r => !validSelectedRoomIds.includes(r.id))
+                    .map(r => r.id);
+                setSelectedRoomIds([
+                    ...validSelectedRoomIds,
+                    ...unselectedAvailable.slice(0, additionalNeeded)
+                ]);
+            } else {
+                setSelectedRoomIds(validSelectedRoomIds);
+            }
         }
-    }, [availableRooms, booking]);
+    }, [availableRooms, booking, requiredRooms, newCheckInDate, newCheckOutDate]);
 
     const toggleRoomSelection = (roomId: string) => {
-        if (!booking) return;
-        const roomCount = 1 + (booking.roomBlocks?.length || 0);
         setSelectedRoomIds((prev) => {
-            if (prev.includes(roomId)) return prev.filter((id) => id !== roomId);
-            if (prev.length >= roomCount) {
-                return roomCount === 1 ? [roomId] : [...prev.slice(1), roomId];
+            if (prev.includes(roomId)) {
+                return prev.filter((id) => id !== roomId);
             }
             return [...prev, roomId];
         });
@@ -267,14 +368,16 @@ export default function ReschedulePage() {
         if (!bookerPhone.trim()) { toast.error('Booker Phone Number is required.'); return; }
         if (!guestFirstName.trim()) { toast.error('Guest First Name is required.'); return; }
 
-        const roomCount = 1 + (booking.roomBlocks?.length || 0);
-        if (selectedRoomIds.length !== roomCount) {
-            toast.error(`Please select exactly ${roomCount} room(s). Currently: ${selectedRoomIds.length}`);
+        if (!booking.isGroupBooking && selectedRoomIds.length < requiredRooms) {
+            toast.error(`Please select at least ${requiredRooms} room(s) to accommodate all guests.`);
+            return;
+        }
+        if (selectedRoomIds.length === 0) {
+            toast.error('Please select at least one room.');
             return;
         }
         if (useRescheduleOverride) {
             if (!rescheduleOverrideTotal) { toast.error('Please specify the override total price.'); return; }
-            if (!rescheduleOverrideReason.trim()) { toast.error('Please specify the reason for the price override.'); return; }
         }
 
         rescheduleMutation.mutate({
@@ -284,11 +387,11 @@ export default function ReschedulePage() {
                 checkOutDate: newCheckOutDate,
                 selectedRoomIds,
                 overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
-                overrideReason: useRescheduleOverride ? rescheduleOverrideReason : undefined,
+                overrideReason: useRescheduleOverride ? (rescheduleOverrideReason || undefined) : undefined,
                 roomTypeId: booking.isGroupBooking ? undefined : rescheduleRoomTypeId,
                 adultsCount: Number(adultsCount),
                 childrenCount: Number(childrenCount),
-                guestName: `${bookerFirstName} ${bookerLastName}`.trim(),
+                guestName: `${bookerFirstName} ${bookerLastName || ''}`.trim(),
                 guestEmail: bookerEmail || undefined,
                 guestPhone: bookerPhone,
                 whatsappNumber: bookerWhatsapp || undefined,
@@ -296,7 +399,7 @@ export default function ReschedulePage() {
                     {
                         id: booking.guests?.[0]?.id,
                         firstName: guestFirstName,
-                        lastName: guestLastName,
+                        lastName: guestLastName || '',
                         email: guestEmail || undefined,
                         phone: guestPhone || undefined,
                         whatsappNumber: guestWhatsapp || undefined,
@@ -486,8 +589,8 @@ export default function ReschedulePage() {
                                                 <p>
                                                     Unit:{' '}
                                                     <span className="font-semibold text-foreground">
-                                                        {selectedRoomIds.length > 0 && availableRooms.length > 0
-                                                            ? availableRooms.filter((r) => selectedRoomIds.includes(r.id)).map((r) => r.roomNumber).join(', ')
+                                                        {selectedRoomIds.length > 0
+                                                            ? selectedRoomIds.map(id => getRoomNumber(id)).filter(Boolean).join(', ')
                                                             : booking.room?.roomNumber || 'Unassigned'}
                                                     </span>
                                                 </p>
@@ -674,18 +777,29 @@ export default function ReschedulePage() {
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Select Room(s)</h3>
                                     <span className="text-xs font-black text-muted-foreground uppercase tracking-wide">
-                                        Select {1 + (booking.roomBlocks?.length || 0)} Unit(s)
+                                        {booking.isGroupBooking 
+                                            ? `Select Unit(s) (Selected: ${selectedRoomIds.length})` 
+                                            : `Select at least ${requiredRooms} Unit(s) (Selected: ${selectedRoomIds.length})`}
                                     </span>
                                 </div>
+
+                                {!booking.isGroupBooking && selectedRoomIds.length < requiredRooms && (
+                                    <div className="flex gap-3 bg-red-500/5 dark:bg-red-950/20 border border-red-500/25 dark:border-red-950/40 rounded-2xl p-4">
+                                        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-red-700 dark:text-red-400 font-semibold leading-relaxed">
+                                            Guest count ({adultsCount} Adults, {childrenCount} Children) requires at least <strong>{requiredRooms} rooms</strong>. You have selected only <strong>{selectedRoomIds.length} rooms</strong>.
+                                        </div>
+                                    </div>
+                                )}
 
                                 {isLoadingRooms ? (
                                     <div className="flex flex-col items-center justify-center py-12 gap-4 bg-muted/20 rounded-2xl">
                                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                         <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Checking availability...</p>
                                     </div>
-                                ) : availableRooms.length > 0 ? (
+                                ) : displayRooms.length > 0 ? (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                        {availableRooms.map((room) => {
+                                        {displayRooms.map((room) => {
                                             const isSelected = selectedRoomIds.includes(room.id);
                                             return (
                                                 <button
@@ -807,7 +921,8 @@ export default function ReschedulePage() {
                                             type="checkbox"
                                             checked={useRescheduleOverride}
                                             onChange={(e) => setUseRescheduleOverride(e.target.checked)}
-                                            className="h-5 w-5 rounded border-border/50 text-primary focus:ring-primary/20 cursor-pointer"
+                                            disabled={booking.isPriceOverridden}
+                                            className="h-5 w-5 rounded border-border/50 text-primary focus:ring-primary/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                         <div>
                                             <span className="text-xs font-black text-foreground uppercase tracking-wide block">Override Total Price</span>
@@ -829,7 +944,7 @@ export default function ReschedulePage() {
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1.5 pl-1">Override Reason *</label>
+                                            <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1.5 pl-1">Override Reason</label>
                                             <input
                                                 type="text"
                                                 value={rescheduleOverrideReason}

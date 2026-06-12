@@ -1917,7 +1917,10 @@ export class BookingsService {
         }
 
         const numberOfNights = differenceInDays(newCheckOut, newCheckIn);
-        const roomCount = 1 + (booking.roomBlocks?.length || 0);
+        const originalRoomCount = 1 + (booking.roomBlocks?.length || 0);
+        const roomCount = (dto.selectedRoomIds && dto.selectedRoomIds.length > 0)
+            ? dto.selectedRoomIds.length
+            : originalRoomCount;
         let targetRoomTypeId = dto.roomTypeId || booking.roomTypeId;
 
         const propId = booking.propertyId || booking.room?.roomType?.propertyId;
@@ -1932,10 +1935,6 @@ export class BookingsService {
 
         let roomsToAllocate: any[] = [];
         if (dto.selectedRoomIds && dto.selectedRoomIds.length > 0) {
-            if (dto.selectedRoomIds.length !== roomCount) {
-                throw new BadRequestException(`Must select exactly ${roomCount} rooms for this booking.`);
-            }
-
             roomsToAllocate = await this.prisma.room.findMany({
                 where: { id: { in: dto.selectedRoomIds } },
                 include: { roomType: true }

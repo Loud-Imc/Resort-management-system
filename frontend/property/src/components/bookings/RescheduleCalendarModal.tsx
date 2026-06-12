@@ -44,16 +44,19 @@ export function RescheduleCalendarModal({
     const [tempCheckIn, setTempCheckIn] = useState<Date | null>(null);
     const [tempCheckOut, setTempCheckOut] = useState<Date | null>(null);
 
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(monthStart);
+    const month1Start = startOfMonth(currentMonth);
+    const month1End = endOfMonth(month1Start);
+    const nextMonth = addMonths(currentMonth, 1);
+    const month2Start = startOfMonth(nextMonth);
+    const month2End = endOfMonth(month2Start);
 
-    // Fetch bookings for the viewed month
+    // Fetch bookings for the viewed months (covering both months)
     const { data: bookings = [], isLoading: isLoadingBookings } = useQuery<Booking[]>({
-        queryKey: ['reschedule-calendar-bookings', propertyId, format(monthStart, 'yyyy-MM')],
+        queryKey: ['reschedule-calendar-bookings', propertyId, format(month1Start, 'yyyy-MM')],
         queryFn: () => bookingsService.getAll({
             propertyId,
-            startDate: format(subMonths(monthStart, 1), 'yyyy-MM-dd'),
-            endDate: format(addMonths(monthEnd, 1), 'yyyy-MM-dd')
+            startDate: format(subMonths(month1Start, 1), 'yyyy-MM-dd'),
+            endDate: format(addMonths(month2End, 1), 'yyyy-MM-dd')
         }),
         enabled: !!propertyId,
     });
@@ -76,10 +79,15 @@ export function RescheduleCalendarModal({
         return rooms.filter((r: any) => groupPoolRoomTypeIds.includes(r.roomTypeId)).length;
     }, [rooms, groupPoolRoomTypeIds]);
 
-    // Generate calendar grid days
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
+    // Generate calendar grid days for Month 1
+    const startDate1 = startOfWeek(month1Start, { weekStartsOn: 1 });
+    const endDate1 = endOfWeek(month1End, { weekStartsOn: 1 });
+    const calendarDays1 = eachDayOfInterval({ start: startDate1, end: endDate1 });
+
+    // Generate calendar grid days for Month 2
+    const startDate2 = startOfWeek(month2Start, { weekStartsOn: 1 });
+    const endDate2 = endOfWeek(month2End, { weekStartsOn: 1 });
+    const calendarDays2 = eachDayOfInterval({ start: startDate2, end: endDate2 });
 
     // Calculate daily occupancy specifically for the selected room type(s)
     const occupancyPerDay = useMemo(() => {
@@ -123,6 +131,10 @@ export function RescheduleCalendarModal({
     const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
     const handleDayClick = (day: Date) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (day < today) return; // prevent selecting previous dates
+
         // Clear selection or start new check-in
         if (!tempCheckIn || (tempCheckIn && tempCheckOut)) {
             setTempCheckIn(day);
@@ -154,11 +166,82 @@ export function RescheduleCalendarModal({
         return isAfter(day, tempCheckIn) && isAfter(tempCheckOut, day);
     };
 
+    const renderDayCell = (day: Date, monthBasis: Date) => {
+        const dateKey = format(day, 'yyyy-MM-dd');
+        const isCurrentMonth = isSameMonth(day, monthBasis);
+        const isTodayDate = isToday(day);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isPast = day < today;
+        
+        const occupiedCount = occupancyPerDay[dateKey] || 0;
+        const availableCount = Math.max(0, totalRoomsOfType - occupiedCount);
+        const isFull = availableCount === 0 && totalRoomsOfType > 0;
+
+        const isSelectedCheckIn = tempCheckIn ? isSameDay(day, tempCheckIn) : false;
+        const isSelectedCheckOut = tempCheckOut ? isSameDay(day, tempCheckOut) : false;
+        const isInRange = isDateInRange(day);
+
+        let cellClass = "";
+        let textClass = "";
+        let badgeClass = "";
+
+        if (isPast) {
+            cellClass = "opacity-20 cursor-not-allowed pointer-events-none bg-muted/10 border-border/30";
+            textClass = "text-muted-foreground";
+            badgeClass = "text-muted-foreground/40";
+        } else if (!isCurrentMonth) {
+            cellClass = "opacity-35 hover:opacity-80";
+            textClass = "text-muted-foreground";
+            badgeClass = "text-muted-foreground/60";
+        } else if (isSelectedCheckIn || isSelectedCheckOut) {
+            cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
+            textClass = "text-white font-bold";
+            badgeClass = "text-white/80 font-bold";
+        } else if (isInRange) {
+            cellClass = "bg-primary/15 border-primary/30 text-primary";
+            textClass = "text-primary font-bold";
+            badgeClass = "text-primary/80 font-bold";
+        } else if (isFull) {
+            cellClass = "bg-red-500/5 dark:bg-red-950/20 border-red-500/20 hover:border-red-500/40";
+            textClass = "text-red-700 dark:text-red-400";
+            badgeClass = "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/10";
+        } else {
+            cellClass = "bg-muted/10 border-border/50 hover:bg-muted/40 hover:border-border";
+            textClass = "text-foreground";
+            badgeClass = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+        }
+
+        return (
+            <button
+                key={dateKey}
+                onClick={() => handleDayClick(day)}
+                className={clsx(
+                    "flex flex-col items-center justify-between p-2 rounded-xl transition-all border text-left min-h-[56px] relative select-none",
+                    cellClass,
+                    isTodayDate && !isSelectedCheckIn && !isSelectedCheckOut && "ring-2 ring-primary/40"
+                )}
+            >
+                <span className={clsx("text-xs font-bold self-start pl-0.5", textClass)}>
+                    {format(day, 'd')}
+                </span>
+                
+                {totalRoomsOfType > 0 ? (
+                    <span className={clsx("text-[9px] px-1.5 py-0.5 rounded-md self-center font-black tracking-tight", badgeClass)}>
+                        {isFull ? 'FULL' : `${availableCount}/${totalRoomsOfType}`}
+                    </span>
+                ) : (
+                    <span className="text-[8px] text-muted-foreground self-center">No inventory</span>
+                )}
+            </button>
+        );
+    };
+
     const isLoading = isLoadingBookings || isLoadingRooms;
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-background/50 backdrop-blur-2xl">
-            <div className="bg-card w-full max-w-4xl rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] border border-border/60 overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="bg-card w-full max-w-6xl rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] border border-border/60 overflow-hidden animate-in fade-in zoom-in duration-300">
                 {/* Header */}
                 <div className="relative p-6 border-b border-border/50 bg-gradient-to-br from-primary/10 via-transparent to-transparent flex-shrink-0">
                     <div className="flex items-center justify-between">
@@ -190,101 +273,67 @@ export function RescheduleCalendarModal({
 
                 {/* Main Body */}
                 <div className="p-6 flex flex-col md:flex-row gap-6">
-                    {/* Left: Calendar View */}
+                    {/* Left: Two Calendars Side by Side */}
                     <div className="flex-1 flex flex-col relative min-h-[420px]">
                         {/* Month Picker Header */}
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center justify-between mb-6 border-b border-border/40 pb-4 flex-shrink-0">
                             <button 
                                 onClick={handlePreviousMonth}
-                                className="p-2 hover:bg-muted rounded-xl text-foreground transition-colors"
+                                className="p-2 hover:bg-muted rounded-xl text-foreground transition-colors border border-border/50"
                             >
                                 <ChevronLeft className="h-5 w-5" />
                             </button>
-                            <span className="text-base font-black uppercase tracking-wider text-foreground">
-                                {format(currentMonth, 'MMMM yyyy')}
-                            </span>
+                            <div className="flex gap-16 font-black uppercase tracking-widest text-foreground text-sm">
+                                <span>{format(currentMonth, 'MMMM yyyy')}</span>
+                                <span className="hidden sm:inline text-muted-foreground">•</span>
+                                <span className="hidden sm:inline">{format(addMonths(currentMonth, 1), 'MMMM yyyy')}</span>
+                            </div>
                             <button 
                                 onClick={handleNextMonth}
-                                className="p-2 hover:bg-muted rounded-xl text-foreground transition-colors"
+                                className="p-2 hover:bg-muted rounded-xl text-foreground transition-colors border border-border/50"
                             >
                                 <ChevronRight className="h-5 w-5" />
                             </button>
                         </div>
 
-                        {/* Weekday Labels */}
-                        <div className="grid grid-cols-7 gap-1 mb-2">
-                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                <div key={day} className="text-center text-[10px] font-black uppercase text-muted-foreground tracking-widest py-1">
-                                    {day}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+                            {/* Calendar 1: Current Month */}
+                            <div className="flex flex-col">
+                                <h4 className="text-center font-bold text-xs text-primary mb-3 uppercase tracking-wider block lg:hidden">
+                                    {format(currentMonth, 'MMMM yyyy')}
+                                </h4>
+                                {/* Weekday Labels */}
+                                <div className="grid grid-cols-7 gap-1 mb-2">
+                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                                        <div key={day} className="text-center text-[10px] font-black uppercase text-muted-foreground tracking-widest py-1">
+                                            {day}
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                                {/* Days Grid */}
+                                <div className="grid grid-cols-7 gap-1 flex-1">
+                                    {calendarDays1.map(day => renderDayCell(day, currentMonth))}
+                                </div>
+                            </div>
 
-                        {/* Days Grid */}
-                        <div className="grid grid-cols-7 gap-1 flex-1">
-                            {calendarDays.map(day => {
-                                const dateKey = format(day, 'yyyy-MM-dd');
-                                const isCurrentMonth = isSameMonth(day, currentMonth);
-                                const isTodayDate = isToday(day);
-                                
-                                const occupiedCount = occupancyPerDay[dateKey] || 0;
-                                const availableCount = Math.max(0, totalRoomsOfType - occupiedCount);
-                                const isFull = availableCount === 0 && totalRoomsOfType > 0;
-
-                                const isSelectedCheckIn = tempCheckIn ? isSameDay(day, tempCheckIn) : false;
-                                const isSelectedCheckOut = tempCheckOut ? isSameDay(day, tempCheckOut) : false;
-                                const isInRange = isDateInRange(day);
-
-                                let cellClass = "";
-                                let textClass = "";
-                                let badgeClass = "";
-
-                                if (!isCurrentMonth) {
-                                    cellClass = "opacity-35 hover:opacity-80";
-                                    textClass = "text-muted-foreground";
-                                    badgeClass = "text-muted-foreground/60";
-                                } else if (isSelectedCheckIn || isSelectedCheckOut) {
-                                    cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
-                                    textClass = "text-white font-bold";
-                                    badgeClass = "text-white/80 font-bold";
-                                } else if (isInRange) {
-                                    cellClass = "bg-primary/15 border-primary/30 text-primary";
-                                    textClass = "text-primary font-bold";
-                                    badgeClass = "text-primary/80 font-bold";
-                                } else if (isFull) {
-                                    cellClass = "bg-red-500/5 dark:bg-red-950/20 border-red-500/20 hover:border-red-500/40";
-                                    textClass = "text-red-700 dark:text-red-400";
-                                    badgeClass = "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/10";
-                                } else {
-                                    cellClass = "bg-muted/10 border-border/50 hover:bg-muted/40 hover:border-border";
-                                    textClass = "text-foreground";
-                                    badgeClass = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
-                                }
-
-                                return (
-                                    <button
-                                        key={dateKey}
-                                        onClick={() => handleDayClick(day)}
-                                        className={clsx(
-                                            "flex flex-col items-center justify-between p-2 rounded-xl transition-all border text-left min-h-[56px] relative select-none",
-                                            cellClass,
-                                            isTodayDate && !isSelectedCheckIn && !isSelectedCheckOut && "ring-2 ring-primary/40"
-                                        )}
-                                    >
-                                        <span className={clsx("text-xs font-bold self-start pl-0.5", textClass)}>
-                                            {format(day, 'd')}
-                                        </span>
-                                        
-                                        {totalRoomsOfType > 0 ? (
-                                            <span className={clsx("text-[9px] px-1.5 py-0.5 rounded-md self-center font-black tracking-tight", badgeClass)}>
-                                                {isFull ? 'FULL' : `${availableCount}/${totalRoomsOfType}`}
-                                            </span>
-                                        ) : (
-                                            <span className="text-[8px] text-muted-foreground self-center">No inventory</span>
-                                        )}
-                                    </button>
-                                );
-                            })}
+                            {/* Calendar 2: Next Month */}
+                            <div className="flex flex-col">
+                                <h4 className="text-center font-bold text-xs text-primary mb-3 uppercase tracking-wider block">
+                                    {format(addMonths(currentMonth, 1), 'MMMM yyyy')}
+                                </h4>
+                                {/* Weekday Labels */}
+                                <div className="grid grid-cols-7 gap-1 mb-2">
+                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                                        <div key={day} className="text-center text-[10px] font-black uppercase text-muted-foreground tracking-widest py-1">
+                                            {day}
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Days Grid */}
+                                <div className="grid grid-cols-7 gap-1 flex-1">
+                                    {calendarDays2.map(day => renderDayCell(day, addMonths(currentMonth, 1)))}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Loading Indicator */}
