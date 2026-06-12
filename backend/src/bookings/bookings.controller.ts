@@ -173,6 +173,8 @@ export class BookingsController {
             dto.groupSize,
             dto.roomCount,
             dto.generalCode,
+            dto.overrideTotal,
+            dto.isOverrideInclusive ?? true,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {

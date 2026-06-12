@@ -111,6 +111,7 @@ export default function CreateBooking() {
     const { selectedProperty } = useProperty();
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; roomList?: any[]; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
+    const [originalPriceDetails, setOriginalPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
     const [showInsufficientModal, setShowInsufficientModal] = useState(false);
 
@@ -262,12 +263,36 @@ export default function CreateBooking() {
         const values = getValues();
         const isGroup = values.isGroupBooking;
 
-        if (!values.checkInDate || !values.checkOutDate) return;
-        if (!isGroup && !values.roomTypeId) return;
+        // --- Validation ---
+        const errors: string[] = [];
+        if (!values.checkInDate) errors.push('Check-in date is required');
+        if (!values.checkOutDate) errors.push('Check-out date is required');
+        if (values.checkInDate && values.checkOutDate) {
+            const checkIn = new Date(values.checkInDate);
+            const checkOut = new Date(values.checkOutDate);
+            if (checkOut <= checkIn) errors.push('Check-out date must be after check-in date');
+        }
+        if (!isGroup && !values.roomTypeId) errors.push('Please select a room type');
+        if (isGroup && (!values.groupSize || Number(values.groupSize) < 2)) errors.push('Group size must be at least 2 guests');
+        if (!values.adultsCount || Number(values.adultsCount) < 1) errors.push('At least 1 adult is required');
+
+        if (errors.length > 0) {
+            toast.error(
+                <div>
+                    <p className="font-bold mb-1">Please fix the following to check availability:</p>
+                    <ul className="list-disc pl-4 text-xs space-y-0.5 font-semibold">
+                        {errors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                </div>,
+                { duration: 5000 }
+            );
+            return;
+        }
 
         setCheckingAvailability(true);
         setAvailability(null);
         setPriceDetails(null);
+        setOriginalPriceDetails(null);
         try {
             const avail = await bookingsService.checkAvailability({
                 roomTypeId: values.roomTypeId || undefined,
@@ -332,7 +357,8 @@ export default function CreateBooking() {
                 const roomCount = (currentValues.selectedRoomIds && currentValues.selectedRoomIds.length > 0)
                     ? currentValues.selectedRoomIds.length
                     : (isGroup ? (avail.allocationPreview?.length || 1) : requiredRooms);
-                const price = await (bookingsService as any).calculatePrice({
+
+                const priceParams = {
                     roomTypeId: isGroup ? (avail.allocationPreview?.[0]?.roomTypeId || currentValues.roomTypeId) : currentValues.roomTypeId,
                     checkInDate: currentValues.checkInDate,
                     checkOutDate: currentValues.checkOutDate,
@@ -342,10 +368,23 @@ export default function CreateBooking() {
                     groupSize: isGroup ? Number(currentValues.groupSize) : undefined,
                     roomCount,
                     generalCode: currentValues.appliedCode,
-                    overrideTotal: currentValues.overrideTotal ? Number(currentValues.overrideTotal) : undefined,
-                    isOverrideInclusive: currentValues.isOverrideInclusive,
-                });
-                setPriceDetails(price);
+                };
+
+                // Always calculate the ORIGINAL price (without override) for the top breakdown
+                const originalPrice = await (bookingsService as any).calculatePrice(priceParams);
+                setOriginalPriceDetails(originalPrice);
+
+                // If override is set, also calculate override price separately
+                if (currentValues.overrideTotal) {
+                    const overridePrice = await (bookingsService as any).calculatePrice({
+                        ...priceParams,
+                        overrideTotal: Number(currentValues.overrideTotal),
+                        isOverrideInclusive: currentValues.isOverrideInclusive,
+                    });
+                    setPriceDetails(overridePrice);
+                } else {
+                    setPriceDetails(originalPrice);
+                }
             }
         } catch (error: any) {
             console.error('Error checking availability:', error);
@@ -411,12 +450,28 @@ export default function CreateBooking() {
     if (loadingRoomTypes) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
 
     return (
-        <div className="max-w-4xl mx-auto pb-10">
-            <div className="flex items-center gap-4 mb-6">
-                <button onClick={() => navigate('/bookings')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-                    <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-                </button>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Booking</h1>
+        <div className="max-w-5xl mx-auto pb-16 px-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-border">
+                <div className="flex items-center gap-4">
+                    <button 
+                        onClick={() => navigate('/bookings')} 
+                        className="p-2.5 hover:bg-muted rounded-full border border-border shadow-sm transition-all hover:scale-105 active:scale-95 bg-card"
+                    >
+                        <ArrowLeft className="h-5 w-5 text-muted-foreground" />
+                    </button>
+                    <div>
+                        <span className="text-[10px] font-black text-primary uppercase tracking-widest block">Resort Operations</span>
+                        <h1 className="text-3xl font-black text-foreground tracking-tight mt-0.5">Create New Booking</h1>
+                    </div>
+                </div>
+                {/* Visual badge/status */}
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-full text-[10px] font-black uppercase tracking-wider text-primary w-fit">
+                    <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                    Frontdesk Console
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -439,20 +494,62 @@ export default function CreateBooking() {
                             { duration: 6000 }
                         );
                     })} className="space-y-6">
+
+                        {/* ── Mobile Price Summary Bar (hidden on lg+) ── */}
+                        {priceDetails && (
+                            <div className="lg:hidden sticky top-[70px] z-10 -mx-4 px-4 py-3 bg-card/95 backdrop-blur-md border-b border-border shadow-md">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground shrink-0">Price</span>
+                                        {watch('overrideTotal') && (
+                                            <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded-full shrink-0">Override</span>
+                                        )}
+                                        <div className="flex items-center gap-2 min-w-0 truncate">
+                                            {watch('overrideTotal') && originalPriceDetails && (
+                                                <span className="text-xs text-muted-foreground line-through font-semibold shrink-0">₹{originalPriceDetails.totalAmount.toFixed(0)}</span>
+                                            )}
+                                            <span className={`font-extrabold text-xl tracking-tight shrink-0 ${watch('overrideTotal') ? 'text-amber-600 dark:text-amber-400' : 'text-primary'}`}>
+                                                ₹{watch('overrideTotal')
+                                                    ? (watch('isOverrideInclusive') ? watch('overrideTotal')! : watch('overrideTotal')! * (1 + priceDetails.taxRate / 100)).toFixed(2)
+                                                    : priceDetails.totalAmount.toFixed(2)
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-semibold shrink-0">
+                                        <span>{priceDetails.numberOfNights}N</span>
+                                        <span className="h-3 w-px bg-border"></span>
+                                        <span>GST {priceDetails.taxRate}%</span>
+                                        {watch('overrideTotal') && (
+                                            <>
+                                                <span className="h-3 w-px bg-border"></span>
+                                                <span className="text-muted-foreground">Base: ₹{(originalPriceDetails || priceDetails).totalAmount.toFixed(0)}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Booking Details */}
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                                <h2 className="text-lg font-semibold flex items-center gap-2">
-                                    <Calendar className="h-5 w-5 text-blue-600" /> Booking Details
+                        <div className="bg-card p-6 sm:p-8 rounded-2xl shadow-sm border border-border hover:shadow-md transition-all duration-300">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-border">
+                                <h2 className="text-lg font-bold flex items-center gap-2 text-foreground">
+                                    <Calendar className="h-5 w-5 text-primary" /> Booking Details
                                 </h2>
 
-                                <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg w-fit">
+                                <div className="flex bg-muted p-1 rounded-xl w-fit border border-border shadow-inner">
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setValue('isGroupBooking', false);
                                         }}
-                                        className={clsx('px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', !isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+                                        className={clsx(
+                                            'px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300',
+                                            !isGroupMode
+                                                ? 'bg-card text-primary shadow-md ring-1 ring-black/5'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        )}
                                     >
                                         Standard Booking
                                     </button>
@@ -462,13 +559,18 @@ export default function CreateBooking() {
                                             setValue('isGroupBooking', true);
                                             setValue('groupSize', getValues('adultsCount') + getValues('childrenCount'));
                                         }}
-                                        className={clsx('px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all', isGroupMode ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+                                        className={clsx(
+                                            'px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300',
+                                            isGroupMode
+                                                ? 'bg-card text-primary shadow-md ring-1 ring-black/5'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        )}
                                     >
                                         Group Booking
                                     </button>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 {!isGroupMode && (
                                     <div className="md:col-span-2">
                                         <SearchableSelect
@@ -487,25 +589,37 @@ export default function CreateBooking() {
                                             }}
                                             required
                                         />
-                                        {errors.roomTypeId && <p className="text-red-500 text-xs mt-1">{errors.roomTypeId.message}</p>}
+                                        {errors.roomTypeId && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.roomTypeId.message}</p>}
                                     </div>
                                 )}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Check-in Date</label>
-                                    <input type="date" {...register('checkInDate')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm" />
-                                    {errors.checkInDate && <p className="text-red-500 text-xs mt-1">{errors.checkInDate.message}</p>}
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                        <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        {...register('checkInDate')} 
+                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all" 
+                                    />
+                                    {errors.checkInDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkInDate.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Check-out Date</label>
-                                    <input type="date" {...register('checkOutDate')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm" />
-                                    {errors.checkOutDate && <p className="text-red-500 text-xs mt-1">{errors.checkOutDate.message}</p>}
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                        <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        {...register('checkOutDate')} 
+                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all" 
+                                    />
+                                    {errors.checkOutDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkOutDate.message}</p>}
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Guests & Capacity</label>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Guests & Capacity</label>
                                     <div className="space-y-4">
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Adults (13+)</label>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Adults (13+)</label>
                                                 <input
                                                     type="number"
                                                     min="1"
@@ -515,11 +629,11 @@ export default function CreateBooking() {
                                                             if (isGroupMode) setValue('groupSize', (parseInt(e.target.value) || 1) + watch('childrenCount'));
                                                         }
                                                     })}
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 font-bold"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Children (6-12)</label>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Children (6-12)</label>
                                                 <input
                                                     type="number"
                                                     min="0"
@@ -529,41 +643,41 @@ export default function CreateBooking() {
                                                             if (isGroupMode) setValue('groupSize', watch('adultsCount') + (parseInt(e.target.value) || 0));
                                                         }
                                                     })}
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 font-bold"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
                                             </div>
                                         </div>
                                         {isGroupMode && (
-                                            <div className="flex items-center justify-between py-2 px-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800 animate-in fade-in zoom-in-95">
-                                                <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Group Stay Package Active</span>
-                                                <span className="text-[10px] font-bold text-gray-500">Total: {watch('adultsCount') + watch('childrenCount')} Members</span>
+                                            <div className="flex items-center justify-between py-2.5 px-4 bg-primary/5 rounded-xl border border-primary/20 animate-in fade-in zoom-in-95">
+                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">Group Stay Package Active</span>
+                                                <span className="text-[10px] font-bold text-muted-foreground">Total: {watch('adultsCount') + watch('childrenCount')} Members</span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
                                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GST Number (Optional)</label>
+                                        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">GST Number (Optional)</label>
                                         <input
                                             type="text"
                                             {...register('gstNumber')}
                                             placeholder="Enter GSTIN"
-                                            className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase"
+                                            className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-bold uppercase focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all placeholder:text-muted-foreground"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Promo or Referral Code</label>
+                                        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Promo or Referral Code</label>
                                         <div className="flex gap-2">
                                             <input
                                                 type="text"
                                                 {...register('appliedCode')}
                                                 placeholder="GUEST10 or CP..."
-                                                className="flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 uppercase"
+                                                className="flex-1 border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-bold text-sm uppercase focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all placeholder:text-muted-foreground"
                                             />
                                             <button
                                                 type="button"
                                                 onClick={handleCheckAvailability}
-                                                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-500"
+                                                className="px-5 py-2.5 bg-muted text-foreground hover:bg-muted/80 rounded-xl text-xs font-bold transition-all border border-border shadow-sm active:scale-95"
                                             >
                                                 Apply
                                             </button>
@@ -571,52 +685,65 @@ export default function CreateBooking() {
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Special Requests / Notes (Optional)</label>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Special Requests / Notes (Optional)</label>
                                     <textarea
                                         {...register('specialRequests')}
-                                        rows={2}
+                                        rows={3}
                                         placeholder="Any special instructions or preferences?"
-                                        className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm p-3 text-sm"
+                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm p-4 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all placeholder:text-muted-foreground"
                                     />
                                 </div>
                                 <div className="md:col-span-2">
-                                    <hr className="my-2 border-gray-100 dark:border-gray-700" />
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Final Step: Check Availability & Total Price</label>
-                                    <button type="button" onClick={handleCheckAvailability} disabled={checkingAvailability}
-                                        className="w-full bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 px-4 py-3 rounded-md text-lg font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md">
-                                        {checkingAvailability ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Check Availability'}
+                                    <hr className="my-4 border-border" />
+                                    <button 
+                                        type="button" 
+                                        onClick={handleCheckAvailability} 
+                                        disabled={checkingAvailability}
+                                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 px-6 py-3.5 rounded-xl text-base font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:transform-none"
+                                    >
+                                        {checkingAvailability ? <Loader2 className="h-5 w-5 animate-spin" /> : <Calendar className="h-5 w-5" />}
+                                        {checkingAvailability ? 'Verifying Availability...' : 'Check Room Availability'}
                                     </button>
 
                                     {availability && (
-                                        <div className="space-y-4 mt-4">
-                                            <div className={clsx('p-4 rounded-md border flex items-center gap-3 shadow-sm',
-                                                availability.available ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-                                                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300')}>
-                                                {availability.available ? <CheckCircle className="h-6 w-6" /> : <AlertCircle className="h-6 w-6" />}
+                                        <div className="space-y-4 mt-6">
+                                            <div className={clsx(
+                                                'p-4 rounded-xl border flex items-start gap-3.5 shadow-sm animate-in fade-in slide-in-from-top-3 duration-300',
+                                                availability.available 
+                                                    ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-150 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400'
+                                                    : 'bg-rose-50/50 dark:bg-rose-950/10 border-rose-150 dark:border-rose-900/30 text-rose-800 dark:text-rose-400'
+                                            )}>
+                                                {availability.available 
+                                                    ? <CheckCircle className="h-5 w-5 mt-0.5 text-emerald-500 shrink-0" /> 
+                                                    : <AlertCircle className="h-5 w-5 mt-0.5 text-rose-500 shrink-0" />
+                                                }
                                                 <div className="flex-1">
-                                                    <p className="font-bold text-base leading-tight">{availability.available ? 'Available' : 'Unavailable'}</p>
-                                                    <p className="text-sm">{availability.available
-                                                        ? isGroupMode
-                                                            ? `Aggregate capacity verified for ${watch('groupSize')} guests.`
-                                                            : `${availability.availableRooms} rooms left for these dates.`
-                                                        : isGroupMode && availability.groupUnavailableReason === 'NO_POOL_CONFIGURED'
-                                                            ? 'No room types are added to the group booking pool. Go to Room Types → Edit a room type and enable "Enable Group Bookings" with a Max Group Occupancy.'
-                                                            : isGroupMode && availability.groupUnavailableReason === 'CAPACITY_EXCEEDED'
-                                                                ? `The group pool capacity is not enough for ${watch('groupSize')} guests. Reduce group size or increase Max Group Occupancy on room types.`
-                                                                : 'Please choose different dates, room type or reduce group size.'}
+                                                    <p className="font-extrabold text-sm uppercase tracking-wider leading-none">
+                                                        {availability.available ? 'Rooms Available' : 'No Rooms Available'}
+                                                    </p>
+                                                    <p className="text-xs mt-1.5 text-gray-500 dark:text-gray-400 font-medium">
+                                                        {availability.available
+                                                            ? isGroupMode
+                                                                ? `Aggregate capacity verified for ${watch('groupSize')} guests.`
+                                                                : `${availability.availableRooms} rooms left for these dates.`
+                                                            : isGroupMode && availability.groupUnavailableReason === 'NO_POOL_CONFIGURED'
+                                                                ? 'No room types are added to the group booking pool. Go to Room Types → Edit a room type and enable "Enable Group Bookings" with a Max Group Occupancy.'
+                                                                : isGroupMode && availability.groupUnavailableReason === 'CAPACITY_EXCEEDED'
+                                                                    ? `The group pool capacity is not enough for ${watch('groupSize')} guests. Reduce group size or increase Max Group Occupancy on room types.`
+                                                                    : 'Please choose different dates, room type or reduce group size.'}
                                                     </p>
                                                 </div>
                                             </div>
 
                                             {availability.available && availability.roomList && availability.roomList.length > 0 && (
-                                                <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-2 mt-6">
+                                                <div className="p-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/10 dark:to-indigo-950/10 border border-blue-150 dark:border-blue-900/30 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-3 mt-6">
                                                     <div className="flex items-center justify-between mb-4">
                                                         <div>
-                                                            <h3 className="text-xs font-black uppercase text-blue-800 dark:text-blue-300 tracking-tighter flex items-center gap-2">
+                                                            <h3 className="text-xs font-black uppercase text-blue-800 dark:text-blue-300 tracking-wider flex items-center gap-2">
                                                                 <div className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse"></div>
                                                                 {isGroupMode ? 'Room Inventory Selection' : 'Select Available Rooms'}
                                                             </h3>
-                                                            <p className="text-[10px] text-blue-500/80 mt-0.5 font-medium italic">
+                                                            <p className="text-[10px] text-blue-500/80 mt-1 font-medium italic">
                                                                 {isGroupMode
                                                                     ? `Total capacity must meet ${watch('groupSize')} guests.`
                                                                     : 'Standard multi-room booking mode active.'}
@@ -626,7 +753,7 @@ export default function CreateBooking() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => { setValue('selectedRoomIds', []); handleCheckAvailability(); }}
-                                                                className="text-[10px] font-black uppercase text-red-500 hover:text-red-600 flex items-center gap-1 hover:bg-red-50 dark:hover:bg-red-950/30 px-2 py-1 rounded-md transition-colors"
+                                                                className="text-[10px] font-black uppercase text-red-500 hover:text-red-600 flex items-center gap-1 hover:bg-red-50 dark:hover:bg-red-950/30 px-2.5 py-1 rounded-md transition-colors"
                                                             >
                                                                 Clear Selection
                                                             </button>
@@ -649,25 +776,30 @@ export default function CreateBooking() {
                                                                         if (availability.available) handleCheckAvailability();
                                                                     }}
                                                                     className={clsx(
-                                                                        "relative overflow-hidden group p-3 rounded-lg border-2 transition-all duration-300 text-left",
+                                                                        "relative overflow-hidden group p-4 rounded-xl border-2 transition-all duration-300 text-left",
                                                                         isSelected
-                                                                            ? "bg-blue-600 border-blue-600 text-white shadow-lg ring-2 ring-blue-600 ring-offset-2 dark:ring-offset-gray-900"
-                                                                            : "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 text-gray-700 dark:text-gray-300"
+                                                                            ? "bg-blue-600 border-blue-600 text-white shadow-md hover:bg-blue-700"
+                                                                            : "bg-white dark:bg-gray-950 border-gray-150 dark:border-gray-800 hover:border-blue-400/50 dark:hover:border-blue-700/50 text-gray-700 dark:text-gray-300"
                                                                     )}
                                                                 >
                                                                     <div className="flex flex-col relative z-10">
-                                                                        <span className={clsx("text-xs font-black uppercase mb-1 tracking-tight", isSelected ? "text-blue-100" : "text-blue-600 dark:text-blue-400")}>
-                                                                            {room.roomNumber || room.name}
-                                                                        </span>
-                                                                        <div className="flex items-baseline gap-1">
-                                                                            <span className="text-[10px] font-bold">Cap: {room.capacity || 'N/A'}</span>
+                                                                        <div className="flex justify-between items-center mb-1">
+                                                                            <span className={clsx("text-sm font-black uppercase tracking-tight", isSelected ? "text-blue-100" : "text-gray-950 dark:text-white")}>
+                                                                                {room.roomNumber || room.name}
+                                                                            </span>
+                                                                            <span className={clsx(
+                                                                                "text-[9px] font-bold px-1.5 py-0.5 rounded-md",
+                                                                                isSelected ? "bg-white/20 text-white" : "bg-gray-150 dark:bg-gray-850 text-gray-600 dark:text-gray-400"
+                                                                            )}>
+                                                                                Cap: {room.capacity || 'N/A'}
+                                                                            </span>
                                                                         </div>
-                                                                        <span className={clsx("text-[8px] mt-1 truncate font-medium", isSelected ? "text-blue-200" : "text-gray-400")}>
+                                                                        <span className={clsx("text-[9px] truncate font-semibold mt-1", isSelected ? "text-blue-200" : "text-gray-400 dark:text-gray-500")}>
                                                                             {room.roomType}
                                                                         </span>
                                                                     </div>
                                                                     {isSelected && (
-                                                                        <div className="absolute top-1 right-1">
+                                                                        <div className="absolute top-1.5 right-1.5">
                                                                             <div className="bg-white/20 p-0.5 rounded-full">
                                                                                 <CheckCircle className="h-3 w-3 text-white" />
                                                                             </div>
@@ -679,30 +811,30 @@ export default function CreateBooking() {
                                                     </div>
 
                                                     {isGroupMode && (
-                                                        <div className="mt-5 p-3 bg-white dark:bg-gray-800/80 rounded-xl border border-blue-100 dark:border-blue-900 shadow-inner">
+                                                        <div className="mt-5 p-4 bg-white dark:bg-gray-950 rounded-xl border border-blue-100 dark:border-blue-900/30 shadow-inner">
                                                             <div className="flex justify-between items-end mb-2">
                                                                 <div>
-                                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter block mb-0.5">Selected Inventory Power</span>
+                                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block mb-1">Selected Inventory Power</span>
                                                                     <span className={clsx("text-sm font-black flex items-center gap-1.5",
                                                                         (availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) >= (watch('groupSize') || 0)
-                                                                            ? "text-green-600 dark:text-green-400"
-                                                                            : "text-orange-500 dark:text-orange-400")}>
+                                                                            ? "text-emerald-600 dark:text-emerald-400"
+                                                                            : "text-amber-500 dark:text-amber-400")}>
                                                                         {availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)} / {watch('groupSize')} GUESTS
                                                                         {(availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) >= (watch('groupSize') || 0) && (
                                                                             <CheckCircle className="h-4 w-4" />
                                                                         )}
                                                                     </span>
                                                                 </div>
-                                                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">
+                                                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                                     {(watch('selectedRoomIds') || []).length} Rooms Active
                                                                 </span>
                                                             </div>
-                                                            <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                            <div className="h-2 w-full bg-gray-150 dark:bg-gray-800 rounded-full overflow-hidden">
                                                                 <div
                                                                     className={clsx("h-full transition-all duration-700 ease-out rounded-full",
                                                                         (availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) >= (watch('groupSize') || 0)
-                                                                            ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]"
-                                                                            : "bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]")}
+                                                                            ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                                                                            : "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]")}
                                                                     style={{ width: `${Math.min(100, (availability.roomList.filter(r => (watch('selectedRoomIds') || []).includes(r.id)).reduce((sum, r) => sum + (r.capacity || 0), 0)) / (watch('groupSize') || 1) * 100)}%` }}
                                                                 ></div>
                                                             </div>
@@ -710,11 +842,11 @@ export default function CreateBooking() {
                                                     )}
 
                                                     {!isGroupMode && (watch('selectedRoomIds') || []).length < requiredRooms && (
-                                                        <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3 text-amber-700 dark:text-amber-300 animate-in fade-in slide-in-from-top-2">
+                                                        <div className="mt-4 p-4 bg-amber-50/50 dark:bg-amber-950/10 border border-amber-200/50 dark:border-amber-800/50 rounded-xl flex items-start gap-3 text-amber-700 dark:text-amber-400 animate-in fade-in slide-in-from-top-2">
                                                             <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
                                                             <div>
-                                                                <p className="font-bold text-sm">Insufficient Rooms Selected</p>
-                                                                <p className="text-xs mt-1">
+                                                                <p className="font-extrabold text-sm uppercase tracking-wider">Rooms Needed</p>
+                                                                <p className="text-xs mt-1 text-gray-500 dark:text-gray-400 font-medium">
                                                                     Guest count ({watch('adultsCount')} Adults, {watch('childrenCount')} Children) requires at least <strong>{requiredRooms} rooms</strong>. You have selected only <strong>{(watch('selectedRoomIds') || []).length} rooms</strong>.
                                                                 </p>
                                                             </div>
@@ -724,20 +856,22 @@ export default function CreateBooking() {
                                             )}
 
                                             {isGroupMode && availability.available && availability.allocationPreview && (watch('selectedRoomIds') || []).length === 0 && (
-                                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2">
-                                                    <h4 className="text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-3 tracking-widest">Suggested Allocation Preview</h4>
+                                                <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200/50 dark:border-blue-800/50 rounded-xl animate-in fade-in slide-in-from-top-2">
+                                                    <h4 className="text-xs font-black uppercase text-blue-600 dark:text-blue-400 mb-3 tracking-wider flex items-center gap-1.5">
+                                                        <CheckCircle className="h-3.5 w-3.5 text-blue-500" /> Suggested Allocation Preview
+                                                    </h4>
                                                     <div className="space-y-2">
                                                         {availability.allocationPreview.map((room, idx) => (
-                                                            <div key={idx} className="flex justify-between items-center text-sm py-1 border-b border-blue-100 dark:border-blue-800 last:border-0">
+                                                            <div key={idx} className="flex justify-between items-center text-sm py-2 border-b border-blue-100/50 dark:border-blue-800/30 last:border-0">
                                                                 <div className="flex flex-col">
                                                                     <span className="font-bold text-gray-900 dark:text-white">Room {room.name}</span>
-                                                                    <span className="text-[10px] text-gray-500">{room.roomType}</span>
+                                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold">{room.roomType}</span>
                                                                 </div>
-                                                                <span className="text-[10px] font-bold bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Cap: {room.capacity}</span>
+                                                                <span className="text-[10px] font-bold bg-blue-100/70 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Cap: {room.capacity}</span>
                                                             </div>
                                                         ))}
-                                                        <div className="pt-2 flex justify-between items-center">
-                                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Total Capacity</span>
+                                                        <div className="pt-2 flex justify-between items-center border-t border-blue-100/50 dark:border-blue-800/30">
+                                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Total Capacity</span>
                                                             <span className="text-sm font-black text-blue-600 dark:text-blue-400">
                                                                 {availability.allocationPreview.reduce((sum, r) => sum + r.capacity, 0)} Guests
                                                             </span>
@@ -753,13 +887,16 @@ export default function CreateBooking() {
 
 
                         {/* Source */}
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                <Briefcase className="h-5 w-5 text-blue-600" /> Booking Source
+                        <div className="bg-card p-6 sm:p-8 rounded-2xl shadow-sm border border-border hover:shadow-md transition-all duration-300">
+                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground pb-3 border-b border-border">
+                                <Briefcase className="h-5 w-5 text-primary" /> Booking Source
                             </h2>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source</label>
-                                <select {...register('bookingSourceId')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Source</label>
+                                <select 
+                                    {...register('bookingSourceId')} 
+                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all cursor-pointer"
+                                >
                                     <option value="">Direct / None</option>
                                     {bookingSources?.map((source) => (
                                         <option key={source.id} value={source.id}>{source.name} {source.commission && `(${source.commission}% Commission)`}</option>
@@ -773,69 +910,69 @@ export default function CreateBooking() {
                             availability?.available && (
                                 <>
                                     {/* Primary Contact Information */}
-                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                            <Briefcase className="h-5 w-5 text-blue-600" /> Primary Contact Information
+                                    <div className="bg-card p-6 sm:p-8 rounded-2xl shadow-sm border border-border hover:shadow-md transition-all duration-300">
+                                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground pb-3 border-b border-border">
+                                            <Users className="h-5 w-5 text-primary" /> Primary Contact Information
                                         </h2>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">First Name</label>
                                                 <input
                                                     type="text"
                                                     {...register('guestFirstName')}
                                                     placeholder="Enter first name"
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
-                                                {errors.guestFirstName && <p className="text-red-500 text-xs mt-1">{errors.guestFirstName.message}</p>}
+                                                {errors.guestFirstName && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestFirstName.message}</p>}
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name (Optional)</label>
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Last Name (Optional)</label>
                                                 <input
                                                     type="text"
                                                     {...register('guestLastName')}
                                                     placeholder="Enter last name"
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
-                                                {errors.guestLastName && <p className="text-red-500 text-xs mt-1">{errors.guestLastName.message}</p>}
+                                                {errors.guestLastName && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestLastName.message}</p>}
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email (Optional)</label>
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Email (Optional)</label>
                                                 <input
                                                     type="email"
                                                     {...register('guestEmail')}
                                                     placeholder="Enter email address"
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
-                                                {errors.guestEmail && <p className="text-red-500 text-xs mt-1">{errors.guestEmail.message}</p>}
+                                                {errors.guestEmail && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestEmail.message}</p>}
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary Phone Number</label>
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Primary Phone Number</label>
                                                 <input
                                                     type="text"
                                                     {...register('guestPhone')}
                                                     placeholder="Enter primary contact number"
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
-                                                {errors.guestPhone && <p className="text-red-500 text-xs mt-1">{errors.guestPhone.message}</p>}
+                                                {errors.guestPhone && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestPhone.message}</p>}
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary WhatsApp Number (Optional)</label>
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Primary WhatsApp Number (Optional)</label>
                                                 <input
                                                     type="text"
                                                     {...register('whatsappNumber')}
                                                     placeholder="Enter WhatsApp number"
-                                                    className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 px-3"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
-                                                {errors.whatsappNumber && <p className="text-red-500 text-xs mt-1">{errors.whatsappNumber.message}</p>}
+                                                {errors.whatsappNumber && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.whatsappNumber.message}</p>}
                                             </div>
-                                            <div className="md:col-span-2 flex items-center mt-2">
-                                                <label className="flex items-center gap-2 cursor-pointer">
+                                            <div className="md:col-span-2 flex items-center mt-3">
+                                                <label className="flex items-center gap-2.5 cursor-pointer select-none">
                                                     <input
                                                         type="checkbox"
                                                         {...register('isBookerAlsoGuest')}
-                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500/40 w-4 h-4 cursor-pointer"
                                                     />
-                                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300 hover:text-gray-900 transition-colors">
                                                         Add Booker as the Primary Guest (Guest 1)
                                                     </span>
                                                 </label>
@@ -843,30 +980,44 @@ export default function CreateBooking() {
                                         </div>
                                     </div>
 
-                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h2 className="text-lg font-semibold flex items-center gap-2">
-                                                <Users className="h-5 w-5 text-blue-600" /> Guest Details
+                                    <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md p-6 sm:p-8 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700/50 hover:shadow-md transition-all duration-300">
+                                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+                                            <h2 className="text-lg font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+                                                <Users className="h-5 w-5 text-blue-500" /> Guest Details
                                             </h2>
-                                            <button type="button" onClick={() => append({ firstName: '', lastName: '' })} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add Guest</button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => append({ firstName: '', lastName: '' })} 
+                                                className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg transition-all flex items-center gap-1 active:scale-95"
+                                            >
+                                                + Add Guest
+                                            </button>
                                         </div>
                                         {errors.guests?.message && (
-                                            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-bounce">
-                                                <p className="text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                                                    <AlertCircle className="h-4 w-4" /> {errors.guests.message}
+                                            <div className="mb-4 p-3 bg-red-50/50 dark:bg-red-900/10 border border-red-150 dark:border-red-900/30 rounded-xl animate-in fade-in slide-in-from-top-2">
+                                                <p className="text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                                                    <AlertCircle className="h-4 w-4 text-red-500" /> {errors.guests.message}
                                                 </p>
                                             </div>
                                         )}
-                                        <div className="space-y-4">
+                                        <div className="space-y-5">
                                             {fields.map((field, index) => (
-                                                <div key={field.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg relative group">
+                                                <div key={field.id} className="p-5 bg-gray-50/50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-850/50 relative group/guest">
                                                     {fields.length > 1 && (
-                                                        <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 text-sm opacity-0 group-hover:opacity-100 transition-opacity">Remove</button>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => remove(index)} 
+                                                            className="absolute top-3 right-3 text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-2 py-1 rounded-md transition-all active:scale-95"
+                                                        >
+                                                            Remove
+                                                        </button>
                                                     )}
-                                                    <div className="flex justify-between items-center mb-2">
-                                                         <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Guest {index + 1} {index === 0 && '(Primary)'}</h3>
+                                                    <div className="flex justify-between items-center mb-3">
+                                                         <h3 className="text-xs font-extrabold text-gray-400 dark:text-gray-505 uppercase tracking-wider">
+                                                             Guest {index + 1} {index === 0 && '(Primary)'}
+                                                         </h3>
                                                          {index === 0 && isBookerAlsoGuest && (
-                                                             <span className="text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                             <span className="text-[9px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/40 font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                                                                  Synced with Booker
                                                              </span>
                                                          )}
@@ -879,11 +1030,11 @@ export default function CreateBooking() {
                                                                  placeholder="First Name"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
                                                                  )}
                                                              />
-                                                             {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.firstName?.message}</p>}
+                                                             {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guests[index]?.firstName?.message}</p>}
                                                          </div>
                                                          <div>
                                                              <input
@@ -891,11 +1042,11 @@ export default function CreateBooking() {
                                                                  placeholder="Last Name (Optional)"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
                                                                  )}
                                                              />
-                                                             {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1">{errors.guests[index]?.lastName?.message}</p>}
+                                                             {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guests[index]?.lastName?.message}</p>}
                                                          </div>
                                                          <input
                                                              {...register(`guests.${index}.email`)}
@@ -903,18 +1054,18 @@ export default function CreateBooking() {
                                                              placeholder="Email (Optional)"
                                                              readOnly={index === 0 && isBookerAlsoGuest}
                                                              className={clsx(
-                                                                 "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
-                                                                 index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                 "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
+                                                                 index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
                                                              )}
                                                          />
-                                                         <div className="grid grid-cols-2 gap-2">
+                                                         <div className="grid grid-cols-2 gap-2.5">
                                                              <input
                                                                  {...register(`guests.${index}.phone`)}
                                                                  placeholder="Phone (Optional)"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
                                                                  )}
                                                              />
                                                              <input
@@ -922,115 +1073,121 @@ export default function CreateBooking() {
                                                                  placeholder="WhatsApp (Optional)"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm px-3 py-2",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
                                                                  )}
                                                              />
                                                          </div>
-                                                        <div className="relative">
-                                                            <select {...register(`guests.${index}.idType`)} className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500")}>
-                                                                <option value="">-- ID Type (Optional) --</option>
-                                                                <option value="AADHAR">Aadhar Card</option>
-                                                                <option value="PASSPORT">Passport</option>
-                                                                <option value="VOTER_ID">Voter ID</option>
-                                                                <option value="DRIVING_LICENSE">Driving License</option>
-                                                                <option value="OTHER">Other</option>
-                                                            </select>
-                                                            {errors.guests?.[index]?.idType && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idType?.message}</p>}
-                                                        </div>
+                                                         <div className="relative">
+                                                             <select 
+                                                                 {...register(`guests.${index}.idType`)} 
+                                                                 className={clsx(
+                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm h-11 px-4 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer", 
+                                                                     errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500"
+                                                                 )}
+                                                             >
+                                                                 <option value="">-- ID Type (Optional) --</option>
+                                                                 <option value="AADHAR">Aadhar Card</option>
+                                                                 <option value="PASSPORT">Passport</option>
+                                                                 <option value="VOTER_ID">Voter ID</option>
+                                                                 <option value="DRIVING_LICENSE">Driving License</option>
+                                                                 <option value="OTHER">Other</option>
+                                                             </select>
+                                                             {errors.guests?.[index]?.idType && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idType?.message}</p>}
+                                                         </div>
 
-                                                        {watch(`guests.${index}.idType`) && (
-                                                            <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-2">
-                                                                <div>
-                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">ID Number</label>
-                                                                    <input
-                                                                        {...register(`guests.${index}.idNumber`)}
-                                                                        placeholder="Enter ID number"
-                                                                        className={clsx("w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm text-sm", errors.guests?.[index]?.idNumber && "border-red-500 ring-1 ring-red-500")}
-                                                                    />
-                                                                    {errors.guests?.[index]?.idNumber && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idNumber?.message}</p>}
-                                                                </div>
+                                                         {watch(`guests.${index}.idType`) && (
+                                                             <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-3 duration-300">
+                                                                 <div>
+                                                                     <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-550 mb-1.5">ID Number</label>
+                                                                     <input
+                                                                         {...register(`guests.${index}.idNumber`)}
+                                                                         placeholder="Enter ID number"
+                                                                         className={clsx("w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500", errors.guests?.[index]?.idNumber && "border-red-500 ring-1 ring-red-500")}
+                                                                     />
+                                                                     {errors.guests?.[index]?.idNumber && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idNumber?.message}</p>}
+                                                                 </div>
 
-                                                                <div>
-                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Upload Guest ID Photo</label>
-                                                                    <div className="flex items-center gap-4">
-                                                                        <input
-                                                                            type="file"
-                                                                            accept="image/*"
-                                                                            onChange={(e) => handleGuestFileUpload(index, e)}
-                                                                            className="hidden"
-                                                                            id={`guest-id-upload-${index}`}
-                                                                        />
-                                                                        <label
-                                                                            htmlFor={`guest-id-upload-${index}`}
-                                                                            className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2 shadow-sm"
-                                                                        >
-                                                                            {idUploading[index] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                                                                            {watch(`guests.${index}.idImage`) ? 'Change ID Image' : 'Upload ID Image'}
-                                                                        </label>
-                                                                        {watch(`guests.${index}.idImage`) && (
-                                                                            <div className="flex items-center gap-4 animate-in fade-in zoom-in-95">
-                                                                                <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-[10px] font-black uppercase tracking-wider">
-                                                                                    <ShieldCheck className="h-3.5 w-3.5" /> ID Uploaded
-                                                                                </div>
-                                                                                <div className="flex items-center gap-3">
-                                                                                    <a
-                                                                                        href={watch(`guests.${index}.idImage`)}
-                                                                                        target="_blank"
-                                                                                        rel="noreferrer"
-                                                                                        className="h-30 w-50 rounded-md border border-gray-200 dark:border-gray-600 overflow-hidden hover:opacity-80 transition-opacity group/img relative"
-                                                                                    >
-                                                                                        <img
-                                                                                            src={watch(`guests.${index}.idImage`)}
-                                                                                            alt="Guest ID"
-                                                                                            className="w-full h-full object-cover"
-                                                                                        />
-                                                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
-                                                                                            <Eye className="h-4 w-4 text-white" />
-                                                                                        </div>
-                                                                                    </a>
-                                                                                </div>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <p className="text-[10px] text-gray-400 italic mt-1.5">Accepted formats: JPG, PNG. Max 5MB.</p>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                                                 <div>
+                                                                     <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-555 mb-2">Upload Guest ID Photo</label>
+                                                                     <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-gray-950 p-4 rounded-xl border border-gray-150 dark:border-gray-800/50 shadow-inner">
+                                                                         <input
+                                                                             type="file"
+                                                                             accept="image/*"
+                                                                             onChange={(e) => handleGuestFileUpload(index, e)}
+                                                                             className="hidden"
+                                                                             id={`guest-id-upload-${index}`}
+                                                                         />
+                                                                         <label
+                                                                             htmlFor={`guest-id-upload-${index}`}
+                                                                             className="px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 shadow-sm border-dashed"
+                                                                         >
+                                                                             {idUploading[index] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                                                                             {watch(`guests.${index}.idImage`) ? 'Change ID Image' : 'Upload ID Image'}
+                                                                         </label>
+                                                                         {watch(`guests.${index}.idImage`) && (
+                                                                             <div className="flex flex-wrap items-center gap-4 animate-in fade-in zoom-in-95">
+                                                                                 <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                                                                                     <ShieldCheck className="h-4 w-4" /> ID Uploaded
+                                                                                 </div>
+                                                                                 <div className="flex items-center">
+                                                                                     <a
+                                                                                         href={watch(`guests.${index}.idImage`)}
+                                                                                         target="_blank"
+                                                                                         rel="noreferrer"
+                                                                                         className="h-14 w-24 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:opacity-80 transition-all group/img relative shadow-sm block"
+                                                                                     >
+                                                                                         <img
+                                                                                             src={watch(`guests.${index}.idImage`)}
+                                                                                             alt="Guest ID"
+                                                                                             className="w-full h-full object-cover"
+                                                                                         />
+                                                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                                                                                             <Eye className="h-4 w-4 text-white" />
+                                                                                         </div>
+                                                                                     </a>
+                                                                                 </div>
+                                                                             </div>
+                                                                         )}
+                                                                     </div>
+                                                                     <p className="text-[10px] text-gray-400 italic mt-2">Accepted formats: JPG, PNG. Max 5MB.</p>
+                                                                 </div>
+                                                             </div>
+                                                         )}
+                                                     </div>
+                                                 </div>
+                                             ))}
+                                         </div>
+                                     </div>
 
                                     {/* Price Override & Payments - Moved here for better workflow */}
-                                    <div className="mt-8 bg-green-50/50 dark:bg-green-900/10 p-6 rounded-lg shadow-sm border border-green-200 dark:border-green-800/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-green-700 dark:text-green-400">
-                                            <CheckCircle className="h-5 w-5" /> Manage Payment for this Booking
+                                    <div className="mt-8 bg-gradient-to-br from-emerald-50/40 to-teal-50/40 dark:from-emerald-950/5 dark:to-teal-950/5 p-6 sm:p-8 rounded-2xl shadow-sm border border-emerald-100 dark:border-emerald-900/30 hover:shadow-md transition-all duration-300">
+                                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-emerald-800 dark:text-emerald-400 pb-3 border-b border-emerald-100/50 dark:border-emerald-900/20">
+                                            <CheckCircle className="h-5 w-5 text-emerald-500" /> Manage Payment for this Booking
                                         </h2>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Option / Status</label>
-                                                <select {...register('paymentOption')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Payment Option / Status</label>
+                                                <select {...register('paymentOption')} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer">
                                                     <option value="FULL">Collect Full Payment Now</option>
                                                     <option value="PARTIAL">Collect Partial / Deposit</option>
                                                 </select>
                                             </div>
                                             {watch('paymentOption') === 'PARTIAL' && (
                                                 <div className="animate-in zoom-in-95 duration-200">
-                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Initial Deposit Amount (₹)</label>
+                                                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-500 mb-1.5">Initial Deposit Amount (₹)</label>
                                                     <input
                                                         type="number"
                                                         {...register('paidAmount', { valueAsNumber: true })}
-                                                        className="w-full border-blue-200 dark:border-blue-900 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-black text-lg focus:ring-blue-500 border-2 transition-all"
+                                                        className="w-full border-blue-200 dark:border-blue-900 dark:bg-gray-950 dark:text-white rounded-xl shadow-sm h-11 px-4 font-black text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                                                         placeholder="0.00"
                                                         required={watch('paymentOption') === 'PARTIAL'}
                                                     />
                                                 </div>
                                             )}
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Payment Method</label>
-                                                <select {...register('paymentMethod')} className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-12 font-bold focus:ring-green-500 border-2 transition-all">
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Payment Method</label>
+                                                <select {...register('paymentMethod')} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer">
                                                     <option value="CASH">Cash Payment</option>
                                                     <option value="UPI">UPI / QR Code</option>
                                                     <option value="CARD">Debit / Credit Card</option>
@@ -1038,18 +1195,18 @@ export default function CreateBooking() {
                                                     <option value="ONLINE">Send Payment Link (Email/SMS)</option>
                                                 </select>
                                             </div>
-                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-100 dark:border-gray-800 pt-6">
+                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-emerald-100/50 dark:border-emerald-900/20 pt-5 mt-2">
                                                 <div>
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Override Price (Optional)</label>
-                                                        <div className="flex bg-gray-100 dark:bg-gray-700 p-0.5 rounded-md">
+                                                    <div className="flex justify-between items-center mb-1.5">
+                                                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Override Price (Optional)</label>
+                                                        <div className="flex bg-gray-100 dark:bg-gray-900 p-0.5 rounded-lg border border-gray-200/10">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
                                                                     setValue('isOverrideInclusive', true);
                                                                     if (watch('overrideTotal')) handleCheckAvailability();
                                                                 }}
-                                                                className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
+                                                                className={clsx('px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all duration-200', watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-800 text-blue-650 dark:text-blue-400 shadow-sm' : 'text-gray-400 hover:text-gray-650')}
                                                             >
                                                                 Inc. GST
                                                             </button>
@@ -1059,7 +1216,7 @@ export default function CreateBooking() {
                                                                     setValue('isOverrideInclusive', false);
                                                                     if (watch('overrideTotal')) handleCheckAvailability();
                                                                 }}
-                                                                className={clsx('px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all', !watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500')}
+                                                                className={clsx('px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all duration-200', !watch('isOverrideInclusive') ? 'bg-white dark:bg-gray-800 text-blue-650 dark:text-blue-400 shadow-sm' : 'text-gray-400 hover:text-gray-650')}
                                                             >
                                                                 Exc. GST
                                                             </button>
@@ -1071,13 +1228,18 @@ export default function CreateBooking() {
                                                             setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
                                                             onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
                                                         })}
-                                                        className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all font-bold"
+                                                        className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-extrabold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder-gray-400"
                                                         placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Reason for Override</label>
-                                                    <input type="text" {...register('overrideReason')} className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 transition-all" placeholder="Why the custom price?" />
+                                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-405 mb-1.5">Reason for Override</label>
+                                                    <input 
+                                                        type="text" 
+                                                        {...register('overrideReason')} 
+                                                        className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder-gray-400" 
+                                                        placeholder="Why the custom price?" 
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
@@ -1087,8 +1249,11 @@ export default function CreateBooking() {
                         }
 
                         <div className="flex justify-end pt-4">
-                            <button type="submit" disabled={!availability?.available || createBookingMutation.isPending}
-                                className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-lg font-medium shadow-sm transition-all">
+                            <button 
+                                type="submit" 
+                                disabled={!availability?.available || createBookingMutation.isPending}
+                                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base font-bold shadow-md hover:shadow-lg transition-all active:scale-95 duration-200"
+                            >
                                 {createBookingMutation.isPending ? (<><Loader2 className="h-5 w-5 animate-spin" /> Processing...</>) : 'Confirm Booking'}
                             </button>
                         </div>
@@ -1096,40 +1261,40 @@ export default function CreateBooking() {
                         {/* Historical Entry Option */}
                         {
                             watch('isManualBooking') && (
-                                <div className="mt-6 flex flex-col gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                                    <label className="flex items-center gap-2 cursor-pointer">
+                                <div className="mt-6 flex flex-col gap-3.5 p-5 border border-gray-200/60 dark:border-gray-700/50 rounded-2xl bg-gray-50/50 dark:bg-gray-900/20">
+                                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
                                         <input
                                             type="checkbox"
                                             {...register('isHistoricalEntry')}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500/40 w-4 h-4 cursor-pointer"
                                         />
                                         <div className="flex flex-col">
-                                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
                                                 Backdate this booking (Historical Entry)
                                             </span>
                                             {watchedCheckInDate && new Date(watchedCheckInDate) < new Date(new Date().setHours(0, 0, 0, 0)) && (
-                                                <span className="text-[10px] text-orange-600 font-bold uppercase">Required for past dates</span>
+                                                <span className="text-[10px] text-orange-600 font-extrabold uppercase mt-0.5 tracking-wider">Required for past dates</span>
                                             )}
                                         </div>
                                     </label>
                                     {errors.isHistoricalEntry && <p className="text-red-500 text-xs mt-1 font-bold">{errors.isHistoricalEntry.message}</p>}
                                     {watch('isHistoricalEntry') && (
-                                        <div className="pl-6 animate-in slide-in-from-top-2 space-y-3">
+                                        <div className="pl-6 animate-in slide-in-from-top-3 duration-300 space-y-3">
                                             <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1">Original Transaction Date</label>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Original Transaction Date</label>
                                                 <input
                                                     type="date"
                                                     {...register('transactionDate')}
-                                                    className="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm h-10 w-full md:w-64"
+                                                    className="border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-semibold w-full md:w-64 cursor-pointer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 hover:border-gray-300 dark:hover:border-gray-600 transition-all"
                                                 />
                                                 {errors.transactionDate && <p className="text-red-500 text-xs mt-1">{errors.transactionDate.message}</p>}
                                             </div>
 
-                                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
-                                                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1 flex items-center gap-1">
-                                                    <ShieldCheck className="h-3 w-3" /> Historical Verification Rules
+                                            <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-150 dark:border-blue-800/40 rounded-xl">
+                                                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-black uppercase mb-1.5 flex items-center gap-1">
+                                                    <ShieldCheck className="h-4 w-4" /> Historical Verification Rules
                                                 </p>
-                                                <ul className="text-[10px] text-gray-500 list-disc pl-4 space-y-1">
+                                                <ul className="text-[10px] text-gray-500 dark:text-gray-400 list-disc pl-4 space-y-1 font-medium">
                                                     <li>Guest ID details are **mandatory** (Type & Number)</li>
                                                     <li>System will record **Full Payment** automatically</li>
                                                     <li>Booking status will be set to **Checked Out**</li>
@@ -1144,75 +1309,133 @@ export default function CreateBooking() {
                 </div >
 
                 {/* Price Summary Sidebar */}
-                < div className="lg:col-span-1" >
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 sticky top-6">
-                        <h2 className="text-lg font-semibold mb-4">₹ Price Summary</h2>
+                <div className="lg:col-span-1">
+                    <div className="bg-card p-6 rounded-2xl shadow-xl border border-border sticky top-[72px] overflow-hidden">
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-primary/70 to-primary/40"></div>
+                        <h2 className="text-xl font-extrabold mb-5 flex items-center gap-2 text-foreground">
+                            <span className="text-primary">₹</span> Price Summary
+                        </h2>
                         {!priceDetails ? (
-                            <p className="text-gray-500 dark:text-gray-400 text-sm italic">Select dates and room type, then check availability to see pricing.</p>
+                            <p className="text-muted-foreground text-sm italic py-4 text-center">
+                                Select stay details and room type, then check availability to view pricing.
+                            </p>
                         ) : (
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600 dark:text-gray-400">
-                                        {watch('isGroupBooking') ? (
-                                            <>
-                                                Group of {watch('groupSize') || 0} Guests
-                                                {availability?.roomList && ` (${availability.roomList.length} Rooms)`}
-                                            </>
-                                        ) : (
-                                            (watch('selectedRoomIds') || []).length > 1 ? `${(watch('selectedRoomIds') || []).length} Rooms` : '1 Room'
-                                        )} x {priceDetails.numberOfNights} Nights
-                                    </span>
-                                    <span className="font-medium">₹{priceDetails.baseAmount.toFixed(2)}</span>
-                                </div>
-                                {priceDetails.extraAdultAmount > 0 && (
+                            <div className="space-y-4">
+                                {/* ── ALWAYS show the ORIGINAL breakdown (real room rate, no override) ── */}
+                                <div className="space-y-3">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600 dark:text-gray-400">Extra Adult Charges</span>
-                                        <span className="font-medium">₹{priceDetails.extraAdultAmount.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                {priceDetails.extraChildAmount > 0 && (
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600 dark:text-gray-400">Extra Child Charges</span>
-                                        <span className="font-medium">₹{priceDetails.extraChildAmount.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                {priceDetails.offerDiscountAmount > 0 && (
-                                    <div className="flex justify-between text-sm text-green-600">
-                                        <span>Offer Discount</span><span>-₹{priceDetails.offerDiscountAmount.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                {priceDetails.couponDiscountAmount > 0 && priceDetails.appliedCodeType === 'COUPON' && (
-                                    <div className="flex justify-between text-sm text-green-600 font-medium">
-                                        <span>Coupon Discount</span><span>-₹{priceDetails.couponDiscountAmount.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                {priceDetails.referralDiscountAmount > 0 && priceDetails.appliedCodeType === 'REFERRAL' && (
-                                    <div className="flex justify-between text-sm text-green-600 font-medium">
-                                        <span>Referral Discount</span><span>-₹{priceDetails.referralDiscountAmount.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between text-sm border-b border-gray-100 dark:border-gray-700 pb-3">
-                                    <span className="text-gray-600 dark:text-gray-400">Taxes</span>
-                                    <span className="font-medium">₹{priceDetails.taxAmount.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700 mt-2">
-                                    <span className="font-bold text-lg">Effective Total</span>
-                                    <div className="text-right">
-                                        <span className={clsx(
-                                            "font-bold text-2xl block",
-                                            watch('overrideTotal') ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"
-                                        )}>
-                                            ₹{(watch('overrideTotal') || priceDetails.totalAmount).toFixed(2)}
+                                        <span className="text-muted-foreground font-medium">
+                                            {watch('isGroupBooking') ? (
+                                                <>
+                                                    Group of {watch('groupSize') || 0} Guests
+                                                    {availability?.roomList && ` (${availability.roomList.length} Rooms)`}
+                                                </>
+                                            ) : (
+                                                (watch('selectedRoomIds') || []).length > 1 ? `${(watch('selectedRoomIds') || []).length} Rooms` : '1 Room'
+                                            )} x {priceDetails.numberOfNights} Nights
                                         </span>
-                                        {watch('overrideTotal') && (
-                                            <span className="text-[10px] text-gray-400 line-through">Original: ₹{priceDetails.totalAmount.toFixed(2)}</span>
-                                        )}
+                                        <span className="font-semibold text-foreground">₹{(originalPriceDetails || priceDetails).baseAmount.toFixed(2)}</span>
+                                    </div>
+                                    {(originalPriceDetails || priceDetails).extraAdultAmount > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground font-medium flex items-center gap-1">
+                                                Extra Adult Charges
+                                                {(() => {
+                                                    const rt = selectedRoomType;
+                                                    const baseAllowance = rt?.maxAdults || 2;
+                                                    const adults = Number(watch('adultsCount')) || 1;
+                                                    const roomsSelected = Math.max((watch('selectedRoomIds') || []).length, 1);
+                                                    const extraAdults = Math.max(0, adults - baseAllowance * roomsSelected);
+                                                    return extraAdults > 0
+                                                        ? <span className="text-[10px] font-black bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground">{extraAdults} extra</span>
+                                                        : <span className="text-[10px] font-bold text-muted-foreground opacity-60">(charged)</span>;
+                                                })()}
+                                            </span>
+                                            <span className="font-semibold text-foreground">₹{(originalPriceDetails || priceDetails).extraAdultAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {(originalPriceDetails || priceDetails).extraChildAmount > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground font-medium flex items-center gap-1">
+                                                Extra Child Charges
+                                                {(() => {
+                                                    const rt = selectedRoomType;
+                                                    const baseAllowance = rt?.maxChildren || 2;
+                                                    const children = Number(watch('childrenCount')) || 0;
+                                                    const roomsSelected = Math.max((watch('selectedRoomIds') || []).length, 1);
+                                                    const extraChildren = Math.max(0, children - baseAllowance * roomsSelected);
+                                                    return extraChildren > 0
+                                                        ? <span className="text-[10px] font-black bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground">{extraChildren} extra</span>
+                                                        : <span className="text-[10px] font-bold text-muted-foreground opacity-60">(charged)</span>;
+                                                })()}
+                                            </span>
+                                            <span className="font-semibold text-foreground">₹{(originalPriceDetails || priceDetails).extraChildAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {(originalPriceDetails || priceDetails).offerDiscountAmount > 0 && (
+                                        <div className="flex justify-between text-sm text-green-600 font-semibold bg-green-500/10 px-2.5 py-1 rounded-lg">
+                                            <span>Offer Discount</span><span>-₹{(originalPriceDetails || priceDetails).offerDiscountAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {(originalPriceDetails || priceDetails).couponDiscountAmount > 0 && (originalPriceDetails || priceDetails).appliedCodeType === 'COUPON' && (
+                                        <div className="flex justify-between text-sm text-green-600 font-semibold bg-green-500/10 px-2.5 py-1 rounded-lg">
+                                            <span>Coupon Discount</span><span>-₹{(originalPriceDetails || priceDetails).couponDiscountAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {(originalPriceDetails || priceDetails).referralDiscountAmount > 0 && (originalPriceDetails || priceDetails).appliedCodeType === 'REFERRAL' && (
+                                        <div className="flex justify-between text-sm text-green-600 font-semibold bg-green-500/10 px-2.5 py-1 rounded-lg">
+                                            <span>Referral Discount</span><span>-₹{(originalPriceDetails || priceDetails).referralDiscountAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between text-sm border-b border-border pb-3">
+                                        <span className="text-muted-foreground font-medium">GST / Taxes ({(originalPriceDetails || priceDetails).taxRate}%)</span>
+                                        <span className="font-semibold text-foreground">₹{(originalPriceDetails || priceDetails).taxAmount.toFixed(2)}</span>
+                                    </div>
+                                    {/* Original total — strikethrough if override is active */}
+                                    <div className="flex justify-between items-center pt-1">
+                                        <span className="font-bold text-xs text-muted-foreground uppercase tracking-wider">
+                                            {watch('overrideTotal') ? 'Original Total' : 'Total'}
+                                        </span>
+                                        <span className={`font-extrabold tracking-tight ${watch('overrideTotal') ? 'text-xl text-muted-foreground line-through' : 'text-3xl text-primary'}`}>
+                                            ₹{(originalPriceDetails || priceDetails).totalAmount.toFixed(2)}
+                                        </span>
                                     </div>
                                 </div>
+
+                                {/* ── Override section (shown only when override is set) ── */}
+                                {watch('overrideTotal') && (
+                                    <div className="space-y-3 p-4 bg-amber-50/50 dark:bg-amber-950/10 border border-amber-200/60 dark:border-amber-900/30 rounded-2xl animate-in fade-in zoom-in-95">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-400 tracking-wider bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                                                Override Active
+                                            </span>
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                {watch('isOverrideInclusive') ? 'Incl. GST' : 'Excl. GST'}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground font-medium">Override Base Tariff</span>
+                                            <span className="font-bold text-foreground">₹{(watch('isOverrideInclusive') ? (watch('overrideTotal')! / (1 + priceDetails.taxRate / 100)) : watch('overrideTotal')!).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm border-b border-amber-200/40 dark:border-amber-900/20 pb-3">
+                                            <span className="text-muted-foreground font-medium">GST Tax ({priceDetails.taxRate}%)</span>
+                                            <span className="font-bold text-foreground">₹{(watch('isOverrideInclusive') ? (watch('overrideTotal')! - watch('overrideTotal')! / (1 + priceDetails.taxRate / 100)) : (watch('overrideTotal')! * priceDetails.taxRate / 100)).toFixed(2)}</span>
+                                        </div>
+                                        {(originalPriceDetails || priceDetails).offerDiscountAmount > 0 || (originalPriceDetails || priceDetails).discountAmount > 0 ? (
+                                            <p className="text-[9px] text-muted-foreground italic">Discounts are bypassed when a manual override is active.</p>
+                                        ) : null}
+                                        <div className="flex justify-between items-center pt-1">
+                                            <span className="font-bold text-xs text-muted-foreground uppercase tracking-wider">Override Total</span>
+                                            <span className="font-extrabold text-3xl tracking-tight text-amber-600 dark:text-amber-400">
+                                                ₹{(watch('isOverrideInclusive') ? watch('overrideTotal')! : watch('overrideTotal')! * (1 + priceDetails.taxRate / 100)).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
-                </div >
+                </div>
             </div >
 
             {showInsufficientModal && (

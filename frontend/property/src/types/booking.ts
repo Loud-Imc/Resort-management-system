@@ -183,6 +183,7 @@ export interface PriceCalculationDto {
     currency?: string;
     roomCount?: number;
     overrideTotal?: number;
+    isOverrideInclusive?: boolean;
 }
 
 export interface PriceCalculationResult {
