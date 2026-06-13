@@ -81,8 +81,8 @@ export default function DashboardHome() {
         const isTodayTarget = !selectedDate || isSameDay(selectedDate, new Date());
 
         return roomsList.map(room => {
-            // Find an active booking for this room that covers selectedDate
-            const booking = monthBookings.find(b => {
+            // Find all active bookings for this room that cover selectedDate
+            const matchedBookings = monthBookings.filter(b => {
                 if (b.status === 'CANCELLED' || b.status === 'PENDING_PAYMENT') return false;
                 if (b.roomId !== room.id && !b.roomBlocks?.some(rb => rb.roomId === room.id)) return false;
                 
@@ -94,8 +94,18 @@ export default function DashboardHome() {
                 const target = new Date(targetDate);
                 target.setHours(0, 0, 0, 0);
 
-                return target >= checkIn && target < checkOut;
+                const isWithinDates = target >= checkIn && target < checkOut;
+                const isOngoingCheckIn = target.getTime() === checkOut.getTime() && b.status === 'CHECKED_IN';
+
+                return isWithinDates || isOngoingCheckIn;
             });
+
+            // Sort matched bookings: prioritize CHECKED_IN over other statuses
+            const booking = matchedBookings.sort((a, b) => {
+                if (a.status === 'CHECKED_IN' && b.status !== 'CHECKED_IN') return -1;
+                if (b.status === 'CHECKED_IN' && a.status !== 'CHECKED_IN') return 1;
+                return 0;
+            })[0];
 
             if (booking) {
                 // Extract guest name
@@ -105,12 +115,19 @@ export default function DashboardHome() {
                         ? `${booking.user.firstName} ${booking.user.lastName || ''}`.trim()
                         : 'Guest';
 
+                const checkOut = new Date(booking.checkOutDate);
+                checkOut.setHours(0, 0, 0, 0);
+                const target = new Date(targetDate);
+                target.setHours(0, 0, 0, 0);
+                const _isCheckoutToday = target.getTime() === checkOut.getTime() && booking.status === 'CHECKED_IN';
+
                 if (isTodayTarget) {
                     return {
                         ...room,
                         _activeBooking: booking,
-                        _guestName: guestName
-                    } as Room & { _activeBooking?: Booking, _guestName?: string };
+                        _guestName: guestName,
+                        _isCheckoutToday
+                    } as Room & { _activeBooking?: Booking, _guestName?: string, _isCheckoutToday?: boolean };
                 }
 
                 // If there's an active booking, it's OCCUPIED or RESERVED
@@ -119,8 +136,9 @@ export default function DashboardHome() {
                     ...room,
                     status: displayStatus,
                     _activeBooking: booking, // attach for modal
-                    _guestName: guestName
-                } as Room & { _activeBooking?: Booking, _guestName?: string };
+                    _guestName: guestName,
+                    _isCheckoutToday
+                } as Room & { _activeBooking?: Booking, _guestName?: string, _isCheckoutToday?: boolean };
             }
 
             if (isTodayTarget) {
@@ -367,15 +385,26 @@ export default function DashboardHome() {
                                         onClick={() => handleRoomClick(room as Room & { _activeBooking?: Booking | null })}
                                         title={room.status === 'AVAILABLE' ? `Book Room ${room.roomNumber}` : `${room.roomNumber} — ${room.status}`}
                                         className={clsx(
-                                            `p-3 rounded-xl border text-center font-medium transition-all flex flex-col justify-center items-center h-full min-h-[4.5rem]`,
+                                            `p-3 rounded-xl border text-center font-medium transition-all flex flex-col justify-center items-center h-full min-h-[4.5rem] relative overflow-hidden`,
                                             getStatusColor(room.status as string),
                                             (room.status === 'AVAILABLE' || room.status === 'OCCUPIED' || room.status === 'RESERVED') && 'cursor-pointer hover:shadow-md hover:scale-105',
                                             (room.status !== 'AVAILABLE' && room.status !== 'OCCUPIED' && room.status !== 'RESERVED') && 'cursor-default'
                                         )}
                                     >
+                                        {(room as any)._isCheckoutToday && (
+                                            <span className="absolute top-1 right-1 flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                                            </span>
+                                        )}
                                         <div className="font-bold text-sm">{room.roomNumber}</div>
-                                        <div className="mt-0.5 capitalize text-[10px] truncate w-full px-1">
-                                            {(room as any)._guestName || room.status?.toLowerCase()}
+                                        <div className="mt-0.5 capitalize text-[10px] truncate w-full px-1 flex flex-col items-center leading-tight">
+                                            <span>{(room as any)._guestName || room.status?.toLowerCase()}</span>
+                                            {(room as any)._isCheckoutToday && (
+                                                <span className="mt-1 text-[8px] font-bold text-amber-700 dark:text-amber-300 animate-pulse bg-amber-50 dark:bg-amber-950/40 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 uppercase tracking-wider">
+                                                    Out Today
+                                                </span>
+                                            )}
                                         </div>
                                     </button>
                                 ))}

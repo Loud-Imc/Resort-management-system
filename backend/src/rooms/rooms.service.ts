@@ -102,7 +102,7 @@ export class RoomsService {
                 property: { select: { name: true } },
                 bookings: {
                     where: {
-                        status: 'CONFIRMED',
+                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
                         checkInDate: { lte: today },
                         checkOutDate: { gt: today },
                     },
@@ -135,6 +135,10 @@ export class RoomsService {
                 todayMidnight.setHours(0, 0, 0, 0);
 
                 if (room.bookings?.length > 0) {
+                    const b = room.bookings[0];
+                    if (b.status === 'CHECKED_IN') {
+                        return { ...room, status: 'OCCUPIED' };
+                    }
                     return { ...room, status: 'RESERVED' };
                 }
 
@@ -150,7 +154,7 @@ export class RoomsService {
                             if (checkIn <= todayMidnight && checkOut > todayMidnight) {
                                 if (b.status === 'CHECKED_IN') {
                                     return { ...room, status: 'OCCUPIED' };
-                                } else if (b.status === 'CONFIRMED') {
+                                } else if (b.status === 'CONFIRMED' || b.status === 'RESERVED') {
                                     return { ...room, status: 'RESERVED' };
                                 }
                             }
@@ -182,7 +186,7 @@ export class RoomsService {
                 bookings: {
                     where: {
                         status: {
-                            in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'],
+                            in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
                         },
                     },
                     include: {
@@ -290,7 +294,7 @@ export class RoomsService {
             where: {
                 roomId: id,
                 status: {
-                    in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'],
+                    in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
                 },
             },
         });
@@ -368,7 +372,7 @@ export class RoomsService {
             where: {
                 roomId,
                 status: {
-                    in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'],
+                    in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
                 },
                 OR: [
                     {

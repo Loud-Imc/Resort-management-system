@@ -1207,7 +1207,7 @@ export class PaymentsService {
                 data: {
                     paidAmount: newPaidAmount,
                     paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
-                    ...(booking.status === 'PENDING_PAYMENT' && { status: 'CONFIRMED', confirmedAt: new Date() })
+                    ...(booking.status === 'PENDING_PAYMENT' && { status: isFullyPaid ? 'CONFIRMED' : 'RESERVED', confirmedAt: new Date() })
                 },
             });
 
@@ -1293,7 +1293,7 @@ export class PaymentsService {
                 data: {
                     paidAmount: newPaidAmount,
                     paymentStatus: isFullyPaid ? 'FULL' : 'PARTIAL',
-                    ...(booking.status === 'PENDING_PAYMENT' && { status: 'CONFIRMED', confirmedAt: new Date() })
+                    ...(booking.status === 'PENDING_PAYMENT' && { status: isFullyPaid ? 'CONFIRMED' : 'RESERVED', confirmedAt: new Date() })
                 },
             });
 

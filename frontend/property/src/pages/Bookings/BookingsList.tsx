@@ -546,9 +546,31 @@ export default function BookingsList() {
                                     <tr key={booking.id} onClick={(e) => handleRowClick(e, booking.id)} className="hover:bg-muted/30 transition-colors cursor-pointer">
                                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>
-                                            <div className="text-xs text-muted-foreground">
+                                            <div className="text-xs text-muted-foreground mt-0.5">
                                                 {booking.isManualBooking ? 'Manual' : 'Online'}
                                             </div>
+                                            {/* Status badge */}
+                                            <div className="mt-1.5">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${
+                                                    booking.status === 'CONFIRMED'    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                                                    booking.status === 'RESERVED'     ? 'bg-orange-500/10 text-orange-600 border-orange-500/20' :
+                                                    booking.status === 'CHECKED_IN'   ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' :
+                                                    booking.status === 'CHECKED_OUT'  ? 'bg-neutral-500/10 text-neutral-500 border-neutral-500/20' :
+                                                    booking.status === 'CANCELLED'    ? 'bg-red-500/10 text-red-600 border-red-500/20' :
+                                                    booking.status === 'NO_SHOW'      ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
+                                                    'bg-muted text-muted-foreground border-border'
+                                                }`}>
+                                                    {booking.status.replace(/_/g, ' ')}
+                                                </span>
+                                            </div>
+                                            {/* Rescheduled badge */}
+                                            {(booking.rescheduleCount ?? 0) > 0 && (
+                                                <div className="mt-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 uppercase tracking-wider">
+                                                        🔄 Rescheduled ×{booking.rescheduleCount}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-foreground">

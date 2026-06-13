@@ -104,6 +104,7 @@ export interface Booking {
     exchangeRate: number;
     isGroupBooking: boolean;
     groupSize?: number;
+    rescheduleCount?: number;
     payments?: BookingPayment[];
     paymentOption?: 'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY';
     createdBy?: string;
