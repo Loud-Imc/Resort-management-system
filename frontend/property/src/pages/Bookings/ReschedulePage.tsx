@@ -52,6 +52,7 @@ export default function ReschedulePage() {
     const [availableRooms, setAvailableRooms] = useState<any[]>([]);
     const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
     const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
+    const [groupUnavailableReason, setGroupUnavailableReason] = useState<string | null>(null);
     const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string>('');
 
     const [keepOriginalAmount, setKeepOriginalAmount] = useState<boolean>(false);
@@ -97,6 +98,18 @@ export default function ReschedulePage() {
         return Math.max(roomsByAdults, roomsByChildren, 1);
     }, [booking, selectedRoomType, adultsCount, childrenCount]);
 
+    // ── Total capacity of all rooms in the available pool (for group bookings) ─
+    const totalPoolCapacity = useMemo(() => {
+        return availableRooms.reduce((sum, r) => sum + (Number(r.capacity) || 0), 0);
+    }, [availableRooms]);
+
+    const isGroupCapacityExceeded = useMemo(() => {
+        if (!booking?.isGroupBooking) return false;
+        if (availableRooms.length === 0) return false;
+        const guestCount = (Number(adultsCount) || 0) + (Number(childrenCount) || 0);
+        return totalPoolCapacity > 0 && guestCount > totalPoolCapacity;
+    }, [booking, availableRooms, adultsCount, childrenCount, totalPoolCapacity]);
+
     // ── Hydrate state from fetched booking ────────────────────────────────────
     useEffect(() => {
         if (!booking) return;
@@ -123,7 +136,17 @@ export default function ReschedulePage() {
         const g0 = booking.guests?.[0];
         const u = booking.user;
         if (g0 && u) {
-            setIsGuestSameAsBooker(g0.firstName === u.firstName && g0.phone === u.phone);
+            // Only treat as "different people" when:
+            //   - first names are clearly different, OR
+            //   - both have non-empty phones that don't match
+            // If guest phone is empty (created with "Add booker as primary guest"), default to same-as-booker.
+            const differentFirstName = g0.firstName?.trim() !== u.firstName?.trim();
+            const bothHavePhone = !!(g0.phone && u.phone);
+            const differentPhone = bothHavePhone && g0.phone !== u.phone;
+            setIsGuestSameAsBooker(!differentFirstName && !differentPhone);
+        } else {
+            // No guest record at all → booker is the guest
+            setIsGuestSameAsBooker(true);
         }
     }, [booking]);
 
@@ -214,6 +237,7 @@ export default function ReschedulePage() {
         const fetchAvailableRooms = async () => {
             try {
                 setIsLoadingRooms(true);
+                setGroupUnavailableReason(null);
                 const checkRes = await bookingsService.checkAvailability({
                     roomTypeId: booking.isGroupBooking ? undefined : rescheduleRoomTypeId,
                     checkInDate: newCheckInDate,
@@ -225,6 +249,9 @@ export default function ReschedulePage() {
                     excludeBookingId: booking.id,
                 });
                 setAvailableRooms(checkRes.roomList || []);
+                if (booking.isGroupBooking && !checkRes.available && checkRes.groupUnavailableReason) {
+                    setGroupUnavailableReason(checkRes.groupUnavailableReason);
+                }
             } catch (err: any) {
                 setAvailableRooms([]);
                 const msg = err.response?.data?.message || 'Failed to check availability';
@@ -525,6 +552,14 @@ export default function ReschedulePage() {
                             <h1 className="text-2xl font-black tracking-tight text-foreground">Reschedule Booking</h1>
                             <p className="text-sm text-muted-foreground font-medium mt-0.5 flex items-center gap-2 flex-wrap">
                                 <span>Booking: <span className="text-primary font-bold">{booking.bookingNumber}</span></span>
+                                {/* Booking type badge */}
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-black uppercase tracking-wider ${
+                                    booking.isGroupBooking
+                                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                        : 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                                }`}>
+                                    {booking.isGroupBooking ? '🏨 Group Booking' : '🛏 Standard Booking'}
+                                </span>
                                 {booking.channelPartner && (
                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 uppercase tracking-wider">
                                         Channel Partner: {booking.channelPartner.name}
@@ -792,6 +827,16 @@ export default function ReschedulePage() {
                                     </div>
                                 )}
 
+                                {booking.isGroupBooking && isGroupCapacityExceeded && !isLoadingRooms && (
+                                    <div className="flex gap-3 bg-red-500/5 dark:bg-red-950/20 border border-red-500/25 dark:border-red-950/40 rounded-2xl p-4">
+                                        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-red-700 dark:text-red-400 font-semibold leading-relaxed">
+                                            <strong>Guest count exceeds total room capacity.</strong>{' '}
+                                            {adultsCount + childrenCount} guests ({adultsCount} Adults{childrenCount > 0 ? `, ${childrenCount} Children` : ''}) exceeds the combined capacity of all {availableRooms.length} rooms in the group pool (<strong>{totalPoolCapacity} guests max</strong>). Please reduce the guest count.
+                                        </div>
+                                    </div>
+                                )}
+
                                 {isLoadingRooms ? (
                                     <div className="flex flex-col items-center justify-center py-12 gap-4 bg-muted/20 rounded-2xl">
                                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -826,8 +871,19 @@ export default function ReschedulePage() {
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="p-8 border border-dashed border-destructive/30 bg-destructive/5 rounded-2xl text-center">
-                                        <p className="text-sm font-bold text-destructive">No rooms available for the selected dates.</p>
+                                    <div className="p-8 border border-dashed border-destructive/30 bg-destructive/5 rounded-2xl text-center space-y-2">
+                                        <p className="text-sm font-bold text-destructive">
+                                            {booking.isGroupBooking && groupUnavailableReason === 'CAPACITY_EXCEEDED'
+                                                ? 'Guest count exceeds total room capacity'
+                                                : booking.isGroupBooking && groupUnavailableReason === 'NO_POOL_CONFIGURED'
+                                                ? 'No group pool configured for this property'
+                                                : 'No rooms available for the selected dates.'}
+                                        </p>
+                                        {booking.isGroupBooking && groupUnavailableReason === 'CAPACITY_EXCEEDED' && (
+                                            <p className="text-xs text-destructive/80 font-medium">
+                                                The total of {adultsCount + childrenCount} guests ({adultsCount} Adults{childrenCount > 0 ? `, ${childrenCount} Children` : ''}) exceeds the maximum capacity of all available rooms in the group pool. Please reduce the guest count.
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>

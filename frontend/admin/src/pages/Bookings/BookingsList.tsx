@@ -295,6 +295,13 @@ export default function BookingsList() {
                                                     By: {booking.createdBy}
                                                 </div>
                                             )}
+                                            {(booking.rescheduleCount ?? 0) > 0 && (
+                                                <div className="mt-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 uppercase tracking-wider">
+                                                        🔄 Rescheduled ×{booking.rescheduleCount}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-foreground">

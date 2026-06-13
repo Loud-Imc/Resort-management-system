@@ -220,7 +220,7 @@ export class AvailabilityService {
                 AND: [
                     {
                         OR: [
-                            { status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] } }, 
+                            { status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] } }, 
                             {
                                 AND: [
                                     { status: 'PENDING_PAYMENT' },

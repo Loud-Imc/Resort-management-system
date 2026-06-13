@@ -620,6 +620,22 @@ export class BookingsService {
             // 7.3 Create the booking
             const effectiveCreatedAt = transactionDate ? new Date(transactionDate) : new Date();
 
+            const partialPct = Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33);
+            const calculatedPaidAmount = (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
+                ? (paidAmountInput !== undefined ? Number(paidAmountInput) :
+                    (createBookingDto.paymentOption === 'PARTIAL'
+                        ? Math.round((finalTotal * partialPct) / 100)
+                        : finalTotal))
+                : 0;
+
+            const isFullyPaid = calculatedPaidAmount >= finalTotal - 0.01;
+
+            const bookingStatus = isHistoricalEntry && checkOut < new Date()
+                ? 'CHECKED_OUT'
+                : (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY')
+                    ? (isFullyPaid ? 'CONFIRMED' : 'RESERVED')
+                    : 'PENDING_PAYMENT';
+
             const newBooking = await tx.booking.create({
                 data: {
                     createdAt: effectiveCreatedAt,
@@ -650,9 +666,7 @@ export class BookingsService {
                     transactionDate: transactionDate ? new Date(transactionDate) : null,
                     createdBy,
                     paymentOption: isHistoricalEntry ? 'FULL' : (createBookingDto.paymentOption || 'FULL'),
-                    status: isHistoricalEntry && checkOut < new Date()
-                        ? 'CHECKED_OUT'
-                        : (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY') ? 'CONFIRMED' : 'PENDING_PAYMENT',
+                    status: bookingStatus,
                     isSeenByProperty: isAuthorizedStaff,
                     roomId: selectedRoom.id,
                     roomTypeId: roomTypeId!,
@@ -670,21 +684,12 @@ export class BookingsService {
                     commissionableAmount: pricing.totalAmount - pricing.taxAmount,
                     couponId,
                     couponCode: couponId ? couponCode : null, // Store the code string
-                    paidAmount: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
-                        ? (paidAmountInput !== undefined ? Number(paidAmountInput) :
-                            (createBookingDto.paymentOption === 'PARTIAL'
-                                ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100)
-                                : finalTotal))
-                        : 0,
+                    paidAmount: calculatedPaidAmount,
                     paymentStatus: (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
                         ? (
-                            (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : finalTotal)) >= finalTotal - 0.01
+                            isFullyPaid
                                 ? 'FULL'
-                                : (
-                                    (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? Math.round((finalTotal * Number(await this.systemSettings.getSetting('PARTIAL_PAYMENT_PCT') || 33.33)) / 100) : 0)) > 0
-                                        ? 'PARTIAL'
-                                        : 'UNPAID'
-                                )
+                                : (calculatedPaidAmount > 0 ? 'PARTIAL' : 'UNPAID')
                         )
                         : 'UNPAID',
                     confirmedAt: (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY') ? effectiveCreatedAt : null,
@@ -1331,6 +1336,11 @@ export class BookingsService {
         await this.prisma.room.updateMany({
             where: { id: { in: roomIds } },
             data: { status: 'AVAILABLE' },
+        });
+
+        // Release associated room blocks immediately upon checkout
+        await this.prisma.roomBlock.deleteMany({
+            where: { bookingId: id },
         });
 
         await this.auditService.createLog({
@@ -2132,6 +2142,7 @@ export class BookingsService {
                     cancelledAt: null, // Reset no-show cancellation date
                     isPriceOverridden: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? true : booking.isPriceOverridden,
                     overrideReason: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? (dto.overrideReason || 'Rescheduled Price Override') : booking.overrideReason,
+                    rescheduleCount: { increment: 1 },
                 },
                 include: {
                     room: true,
@@ -2254,7 +2265,7 @@ export class BookingsService {
                     gte: today,
                     lt: tomorrow,
                 },
-                status: 'CONFIRMED',
+                status: { in: ['CONFIRMED', 'RESERVED'] },
                 property: propertyFilter,
             },
             include: {

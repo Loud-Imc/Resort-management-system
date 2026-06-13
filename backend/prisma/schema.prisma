@@ -270,6 +270,7 @@ model Booking {
   papReminder6hSent          Boolean             @default(false)
   groupSize               Int?
   isGroupBooking          Boolean                @default(false)
+  rescheduleCount         Int                    @default(0)
   couponCode              String?
   commissionableAmount    Decimal                @default(0) @db.Decimal(10, 2)
   paymentMethod           BookingPaymentMethod?

@@ -65,6 +65,7 @@ export interface Booking {
     isGroupBooking: boolean;
     groupSize?: number;
     createdBy?: string;
+    rescheduleCount?: number;
     createdAt: string;
 }
 
