@@ -600,19 +600,15 @@ export default function BookingsList() {
                                         </td>
                                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-2">
-                                                <div>
-                                                    <div className="text-sm font-bold text-foreground">Unit {booking.room.roomNumber}</div>
-                                                    <div className="text-[10px] text-muted-foreground uppercase font-medium">{booking.room.roomType?.name}</div>
-                                                </div>
-                                                {booking.roomBlocks && booking.roomBlocks.length > 0 && (
-                                                    <div className="pt-1.5 space-y-2 border-t border-border/50">
-                                                        {booking.roomBlocks.map((block, idx) => (
-                                                            <div key={idx}>
-                                                                 <div className="text-sm font-bold text-foreground">Unit {block.room.roomNumber}</div>
-                                                                 <div className="text-[10px] text-muted-foreground uppercase font-medium">{block.room.roomType?.name}</div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                {booking.bookingRooms && booking.bookingRooms.length > 0 ? (
+                                                    booking.bookingRooms.map((br: any, idx: number) => (
+                                                        <div key={idx} className={idx > 0 ? "pt-1.5 border-t border-border/50" : ""}>
+                                                            <div className="text-sm font-bold text-foreground">Unit {br.room?.roomNumber}</div>
+                                                            <div className="text-[10px] text-muted-foreground uppercase font-medium">{br.room?.roomType?.name}</div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-sm text-muted-foreground italic">No rooms assigned</div>
                                                 )}
                                             </div>
                                         </td>

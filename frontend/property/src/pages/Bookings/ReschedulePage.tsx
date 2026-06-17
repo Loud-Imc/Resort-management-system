@@ -118,7 +118,7 @@ export default function ReschedulePage() {
         setUseRescheduleOverride(booking.isPriceOverridden || false);
         setRescheduleOverrideTotal(booking.isPriceOverridden ? Number(booking.totalAmount).toString() : '');
         setRescheduleOverrideReason(booking.overrideReason || '');
-        setSelectedRoomIds([booking.roomId, ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])]);
+        setSelectedRoomIds(booking.bookingRooms?.map((br: any) => br.roomId) || []);
         setRescheduleRoomTypeId(booking.roomTypeId || '');
         setBookerFirstName(booking.user?.firstName || '');
         setBookerLastName(booking.user?.lastName || '');
@@ -196,7 +196,7 @@ export default function ReschedulePage() {
         const fetchPreview = async () => {
             try {
                 setIsCalculatingPreview(true);
-                const roomCount = 1 + (booking.roomBlocks?.length || 0);
+                const roomCount = booking.bookingRooms?.length || 1;
                 const preview = await bookingsService.calculatePrice({
                     roomTypeId: rescheduleRoomTypeId,
                     checkInDate: newCheckInDate,
@@ -270,13 +270,9 @@ export default function ReschedulePage() {
         const roomInAvailable = availableRooms.find(r => r.id === roomId);
         if (roomInAvailable) return roomInAvailable.roomNumber;
 
-        if (booking?.roomId === roomId && booking?.room) {
-            return booking.room.roomNumber;
-        }
-
-        if (booking?.roomBlocks) {
-            const block = booking.roomBlocks.find((rb: any) => rb.roomId === roomId);
-            if (block?.room) return block.room.roomNumber;
+        if (booking?.bookingRooms) {
+            const br = booking.bookingRooms.find((br: any) => br.roomId === roomId);
+            if (br?.room) return br.room.roomNumber;
         }
 
         return null;
@@ -286,28 +282,15 @@ export default function ReschedulePage() {
         const list = [...availableRooms];
         if (!booking) return list;
         
-        if (selectedRoomIds.includes(booking.roomId) && !list.some(r => r.id === booking.roomId)) {
-            list.push({
-                id: booking.roomId,
-                name: `Unit ${booking.room?.roomNumber}`,
-
-                roomNumber: booking.room?.roomNumber,
-                roomType: booking.roomType?.name || 'Standard',
-                capacity: booking.roomType 
-                    ? (booking.roomType.groupMaxOccupancy || (booking.roomType.maxAdults + (booking.roomType.maxChildren || 0))) 
-                    : 2,
-            });
-        }
-
-        booking.roomBlocks?.forEach((rb: any) => {
-            if (selectedRoomIds.includes(rb.roomId) && !list.some(r => r.id === rb.roomId)) {
+        booking.bookingRooms?.forEach((br: any) => {
+            if (selectedRoomIds.includes(br.roomId) && !list.some(r => r.id === br.roomId)) {
                 list.push({
-                    id: rb.roomId,
-                    name: rb.room?.name || `Unit ${rb.room?.roomNumber}`,
-                    roomNumber: rb.room?.roomNumber,
-                    roomType: rb.room?.roomType?.name || 'Standard',
-                    capacity: rb.room?.roomType
-                        ? (rb.room.roomType.groupMaxOccupancy || (rb.room.roomType.maxAdults + (rb.room.roomType.maxChildren || 0)))
+                    id: br.roomId,
+                    name: `Unit ${br.room?.roomNumber}`,
+                    roomNumber: br.room?.roomNumber,
+                    roomType: br.room?.roomType?.name || 'Standard',
+                    capacity: br.room?.roomType
+                        ? (br.room.roomType.groupMaxOccupancy || (br.room.roomType.maxAdults + (br.room.roomType.maxChildren || 0)))
                         : 2,
                 });
             }
@@ -321,7 +304,7 @@ export default function ReschedulePage() {
         if (!booking || availableRooms.length === 0) return;
         
         // If dates are unchanged from the original booking, keep the original rooms selected
-        const originalRoomIds = [booking.roomId, ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])];
+        const originalRoomIds = booking.bookingRooms?.map((br: any) => br.roomId) || [];
         const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
         const originalCheckOut = format(new Date(booking.checkOutDate), 'yyyy-MM-dd');
         const isSameDates = newCheckInDate === originalCheckIn && newCheckOutDate === originalCheckOut;
@@ -334,7 +317,7 @@ export default function ReschedulePage() {
         if (booking.isGroupBooking) {
             // For group bookings, if nothing valid is selected, auto-select a default count
             if (validSelectedRoomIds.length === 0) {
-                const defaultCount = 1 + (booking.roomBlocks?.length || 0);
+                const defaultCount = booking.bookingRooms?.length || 1;
                 setSelectedRoomIds(availableRooms.slice(0, defaultCount).map(r => r.id));
             } else {
                 setSelectedRoomIds(validSelectedRoomIds);
@@ -626,7 +609,7 @@ export default function ReschedulePage() {
                                                     <span className="font-semibold text-foreground">
                                                         {selectedRoomIds.length > 0
                                                             ? selectedRoomIds.map(id => getRoomNumber(id)).filter(Boolean).join(', ')
-                                                            : booking.room?.roomNumber || 'Unassigned'}
+                                                            : (booking.bookingRooms?.map((br: any) => br.room?.roomNumber).filter(Boolean).join(', ') || 'Unassigned')}
                                                     </span>
                                                 </p>
                                                 <p>

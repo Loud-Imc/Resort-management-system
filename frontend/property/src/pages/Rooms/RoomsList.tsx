@@ -90,6 +90,10 @@ export default function RoomsList() {
                 return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
             case RoomStatus.BLOCKED:
                 return 'bg-destructive/10 text-destructive';
+            case RoomStatus.RESERVED:
+                return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400';
+            case RoomStatus.OUT_TODAY:
+                return 'bg-orange-500/10 text-orange-600 dark:text-orange-400';
             default:
                 return 'bg-muted text-muted-foreground';
         }
@@ -105,8 +109,24 @@ export default function RoomsList() {
                 return <AlertTriangle className="h-4 w-4" />;
             case RoomStatus.BLOCKED:
                 return <Lock className="h-4 w-4" />;
+            case RoomStatus.RESERVED:
+                return <Calendar className="h-4 w-4" />;
+            case RoomStatus.OUT_TODAY:
+                return <AlertTriangle className="h-4 w-4" />;
             default:
                 return null;
+        }
+    };
+
+    const getCardStyle = (status: RoomStatus) => {
+        switch (status) {
+            case RoomStatus.AVAILABLE: return "border-border bg-card";
+            case RoomStatus.OCCUPIED: return "border-blue-500/20 bg-blue-500/5";
+            case RoomStatus.MAINTENANCE: return "border-amber-500/20 bg-amber-500/5";
+            case RoomStatus.BLOCKED: return "border-destructive/20 bg-destructive/5";
+            case RoomStatus.RESERVED: return "border-indigo-500/20 bg-indigo-500/5";
+            case RoomStatus.OUT_TODAY: return "border-orange-500/20 bg-orange-500/5";
+            default: return "border-border bg-card";
         }
     };
 
@@ -163,6 +183,8 @@ export default function RoomsList() {
                             <option value="">All Statuses</option>
                             <option value="AVAILABLE">Available</option>
                             <option value="OCCUPIED">Occupied</option>
+                            <option value="RESERVED">Reserved</option>
+                            <option value="OUT_TODAY">Out Today</option>
                             <option value="MAINTENANCE">Maintenance</option>
                             <option value="BLOCKED">Blocked</option>
                         </select>
@@ -182,11 +204,8 @@ export default function RoomsList() {
                             }}
                             className={clsx(
                                 "border rounded-xl p-4 transition-all hover:shadow-md group",
-                                room.status === RoomStatus.OCCUPIED && "cursor-pointer hover:border-blue-500/50",
-                                room.status === RoomStatus.AVAILABLE ? "border-border bg-card" :
-                                    room.status === RoomStatus.OCCUPIED ? "border-blue-500/20 bg-blue-500/5" :
-                                        room.status === RoomStatus.MAINTENANCE ? "border-amber-500/20 bg-amber-500/5" :
-                                            "border-destructive/20 bg-destructive/5"
+                                (room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && "cursor-pointer hover:border-blue-500/50",
+                                getCardStyle(room.status)
                             )}
                         >
                             <div className="flex justify-between items-start mb-2">

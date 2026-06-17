@@ -66,8 +66,7 @@ const BookingDetails = () => {
         );
     }
 
-    const property = (booking as any).property || (booking.room?.roomType as any)?.property;
-    const roomType = (booking.room?.roomType || (booking as any).roomType) as any;
+    const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
 
     // const handleDownloadPDF = async () => {
@@ -293,30 +292,32 @@ const BookingDetails = () => {
                         </h3>
                         <div className="space-y-6">
                             {/* Primary Room */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
-                                <div className="flex items-start gap-6">
-                                    <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
-                                        {roomType?.images?.[0] ? (
-                                            <img src={roomType.images[0]} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center"><House className="h-6 w-6 text-muted-foreground" /></div>
-                                        )}
+                            {booking.bookingRooms && booking.bookingRooms.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
+                                    <div className="flex items-start gap-6">
+                                        <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
+                                            {booking.bookingRooms[0].room?.roomType?.images?.[0] ? (
+                                                <img src={booking.bookingRooms[0].room.roomType.images[0]} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center"><House className="h-6 w-6 text-muted-foreground" /></div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{booking.bookingRooms[0].room?.roomType?.name}</p>
+                                            <p className="text-lg font-black text-foreground">Room Unit {booking.bookingRooms[0].room?.roomNumber}</p>
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Primary Accommodation</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{roomType?.name}</p>
-                                        <p className="text-lg font-black text-foreground">Room Unit {booking.room?.roomNumber}</p>
-                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Primary Accommodation</p>
+                                    <div className="flex flex-wrap gap-2 md:justify-end">
+                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.adultsCount} Adults</span>
+                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.childrenCount} Children</span>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2 md:justify-end">
-                                    <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.adultsCount} Adults</span>
-                                    <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.childrenCount} Children</span>
-                                </div>
-                            </div>
+                            ) : null}
 
                             {/* Linked Rooms (Blocks) */}
-                            {booking.roomBlocks?.map((block: any) => (
-                                <div key={block.id} className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
+                            {booking.bookingRooms?.slice(1).map((block: any) => (
+                                <div key={block.roomId} className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
                                     <div className="flex items-start gap-6">
                                         <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
                                             {block.room?.roomType?.images?.[0] ? (
@@ -375,7 +376,11 @@ const BookingDetails = () => {
                             </div>
 
                             {/* Other Registered Guests */}
-                            {booking.guests?.map((guest: any, idx: number) => (
+                            {booking.guests?.filter((guest: any) => {
+                                const samePhone = guest.phone && guest.phone === booking.user?.phone;
+                                const sameName = guest.firstName === booking.user?.firstName && guest.lastName === booking.user?.lastName;
+                                return !(samePhone || sameName);
+                            }).map((guest: any, idx: number) => (
                                 <div key={guest.id} className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-muted/20 rounded-3xl border border-border/50">
                                     <div className="space-y-1">
                                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Guest {idx + 1}</span>

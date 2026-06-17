@@ -709,6 +709,9 @@ export class BookingsService {
                     },
                     isGroupBooking,
                     groupSize,
+                    // Phase 3: Dual write to the unified BookingRoom schema
+                    // The any-cast is used to avoid TS errors prior to the user running npx prisma generate
+                    ...({ bookingRooms: { create: (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).map(r => ({ roomId: r.id })) } } as any),
                 },
                 include: {
                     property: {
@@ -1003,12 +1006,93 @@ export class BookingsService {
                         }
                     }
                 },
+                bookingRooms: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                },
                 payments: { where: { status: 'PAID' } },
                 channelPartner: true,
             },
             orderBy: {
                 createdAt: 'desc',
             },
+        });
+    }
+
+    /**
+     * Fetch a lightweight payload of bookings for the Dashboard Calendar Widget and Room Grid.
+     * This avoids downloading heavy relations (payments, full room data) when not needed.
+     */
+    async getDashboardCalendarBookings(user: any, propertyId?: string, startDate?: Date, endDate?: Date) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+        const isCP = roles.includes('ChannelPartner');
+
+        const where: any = {};
+        
+        if (startDate || endDate) {
+            where.checkInDate = {
+                ...(startDate && { gte: startDate }),
+                ...(endDate && { lte: endDate })
+            };
+        }
+
+        if (isGlobalAdmin) {
+            if (propertyId) where.propertyId = propertyId;
+        } else {
+            const visibilityOR: any[] = [{ userId: user.id }];
+            visibilityOR.push({
+                property: { OR: [{ ownerId: user.id }, { staff: { some: { userId: user.id } } }] }
+            });
+            if (isCP) visibilityOR.push({ channelPartner: { userId: user.id } });
+            where.OR = visibilityOR;
+            if (propertyId) where.propertyId = propertyId;
+        }
+
+        return this.prisma.booking.findMany({
+            where,
+            select: {
+                id: true,
+                status: true,
+                checkInDate: true,
+                checkOutDate: true,
+                adultsCount: true,
+                childrenCount: true,
+                numberOfNights: true,
+                user: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        phone: true,
+                        email: true
+                    }
+                },
+                guests: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        idType: true,
+                        idNumber: true,
+                        idImage: true
+                    }
+                },
+                bookingRooms: {
+                    include: {
+                        room: {
+                            select: {
+                                id: true,
+                                roomNumber: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
         });
     }
 
@@ -2076,10 +2160,15 @@ export class BookingsService {
                 }
             }
 
-            // Remove old room blocks
+            // Remove old room blocks and unified booking rooms
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
             });
+            if ((tx as any).bookingRoom) {
+                await (tx as any).bookingRoom.deleteMany({
+                    where: { bookingId: id }
+                });
+            }
 
             // Re-allocate primary and blocks
             const primaryRoomId = roomsToAllocate[0].id;
@@ -2143,6 +2232,8 @@ export class BookingsService {
                     isPriceOverridden: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? true : booking.isPriceOverridden,
                     overrideReason: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? (dto.overrideReason || 'Rescheduled Price Override') : booking.overrideReason,
                     rescheduleCount: { increment: 1 },
+                    // Phase 3: Dual write new rooms to BookingRoom schema
+                    ...({ bookingRooms: { create: roomsToAllocate.map(r => ({ roomId: r.id })) } } as any),
                 },
                 include: {
                     room: true,
@@ -2193,6 +2284,7 @@ export class BookingsService {
                 manualPaymentRequests: true,
                 review: true,
                 roomBlocks: true,
+                ...({ bookingRooms: true } as any),
             }
         });
 
@@ -2207,6 +2299,7 @@ export class BookingsService {
             manualPaymentRequests: booking.manualPaymentRequests.length,
             reviews: booking.review ? 1 : 0,
             roomBlocks: booking.roomBlocks.length,
+            bookingRooms: (booking as any).bookingRooms?.length || 0,
             isManual: booking.isManualBooking
         };
     }
@@ -2228,6 +2321,9 @@ export class BookingsService {
             await tx.payment.deleteMany({ where: { bookingId: id } });
             await tx.bookingGuest.deleteMany({ where: { bookingId: id } });
             await tx.roomBlock.deleteMany({ where: { bookingId: id } });
+            if ((tx as any).bookingRoom) {
+                await (tx as any).bookingRoom.deleteMany({ where: { bookingId: id } });
+            }
             await tx.auditLog.deleteMany({ where: { bookingId: id } });
 
             // Finally delete the booking
@@ -2556,5 +2652,73 @@ export class BookingsService {
         }
 
         return { success: true, message: `Invoice sent via ${method}` };
+    }
+
+    /**
+     * Get lightweight bookings specifically for dashboard calendar
+     */
+    async getDashboardCalendar(user: any, propertyId?: string, startDate?: string, endDate?: string) {
+        const where: any = {
+            // Excluding CANCELLED and PENDING_PAYMENT to keep payload minimal
+            status: { notIn: ['CANCELLED', 'PENDING_PAYMENT'] }
+        };
+
+        if (propertyId) {
+            where.propertyId = propertyId;
+        }
+
+        if (startDate || endDate) {
+            where.AND = [];
+            if (startDate) {
+                where.AND.push({ checkOutDate: { gte: new Date(startDate) } });
+            }
+            if (endDate) {
+                where.AND.push({ checkInDate: { lte: new Date(endDate) } });
+            }
+        }
+
+        // Apply RBAC if needed
+        if (user && !user.roles?.includes('SuperAdmin') && !user.roles?.includes('Admin')) {
+            if (user.roles?.includes('PropertyOwner') || user.roles?.includes('PropertyStaff')) {
+                where.property = {
+                    OR: [
+                        { ownerId: user.id },
+                        { staff: { some: { userId: user.id } } }
+                    ]
+                };
+            }
+        }
+
+        const bookings = await this.prisma.booking.findMany({
+            where,
+            select: {
+                id: true,
+                bookingNumber: true,
+                checkInDate: true,
+                checkOutDate: true,
+                status: true,
+                paymentStatus: true,
+                bookingRooms: {
+                    select: {
+                        roomId: true,
+                        room: {
+                            select: {
+                                roomNumber: true,
+                            }
+                        }
+                    }
+                },
+                guests: {
+                    select: {
+                        firstName: true,
+                        lastName: true
+                    },
+                    take: 1
+                }
+            },
+            orderBy: { checkInDate: 'asc' }
+        });
+
+        return bookings;
     }
 }

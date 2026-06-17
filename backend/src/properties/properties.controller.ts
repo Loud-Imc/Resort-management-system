@@ -262,6 +262,14 @@ export class PropertiesController {
         return this.propertiesService.findById(id, req.user);
     }
 
+    @Get('id/:id/readiness')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get lightweight property readiness stats' })
+    getReadiness(@Param('id') id: string) {
+        return this.propertiesService.getReadiness(id);
+    }
+
     @Put(':id')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @Permissions(PERMISSIONS.PROPERTIES.UPDATE)

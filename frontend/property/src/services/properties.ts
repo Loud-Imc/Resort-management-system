@@ -7,6 +7,11 @@ export const propertiesService = {
         return data;
     },
 
+    getReadiness: async (id: string): Promise<any> => {
+        const { data } = await api.get(`/properties/id/${id}/readiness`);
+        return data;
+    },
+
     update: async (id: string, payload: any): Promise<Property> => {
         const { data } = await api.put<Property>(`/properties/${id}`, payload);
         return data;

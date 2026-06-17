@@ -92,7 +92,6 @@ export class RoomsService {
             where: {
                 roomTypeId: filters?.roomTypeId,
                 floor: filters?.floor,
-                status: filters?.status as any,
                 isEnabled: filters?.isEnabled,
                 propertyId: filters?.propertyId,
                 property: !isGlobalAdmin ? propertyFilter : undefined, // Enforce isolation only for non-admins
@@ -100,25 +99,18 @@ export class RoomsService {
             include: {
                 roomType: true,
                 property: { select: { name: true } },
-                bookings: {
+                bookingRooms: {
                     where: {
-                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
-                        checkInDate: { lte: today },
-                        checkOutDate: { gt: today },
-                    },
-                    take: 1,
-                },
-                blocks: {
-                    where: {
-                        endDate: { gte: new Date() },
+                        booking: {
+                            status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
+                            checkInDate: { lte: today },
+                            checkOutDate: { gte: today },
+                        }
                     },
                     include: {
                         booking: {
-                            select: { status: true, checkInDate: true, checkOutDate: true }
+                            select: { status: true, checkInDate: true, checkOutDate: true, paymentStatus: true }
                         }
-                    },
-                    orderBy: {
-                        startDate: 'asc',
                     },
                 },
             },
@@ -128,42 +120,45 @@ export class RoomsService {
             ],
         });
 
-        // Dynamic status adjustment for dashboard/listing consistency
-        return rooms.map(room => {
-            if (room.status === 'AVAILABLE') {
-                const todayMidnight = new Date();
-                todayMidnight.setHours(0, 0, 0, 0);
+        // Dynamic status adjustment for dashboard/listing consistency using Phase 6 BookingRoom logic
+        let computedRooms = rooms.map((room: any) => {
+            if (room.status === 'AVAILABLE' && room.bookingRooms && room.bookingRooms.length > 0) {
+                // Find active booking for tonight
+                const activeBookingForTonight = room.bookingRooms.find((br: any) => {
+                    const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0,0,0,0);
+                    const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
+                    return today >= checkIn && today < checkOut;
+                })?.booking;
 
-                if (room.bookings?.length > 0) {
-                    const b = room.bookings[0];
-                    if (b.status === 'CHECKED_IN') {
-                        return { ...room, status: 'OCCUPIED' };
+                // Find checkout today
+                const checkoutBookingToday = room.bookingRooms.find((br: any) => {
+                    const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
+                    return today.getTime() === checkOut.getTime();
+                })?.booking;
+
+                let dynamicStatus = 'AVAILABLE';
+                
+                if (activeBookingForTonight) {
+                    if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTonight.status)) {
+                        dynamicStatus = 'OCCUPIED';
+                    } else {
+                        dynamicStatus = 'RESERVED';
                     }
-                    return { ...room, status: 'RESERVED' };
+                } else if (checkoutBookingToday) {
+                    dynamicStatus = 'OUT_TODAY';
                 }
 
-                if (room.blocks && room.blocks.length > 0) {
-                    for (const block of room.blocks as any[]) {
-                        if (block.booking) {
-                            const b = block.booking;
-                            const checkIn = new Date(b.checkInDate);
-                            checkIn.setHours(0, 0, 0, 0);
-                            const checkOut = new Date(b.checkOutDate);
-                            checkOut.setHours(0, 0, 0, 0);
-
-                            if (checkIn <= todayMidnight && checkOut > todayMidnight) {
-                                if (b.status === 'CHECKED_IN') {
-                                    return { ...room, status: 'OCCUPIED' };
-                                } else if (b.status === 'CONFIRMED' || b.status === 'RESERVED') {
-                                    return { ...room, status: 'RESERVED' };
-                                }
-                            }
-                        }
-                    }
-                }
+                return { ...room, status: dynamicStatus };
             }
             return room;
         });
+
+        // Filter on backend after computing if a specific status was requested
+        if (filters?.status) {
+            computedRooms = computedRooms.filter(r => r.status === filters.status);
+        }
+
+        return computedRooms;
     }
 
     /**
@@ -178,29 +173,32 @@ export class RoomsService {
             include: {
                 roomType: true,
                 property: true,
-                blocks: {
-                    orderBy: {
-                        startDate: 'desc',
-                    },
-                },
-                bookings: {
+                bookingRooms: {
                     where: {
-                        status: {
-                            in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
-                        },
+                        booking: {
+                            status: {
+                                in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
+                            },
+                        }
                     },
                     include: {
-                        user: {
-                            select: {
-                                firstName: true,
-                                lastName: true,
-                                email: true,
-                                phone: true,
-                            },
-                        },
+                        booking: {
+                            include: {
+                                user: {
+                                    select: {
+                                        firstName: true,
+                                        lastName: true,
+                                        email: true,
+                                        phone: true,
+                                    },
+                                },
+                            }
+                        }
                     },
                     orderBy: {
-                        checkInDate: 'asc',
+                        booking: {
+                            checkInDate: 'asc'
+                        }
                     },
                 },
             },

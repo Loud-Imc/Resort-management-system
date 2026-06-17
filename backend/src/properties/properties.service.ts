@@ -765,6 +765,32 @@ export class PropertiesService {
         return results;
     }
 
+    async getReadiness(propertyId: string) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            select: { id: true, latitude: true, longitude: true, coverImage: true, images: true }
+        });
+
+        if (!property) throw new NotFoundException('Property not found');
+
+        const hasCoordinates = !!property.latitude && !!property.longitude;
+        const hasImages = !!property.coverImage && property.images.length > 0;
+
+        const [roomTypesCount, roomsCount, policiesCount] = await Promise.all([
+            this.prisma.roomType.count({ where: { propertyId } }),
+            this.prisma.room.count({ where: { propertyId } }),
+            this.prisma.cancellationPolicy.count({ where: { propertyId } })
+        ]);
+
+        return {
+            hasCoordinates,
+            hasImages,
+            hasRoomTypes: roomTypesCount > 0,
+            hasRooms: roomsCount > 0,
+            hasPolicies: policiesCount > 0
+        };
+    }
+
     async findAllAdmin(user: any, query: any) {
 
         const { city, state, type, search, page = 1, limit = 100, status } = query;

@@ -13,6 +13,15 @@ export const bookingsService = {
         return data;
     },
 
+    getDashboardCalendar: async (params?: {
+        propertyId?: string;
+        startDate?: string;
+        endDate?: string;
+    }) => {
+        const { data } = await api.get<Booking[]>('/bookings/dashboard-calendar', { params });
+        return data;
+    },
+
     getById: async (id: string) => {
         const { data } = await api.get<Booking>(`/bookings/${id}`);
         return data;

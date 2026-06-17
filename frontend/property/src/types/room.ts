@@ -4,6 +4,7 @@ export const RoomStatus = {
     MAINTENANCE: 'MAINTENANCE',
     BLOCKED: 'BLOCKED',
     RESERVED: 'RESERVED',
+    OUT_TODAY: 'OUT_TODAY',
 } as const;
 
 export type RoomStatus = typeof RoomStatus[keyof typeof RoomStatus];

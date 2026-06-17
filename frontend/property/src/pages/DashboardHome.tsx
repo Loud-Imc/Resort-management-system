@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService, type DashboardStats } from '../services/reports';
-import { roomsService } from '../services/rooms';
 import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
@@ -15,7 +14,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import PropertyReadiness from '../components/PropertyReadiness';
 import BookingsCalendarWidget from '../components/Dashboard/BookingsCalendarWidget';
 import HistoricalGuestDetailsModal from '../components/Rooms/HistoricalGuestDetailsModal';
-import { startOfMonth, endOfMonth, subMonths, addMonths, isSameDay, addDays } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, addMonths, addDays } from 'date-fns';
 import { bookingsService } from '../services/bookings';
 import type { Booking } from '../types/booking';
 export default function DashboardHome() {
@@ -53,7 +52,7 @@ export default function DashboardHome() {
     // Fetch bookings to share with Calendar and calculate daily room status
     const { data: monthBookings = [] } = useQuery<Booking[]>({
         queryKey: ['dashboard-calendar-bookings', selectedProperty?.id, format(monthStart, 'yyyy-MM')],
-        queryFn: () => bookingsService.getAll({
+        queryFn: () => bookingsService.getDashboardCalendar({
             propertyId: selectedProperty?.id,
             startDate: format(subMonths(monthStart, 1), 'yyyy-MM-dd'),
             endDate: format(addMonths(monthEnd, 1), 'yyyy-MM-dd')
@@ -67,126 +66,136 @@ export default function DashboardHome() {
         enabled: !!selectedProperty?.id && hasPermission('reports.viewDashboard'),
     });
 
-    const { data: rooms } = useQuery<Room[]>({
-        queryKey: ['rooms-status', selectedProperty?.id],
-        queryFn: () => roomsService.getAll({ propertyId: selectedProperty?.id }),
-        enabled: !!selectedProperty?.id,
-    });
-
-    const roomsList = rooms || [];
+    const roomsList = stats?.roomsList || [];
 
     // Compute displayRooms based on selectedDate
     const displayRooms = useMemo(() => {
         const targetDate = selectedDate || new Date();
-        const isTodayTarget = !selectedDate || isSameDay(selectedDate, new Date());
+        const target = new Date(targetDate);
+        target.setHours(0, 0, 0, 0);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isPastTarget = target.getTime() < today.getTime();
 
         return roomsList.map(room => {
-            // Find all active bookings for this room that cover selectedDate
-            const matchedBookings = monthBookings.filter(b => {
+            const roomBookings = monthBookings.filter((b: any) => {
                 if (b.status === 'CANCELLED' || b.status === 'PENDING_PAYMENT') return false;
-                if (b.roomId !== room.id && !b.roomBlocks?.some(rb => rb.roomId === room.id)) return false;
-                
-                const checkIn = new Date(b.checkInDate);
-                checkIn.setHours(0, 0, 0, 0);
-                const checkOut = new Date(b.checkOutDate);
-                checkOut.setHours(0, 0, 0, 0);
-                
-                const target = new Date(targetDate);
-                target.setHours(0, 0, 0, 0);
-
-                const isWithinDates = target >= checkIn && target < checkOut;
-                const isOngoingCheckIn = target.getTime() === checkOut.getTime() && b.status === 'CHECKED_IN';
-
-                return isWithinDates || isOngoingCheckIn;
+                return b.bookingRooms?.some((br: any) => br.roomId === room.id);
             });
 
-            // Sort matched bookings: prioritize CHECKED_IN over other statuses
-            const booking = matchedBookings.sort((a, b) => {
-                if (a.status === 'CHECKED_IN' && b.status !== 'CHECKED_IN') return -1;
-                if (b.status === 'CHECKED_IN' && a.status !== 'CHECKED_IN') return 1;
-                return 0;
-            })[0];
+            // Find booking covering the night of targetDate
+            let activeBookingForTonight = roomBookings.find((b: any) => {
+                const checkIn = new Date(b.checkInDate); checkIn.setHours(0,0,0,0);
+                const checkOut = new Date(b.checkOutDate); checkOut.setHours(0,0,0,0);
+                return target >= checkIn && target < checkOut;
+            });
 
-            if (booking) {
-                // Extract guest name
-                const guestName = booking.guests?.[0]?.firstName 
-                    ? `${booking.guests[0].firstName} ${booking.guests[0].lastName || ''}`.trim()
-                    : booking.user?.firstName 
-                        ? `${booking.user.firstName} ${booking.user.lastName || ''}`.trim()
-                        : 'Guest';
+            // Find booking checking out on targetDate
+            let checkoutBookingToday = roomBookings.find((b: any) => {
+                const checkOut = new Date(b.checkOutDate); checkOut.setHours(0,0,0,0);
+                return target.getTime() === checkOut.getTime();
+            });
 
-                const checkOut = new Date(booking.checkOutDate);
-                checkOut.setHours(0, 0, 0, 0);
-                const target = new Date(targetDate);
-                target.setHours(0, 0, 0, 0);
-                const _isCheckoutToday = target.getTime() === checkOut.getTime() && booking.status === 'CHECKED_IN';
+            // Do not show 'OUT TODAY' logic for past dates
+            if (isPastTarget) {
+                checkoutBookingToday = undefined;
+            }
 
-                if (isTodayTarget) {
-                    return {
-                        ...room,
-                        _activeBooking: booking,
-                        _guestName: guestName,
-                        _isCheckoutToday
-                    } as Room & { _activeBooking?: Booking, _guestName?: string, _isCheckoutToday?: boolean };
+            let status = room.status as string; // e.g. MAINTENANCE
+            let _activeBooking = null;
+            let _checkoutBooking = null;
+            let _guestName = '';
+
+            if (activeBookingForTonight) {
+                _activeBooking = activeBookingForTonight;
+                _guestName = activeBookingForTonight.guests?.[0]?.firstName 
+                    ? `${activeBookingForTonight.guests[0].firstName} ${activeBookingForTonight.guests[0].lastName || ''}`.trim()
+                    : 'Guest';
+                
+                if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTonight.status)) {
+                    status = 'OCCUPIED';
+                } else {
+                    status = 'RESERVED';
                 }
-
-                // If there's an active booking, it's OCCUPIED or RESERVED
-                const displayStatus = ['CHECKED_IN', 'CHECKED_OUT'].includes(booking.status) ? 'OCCUPIED' : 'RESERVED';
-                return {
-                    ...room,
-                    status: displayStatus,
-                    _activeBooking: booking, // attach for modal
-                    _guestName: guestName,
-                    _isCheckoutToday
-                } as Room & { _activeBooking?: Booking, _guestName?: string, _isCheckoutToday?: boolean };
+                
+                // Keep reference to checkout booking if exists, for UI badge
+                if (checkoutBookingToday) {
+                    _checkoutBooking = checkoutBookingToday;
+                }
+            } else if (checkoutBookingToday) {
+                _checkoutBooking = checkoutBookingToday;
+                _guestName = checkoutBookingToday.guests?.[0]?.firstName 
+                    ? `${checkoutBookingToday.guests[0].firstName} ${checkoutBookingToday.guests[0].lastName || ''}`.trim()
+                    : 'Guest';
+                status = 'OUT_TODAY';
+            } else {
+                status = (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') ? room.status : 'AVAILABLE';
             }
 
-            if (isTodayTarget) {
-                return { ...room, _activeBooking: null } as Room & { _activeBooking?: Booking | null };
-            }
-
-            // Otherwise, it was AVAILABLE on that date (or we don't know past maintenance, but AVAILABLE is safe)
-            return { ...room, status: 'AVAILABLE', _activeBooking: null } as Room & { _activeBooking?: Booking | null };
+            return {
+                ...room,
+                status,
+                _activeBooking,
+                _checkoutBooking,
+                _guestName
+            } as Room & { _activeBooking?: Booking, _checkoutBooking?: Booking, _guestName?: string };
         });
     }, [roomsList, monthBookings, selectedDate]);
 
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'AVAILABLE': return 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700';
+            case 'OUT_TODAY': return 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700';
             case 'OCCUPIED': return 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700';
+            case 'RESERVED': return 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-700';
             case 'MAINTENANCE': return 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700';
             case 'CLEANING': return 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-700';
             case 'BLOCKED': return 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700';
-            case 'RESERVED': return 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-700';
             default: return 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600';
         }
     };
 
-    const handleRoomClick = (room: Room & { _activeBooking?: Booking | null }) => {
-        const targetDate = selectedDate || new Date();
-        const dateStr = format(targetDate, 'yyyy-MM-dd');
-
+    const handleRoomClick = (room: Room & { _activeBooking?: Booking | null, _checkoutBooking?: Booking | null }) => {
         if (room.status === 'AVAILABLE') {
-            navigate('/bookings/create', { 
-                state: { 
-                    roomId: room.id,
-                    roomTypeId: room.roomTypeId,
-                    roomNumber: room.roomNumber,
-                    startDate: dateStr,
-                    endDate: format(addDays(targetDate, 1), 'yyyy-MM-dd')
-                } 
-            });
+            handleBookClick(room);
         } else if (room._activeBooking) {
-            // Historical or Today: if we have the booking attached, use the historical modal which shows rich details
             setSelectedBooking(room._activeBooking);
             setHistoricalRoomNumber(room.roomNumber);
             setIsHistoricalModalOpen(true);
+        } else if (room.status === 'OUT_TODAY' && room._checkoutBooking) {
+            // Main card click on OUT TODAY opens the guest who is leaving
+            setSelectedBooking(room._checkoutBooking);
+            setHistoricalRoomNumber(room.roomNumber);
+            setIsHistoricalModalOpen(true);
         } else if (room.status === 'OCCUPIED' || room.status === 'RESERVED') {
-            // Fallback for today if activeBooking wasn't found but API says it's occupied
             setSelectedRoomId(room.id);
             setIsGuestModalOpen(true);
         }
     };
+
+    const handleBookClick = (room: Room) => {
+        const targetDate = selectedDate || new Date();
+        const dateStr = format(targetDate, 'yyyy-MM-dd');
+        navigate('/bookings/create', { 
+            state: { 
+                roomId: room.id,
+                roomTypeId: room.roomTypeId,
+                roomNumber: room.roomNumber,
+                startDate: dateStr,
+                endDate: format(addDays(targetDate, 1), 'yyyy-MM-dd')
+            } 
+        });
+    };
+
+    const statusSummary = useMemo(() => ({
+        AVAILABLE: displayRooms.filter(r => r.status === 'AVAILABLE').length,
+        OUT_TODAY: displayRooms.filter(r => r.status === 'OUT_TODAY').length,
+        RESERVED: displayRooms.filter(r => r.status === 'RESERVED').length,
+        OCCUPIED: displayRooms.filter(r => r.status === 'OCCUPIED').length,
+        MAINTENANCE: displayRooms.filter(r => r.status === 'MAINTENANCE').length,
+        BLOCKED: displayRooms.filter(r => r.status === 'BLOCKED').length,
+    }), [displayRooms]);
 
     if (statsLoading) {
         return (
@@ -195,15 +204,6 @@ export default function DashboardHome() {
             </div>
         );
     }
-
-    // Room status summary from API (or compute from rooms list)
-    const statusSummary = stats?.roomStatusSummary || {
-        AVAILABLE: roomsList.filter(r => r.status === 'AVAILABLE').length,
-        RESERVED: roomsList.filter(r => (r.status as string) === 'RESERVED').length,
-        OCCUPIED: roomsList.filter(r => r.status === 'OCCUPIED').length,
-        MAINTENANCE: roomsList.filter(r => r.status === 'MAINTENANCE').length,
-        BLOCKED: roomsList.filter(r => r.status === 'BLOCKED').length,
-    };
 
     if (selectedProperty && selectedProperty.status !== 'APPROVED') {
         return (
@@ -323,6 +323,8 @@ export default function DashboardHome() {
                 <div className="flex flex-wrap items-center gap-4 text-sm">
                     {[
                         { label: 'Available', count: statusSummary.AVAILABLE, color: 'bg-emerald-500' },
+                        { label: 'Out Today', count: statusSummary.OUT_TODAY, color: 'bg-orange-500' },
+                        // { label: 'Confirmed', count: statusSummary.CONFIRMED, color: 'bg-fuchsia-500' },
                         { label: 'Reserved', count: statusSummary.RESERVED, color: 'bg-indigo-500' },
                         { label: 'Occupied', count: statusSummary.OCCUPIED, color: 'bg-blue-500' },
                         { label: 'Maintenance', count: statusSummary.MAINTENANCE, color: 'bg-amber-500' },
@@ -345,11 +347,21 @@ export default function DashboardHome() {
                 <div className="lg:col-span-2">
                     {/* Room Status Grid */}
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 h-full">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                <BedDouble className="h-5 w-5 text-blue-600" />
-                                {selectedDate ? `Room Status for ${format(selectedDate, 'MMM d, yyyy')}` : 'Room Status'}
-                            </h2>
+                        <div className="flex items-start justify-between mb-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <BedDouble className="h-5 w-5 text-blue-600" />
+                                    {selectedDate ? `Room Status for ${format(selectedDate, 'MMM d, yyyy')}` : 'Room Status'}
+                                </h2>
+                                {selectedProperty && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        <span>Check-in: <strong>{selectedProperty.defaultCheckInTime || '14:00'}</strong></span>
+                                        <span className="text-gray-300 dark:text-gray-600">|</span>
+                                        <span>Check-out: <strong>{selectedProperty.defaultCheckOutTime || '11:00'}</strong></span>
+                                    </p>
+                                )}
+                            </div>
                             <div className="flex items-center gap-4">
                                 {selectedDate && (
                                     <button
@@ -378,34 +390,48 @@ export default function DashboardHome() {
                                 </button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                 {displayRooms.map((room) => (
                                     <button
                                         key={room.id}
-                                        onClick={() => handleRoomClick(room as Room & { _activeBooking?: Booking | null })}
-                                        title={room.status === 'AVAILABLE' ? `Book Room ${room.roomNumber}` : `${room.roomNumber} — ${room.status}`}
+                                        onClick={() => handleRoomClick(room as Room & { _activeBooking?: Booking | null, _checkoutBooking?: Booking | null })}
+                                        title={
+                                            (room as any)._checkoutBooking && room.status !== 'OUT_TODAY'
+                                                ? "This room has a check out today, but also has a booking today"
+                                                : room.status === 'AVAILABLE' 
+                                                    ? `Book Room ${room.roomNumber}` 
+                                                    : `${room.roomNumber} — ${room.status}`
+                                        }
                                         className={clsx(
-                                            `p-3 rounded-xl border text-center font-medium transition-all flex flex-col justify-center items-center h-full min-h-[4.5rem] relative overflow-hidden`,
+                                            `p-3 rounded-2xl border text-center font-medium transition-all flex flex-col justify-center items-center h-full min-h-[6.5rem] relative overflow-hidden group`,
                                             getStatusColor(room.status as string),
-                                            (room.status === 'AVAILABLE' || room.status === 'OCCUPIED' || room.status === 'RESERVED') && 'cursor-pointer hover:shadow-md hover:scale-105',
-                                            (room.status !== 'AVAILABLE' && room.status !== 'OCCUPIED' && room.status !== 'RESERVED') && 'cursor-default'
+                                            (room.status === 'AVAILABLE' || room.status === 'OUT_TODAY' || room.status === 'OCCUPIED' || room.status === 'RESERVED') && 'cursor-pointer hover:shadow-lg hover:-translate-y-1',
+                                            (room.status !== 'AVAILABLE' && room.status !== 'OUT_TODAY' && room.status !== 'OCCUPIED' && room.status !== 'RESERVED') && 'cursor-default'
                                         )}
                                     >
-                                        {(room as any)._isCheckoutToday && (
-                                            <span className="absolute top-1 right-1 flex h-1.5 w-1.5">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                                        {/* Status edge badge: If there's a checkout today but the room is already booked for tonight */}
+                                        {(room as any)._checkoutBooking && room.status !== 'OUT_TODAY' && (
+                                            <span className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-lg shadow-sm z-10" title="This room has a check out today, but also has a booking today">
+                                                OUT TODAY
                                             </span>
                                         )}
-                                        <div className="font-bold text-sm">{room.roomNumber}</div>
-                                        <div className="mt-0.5 capitalize text-[10px] truncate w-full px-1 flex flex-col items-center leading-tight">
-                                            <span>{(room as any)._guestName || room.status?.toLowerCase()}</span>
-                                            {(room as any)._isCheckoutToday && (
-                                                <span className="mt-1 text-[8px] font-bold text-amber-700 dark:text-amber-300 animate-pulse bg-amber-50 dark:bg-amber-950/40 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 uppercase tracking-wider">
-                                                    Out Today
-                                                </span>
-                                            )}
+
+                                        <div className="font-bold text-lg">{room.roomNumber}</div>
+                                        <div className="mt-1 capitalize text-xs truncate w-full px-1 flex flex-col items-center leading-tight">
+                                            <span>{(room as any)._guestName || room.status?.toLowerCase().replace('_', ' ')}</span>
                                         </div>
+
+                                        {room.status === 'OUT_TODAY' && (
+                                            <div 
+                                                className="absolute bottom-0 left-0 w-full bg-blue-500/10 text-blue-700 dark:text-blue-300 dark:bg-blue-500/20 text-[10px] font-bold py-2 border-t border-blue-200 dark:border-blue-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-all cursor-pointer z-20 flex items-center justify-center gap-1 backdrop-blur-sm"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleBookClick(room as Room);
+                                                }}
+                                            >
+                                                <Plus className="w-3 h-3" /> BOOK
+                                            </div>
+                                        )}
                                     </button>
                                 ))}
                             </div>

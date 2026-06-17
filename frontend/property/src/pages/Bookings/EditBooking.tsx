@@ -122,8 +122,8 @@ export default function EditBooking() {
                 specialRequests: (booking as any).specialRequests || '',
                 gstNumber: (booking as any).gstNumber || '',
                 overrideTotal: Number(booking.totalAmount),
-                roomId: booking.roomId,
-                selectedRoomIds: [booking.roomId, ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])],
+                roomId: booking.bookingRooms?.[0]?.roomId,
+                selectedRoomIds: booking.bookingRooms?.map((br: any) => br.roomId) || [],
                 guests: (booking as any).guests?.map((g: any) => ({
                     id: g.id,
                     firstName: g.firstName,

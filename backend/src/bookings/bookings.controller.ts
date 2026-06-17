@@ -230,6 +230,19 @@ export class BookingsController {
         return this.bookingsService.create(createBookingDto, req.user);
     }
 
+    @Get('dashboard-calendar')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get lightweight bookings for dashboard calendar' })
+    getDashboardCalendar(
+        @Request() req,
+        @Query('propertyId') propertyId?: string,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.bookingsService.getDashboardCalendar(req.user, propertyId, startDate, endDate);
+    }
+
     @Get()
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
@@ -261,6 +274,7 @@ export class BookingsController {
             checkInDateEnd: end,
         });
     }
+
 
     @Get('me')
     @UseGuards(AuthGuard('jwt'))

@@ -32,6 +32,7 @@ Thumbs.db
 backend/dist/
 backend/uploads/
 backend/generated/
+backend/docs/
 
 # Frontend Specific (Monorepo Paths)
 frontend/admin/dist/
