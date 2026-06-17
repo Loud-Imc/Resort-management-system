@@ -2089,6 +2089,40 @@ export class BookingsService {
             }
         }
 
+        // Room Capacity Validation
+        const targetRoomType = await this.prisma.roomType.findUnique({ where: { id: targetRoomTypeId } });
+        if (targetRoomType) {
+            const parsedAdults = dto.adultsCount !== undefined ? Number(dto.adultsCount) : booking.adultsCount;
+            const parsedChildren = dto.childrenCount !== undefined ? Number(dto.childrenCount) : booking.childrenCount;
+            
+            if (booking.isGroupBooking) {
+                let totalPoolCapacity = 0;
+                for (const room of roomsToAllocate) {
+                    const rType = room.roomType || targetRoomType;
+                    totalPoolCapacity += rType.groupMaxOccupancy || ((rType.maxAdults || 2) + (rType.maxChildren || 0));
+                }
+                const guestCount = parsedAdults + parsedChildren;
+                if (totalPoolCapacity > 0 && guestCount > totalPoolCapacity) {
+                    throw new BadRequestException(`Group capacity exceeded. Selected rooms can only hold ${totalPoolCapacity} guests.`);
+                }
+            } else {
+                const maxAdults = targetRoomType.maxAdults || 2;
+                const maxChildren = targetRoomType.maxChildren || 2;
+
+                const maxAdultsPerRoom = maxAdults + 1;
+                const maxChildrenPerRoom = maxChildren > 0 ? (maxChildren + 1) : 1;
+
+                const roomsByAdults = Math.ceil(parsedAdults / maxAdultsPerRoom);
+                const roomsByChildren = Math.ceil(parsedChildren / maxChildrenPerRoom);
+
+                const requiredRooms = Math.max(roomsByAdults, roomsByChildren, 1);
+
+                if (roomsToAllocate.length < requiredRooms) {
+                    throw new BadRequestException(`Please select at least ${requiredRooms} room(s) to accommodate all guests.`);
+                }
+            }
+        }
+
         // Calculate pricing for the new date range (supports seasonal/peak rules)
         const pricing = await this.pricingService.calculatePrice(
             targetRoomTypeId,

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PropertyStatus } from '@prisma/client';
 import { PricingService } from './pricing.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
-
+import { format, eachDayOfInterval } from 'date-fns';
 @Injectable()
 export class AvailabilityService {
     constructor(
@@ -501,6 +501,98 @@ export class AvailabilityService {
             excludeBookingId,
         );
         return availableRooms.length;
+    }
+
+    /**
+     * Get day-by-day availability for a calendar view
+     */
+    async getCalendarAvailability(
+        propertyId: string,
+        startDate: string,
+        endDate: string,
+        roomTypeId?: string,
+        isGroupBooking: boolean = false,
+        excludeBookingId?: string
+    ) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        let totalRoomsOfType = 0;
+        let groupPoolRoomTypeIds: string[] = [];
+
+        if (isGroupBooking) {
+            const groupPoolTypes = await this.prisma.roomType.findMany({
+                where: { propertyId, isAvailableForGroupBooking: true }
+            });
+            groupPoolRoomTypeIds = groupPoolTypes.map(rt => rt.id);
+            totalRoomsOfType = await this.prisma.room.count({
+                where: { propertyId, roomTypeId: { in: groupPoolRoomTypeIds }, isEnabled: true }
+            });
+        } else if (roomTypeId) {
+            totalRoomsOfType = await this.prisma.room.count({
+                where: { propertyId, roomTypeId, isEnabled: true }
+            });
+        }
+
+        const bookings = await this.prisma.booking.findMany({
+            where: {
+                propertyId,
+                status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED', 'PENDING_PAYMENT'] },
+                id: excludeBookingId ? { not: excludeBookingId } : undefined,
+                OR: [
+                    {
+                        checkInDate: { lte: end },
+                        checkOutDate: { gte: start }
+                    }
+                ]
+            },
+            include: {
+                bookingRooms: {
+                    include: { room: true }
+                }
+            }
+        });
+
+        const calendarDays = eachDayOfInterval({ start, end });
+        const result: Record<string, { available: number, total: number, isFull: boolean }> = {};
+
+        for (const day of calendarDays) {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            let occupiedRooms = 0;
+
+            for (const b of bookings) {
+                if (b.status === 'PENDING_PAYMENT') {
+                    const thirtyMinsAgo = new Date(Date.now() - 30 * 60000);
+                    if (b.createdAt < thirtyMinsAgo) continue;
+                }
+
+                const bCheckIn = new Date(b.checkInDate);
+                bCheckIn.setHours(0, 0, 0, 0);
+                const bCheckOut = new Date(b.checkOutDate);
+                bCheckOut.setHours(0, 0, 0, 0);
+
+                if (day >= bCheckIn && day < bCheckOut) {
+                    if (isGroupBooking) {
+                        occupiedRooms += b.bookingRooms.filter((br: any) => 
+                            br.room?.roomTypeId && groupPoolRoomTypeIds.includes(br.room.roomTypeId)
+                        ).length;
+                    } else if (roomTypeId) {
+                        occupiedRooms += b.bookingRooms.filter((br: any) => 
+                            br.room?.roomTypeId === roomTypeId
+                        ).length;
+                    }
+                }
+            }
+
+            const availableCount = Math.max(0, totalRoomsOfType - occupiedRooms);
+            result[dateStr] = {
+                available: availableCount,
+                total: totalRoomsOfType,
+                isFull: totalRoomsOfType > 0 && availableCount === 0
+            };
+        }
+
+        return result;
     }
     /**
      * Search for all room types available for the given criteria
