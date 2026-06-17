@@ -452,6 +452,15 @@ export default function ReschedulePage() {
 
     return (
         <>
+            {/* Full Page Loader Overlay */}
+            {rescheduleMutation.isPending && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-widest">Processing Reschedule...</h2>
+                    <p className="text-sm font-bold text-muted-foreground mt-2">Please wait, do not close or refresh this page.</p>
+                </div>
+            )}
+            
             {/* ── Calendar Modal ── */}
             {showCalendarModal && (
                 <RescheduleCalendarModal

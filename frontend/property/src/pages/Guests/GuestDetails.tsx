@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { usersService } from '../../services/users';
 import type { User } from '../../types/user';
 import { Loader2, ArrowLeft, Mail, Phone, Calendar, ShieldCheck, Shield } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 
 export default function GuestDetails() {
     const { id } = useParams();
@@ -137,7 +137,7 @@ export default function GuestDetails() {
                                                 <div className="text-sm text-gray-900 dark:text-white font-medium">
                                                     {format(new Date(booking.checkInDate), 'MMM d')} - {format(new Date(booking.checkOutDate), 'MMM d, yyyy')}
                                                 </div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">{booking.numberOfNights} Nights</div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">{Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)))} Nights</div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">₹{Number(booking.totalAmount).toFixed(2)}</td>
                                             <td className="px-6 py-4 whitespace-nowrap">

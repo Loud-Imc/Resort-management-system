@@ -5,7 +5,7 @@ import { bookingsService } from '../../services/bookings';
 import api from '../../services/api';
 import { BookingStatus } from '../../types/booking';
 import type { Booking } from '../../types/booking';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 import {
     Loader2,
     Search,
@@ -617,7 +617,7 @@ export default function BookingsList() {
                                                 {format(new Date(booking.checkInDate), 'MMM d, yyyy')}
                                             </div>
                                             <div className="text-xs text-muted-foreground">
-                                                {booking.numberOfNights} nights
+                                                {Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)))} nights
                                             </div>
                                         </td>
                                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
@@ -880,7 +880,7 @@ export default function BookingsList() {
                                                     </div>
                                                     <div className="text-right">
                                                         <div className="text-xs font-bold">{checkInBooking?.checkInDate ? format(new Date(checkInBooking.checkInDate), 'MMM d') : ''} - {checkInBooking?.checkOutDate ? format(new Date(checkInBooking.checkOutDate), 'MMM d') : ''}</div>
-                                                        <div className="text-[10px] text-muted-foreground">{checkInBooking?.numberOfNights} Nights</div>
+                                                        <div className="text-[10px] text-muted-foreground">{checkInBooking ? Math.max(1, differenceInCalendarDays(new Date(checkInBooking.checkOutDate), new Date(checkInBooking.checkInDate))) : 0} Nights</div>
                                                     </div>
                                                 </div>
                                             </div>

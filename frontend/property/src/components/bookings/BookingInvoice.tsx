@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 import { QRCodeSVG } from 'qrcode.react';
 import {
     MapPin,
@@ -189,7 +189,7 @@ export const BookingInvoice = forwardRef<HTMLDivElement, BookingInvoiceProps>(({
 
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">{(roomType as any)?.isGstInclusive ? 'Room Charges (GST Inc.)' : `Nightly Rate x ${booking.numberOfNights}`}</span>
+                                    <span className="text-gray-500">{(roomType as any)?.isGstInclusive ? 'Room Charges (GST Inc.)' : `Nightly Rate x ${Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)))}`}</span>
                                     <span className="font-bold text-gray-900">{formatPrice((roomType as any)?.isGstInclusive ? (Number(booking.baseAmount) + Number(booking.taxAmount)) : (Number(booking.baseAmount)), booking.bookingCurrency || 'INR')}</span>
                                 </div>
 

@@ -20,7 +20,7 @@ import {
     Receipt,
     Pencil
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { BookingInvoice } from '../../components/bookings/BookingInvoice';
@@ -68,6 +68,7 @@ const BookingDetails = () => {
 
     const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
+    const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
 
     // const handleDownloadPDF = async () => {
     //     setIsDownloading(true);
@@ -250,7 +251,7 @@ const BookingDetails = () => {
                                     <p className="text-sm font-bold text-muted-foreground">{format(new Date(booking.checkInDate), 'yyyy')}</p>
                                     <p className="text-[11px] font-medium text-primary mt-1">
                                         {(booking as any).checkedInAt
-                                            ? `Actual: ${format(new Date((booking as any).checkedInAt), 'hh:mm a')}`
+                                            ? `Actual: ${format(new Date((booking as any).checkedInAt), 'MMM d, hh:mm a')}`
                                             : `Standard: ${format(new Date(`2000-01-01T${property?.defaultCheckInTime || '14:00'}:00`), 'hh:mm a')}`}
                                     </p>
                                 </div>
@@ -259,7 +260,7 @@ const BookingDetails = () => {
                             <div className="flex items-center justify-center py-4">
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="px-4 py-1.5 bg-muted rounded-2xl text-[10px] font-black uppercase tracking-widest border border-border">
-                                        {booking.numberOfNights} Night(s)
+                                        {displayNights} Night(s)
                                     </div>
                                     <div className="w-16 h-[2px] bg-border relative">
                                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary" />
@@ -276,7 +277,7 @@ const BookingDetails = () => {
                                     <p className="text-sm font-bold text-muted-foreground">{format(new Date(booking.checkOutDate), 'yyyy')}</p>
                                     <p className="text-[11px] font-medium text-amber-600 mt-1">
                                         {(booking as any).checkedOutAt
-                                            ? `Actual: ${format(new Date((booking as any).checkedOutAt), 'hh:mm a')}`
+                                            ? `Actual: ${format(new Date((booking as any).checkedOutAt), 'MMM d, hh:mm a')}`
                                             : `Standard: ${format(new Date(`2000-01-01T${property?.defaultCheckOutTime || '11:00'}:00`), 'hh:mm a')}`}
                                     </p>
                                 </div>

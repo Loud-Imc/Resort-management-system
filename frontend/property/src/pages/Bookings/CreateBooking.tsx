@@ -453,6 +453,15 @@ export default function CreateBooking() {
 
     return (
         <div className="max-w-[1400px] mx-auto pb-16 px-4 xl:px-8">
+            {/* Full Page Loader Overlay */}
+            {createBookingMutation.isPending && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-widest">Creating Booking...</h2>
+                    <p className="text-sm font-bold text-muted-foreground mt-2">Please wait, do not close or refresh this page.</p>
+                </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-border">
                 <div className="flex items-center gap-4">
                     <button 

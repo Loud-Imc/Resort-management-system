@@ -297,6 +297,7 @@ model Booking {
   review                  Review?
   roomBlocks              RoomBlock[]
   bookingRooms            BookingRoom[]
+  expenses                Expense[]
 
   @@index([propertyId])
   @@index([status])
@@ -448,6 +449,7 @@ model Expense {
   paymentMethod String?
   category      ExpenseCategory @relation(fields: [categoryId], references: [id])
   property      Property?       @relation(fields: [propertyId], references: [id])
+  bookings      Booking[]
 
   @@map("expenses")
 }
