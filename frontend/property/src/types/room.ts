@@ -94,6 +94,7 @@ export interface Room {
     updatedAt: string;
     blocks?: RoomBlock[];
     bookings?: any[];
+    bookingRooms?: any[];
 }
 
 export interface CreateRoomDto {

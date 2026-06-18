@@ -402,6 +402,7 @@ export class UsersService {
                                 role: true,
                             },
                         },
+                        _count: { select: { bookings: true } },
                     },
                 });
             }
@@ -433,6 +434,7 @@ export class UsersService {
                             role: true,
                         },
                     },
+                    _count: { select: { bookings: true } },
                 },
             });
         }
@@ -476,6 +478,7 @@ export class UsersService {
                         role: true,
                     },
                 },
+                _count: { select: { bookings: true } },
             },
         });
     }

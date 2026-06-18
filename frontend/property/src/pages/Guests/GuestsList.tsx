@@ -104,7 +104,9 @@ export default function GuestsList() {
                         </div>
 
                         <div className="mt-6 pt-4 border-t border-border flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground opacity-70">View History</span>
+                            <span className="text-muted-foreground opacity-70">
+                                {guest._count?.bookings === 1 ? '1 Booking' : `${guest._count?.bookings || 0} Bookings`}
+                            </span>
                             <div className="bg-muted p-2 rounded-full group-hover:bg-primary/10 transition-colors">
                                 <Calendar className="h-4 w-4 text-foreground group-hover:text-primary transition-colors" />
                             </div>
