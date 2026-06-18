@@ -70,6 +70,18 @@ export default function BookingsList() {
     const [dependencies, setDependencies] = useState<any>(null);
     const [isLoadingDeps, setIsLoadingDeps] = useState(false);
 
+    // Warning Modal State
+    const [warningModal, setWarningModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'BLOCK' | 'WARNING';
+        onConfirm?: () => void;
+        onCancel: () => void;
+        confirmText?: string;
+        cancelText?: string;
+    } | null>(null);
+
     const [searchParams, setSearchParams] = useSearchParams();
     const [startDate, setStartDate] = useState<string>(searchParams.get('startDate') || '');
     const [endDate, setEndDate] = useState<string>(searchParams.get('endDate') || '');
@@ -95,23 +107,92 @@ export default function BookingsList() {
     };
 
     const handleOpenCheckIn = (booking: Booking) => {
-        setCheckInBooking(booking);
-        setVerificationData(booking.guests.map((g: any) => ({
-            id: g.id,
-            idType: g.idType || '',
-            idNumber: g.idNumber || '',
-            idImage: g.idImage || ''
-        })));
-        setIdErrors({});
-        setUseCustomCheckIn(false);
-        setCustomCheckInAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkInDate = new Date(booking.checkInDate);
+        checkInDate.setHours(0, 0, 0, 0);
+
+        const openCheckInModal = () => {
+            setCheckInBooking(booking);
+            setVerificationData(booking.guests.map((g: any) => ({
+                id: g.id,
+                idType: g.idType || '',
+                idNumber: g.idNumber || '',
+                idImage: g.idImage || ''
+            })));
+            setIdErrors({});
+            setUseCustomCheckIn(false);
+            setCustomCheckInAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        };
+
+        if (checkInDate.getTime() > today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Invalid Check-In Date",
+                message: "You have to reschedule the booking to today to do a check-in today.",
+                type: 'BLOCK',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    handleOpenReschedule(booking);
+                },
+                confirmText: "Reschedule Now",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        if (checkInDate.getTime() < today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Late Check-In Warning",
+                message: "The scheduled check-in date is in the past. Are you sure you want to proceed with checking in now?",
+                type: 'WARNING',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    openCheckInModal();
+                },
+                confirmText: "Proceed Anyway",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        openCheckInModal();
     };
 
     const handleOpenCheckOut = (booking: Booking) => {
-        setCheckOutBooking(booking);
-        setShowCheckOutModal(true);
-        setUseCustomCheckOut(false);
-        setCustomCheckOutAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkOutDate = new Date(booking.checkOutDate);
+        checkOutDate.setHours(0, 0, 0, 0);
+
+        const openCheckOutModal = () => {
+            setCheckOutBooking(booking);
+            setShowCheckOutModal(true);
+            setUseCustomCheckOut(false);
+            setCustomCheckOutAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        };
+
+        if (checkOutDate.getTime() !== today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Unexpected Check-Out Date",
+                message: `The scheduled check-out date is not today (${format(checkOutDate, 'MMM d, yyyy')}). Are you sure you want to proceed with checking out now?`,
+                type: 'WARNING',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    openCheckOutModal();
+                },
+                confirmText: "Proceed Anyway",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        openCheckOutModal();
     };
 
     const handleIdChange = (idx: number, field: string, value: string) => {
@@ -1323,6 +1404,50 @@ export default function BookingsList() {
                 )}
 
             </div>
+
+            {/* Warning Modal */}
+            {warningModal?.isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="bg-card w-full max-w-md rounded-2xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className={`p-3 rounded-full ${warningModal.type === 'BLOCK' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-500'}`}>
+                                    <AlertCircle className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-foreground">{warningModal.title}</h3>
+                                </div>
+                            </div>
+                            <p className="text-muted-foreground text-sm pl-[3.25rem]">
+                                {warningModal.message}
+                            </p>
+                        </div>
+                        <div className="bg-muted/50 p-4 border-t border-border flex justify-end gap-3">
+                            <button
+                                onClick={warningModal.onCancel}
+                                className="px-4 py-2 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-colors"
+                            >
+                                {warningModal.cancelText}
+                            </button>
+                            {warningModal.type === 'BLOCK' ? (
+                                <button
+                                    onClick={warningModal.onConfirm}
+                                    className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors"
+                                >
+                                    {warningModal.confirmText}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={warningModal.onConfirm}
+                                    className="px-4 py-2 text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors"
+                                >
+                                    {warningModal.confirmText}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
