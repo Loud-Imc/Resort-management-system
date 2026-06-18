@@ -654,6 +654,7 @@ model ChannelPartner {
   registrationFeePaid    Boolean               @default(false)
   aadhaarImage           String?
   licenceImage           String?
+  logo                   String?
   overrideCommissionRate Decimal?              @db.Decimal(5, 2)
   referrals              Booking[]             @relation("CPReferrals")
   user                   User                  @relation(fields: [userId], references: [id])

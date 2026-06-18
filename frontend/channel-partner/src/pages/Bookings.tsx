@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import PremiumTable from '../components/PremiumTable';
 import PaginationControls from '../components/PaginationControls';
 import {
@@ -6,13 +6,9 @@ import {
     Search, TrendingUp, Wallet, Briefcase,
     Calendar, Users, FileText
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import { toCanvas } from 'html-to-image';
-import api from '../services/api';
 import BookingDetailModal from '../components/BookingDetailModal';
 import { formatPrice } from '../utils/currency';
-import type { InvoiceData } from '../utils/generateInvoicePdf';
-import CPInvoiceTemplate from '../components/CPInvoiceTemplate';
+import api from '../services/api';
 
 interface Booking {
     id: string;
@@ -55,8 +51,6 @@ const Bookings: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 10;
     const [isDownloading, setIsDownloading] = useState<{ [key: string]: boolean }>({});
-    const [invoiceCaptureData, setInvoiceCaptureData] = useState<{ data: InvoiceData; type: 'GUEST' | 'PARTNER' } | null>(null);
-    const invoiceRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const fetchBookings = async () => {
@@ -131,59 +125,20 @@ const Bookings: React.FC = () => {
         const key = `${booking.id}-${type}`;
         setIsDownloading(prev => ({ ...prev, [key]: true }));
         try {
-            const data: InvoiceData = {
-                bookingNumber: booking.bookingNumber,
-                guestName: booking.guestName,
-                property: booking.property,
-                propertyImage: booking.propertyImage,
-                city: booking.city,
-                checkIn: booking.checkIn,
-                checkOut: booking.checkOut,
-                nights: booking.nights,
-                status: booking.status,
-                roomType: booking.roomType,
-                adults: booking.adults,
-                children: booking.children,
-                paymentMethod: booking.paymentMethod,
-                baseAmount: booking.baseAmount || 0,
-                taxAmount: booking.taxAmount || 0,
-                extraAdultAmount: booking.extraAdultAmount || 0,
-                extraChildAmount: booking.extraChildAmount || 0,
-                offerDiscountAmount: booking.offerDiscountAmount || 0,
-                referralDiscountAmount: booking.referralDiscountAmount || 0,
-                commissionAmount: Math.round(booking.rawAmount * (booking.commissionRate || 0) / 100),
-                commissionRate: booking.commissionRate || 0,
-                discountRate: booking.discountRate || 0,
-                grossTotal: booking.rawAmount,
-                partnerNetPayable: booking.rawAmount - Math.round(booking.rawAmount * (booking.commissionRate || 0) / 100),
-            };
-
-            setInvoiceCaptureData({ data, type });
-            await new Promise(res => setTimeout(res, 300));
-
-            const element = invoiceRef.current;
-            if (!element) throw new Error('Invoice element not mounted');
-
-            const canvas = await toCanvas(element, {
-                quality: 1,
-                pixelRatio: 2,
-                backgroundColor: '#ffffff',
-                cacheBust: true,
+            const apiType = type === 'GUEST' ? 'guest' : 'agency';
+            const response = await api.get(`/bookings/invoice/${booking.id}/${apiType}`, {
+                responseType: 'blob',
             });
 
-            setInvoiceCaptureData(null);
-            const imgData = canvas.toDataURL('image/png');
-
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 210;
-            const temp = new Image();
-            temp.src = imgData;
-            await new Promise(r => { temp.onload = r; });
-            const imgHeight = (temp.height * imgWidth) / temp.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            const url = window.URL.createObjectURL(new Blob([response as any]));
+            const link = document.createElement('a');
+            link.href = url;
             const fileName = `${type === 'PARTNER' ? 'Agency' : 'Guest'}_Invoice_${booking.bookingNumber || 'Booking'}.pdf`;
-            pdf.save(fileName);
-
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+            window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error('PDF generation failed:', err);
             alert('Failed to generate PDF.');
@@ -321,25 +276,6 @@ const Bookings: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-padding)', width: '100%' }}>
-            {/* Hidden Invoice Template for DOM capture */}
-            <div
-                ref={invoiceRef}
-                style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    zIndex: -50,
-                    pointerEvents: 'none',
-                    opacity: invoiceCaptureData ? 1 : 0,
-                }}
-            >
-                {invoiceCaptureData && (
-                    <CPInvoiceTemplate
-                        data={invoiceCaptureData.data}
-                        type={invoiceCaptureData.type}
-                    />
-                )}
-            </div>
 
             {/* Page Header */}
             <div>

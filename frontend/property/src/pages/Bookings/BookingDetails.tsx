@@ -23,16 +23,12 @@ import {
 import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
-import { BookingInvoice } from '../../components/bookings/BookingInvoice';
 import type { Booking } from '../../types/booking';
-import { useRef } from 'react';
-// import jsPDF from 'jspdf';
-// import { toPng } from 'html-to-image';
+
 
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const invoiceRef = useRef<HTMLDivElement>(null);
     const [isDownloading, setIsDownloading] = useState(false);
 
     const { data: booking, isLoading, error } = useQuery({
@@ -69,61 +65,6 @@ const BookingDetails = () => {
     const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
     const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
-
-    // const handleDownloadPDF = async () => {
-    //     setIsDownloading(true);
-    //     setTimeout(async () => {
-    //         if (!invoiceRef.current) {
-    //             setIsDownloading(false);
-    //             return;
-    //         }
-
-    //         const element = invoiceRef.current;
-    //         element.classList.add('pdf-capture-mode');
-
-    //         try {
-    //             const dataUrl = await toPng(element, {
-    //                 width: 800,
-    //                 quality: 1,
-    //                 pixelRatio: 2,
-    //                 backgroundColor: '#ffffff',
-    //                 cacheBust: true,
-    //                 style: {
-    //                     borderRadius: '0',
-    //                     boxShadow: 'none',
-    //                     border: 'none',
-    //                 }
-    //             });
-
-    //             const pdf = new jsPDF('p', 'mm', 'a4');
-    //             const imgWidth = 210;
-
-    //             const img = new Image();
-    //             img.src = dataUrl;
-    //             await new Promise((resolve, reject) => {
-    //                 img.onload = resolve;
-    //                 img.onerror = reject;
-    //                 setTimeout(() => reject(new Error('Image load timeout')), 5000);
-    //             });
-
-    //             const imgHeight = (img.height * imgWidth) / img.width;
-    //             pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
-
-    //             const fileName = balanceDue > 0
-    //                 ? `Invoice_Performa_${booking.bookingNumber}.pdf`
-    //                 : `Invoice_${booking.bookingNumber}.pdf`;
-
-    //             pdf.save(fileName);
-    //             toast.success('Invoice downloaded');
-    //         } catch (error) {
-    //             console.error('Error generating PDF:', error);
-    //             toast.error('Failed to generate PDF');
-    //         } finally {
-    //             element.classList.remove('pdf-capture-mode');
-    //             setIsDownloading(false);
-    //         }
-    //     }, 500);
-    // };
 
     const handleDownloadBackendPDF = async () => {
         try {
@@ -194,14 +135,6 @@ const BookingDetails = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* <button
-                        onClick={handleDownloadPDF}
-                        disabled={isDownloading}
-                        className="inline-flex items-center gap-2 bg-primary text-primary-foreground hover:shadow-xl hover:shadow-primary/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
-                    >
-                        {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        Download Invoice
-                    </button> */}
                     <button
                         onClick={handleDownloadBackendPDF}
                         disabled={isDownloading}
@@ -544,13 +477,6 @@ const BookingDetails = () => {
                 </div>
             )}
 
-            {/* Hidden component for capturing PDF */}
-            <div className="fixed -left-[9999px] top-0 pointer-events-none overflow-hidden" style={{ width: '800px' }}>
-                <BookingInvoice
-                    ref={invoiceRef}
-                    booking={booking}
-                />
-            </div>
         </div>
     );
 };

@@ -88,6 +88,7 @@ export default function MyProperty() {
     const [images, setImages] = useState<string[]>([]);
     const [coverImage, setCoverImage] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [invoiceInstructions, setInvoiceInstructions] = useState<string[]>([]);
 
     // Geo-Location
     const [googleMapsLink, setGoogleMapsLink] = useState('');
@@ -168,7 +169,8 @@ export default function MyProperty() {
                     defaultCheckInTime: reqDetails.defaultCheckInTime || '14:00',
                     defaultCheckOutTime: reqDetails.defaultCheckOutTime || '11:00',
                     isGroupGstInclusive: reqDetails.isGroupGstInclusive || false,
-                    platformCommission: (selectedProperty as any).platformCommission || 10.00
+                    platformCommission: (selectedProperty as any).platformCommission || 10.00,
+                    policies: reqDetails.policies || {}
                 };
                 setProperty(reqProperty as Property);
                 populateFields(reqProperty as Property);
@@ -209,6 +211,14 @@ export default function MyProperty() {
         setDefaultCheckInTime((p as any).defaultCheckInTime ?? '14:00');
         setDefaultCheckOutTime((p as any).defaultCheckOutTime ?? '11:00');
         setIsGroupGstInclusive(p.isGroupGstInclusive ?? false);
+        
+        // Parse invoice instructions
+        if (p.policies && (p.policies as any).invoiceInstructions) {
+            setInvoiceInstructions((p.policies as any).invoiceInstructions as string[]);
+        } else {
+            setInvoiceInstructions([]);
+        }
+
         setLatitude(p.latitude ?? '');
         setLongitude(p.longitude ?? '');
         if (p.latitude && p.longitude) {
@@ -296,6 +306,10 @@ export default function MyProperty() {
                 isGroupGstInclusive,
                 latitude: latitude === '' ? null : Number(latitude),
                 longitude: longitude === '' ? null : Number(longitude),
+                policies: {
+                    ...(property?.policies as object || {}),
+                    invoiceInstructions: invoiceInstructions.filter(s => s.trim())
+                }
             };
 
             // Only include commission if platform admin
@@ -669,6 +683,58 @@ export default function MyProperty() {
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" />
                     ) : (
                         <p className="text-sm text-gray-600 dark:text-gray-400">{description || 'No description'}</p>
+                    )}
+                </div>
+
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Invoice Guest Instructions</label>
+                            <p className="text-xs text-gray-500">These instructions will be displayed on guest invoices (one per line). Use <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-amber-600">{'{{PROPERTY_PHONE}}'}</code> to insert your phone number.</p>
+                        </div>
+                        {editMode && (
+                            <button onClick={() => setInvoiceInstructions([...invoiceInstructions, ''])} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors">
+                                <Plus className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                    {editMode ? (
+                        <div className="space-y-2">
+                            {invoiceInstructions.length === 0 ? (
+                                <p className="text-sm text-gray-400 italic">No specific instructions added.</p>
+                            ) : (
+                                invoiceInstructions.map((instruction, index) => (
+                                    <div key={index} className="flex items-center gap-2">
+                                        <input 
+                                            type="text" 
+                                            value={instruction} 
+                                            onChange={(e) => {
+                                                const newInst = [...invoiceInstructions];
+                                                newInst[index] = e.target.value;
+                                                setInvoiceInstructions(newInst);
+                                            }} 
+                                            placeholder="e.g. Please present a valid photo ID upon check-in."
+                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm" 
+                                        />
+                                        <button onClick={() => setInvoiceInstructions(invoiceInstructions.filter((_, i) => i !== index))} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    ) : (
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {invoiceInstructions.length > 0 ? (
+                                <ul className="list-disc pl-4 space-y-1">
+                                    {invoiceInstructions.map((inst, i) => (
+                                        <li key={i}>{inst}</li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                'No specific instructions added.'
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

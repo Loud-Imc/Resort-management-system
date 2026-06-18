@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { User, Shield, CreditCard, Bell, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Shield, CreditCard, Bell, Save, Loader2, CheckCircle2, AlertCircle, ImagePlus, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { useSearchParams } from 'react-router-dom';
@@ -39,7 +39,8 @@ const Settings: React.FC = () => {
             pushBookings: true
         },
         referralCode: '',
-        registrationFeePaid: false
+        registrationFeePaid: false,
+        logo: ''
     });
 
     useEffect(() => {
@@ -65,7 +66,8 @@ const Settings: React.FC = () => {
                         pushBookings: true
                     },
                     referralCode: data.referralCode || '',
-                    registrationFeePaid: data.registrationFeePaid || false
+                    registrationFeePaid: data.registrationFeePaid || false,
+                    logo: data.logo || ''
                 });
             } catch (error) {
                 console.error('Error fetching CP profile:', error);
@@ -89,6 +91,31 @@ const Settings: React.FC = () => {
                 [key]: !prev.notificationPrefs[key]
             }
         }));
+    };
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+        
+        if (file.size > 2 * 1024 * 1024) {
+            setMessage({ type: 'error', text: 'Logo size should not exceed 2MB' });
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const uploadData = new FormData();
+            uploadData.append('file', file);
+            const response: any = await api.post('/uploads', uploadData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setFormData(prev => ({ ...prev, logo: response.url }));
+            setMessage({ type: 'success', text: 'Logo uploaded temporarily. Remember to save changes.' });
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Failed to upload logo' });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleSave = async () => {
@@ -263,6 +290,44 @@ const Settings: React.FC = () => {
                                     <input value={formData.referralCode} readOnly style={{ ...inputStyle, color: 'var(--primary-teal)', fontWeight: 700, opacity: 0.7 }} />
                                 </div>
 
+                            </div>
+                            
+                            <h3 style={{ marginTop: '2.5rem', marginBottom: '1.5rem' }}>Agency Logo</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start' }}>
+                                <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                                    Upload your agency or personal logo. This logo will be displayed on the Perform Invoices generated for your bookings, letting your clients know it is provided by you.
+                                </p>
+                                {formData.logo ? (
+                                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                                        <img src={formData.logo} alt="Agency Logo" style={{ width: '150px', height: '150px', objectFit: 'contain', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', padding: '0.5rem', background: 'white' }} />
+                                        <button 
+                                            onClick={() => setFormData(prev => ({ ...prev, logo: '' }))}
+                                            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'red', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <label style={{ 
+                                        display: 'flex', 
+                                        flexDirection: 'column', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center', 
+                                        width: '150px', 
+                                        height: '150px', 
+                                        border: '2px dashed var(--primary-teal)', 
+                                        borderRadius: 'var(--radius-md)', 
+                                        cursor: 'pointer',
+                                        background: 'rgba(34, 124, 138, 0.05)',
+                                        color: 'var(--primary-teal)',
+                                        transition: 'all 0.2s ease'
+                                    }}>
+                                        <ImagePlus size={32} style={{ marginBottom: '0.5rem' }} />
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Upload Logo</span>
+                                        <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>(Max 2MB)</span>
+                                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
+                                    </label>
+                                )}
                             </div>
                         </div>
                     )}
