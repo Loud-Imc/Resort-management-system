@@ -2,9 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
-import { roomTypesService } from '../services/roomTypes';
-import { roomsService } from '../services/rooms';
-import { cancellationPoliciesService } from '../services/cancellationPolicies';
+import { propertiesService } from '../services/properties';
 import { AlertCircle, CheckCircle2, XCircle, ChevronRight, X, Image as ImageIcon, MapPin, BedDouble, FileText } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -14,33 +12,17 @@ export default function PropertyReadiness() {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Fetch required data
-    const { data: roomTypes } = useQuery({
-        queryKey: ['roomTypes', selectedProperty?.id],
-        queryFn: () => roomTypesService.getAll({ propertyId: selectedProperty?.id }),
-        enabled: !!selectedProperty?.id,
-    });
-
-    const { data: rooms } = useQuery({
-        queryKey: ['rooms', selectedProperty?.id],
-        queryFn: () => roomsService.getAll({ propertyId: selectedProperty?.id }),
-        enabled: !!selectedProperty?.id,
-    });
-
-    const { data: policies } = useQuery({
-        queryKey: ['cancellationPolicies', selectedProperty?.id],
-        queryFn: () => cancellationPoliciesService.getAll(selectedProperty!.id),
+    const { data: readiness } = useQuery({
+        queryKey: ['property-readiness', selectedProperty?.id],
+        queryFn: () => propertiesService.getReadiness(selectedProperty!.id),
         enabled: !!selectedProperty?.id,
     });
 
     // Evaluate readiness checklist
     const checklist = useMemo(() => {
-        if (!selectedProperty) return [];
+        if (!selectedProperty || !readiness) return [];
 
-        const hasCoordinates = !!selectedProperty.latitude && !!selectedProperty.longitude;
-        const hasImages = !!selectedProperty.coverImage && (selectedProperty.images?.length || 0) > 0;
-        const hasRoomTypes = (roomTypes?.length || 0) > 0;
-        const hasRooms = (rooms?.length || 0) > 0;
-        const hasPolicies = (policies?.length || 0) > 0;
+        const { hasCoordinates, hasImages, hasRoomTypes, hasRooms, hasPolicies } = readiness;
 
         return [
             {
@@ -89,7 +71,7 @@ export default function PropertyReadiness() {
                 actionText: 'Manage Policies'
             }
         ];
-    }, [selectedProperty, roomTypes, rooms, policies, navigate]);
+    }, [selectedProperty, readiness, navigate]);
 
     // If property is pending/inactive, don't show this checklist (handled in DashboardHome usually)
     if (!selectedProperty || selectedProperty.status !== 'APPROVED') return null;

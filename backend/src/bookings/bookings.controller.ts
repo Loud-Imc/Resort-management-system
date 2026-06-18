@@ -28,6 +28,30 @@ export class BookingsController {
         private readonly referralAbuseService: ReferralAbuseService,
     ) { }
 
+    @Get('calendar-availability')
+    @ApiOperation({ summary: 'Get day-by-day availability for calendar' })
+    async getCalendarAvailability(
+        @Query('propertyId') propertyId: string,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('roomTypeId') roomTypeId?: string,
+        @Query('isGroupBooking') isGroupBooking?: string,
+        @Query('excludeBookingId') excludeBookingId?: string,
+    ) {
+        if (!propertyId || !startDate || !endDate) {
+            throw new BadRequestException('propertyId, startDate, and endDate are required');
+        }
+
+        return this.availabilityService.getCalendarAvailability(
+            propertyId,
+            startDate,
+            endDate,
+            roomTypeId,
+            isGroupBooking === 'true',
+            excludeBookingId
+        );
+    }
+
     @Post('check-availability')
     @ApiOperation({ summary: 'Check room availability (Public)' })
     async checkAvailability(@Body() dto: CheckAvailabilityDto) {
@@ -230,6 +254,19 @@ export class BookingsController {
         return this.bookingsService.create(createBookingDto, req.user);
     }
 
+    @Get('dashboard-calendar')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get lightweight bookings for dashboard calendar' })
+    getDashboardCalendar(
+        @Request() req,
+        @Query('propertyId') propertyId?: string,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.bookingsService.getDashboardCalendar(req.user, propertyId, startDate, endDate);
+    }
+
     @Get()
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
@@ -261,6 +298,7 @@ export class BookingsController {
             checkInDateEnd: end,
         });
     }
+
 
     @Get('me')
     @UseGuards(AuthGuard('jwt'))

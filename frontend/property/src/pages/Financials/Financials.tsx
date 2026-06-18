@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { reportsService } from '../../services/reports';
@@ -7,7 +7,7 @@ import { expensesService } from '../../services/expenses';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import {
     Loader2, IndianRupee, TrendingUp, TrendingDown,
-    PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight
+    PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight, Search, Filter
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -27,6 +27,18 @@ export default function Financials() {
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
     const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
+    
+    const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+    const [filters, setFilters] = useState({
+        search: '',
+        category: '',
+        date: '',
+        paymentMethod: '',
+        isPaid: 'all',
+        minAmount: '',
+        maxAmount: ''
+    });
 
     useEffect(() => {
         if (searchParams.get('action') === 'add-expense') {
@@ -50,6 +62,21 @@ export default function Financials() {
             propertyId: selectedProperty?.id,
         }),
         enabled: !!selectedProperty?.id,
+    });
+
+    const uniqueCategories = Array.from(new Set(recentExpenses?.map(e => e.category?.name))).filter(Boolean) as string[];
+    const uniquePaymentMethods = Array.from(new Set(recentExpenses?.map(e => e.paymentMethod))).filter(Boolean) as string[];
+
+    const filteredExpenses = recentExpenses?.filter(expense => {
+        if (filters.search && !expense.description.toLowerCase().includes(filters.search.toLowerCase())) return false;
+        if (filters.category && expense.category?.name !== filters.category) return false;
+        if (filters.date && format(new Date(expense.date), 'yyyy-MM-dd') !== filters.date) return false;
+        if (filters.paymentMethod && expense.paymentMethod !== filters.paymentMethod) return false;
+        if (filters.isPaid === 'paid' && !expense.isPaid) return false;
+        if (filters.isPaid === 'unpaid' && expense.isPaid) return false;
+        if (filters.minAmount && expense.amount < Number(filters.minAmount)) return false;
+        if (filters.maxAmount && expense.amount > Number(filters.maxAmount)) return false;
+        return true;
     });
 
     if (isLoading) return (
@@ -143,9 +170,123 @@ export default function Financials() {
 
             {/* Recent Expenses Table */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Expenses</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Showing expenses for selected dates</p>
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Expenses</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Showing expenses for selected dates</p>
+                        </div>
+                        <button 
+                            onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                        >
+                            <Filter className="h-4 w-4" /> Filters {Object.values(filters).some(v => v !== '' && v !== 'all') && <span className="w-2 h-2 rounded-full bg-blue-500"></span>}
+                        </button>
+                    </div>
+
+                    {isFilterExpanded && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                            {/* Search */}
+                            <div className="col-span-full sm:col-span-2 lg:col-span-2">
+                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Search Description</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <input 
+                                        type="text" 
+                                        value={filters.search}
+                                        onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                                        placeholder="Search..."
+                                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Category */}
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Category</label>
+                                <select 
+                                    value={filters.category}
+                                    onChange={e => setFilters(prev => ({ ...prev, category: e.target.value }))}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="">All Categories</option>
+                                    {uniqueCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Date */}
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Exact Date</label>
+                                <input 
+                                    type="date"
+                                    value={filters.date}
+                                    onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+
+                            {/* Payment Method */}
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Payment Method</label>
+                                <select 
+                                    value={filters.paymentMethod}
+                                    onChange={e => setFilters(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="">All Methods</option>
+                                    {uniquePaymentMethods.map((m: string) => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Status */}
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Payment Status</label>
+                                <select 
+                                    value={filters.isPaid}
+                                    onChange={e => setFilters(prev => ({ ...prev, isPaid: e.target.value }))}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="all">All Statuses</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="unpaid">Unpaid</option>
+                                </select>
+                            </div>
+
+                            {/* Min Amount */}
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Min Amount</label>
+                                <input 
+                                    type="number"
+                                    value={filters.minAmount}
+                                    onChange={e => setFilters(prev => ({ ...prev, minAmount: e.target.value }))}
+                                    placeholder="Min ₹"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+
+                            {/* Max Amount */}
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Max Amount</label>
+                                <input 
+                                    type="number"
+                                    value={filters.maxAmount}
+                                    onChange={e => setFilters(prev => ({ ...prev, maxAmount: e.target.value }))}
+                                    placeholder="Max ₹"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            
+                            {/* Clear Filters */}
+                            <div className="col-span-full flex justify-end">
+                                <button 
+                                    onClick={() => setFilters({ search: '', category: '', date: '', paymentMethod: '', isPaid: 'all', minAmount: '', maxAmount: '' })}
+                                    className="text-sm text-rose-500 hover:text-rose-600 font-medium"
+                                >
+                                    Clear All Filters
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -154,22 +295,53 @@ export default function Financials() {
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Date</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Category</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Description</th>
+                                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Bookings</th>
+                                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Payment</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Amount</th>
                                 <th className="px-6 py-4"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {loadingExpenses ? (
-                                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading...</td></tr>
-                            ) : !recentExpenses?.length ? (
-                                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400 italic">No expenses found</td></tr>
+                                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading...</td></tr>
+                            ) : !filteredExpenses?.length ? (
+                                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400 italic">No expenses found matching filters</td></tr>
                             ) : (
-                                recentExpenses.map((expense) => (
+                                filteredExpenses.map((expense) => (
                                     <tr key={expense.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
                                         onClick={() => { setSelectedExpense(expense); setIsExpenseModalOpen(true); }}>
                                         <td className="px-6 py-4"><div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-400" /><span className="text-sm font-medium text-gray-900 dark:text-white">{format(new Date(expense.date), 'dd MMM, yyyy')}</span></div></td>
                                         <td className="px-6 py-4"><div className="flex items-center gap-2"><div className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg"><Tag className="h-3 w-3 text-blue-600" /></div><span className="text-sm font-medium text-gray-900 dark:text-white">{expense.category.name}</span></div></td>
                                         <td className="px-6 py-4"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-gray-400 shrink-0" /><span className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{expense.description}</span></div></td>
+                                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                            {expense.bookings && expense.bookings.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {expense.bookings.map(b => (
+                                                        <button
+                                                            key={b.id}
+                                                            onClick={() => navigate(`/bookings/${b.id}`)}
+                                                            className="inline-flex items-center px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300 rounded text-xs font-medium border border-blue-100 dark:border-blue-800/50 transition-colors"
+                                                        >
+                                                            {b.bookingNumber}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-gray-400 italic">None</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1">
+                                                {expense.isPaid ? (
+                                                    <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 w-fit">Paid</span>
+                                                ) : (
+                                                    <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 w-fit">Unpaid</span>
+                                                )}
+                                                {expense.paymentMethod && (
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{expense.paymentMethod.replace(/_/g, ' ').toLowerCase()}</span>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td className="px-6 py-4 text-right"><span className="text-sm font-bold text-rose-500">₹{expense.amount.toLocaleString()}</span></td>
                                         <td className="px-6 py-4 text-right"><ChevronRight className="h-4 w-4 text-gray-400 ml-auto" /></td>
                                     </tr>

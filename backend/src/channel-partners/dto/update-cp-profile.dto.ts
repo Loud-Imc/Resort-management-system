@@ -59,4 +59,9 @@ export class UpdateCPProfileDto {
     @IsObject()
     @IsOptional()
     notificationPrefs?: any;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    logo?: string;
 }

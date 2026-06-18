@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
 import api from '../../services/api';
 import { BookingStatus } from '../../types/booking';
 import type { Booking } from '../../types/booking';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 import {
     Loader2,
     Search,
@@ -30,10 +30,6 @@ import toast from 'react-hot-toast';
 import { uploadService } from '../../services/uploads';
 import { paymentsService } from '../../services/payments';
 import { Banknote, Download, Wallet } from 'lucide-react';
-// import jsPDF from 'jspdf';
-// import { toPng } from 'html-to-image';
-import { BookingInvoice } from '../../components/bookings/BookingInvoice';
-
 
 const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
     AADHAR: { pattern: /^\d{12}$/, message: 'Aadhar must be exactly 12 digits', sample: 'e.g. 1234 5678 9012' },
@@ -68,12 +64,23 @@ export default function BookingsList() {
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadBooking, setDownloadBooking] = useState<Booking | null>(null);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
-    const invoiceRef = useRef<HTMLDivElement>(null);
 
     // Deletion Modal State
     const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
     const [dependencies, setDependencies] = useState<any>(null);
     const [isLoadingDeps, setIsLoadingDeps] = useState(false);
+
+    // Warning Modal State
+    const [warningModal, setWarningModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'BLOCK' | 'WARNING';
+        onConfirm?: () => void;
+        onCancel: () => void;
+        confirmText?: string;
+        cancelText?: string;
+    } | null>(null);
 
     const [searchParams, setSearchParams] = useSearchParams();
     const [startDate, setStartDate] = useState<string>(searchParams.get('startDate') || '');
@@ -100,23 +107,92 @@ export default function BookingsList() {
     };
 
     const handleOpenCheckIn = (booking: Booking) => {
-        setCheckInBooking(booking);
-        setVerificationData(booking.guests.map((g: any) => ({
-            id: g.id,
-            idType: g.idType || '',
-            idNumber: g.idNumber || '',
-            idImage: g.idImage || ''
-        })));
-        setIdErrors({});
-        setUseCustomCheckIn(false);
-        setCustomCheckInAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkInDate = new Date(booking.checkInDate);
+        checkInDate.setHours(0, 0, 0, 0);
+
+        const openCheckInModal = () => {
+            setCheckInBooking(booking);
+            setVerificationData(booking.guests.map((g: any) => ({
+                id: g.id,
+                idType: g.idType || '',
+                idNumber: g.idNumber || '',
+                idImage: g.idImage || ''
+            })));
+            setIdErrors({});
+            setUseCustomCheckIn(false);
+            setCustomCheckInAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        };
+
+        if (checkInDate.getTime() > today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Invalid Check-In Date",
+                message: "You have to reschedule the booking to today to do a check-in today.",
+                type: 'BLOCK',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    handleOpenReschedule(booking);
+                },
+                confirmText: "Reschedule Now",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        if (checkInDate.getTime() < today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Late Check-In Warning",
+                message: "The scheduled check-in date is in the past. Are you sure you want to proceed with checking in now?",
+                type: 'WARNING',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    openCheckInModal();
+                },
+                confirmText: "Proceed Anyway",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        openCheckInModal();
     };
 
     const handleOpenCheckOut = (booking: Booking) => {
-        setCheckOutBooking(booking);
-        setShowCheckOutModal(true);
-        setUseCustomCheckOut(false);
-        setCustomCheckOutAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkOutDate = new Date(booking.checkOutDate);
+        checkOutDate.setHours(0, 0, 0, 0);
+
+        const openCheckOutModal = () => {
+            setCheckOutBooking(booking);
+            setShowCheckOutModal(true);
+            setUseCustomCheckOut(false);
+            setCustomCheckOutAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+        };
+
+        if (checkOutDate.getTime() !== today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Unexpected Check-Out Date",
+                message: `The scheduled check-out date is not today (${format(checkOutDate, 'MMM d, yyyy')}). Are you sure you want to proceed with checking out now?`,
+                type: 'WARNING',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    openCheckOutModal();
+                },
+                confirmText: "Proceed Anyway",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        openCheckOutModal();
     };
 
     const handleIdChange = (idx: number, field: string, value: string) => {
@@ -344,77 +420,6 @@ export default function BookingsList() {
         }
     };
 
-    // const handleDownloadPDF = async (booking: Booking) => {
-    //     setDownloadBooking(booking);
-    //     setIsDownloading(true);
-
-    //     // Wait for state update and re-render
-    //     setTimeout(async () => {
-    //         if (!invoiceRef.current) {
-    //             setIsDownloading(false);
-    //             return;
-    //         }
-
-    //         const element = invoiceRef.current;
-    //         element.classList.add('pdf-capture-mode');
-
-    //         try {
-    //             const elementWidth = element.offsetWidth;
-    //             const elementHeight = element.offsetHeight;
-    //             console.log(`[DEBUG] Capturing element: ${elementWidth}x${elementHeight}`);
-
-    //             if (elementWidth === 0 || elementHeight === 0) {
-    //                 console.warn('[DEBUG] Element has 0 dimensions! Capture might fail.');
-    //             }
-
-    //             const dataUrl = await toPng(element, {
-    //                 width: 800,
-    //                 quality: 1,
-    //                 pixelRatio: 2,
-    //                 backgroundColor: '#ffffff',
-    //                 cacheBust: true,
-    //                 style: {
-    //                     borderRadius: '0',
-    //                     boxShadow: 'none',
-    //                     border: 'none',
-    //                 }
-    //             });
-
-    //             console.log('[DEBUG] PDF imgData start:', dataUrl.substring(0, 50));
-
-    //             const pdf = new jsPDF('p', 'mm', 'a4');
-    //             const imgWidth = 210;
-
-    //             // Helper to get image dimensions
-    //             const img = new Image();
-    //             img.src = dataUrl;
-    //             await new Promise((resolve, reject) => {
-    //                 img.onload = resolve;
-    //                 img.onerror = reject;
-    //                 // Add timeout to prevent hang
-    //                 setTimeout(() => reject(new Error('Image load timeout')), 5000);
-    //             });
-
-    //             const imgHeight = (img.height * imgWidth) / img.width;
-    //             pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
-
-    //             const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
-    //             const fileName = balanceDue > 0
-    //                 ? `Invoice_Performa_${booking.bookingNumber}.pdf`
-    //                 : `Invoice_${booking.bookingNumber}.pdf`;
-
-    //             pdf.save(fileName);
-    //             toast.success('Invoice downloaded');
-    //         } catch (error) {
-    //             console.error('Error generating PDF:', error);
-    //             toast.error('Failed to generate PDF');
-    //         } finally {
-    //             element.classList.remove('pdf-capture-mode');
-    //             setIsDownloading(false);
-    //             setDownloadBooking(null);
-    //         }
-    //     }, 1000);
-    // };
 
     if (isLoading) {
         return (
@@ -600,19 +605,15 @@ export default function BookingsList() {
                                         </td>
                                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="space-y-2">
-                                                <div>
-                                                    <div className="text-sm font-bold text-foreground">Unit {booking.room.roomNumber}</div>
-                                                    <div className="text-[10px] text-muted-foreground uppercase font-medium">{booking.room.roomType?.name}</div>
-                                                </div>
-                                                {booking.roomBlocks && booking.roomBlocks.length > 0 && (
-                                                    <div className="pt-1.5 space-y-2 border-t border-border/50">
-                                                        {booking.roomBlocks.map((block, idx) => (
-                                                            <div key={idx}>
-                                                                 <div className="text-sm font-bold text-foreground">Unit {block.room.roomNumber}</div>
-                                                                 <div className="text-[10px] text-muted-foreground uppercase font-medium">{block.room.roomType?.name}</div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                {booking.bookingRooms && booking.bookingRooms.length > 0 ? (
+                                                    booking.bookingRooms.map((br: any, idx: number) => (
+                                                        <div key={idx} className={idx > 0 ? "pt-1.5 border-t border-border/50" : ""}>
+                                                            <div className="text-sm font-bold text-foreground">Unit {br.room?.roomNumber}</div>
+                                                            <div className="text-[10px] text-muted-foreground uppercase font-medium">{br.room?.roomType?.name}</div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-sm text-muted-foreground italic">No rooms assigned</div>
                                                 )}
                                             </div>
                                         </td>
@@ -621,7 +622,7 @@ export default function BookingsList() {
                                                 {format(new Date(booking.checkInDate), 'MMM d, yyyy')}
                                             </div>
                                             <div className="text-xs text-muted-foreground">
-                                                {booking.numberOfNights} nights
+                                                {Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)))} nights
                                             </div>
                                         </td>
                                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
@@ -704,21 +705,6 @@ export default function BookingsList() {
                                                                 onClick={() => setActiveMenu(null)}
                                                             ></div>
                                                             <div className={`absolute right-0 w-48 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in transition-all duration-200 ${filteredBookings.length > 3 && index >= filteredBookings.length - 2 ? 'bottom-full mb-2 slide-in-from-bottom-2' : 'top-full mt-2 slide-in-from-top-2'}`}>
-                                                                {/* <button
-                                                                    onClick={() => {
-                                                                        setActiveMenu(null);
-                                                                        handleDownloadPDF(booking);
-                                                                    }}
-                                                                    disabled={isDownloading}
-                                                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                                                                >
-                                                                    {isDownloading && downloadBooking?.id === booking.id ? (
-                                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                                    ) : (
-                                                                        <Download className="h-4 w-4" />
-                                                                    )}
-                                                                    Download Invoice
-                                                                </button> */}
                                                                 <button
                                                                     onClick={() => {
                                                                         setActiveMenu(null);
@@ -884,7 +870,7 @@ export default function BookingsList() {
                                                     </div>
                                                     <div className="text-right">
                                                         <div className="text-xs font-bold">{checkInBooking?.checkInDate ? format(new Date(checkInBooking.checkInDate), 'MMM d') : ''} - {checkInBooking?.checkOutDate ? format(new Date(checkInBooking.checkOutDate), 'MMM d') : ''}</div>
-                                                        <div className="text-[10px] text-muted-foreground">{checkInBooking?.numberOfNights} Nights</div>
+                                                        <div className="text-[10px] text-muted-foreground">{checkInBooking ? Math.max(1, differenceInCalendarDays(new Date(checkInBooking.checkOutDate), new Date(checkInBooking.checkInDate))) : 0} Nights</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1417,18 +1403,51 @@ export default function BookingsList() {
                     </div>
                 )}
 
-                {/* Hidden Invoice Component for PDF generation */}
-                {
-                    downloadBooking && (
-                        <div className="fixed -left-[9999px] top-0 overflow-hidden pointer-events-none">
-                            <BookingInvoice
-                                ref={invoiceRef}
-                                booking={downloadBooking}
-                            />
-                        </div>
-                    )
-                }
             </div>
+
+            {/* Warning Modal */}
+            {warningModal?.isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="bg-card w-full max-w-md rounded-2xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className={`p-3 rounded-full ${warningModal.type === 'BLOCK' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-500'}`}>
+                                    <AlertCircle className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-foreground">{warningModal.title}</h3>
+                                </div>
+                            </div>
+                            <p className="text-muted-foreground text-sm pl-[3.25rem]">
+                                {warningModal.message}
+                            </p>
+                        </div>
+                        <div className="bg-muted/50 p-4 border-t border-border flex justify-end gap-3">
+                            <button
+                                onClick={warningModal.onCancel}
+                                className="px-4 py-2 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-colors"
+                            >
+                                {warningModal.cancelText}
+                            </button>
+                            {warningModal.type === 'BLOCK' ? (
+                                <button
+                                    onClick={warningModal.onConfirm}
+                                    className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors"
+                                >
+                                    {warningModal.confirmText}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={warningModal.onConfirm}
+                                    className="px-4 py-2 text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors"
+                                >
+                                    {warningModal.confirmText}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

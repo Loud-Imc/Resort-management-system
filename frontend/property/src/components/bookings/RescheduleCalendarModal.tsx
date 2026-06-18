@@ -1,25 +1,8 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { 
-    format, 
-    startOfMonth, 
-    endOfMonth, 
-    eachDayOfInterval, 
-    startOfWeek, 
-    endOfWeek,
-    isSameMonth, 
-    addMonths, 
-    subMonths,
-    isToday,
-    isSameDay,
-    addDays,
-    isAfter
-} from 'date-fns';
-import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon, Loader2, AlertCircle } from 'lucide-react';
-import { bookingsService } from '../../services/bookings';
-import { roomsService } from '../../services/rooms';
+import { useState } from 'react';
+import { format } from 'date-fns';
+import { X, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 import type { Booking } from '../../types/booking';
-import clsx from 'clsx';
+import BookingAvailabilityCalendar from './BookingAvailabilityCalendar';
 
 interface RescheduleCalendarModalProps {
     booking: Booking;
@@ -36,208 +19,22 @@ export function RescheduleCalendarModal({
     roomTypeId,
     roomTypeName,
     propertyId,
-    roomTypes,
     onClose,
     onSelectDates
 }: RescheduleCalendarModalProps) {
-    const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-    const [tempCheckIn, setTempCheckIn] = useState<Date | null>(null);
-    const [tempCheckOut, setTempCheckOut] = useState<Date | null>(null);
+    const [tempCheckIn, setTempCheckIn] = useState<string | undefined>();
+    const [tempCheckOut, setTempCheckOut] = useState<string | undefined>();
 
-    const month1Start = startOfMonth(currentMonth);
-    const month1End = endOfMonth(month1Start);
-    const nextMonth = addMonths(currentMonth, 1);
-    const month2Start = startOfMonth(nextMonth);
-    const month2End = endOfMonth(month2Start);
-
-    // Fetch bookings for the viewed months (covering both months)
-    const { data: bookings = [], isLoading: isLoadingBookings } = useQuery<Booking[]>({
-        queryKey: ['reschedule-calendar-bookings', propertyId, format(month1Start, 'yyyy-MM')],
-        queryFn: () => bookingsService.getAll({
-            propertyId,
-            startDate: format(subMonths(month1Start, 1), 'yyyy-MM-dd'),
-            endDate: format(addMonths(month2End, 1), 'yyyy-MM-dd')
-        }),
-        enabled: !!propertyId,
-    });
-
-    // Fetch all rooms to count total rooms of the selected type
-    const { data: rooms = [], isLoading: isLoadingRooms } = useQuery<any[]>({
-        queryKey: ['reschedule-calendar-rooms', propertyId],
-        queryFn: () => roomsService.getAll({ propertyId }),
-        enabled: !!propertyId,
-    });
-
-    // Get group pool room types
-    const groupPoolRoomTypeIds = useMemo(() => {
-        if (!booking.isGroupBooking) return [roomTypeId];
-        return roomTypes?.filter((rt: any) => rt.isAvailableForGroupBooking || rt.isGroupPool).map((rt: any) => rt.id) || [];
-    }, [booking.isGroupBooking, roomTypeId, roomTypes]);
-
-    // Calculate total rooms of this type (or total pool rooms for group bookings)
-    const totalRoomsOfType = useMemo(() => {
-        return rooms.filter((r: any) => groupPoolRoomTypeIds.includes(r.roomTypeId)).length;
-    }, [rooms, groupPoolRoomTypeIds]);
-
-    // Generate calendar grid days for Month 1
-    const startDate1 = startOfWeek(month1Start, { weekStartsOn: 1 });
-    const endDate1 = endOfWeek(month1End, { weekStartsOn: 1 });
-    const calendarDays1 = eachDayOfInterval({ start: startDate1, end: endDate1 });
-
-    // Generate calendar grid days for Month 2
-    const startDate2 = startOfWeek(month2Start, { weekStartsOn: 1 });
-    const endDate2 = endOfWeek(month2End, { weekStartsOn: 1 });
-    const calendarDays2 = eachDayOfInterval({ start: startDate2, end: endDate2 });
-
-    // Calculate daily occupancy specifically for the selected room type(s)
-    const occupancyPerDay = useMemo(() => {
-        const counts: Record<string, number> = {};
-
-        bookings.forEach(b => {
-            if (b.status === 'CANCELLED' || b.status === 'PENDING_PAYMENT') return;
-            if (b.id === booking.id) return; // exclude current booking being rescheduled
-
-            let curr = new Date(b.checkInDate);
-            curr.setHours(0, 0, 0, 0);
-            const end = new Date(b.checkOutDate);
-            end.setHours(0, 0, 0, 0);
-
-            while (curr < end) {
-                const dateStr = format(curr, 'yyyy-MM-dd');
-                
-                // Count rooms of the selected type occupied by this booking
-                let occupiedRoomsInThisBooking = 0;
-                if (b.roomTypeId && groupPoolRoomTypeIds.includes(b.roomTypeId)) {
-                    occupiedRoomsInThisBooking += 1;
-                }
-                if (b.roomBlocks) {
-                    b.roomBlocks.forEach(block => {
-                        const rTypeId = (block.room as any)?.roomTypeId || (block as any).roomTypeId;
-                        if (rTypeId && groupPoolRoomTypeIds.includes(rTypeId)) {
-                            occupiedRoomsInThisBooking += 1;
-                        }
-                    });
-                }
-
-                counts[dateStr] = (counts[dateStr] || 0) + occupiedRoomsInThisBooking;
-                curr = addDays(curr, 1);
-            }
-        });
-
-        return counts;
-    }, [bookings, groupPoolRoomTypeIds, booking.id]);
-
-    const handlePreviousMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
-    const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
-
-    const handleDayClick = (day: Date) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (day < today) return; // prevent selecting previous dates
-
-        // Clear selection or start new check-in
-        if (!tempCheckIn || (tempCheckIn && tempCheckOut)) {
-            setTempCheckIn(day);
-            setTempCheckOut(null);
-        } else if (tempCheckIn && !tempCheckOut) {
-            if (isSameDay(day, tempCheckIn)) {
-                // Clicking same day resets it
-                setTempCheckIn(null);
-            } else if (isAfter(day, tempCheckIn)) {
-                setTempCheckOut(day);
-            } else {
-                // Clicking earlier date resets check-in to this date
-                setTempCheckIn(day);
-            }
-        }
+    const handleSelectDates = (checkIn: string, checkOut: string) => {
+        setTempCheckIn(checkIn);
+        setTempCheckOut(checkOut);
     };
 
     const handleApply = () => {
         if (tempCheckIn && tempCheckOut) {
-            onSelectDates(
-                format(tempCheckIn, 'yyyy-MM-dd'),
-                format(tempCheckOut, 'yyyy-MM-dd')
-            );
+            onSelectDates(tempCheckIn, tempCheckOut);
         }
     };
-
-    const isDateInRange = (day: Date) => {
-        if (!tempCheckIn || !tempCheckOut) return false;
-        return isAfter(day, tempCheckIn) && isAfter(tempCheckOut, day);
-    };
-
-    const renderDayCell = (day: Date, monthBasis: Date) => {
-        const dateKey = format(day, 'yyyy-MM-dd');
-        const isCurrentMonth = isSameMonth(day, monthBasis);
-        const isTodayDate = isToday(day);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const isPast = day < today;
-        
-        const occupiedCount = occupancyPerDay[dateKey] || 0;
-        const availableCount = Math.max(0, totalRoomsOfType - occupiedCount);
-        const isFull = availableCount === 0 && totalRoomsOfType > 0;
-
-        const isSelectedCheckIn = tempCheckIn ? isSameDay(day, tempCheckIn) : false;
-        const isSelectedCheckOut = tempCheckOut ? isSameDay(day, tempCheckOut) : false;
-        const isInRange = isDateInRange(day);
-
-        let cellClass = "";
-        let textClass = "";
-        let badgeClass = "";
-
-        if (isPast) {
-            cellClass = "opacity-20 cursor-not-allowed pointer-events-none bg-muted/10 border-border/30";
-            textClass = "text-muted-foreground";
-            badgeClass = "text-muted-foreground/40";
-        } else if (!isCurrentMonth) {
-            cellClass = "opacity-35 hover:opacity-80";
-            textClass = "text-muted-foreground";
-            badgeClass = "text-muted-foreground/60";
-        } else if (isSelectedCheckIn || isSelectedCheckOut) {
-            cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
-            textClass = "text-white font-bold";
-            badgeClass = "text-white/80 font-bold";
-        } else if (isInRange) {
-            cellClass = "bg-primary/15 border-primary/30 text-primary";
-            textClass = "text-primary font-bold";
-            badgeClass = "text-primary/80 font-bold";
-        } else if (isFull) {
-            cellClass = "bg-red-500/5 dark:bg-red-950/20 border-red-500/20 hover:border-red-500/40";
-            textClass = "text-red-700 dark:text-red-400";
-            badgeClass = "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/10";
-        } else {
-            cellClass = "bg-muted/10 border-border/50 hover:bg-muted/40 hover:border-border";
-            textClass = "text-foreground";
-            badgeClass = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
-        }
-
-        return (
-            <button
-                key={dateKey}
-                onClick={() => handleDayClick(day)}
-                className={clsx(
-                    "flex flex-col items-center justify-between p-2 rounded-xl transition-all border text-left min-h-[56px] relative select-none",
-                    cellClass,
-                    isTodayDate && !isSelectedCheckIn && !isSelectedCheckOut && "ring-2 ring-primary/40"
-                )}
-            >
-                <span className={clsx("text-xs font-bold self-start pl-0.5", textClass)}>
-                    {format(day, 'd')}
-                </span>
-                
-                {totalRoomsOfType > 0 ? (
-                    <span className={clsx("text-[9px] px-1.5 py-0.5 rounded-md self-center font-black tracking-tight", badgeClass)}>
-                        {isFull ? 'FULL' : `${availableCount}/${totalRoomsOfType}`}
-                    </span>
-                ) : (
-                    <span className="text-[8px] text-muted-foreground self-center">No inventory</span>
-                )}
-            </button>
-        );
-    };
-
-    const isLoading = isLoadingBookings || isLoadingRooms;
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-background/50 backdrop-blur-2xl">
@@ -255,9 +52,9 @@ export function RescheduleCalendarModal({
                                 </h2>
                                 <p className="text-xs text-muted-foreground font-medium mt-0.5">
                                     {booking.isGroupBooking ? (
-                                        <>Group Booking Pool (<span className="text-primary font-bold">{totalRoomsOfType}</span> total rooms in pool)</>
+                                        <>Group Booking Pool</>
                                     ) : (
-                                        <>Room Type: <span className="text-primary font-bold">{roomTypeName}</span> ({totalRoomsOfType} total rooms)</>
+                                        <>Room Type: <span className="text-primary font-bold">{roomTypeName}</span></>
                                     )}
                                 </p>
                             </div>
@@ -273,76 +70,18 @@ export function RescheduleCalendarModal({
 
                 {/* Main Body */}
                 <div className="p-6 flex flex-col md:flex-row gap-6">
-                    {/* Left: Two Calendars Side by Side */}
-                    <div className="flex-1 flex flex-col relative min-h-[420px]">
-                        {/* Month Picker Header */}
-                        <div className="flex items-center justify-between mb-6 border-b border-border/40 pb-4 flex-shrink-0">
-                            <button 
-                                onClick={handlePreviousMonth}
-                                className="p-2 hover:bg-muted rounded-xl text-foreground transition-colors border border-border/50"
-                            >
-                                <ChevronLeft className="h-5 w-5" />
-                            </button>
-                            <div className="flex gap-16 font-black uppercase tracking-widest text-foreground text-sm">
-                                <span>{format(currentMonth, 'MMMM yyyy')}</span>
-                                <span className="hidden sm:inline text-muted-foreground">•</span>
-                                <span className="hidden sm:inline">{format(addMonths(currentMonth, 1), 'MMMM yyyy')}</span>
-                            </div>
-                            <button 
-                                onClick={handleNextMonth}
-                                className="p-2 hover:bg-muted rounded-xl text-foreground transition-colors border border-border/50"
-                            >
-                                <ChevronRight className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
-                            {/* Calendar 1: Current Month */}
-                            <div className="flex flex-col">
-                                <h4 className="text-center font-bold text-xs text-primary mb-3 uppercase tracking-wider block lg:hidden">
-                                    {format(currentMonth, 'MMMM yyyy')}
-                                </h4>
-                                {/* Weekday Labels */}
-                                <div className="grid grid-cols-7 gap-1 mb-2">
-                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                        <div key={day} className="text-center text-[10px] font-black uppercase text-muted-foreground tracking-widest py-1">
-                                            {day}
-                                        </div>
-                                    ))}
-                                </div>
-                                {/* Days Grid */}
-                                <div className="grid grid-cols-7 gap-1 flex-1">
-                                    {calendarDays1.map(day => renderDayCell(day, currentMonth))}
-                                </div>
-                            </div>
-
-                            {/* Calendar 2: Next Month */}
-                            <div className="flex flex-col">
-                                <h4 className="text-center font-bold text-xs text-primary mb-3 uppercase tracking-wider block">
-                                    {format(addMonths(currentMonth, 1), 'MMMM yyyy')}
-                                </h4>
-                                {/* Weekday Labels */}
-                                <div className="grid grid-cols-7 gap-1 mb-2">
-                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                        <div key={day} className="text-center text-[10px] font-black uppercase text-muted-foreground tracking-widest py-1">
-                                            {day}
-                                        </div>
-                                    ))}
-                                </div>
-                                {/* Days Grid */}
-                                <div className="grid grid-cols-7 gap-1 flex-1">
-                                    {calendarDays2.map(day => renderDayCell(day, addMonths(currentMonth, 1)))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Loading Indicator */}
-                        {isLoading && (
-                            <div className="absolute inset-0 bg-background/50 dark:bg-background/80 flex flex-col items-center justify-center backdrop-blur-[2px] rounded-2xl z-25">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                <span className="text-xs font-black uppercase text-muted-foreground tracking-widest mt-2">Updating availability...</span>
-                            </div>
-                        )}
+                    {/* Left: Interactive Calendar */}
+                    <div className="flex-1">
+                        <BookingAvailabilityCalendar
+                            propertyId={propertyId}
+                            roomTypeId={roomTypeId}
+                            isGroupBooking={!!booking.isGroupBooking}
+                            excludeBookingId={booking.id}
+                            selectedCheckIn={tempCheckIn}
+                            selectedCheckOut={tempCheckOut}
+                            onSelectDates={handleSelectDates}
+                            className="border-none shadow-none"
+                        />
                     </div>
 
                     {/* Right: Instructions & Selections */}
@@ -354,14 +93,14 @@ export function RescheduleCalendarModal({
                                 <div className="p-4 bg-background border border-border/40 rounded-2xl flex flex-col">
                                     <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">New Check-In</span>
                                     <span className="text-base font-bold mt-1 text-foreground">
-                                        {tempCheckIn ? format(tempCheckIn, 'MMM dd, yyyy (EEEE)') : 'Select check-in date'}
+                                        {tempCheckIn ? format(new Date(tempCheckIn), 'MMM dd, yyyy (EEEE)') : 'Select check-in date'}
                                     </span>
                                 </div>
 
                                 <div className="p-4 bg-background border border-border/40 rounded-2xl flex flex-col">
                                     <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">New Check-Out</span>
                                     <span className="text-base font-bold mt-1 text-foreground">
-                                        {tempCheckOut ? format(tempCheckOut, 'MMM dd, yyyy (EEEE)') : 'Select check-out date'}
+                                        {tempCheckOut ? format(new Date(tempCheckOut), 'MMM dd, yyyy (EEEE)') : 'Select check-out date'}
                                     </span>
                                 </div>
                             </div>

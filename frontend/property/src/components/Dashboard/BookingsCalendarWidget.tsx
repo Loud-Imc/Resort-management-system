@@ -47,7 +47,7 @@ export default function BookingsCalendarWidget({
     // Fetch bookings for the current month view (including trailing/leading days if needed, but start/end month is usually enough)
     const { data: bookings = [], isLoading } = useQuery<Booking[]>({
         queryKey: ['dashboard-calendar-bookings', selectedProperty?.id, format(monthStart, 'yyyy-MM')],
-        queryFn: () => bookingsService.getAll({
+        queryFn: () => bookingsService.getDashboardCalendar({
             propertyId: selectedProperty?.id,
             startDate: format(subMonths(monthStart, 1), 'yyyy-MM-dd'), // fetch a wider range to cover long stays
             endDate: format(addMonths(monthEnd, 1), 'yyyy-MM-dd')
@@ -79,7 +79,7 @@ export default function BookingsCalendarWidget({
             end.setHours(0, 0, 0, 0);
 
             // Compute unique room count for this booking (including blocks)
-            const roomsCount = new Set([b.roomId, ...(b.roomBlocks?.map(rb => rb.roomId) || [])]).size;
+            const roomsCount = b.bookingRooms?.length || 1;
 
             while (curr < end) {
                 const dateStr = format(curr, 'yyyy-MM-dd');

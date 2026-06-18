@@ -14,6 +14,11 @@ export interface Expense {
     property?: { id: string; name: string };
     isPaid?: boolean;
     paymentMethod?: string;
+    bookings?: {
+        id: string;
+        bookingNumber: string;
+        guests?: any[];
+    }[];
     createdAt: string;
     updatedAt: string;
 }

@@ -10,4 +10,7 @@ export interface User {
     roles: { role: { name: string } }[];
     createdAt: string;
     bookings?: any[];
+    _count?: {
+        bookings: number;
+    };
 }

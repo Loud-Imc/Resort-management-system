@@ -13,6 +13,7 @@ import { uploadService } from '../../services/uploads';
 import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, Eye, X } from 'lucide-react';
 import clsx from 'clsx';
 import SearchableSelect from '../../components/SearchableSelect';
+import BookingAvailabilityCalendar from '../../components/bookings/BookingAvailabilityCalendar';
 import type { PriceCalculationResult, CreateBookingDto } from '../../types/booking';
 import type { RoomType } from '../../types/room';
 import { useProperty } from '../../context/PropertyContext';
@@ -114,6 +115,7 @@ export default function CreateBooking() {
     const [originalPriceDetails, setOriginalPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
     const [showInsufficientModal, setShowInsufficientModal] = useState(false);
+    const [showMobileCalendar, setShowMobileCalendar] = useState(false);
 
     const preSelectedRoomId = state?.roomId || searchParams.get('roomId');
     const preSelectedRoomTypeId = state?.roomTypeId || searchParams.get('roomTypeId');
@@ -450,7 +452,16 @@ export default function CreateBooking() {
     if (loadingRoomTypes) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
 
     return (
-        <div className="max-w-5xl mx-auto pb-16 px-4">
+        <div className="max-w-[1400px] mx-auto pb-16 px-4 xl:px-8">
+            {/* Full Page Loader Overlay */}
+            {createBookingMutation.isPending && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-widest">Creating Booking...</h2>
+                    <p className="text-sm font-bold text-muted-foreground mt-2">Please wait, do not close or refresh this page.</p>
+                </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-border">
                 <div className="flex items-center gap-4">
                     <button 
@@ -474,8 +485,8 @@ export default function CreateBooking() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
+                <div className="xl:col-span-5 space-y-6">
                     <form onSubmit={handleSubmit(onSubmit, (errs) => {
                         console.log('Form Errors:', errs);
                         const fieldNames = Object.keys(errs).map(key => {
@@ -596,10 +607,19 @@ export default function CreateBooking() {
                                     <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
                                         <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
                                     </label>
+                                    <div 
+                                        onClick={() => {
+                                            if (window.innerWidth < 1280) setShowMobileCalendar(true);
+                                        }}
+                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary hover:border-primary/50 transition-all flex items-center justify-between xl:hidden"
+                                    >
+                                        <span>{watch('checkInDate') ? format(new Date(watch('checkInDate')), 'yyyy-MM-dd') : 'Select Date'}</span>
+                                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                                    </div>
                                     <input 
                                         type="date" 
                                         {...register('checkInDate')} 
-                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all" 
+                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all hidden xl:block" 
                                     />
                                     {errors.checkInDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkInDate.message}</p>}
                                 </div>
@@ -607,10 +627,19 @@ export default function CreateBooking() {
                                     <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
                                         <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
                                     </label>
+                                    <div 
+                                        onClick={() => {
+                                            if (window.innerWidth < 1280) setShowMobileCalendar(true);
+                                        }}
+                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary hover:border-primary/50 transition-all flex items-center justify-between xl:hidden"
+                                    >
+                                        <span>{watch('checkOutDate') ? format(new Date(watch('checkOutDate')), 'yyyy-MM-dd') : 'Select Date'}</span>
+                                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                                    </div>
                                     <input 
                                         type="date" 
                                         {...register('checkOutDate')} 
-                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all" 
+                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all hidden xl:block" 
                                     />
                                     {errors.checkOutDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkOutDate.message}</p>}
                                 </div>
@@ -672,12 +701,12 @@ export default function CreateBooking() {
                                                 type="text"
                                                 {...register('appliedCode')}
                                                 placeholder="GUEST10 or CP..."
-                                                className="flex-1 border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-bold text-sm uppercase focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all placeholder:text-muted-foreground"
+                                                className="flex-1 min-w-0 border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-bold text-sm uppercase focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all placeholder:text-muted-foreground"
                                             />
                                             <button
                                                 type="button"
                                                 onClick={handleCheckAvailability}
-                                                className="px-5 py-2.5 bg-muted text-foreground hover:bg-muted/80 rounded-xl text-xs font-bold transition-all border border-border shadow-sm active:scale-95"
+                                                className="shrink-0 whitespace-nowrap px-5 py-2.5 bg-muted text-foreground hover:bg-muted/80 rounded-xl text-xs font-bold transition-all border border-border shadow-sm active:scale-95"
                                             >
                                                 Apply
                                             </button>
@@ -1308,8 +1337,66 @@ export default function CreateBooking() {
                     </form >
                 </div >
 
-                {/* Price Summary Sidebar */}
-                <div className="lg:col-span-1">
+                {/* Right Sidebar: Interactive Calendar & Price Summary */}
+                <div className="xl:col-span-7 space-y-6">
+                    {/* 1. Interactive Availability Calendar (Desktop only) */}
+                    <div className="hidden xl:block">
+                        <BookingAvailabilityCalendar
+                            propertyId={watch('propertyId')}
+                            roomTypeId={watch('roomTypeId')}
+                            isGroupBooking={!!watch('isGroupBooking')}
+                            selectedCheckIn={watch('checkInDate')}
+                            selectedCheckOut={watch('checkOutDate')}
+                            monthsToShow={2}
+                            onSelectDates={(checkIn, checkOut) => {
+                                setValue('checkInDate', checkIn);
+                                setValue('checkOutDate', checkOut);
+                                handleCheckAvailability();
+                            }}
+                        />
+                    </div>
+
+                    {/* Mobile Calendar Modal */}
+                    {showMobileCalendar && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm xl:hidden">
+                            <div className="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]">
+                                <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
+                                    <h3 className="font-bold text-foreground">Select Dates</h3>
+                                    <button onClick={() => setShowMobileCalendar(false)} className="p-2 hover:bg-muted rounded-xl transition-colors">
+                                        <X className="h-5 w-5 text-muted-foreground" />
+                                    </button>
+                                </div>
+                                <div className="p-4 overflow-y-auto">
+                                    <BookingAvailabilityCalendar
+                                        propertyId={watch('propertyId')}
+                                        roomTypeId={watch('roomTypeId')}
+                                        isGroupBooking={!!watch('isGroupBooking')}
+                                        selectedCheckIn={watch('checkInDate')}
+                                        selectedCheckOut={watch('checkOutDate')}
+                                        monthsToShow={1} // Show 1 month on mobile to save vertical space
+                                        onSelectDates={(checkIn, checkOut) => {
+                                            setValue('checkInDate', checkIn);
+                                            setValue('checkOutDate', checkOut);
+                                            handleCheckAvailability();
+                                            // Optional: Close modal after selection
+                                            setTimeout(() => setShowMobileCalendar(false), 500);
+                                        }}
+                                        className="border-none shadow-none p-0"
+                                    />
+                                </div>
+                                <div className="p-4 border-t border-border bg-muted/10">
+                                    <button 
+                                        onClick={() => setShowMobileCalendar(false)}
+                                        className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-bold uppercase tracking-wider text-xs active:scale-95 transition-transform"
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 2. Price Summary */}
                     <div className="bg-card p-6 rounded-2xl shadow-xl border border-border sticky top-[72px] overflow-hidden">
                         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-primary/70 to-primary/40"></div>
                         <h2 className="text-xl font-extrabold mb-5 flex items-center gap-2 text-foreground">

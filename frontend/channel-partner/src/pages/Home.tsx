@@ -116,9 +116,39 @@ const Home: React.FC = () => {
 
     const copyCode = () => {
         if (stats?.referralCode) {
-            navigator.clipboard.writeText(stats.referralCode);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(stats.referralCode).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            } else {
+                // Fallback for non-secure contexts (e.g., HTTP staging server)
+                const textArea = document.createElement("textarea");
+                textArea.value = stats.referralCode;
+                
+                // Move textarea out of viewport
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                    }
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                }
+                
+                document.body.removeChild(textArea);
+            }
         }
     };
 

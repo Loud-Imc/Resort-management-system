@@ -42,6 +42,11 @@ export class CreateExpenseDto {
     @IsOptional()
     @IsString()
     paymentMethod?: string;
+
+    @ApiProperty({ example: ['booking-uuid-1', 'booking-uuid-2'], required: false })
+    @IsOptional()
+    @IsString({ each: true })
+    bookingIds?: string[];
 }
 
 export class UpdateExpenseDto {
@@ -85,6 +90,11 @@ export class UpdateExpenseDto {
     @IsOptional()
     @IsString()
     paymentMethod?: string;
+
+    @ApiProperty({ example: ['booking-uuid-1', 'booking-uuid-2'], required: false })
+    @IsOptional()
+    @IsString({ each: true })
+    bookingIds?: string[];
 }
 
 export class CreateExpenseCategoryDto {

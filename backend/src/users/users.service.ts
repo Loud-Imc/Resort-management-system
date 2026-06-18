@@ -213,16 +213,38 @@ export class UsersService {
         const roles = requestUser.roles || [];
         if (roles.includes('SuperAdmin') || roles.includes('Admin')) return true;
 
-        // 3. Check if target user has bookings at a property where the request user is staff/owner
-        const hasAccess = await this.prisma.booking.findFirst({
+        // 3. Check if target user has bookings at a property where the request user is staff/owner,
+        // or if they are staff at such property, or if they were created by the request user.
+        const hasAccess = await this.prisma.user.findFirst({
             where: {
-                userId: targetUserId,
-                property: {
-                    OR: [
-                        { ownerId: requestUser.id },
-                        { staff: { some: { userId: requestUser.id } } }
-                    ]
-                }
+                id: targetUserId,
+                OR: [
+                    {
+                        propertyStaff: {
+                            some: {
+                                property: {
+                                    OR: [
+                                        { ownerId: requestUser.id },
+                                        { staff: { some: { userId: requestUser.id } } }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        bookings: {
+                            some: {
+                                property: {
+                                    OR: [
+                                        { ownerId: requestUser.id },
+                                        { staff: { some: { userId: requestUser.id } } }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    { createdById: requestUser.id }
+                ]
             }
         });
 
@@ -380,6 +402,7 @@ export class UsersService {
                                 role: true,
                             },
                         },
+                        _count: { select: { bookings: true } },
                     },
                 });
             }
@@ -411,6 +434,7 @@ export class UsersService {
                             role: true,
                         },
                     },
+                    _count: { select: { bookings: true } },
                 },
             });
         }
@@ -454,6 +478,7 @@ export class UsersService {
                         role: true,
                     },
                 },
+                _count: { select: { bookings: true } },
             },
         });
     }

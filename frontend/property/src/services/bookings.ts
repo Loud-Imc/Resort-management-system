@@ -13,6 +13,27 @@ export const bookingsService = {
         return data;
     },
 
+    getDashboardCalendar: async (params?: {
+        propertyId?: string;
+        startDate?: string;
+        endDate?: string;
+    }) => {
+        const { data } = await api.get<Booking[]>('/bookings/dashboard-calendar', { params });
+        return data;
+    },
+
+    getCalendarAvailability: async (params: {
+        propertyId: string;
+        startDate: string;
+        endDate: string;
+        roomTypeId?: string;
+        isGroupBooking?: boolean;
+        excludeBookingId?: string;
+    }) => {
+        const { data } = await api.get<Record<string, { available: number, total: number, isFull: boolean }>>('/bookings/calendar-availability', { params });
+        return data;
+    },
+
     getById: async (id: string) => {
         const { data } = await api.get<Booking>(`/bookings/${id}`);
         return data;

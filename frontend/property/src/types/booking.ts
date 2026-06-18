@@ -99,6 +99,20 @@ export interface Booking {
             };
         };
     }[];
+    bookingRooms?: {
+        id: string;
+        roomId: string;
+        bookingId: string;
+        room: {
+            id: string;
+            roomNumber: string;
+            roomType: {
+                name: string;
+                images?: string[];
+                property?: any;
+            };
+        };
+    }[];
     amountInBookingCurrency: number;
     bookingCurrency: string;
     exchangeRate: number;

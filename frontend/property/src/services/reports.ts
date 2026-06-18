@@ -1,4 +1,5 @@
 import api from './api';
+import type { Room } from '../types/room';
 
 export interface DashboardStats {
     date: string;
@@ -19,6 +20,7 @@ export interface DashboardStats {
         MAINTENANCE: number;
         BLOCKED: number;
     };
+    roomsList?: Room[];
 }
 
 export const reportsService = {

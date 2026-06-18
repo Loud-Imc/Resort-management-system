@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PropertyStatus } from '@prisma/client';
 import { PricingService } from './pricing.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
-
+import { format, eachDayOfInterval } from 'date-fns';
 @Injectable()
 export class AvailabilityService {
     constructor(
@@ -178,12 +178,40 @@ export class AvailabilityService {
         excludeBookingId?: string,
         prismaClient?: any
     ): Promise<boolean> {
+        // Run the battle-tested legacy logic
+        const legacyResult = await this.isRoomAvailableLegacy(roomId, checkIn, checkOut, excludeBookingId, prismaClient);
+
+        // Phase 4: Parallel Background Execution
+        // We run the new unified BookingRoom logic asynchronously so it doesn't block the API
+        this.isRoomAvailableV2(roomId, checkIn, checkOut, excludeBookingId, prismaClient)
+            .then(v2Result => {
+                if (legacyResult !== v2Result) {
+                    console.error(`[PHASE_4_MISMATCH] Room ${roomId} | Legacy: ${legacyResult} | Unified: ${v2Result} | Dates: ${new Date(checkIn).toISOString()} to ${new Date(checkOut).toISOString()}`);
+                }
+            })
+            .catch(err => {
+                console.error(`[PHASE_4_ERROR] Unified availability check failed for room ${roomId}:`, err);
+            });
+
+        return legacyResult;
+    }
+
+    /**
+     * Legacy isRoomAvailable (Phase 1-3 logic)
+     */
+    async isRoomAvailableLegacy(
+        roomId: string,
+        checkIn: Date | string,
+        checkOut: Date | string,
+        excludeBookingId?: string,
+        prismaClient?: any
+    ): Promise<boolean> {
         const db = prismaClient || this.prisma;
 
         // 1. Fetch Room and check basic status
         const room = await db.room.findUnique({
             where: { id: roomId },
-            select: { id: true, isEnabled: true, status: true }
+            select: { id: true, roomNumber: true, isEnabled: true, status: true, property: { select: { defaultCheckOutTime: true } } }
         });
 
         if (!room || !room.isEnabled) return false;
@@ -202,12 +230,52 @@ export class AvailabilityService {
             checkOutDate.setHours(23, 59, 59, 999);
         }
 
-        // Smart "Today" check: If the booking starts today or earlier, and the room is currently OCCUPIED,
-        // it means there's a guest physically there (or manual status override).
+        // Time-aware Smart Today check
         const todayStr = new Date().toISOString().split('T')[0];
         const checkInStr = checkInDate.toISOString().split('T')[0];
+        
         if (checkInStr <= todayStr && room.status === 'OCCUPIED') {
-            return false;
+            const checkOutTimeStr = room.property?.defaultCheckOutTime || '11:00';
+            const [hours, minutes] = checkOutTimeStr.split(':').map(Number);
+            
+            const checkoutThreshold = new Date();
+            checkoutThreshold.setHours(hours, minutes, 0, 0);
+            checkoutThreshold.setMinutes(checkoutThreshold.getMinutes() + 60); // 60 mins grace period
+            
+            const now = new Date();
+            if (now > checkoutThreshold) {
+                console.log(`[SMART_TODAY_CHECK] Room ID: ${room.id} | Room Number: ${room.roomNumber} | Decision: BLOCK | Reason: OVERSTAY`);
+                return false;
+            } else {
+                // Safety verification query
+                const todayMidnight = new Date();
+                todayMidnight.setHours(0, 0, 0, 0);
+                
+                const tomorrowMidnight = new Date(todayMidnight);
+                tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+
+                const activeBooking = await db.booking.findFirst({
+                    where: {
+                        OR: [
+                            { roomId: room.id },
+                            { roomBlocks: { some: { roomId: room.id } } }
+                        ],
+                        status: 'CHECKED_IN',
+                        checkOutDate: {
+                            gte: todayMidnight,
+                            lt: tomorrowMidnight
+                        }
+                    }
+                });
+
+                if (activeBooking) {
+                    console.log(`[SMART_TODAY_CHECK] Room ID: ${room.id} | Room Number: ${room.roomNumber} | Decision: ALLOW_TURNOVER | Reason: CHECKED_IN_BOOKING_FOUND`);
+                    // continue existing overlap query logic
+                } else {
+                    console.log(`[SMART_TODAY_CHECK] Room ID: ${room.id} | Room Number: ${room.roomNumber} | Decision: BLOCK | Reason: MANUAL_OCCUPIED`);
+                    return false;
+                }
+            }
         }
 
         // 2. Check for overlapping bookings
@@ -301,6 +369,121 @@ export class AvailabilityService {
     }
 
     /**
+     * Phase 4: Unified BookingRoom availability logic
+     * This fully replaces the dual Booking + RoomBlock overlap query.
+     */
+    private async isRoomAvailableV2(
+        roomId: string,
+        checkIn: Date | string,
+        checkOut: Date | string,
+        excludeBookingId?: string,
+        prismaClient?: any
+    ): Promise<boolean> {
+        const db = prismaClient || this.prisma;
+
+        // 1. Fetch Room and check basic status
+        const room = await db.room.findUnique({
+            where: { id: roomId },
+            select: { id: true, roomNumber: true, isEnabled: true, status: true, property: { select: { defaultCheckOutTime: true } } }
+        });
+
+        if (!room || !room.isEnabled) return false;
+
+        if (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') {
+            return false;
+        }
+
+        const checkInDate = new Date(checkIn);
+        checkInDate.setHours(0, 0, 0, 0);
+        const checkOutDate = new Date(checkOut);
+        checkOutDate.setHours(0, 0, 0, 0);
+
+        if (checkInDate.getTime() === checkOutDate.getTime()) {
+            checkOutDate.setHours(23, 59, 59, 999);
+        }
+
+        // Time-aware Smart Today check
+        const todayStr = new Date().toISOString().split('T')[0];
+        const checkInStr = checkInDate.toISOString().split('T')[0];
+        
+        if (checkInStr <= todayStr && room.status === 'OCCUPIED') {
+            const checkOutTimeStr = room.property?.defaultCheckOutTime || '11:00';
+            const [hours, minutes] = checkOutTimeStr.split(':').map(Number);
+            
+            const checkoutThreshold = new Date();
+            checkoutThreshold.setHours(hours, minutes, 0, 0);
+            checkoutThreshold.setMinutes(checkoutThreshold.getMinutes() + 60);
+            
+            const now = new Date();
+            if (now > checkoutThreshold) {
+                return false;
+            } else {
+                const todayMidnight = new Date();
+                todayMidnight.setHours(0, 0, 0, 0);
+                const tomorrowMidnight = new Date(todayMidnight);
+                tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+
+                // Phase 4 difference: Use the new unified bookingRooms relation!
+                // The any-cast avoids TS errors before 'prisma generate' is run by the user.
+                const activeBooking = await db.booking.findFirst({
+                    where: {
+                        ...({ bookingRooms: { some: { roomId: room.id } } } as any),
+                        status: 'CHECKED_IN',
+                        checkOutDate: { gte: todayMidnight, lt: tomorrowMidnight }
+                    }
+                });
+
+                if (!activeBooking) {
+                    return false;
+                }
+            }
+        }
+
+        // 2. The new unified overlap query using bookingRooms
+        const thirtyMinutesAgo = new Date();
+        thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+
+        // Phase 4 difference: We drop db.booking and db.roomBlock queries completely.
+        // We use db.bookingRoom directly.
+        if (!(db as any).bookingRoom) return true; // Fail gracefully if prisma not generated yet
+
+        const overlappingBookingRooms = await (db as any).bookingRoom.findMany({
+            where: {
+                roomId,
+                booking: {
+                    AND: [
+                        {
+                            OR: [
+                                { status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] } }, 
+                                {
+                                    AND: [
+                                        { status: 'PENDING_PAYMENT' },
+                                        { createdAt: { gte: thirtyMinutesAgo } }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            OR: [
+                                { AND: [{ checkInDate: { lte: checkInDate } }, { checkOutDate: { gt: checkInDate } }] },
+                                { AND: [{ checkInDate: { lt: checkOutDate } }, { checkOutDate: { gte: checkOutDate } }] },
+                                { AND: [{ checkInDate: { gte: checkInDate } }, { checkOutDate: { lte: checkOutDate } }] },
+                            ]
+                        }
+                    ],
+                    NOT: excludeBookingId ? { id: excludeBookingId } : undefined,
+                }
+            }
+        });
+
+        if (overlappingBookingRooms.length > 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Get available room count for a room type
      */
     async getAvailableRoomCount(
@@ -318,6 +501,98 @@ export class AvailabilityService {
             excludeBookingId,
         );
         return availableRooms.length;
+    }
+
+    /**
+     * Get day-by-day availability for a calendar view
+     */
+    async getCalendarAvailability(
+        propertyId: string,
+        startDate: string,
+        endDate: string,
+        roomTypeId?: string,
+        isGroupBooking: boolean = false,
+        excludeBookingId?: string
+    ) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        let totalRoomsOfType = 0;
+        let groupPoolRoomTypeIds: string[] = [];
+
+        if (isGroupBooking) {
+            const groupPoolTypes = await this.prisma.roomType.findMany({
+                where: { propertyId, isAvailableForGroupBooking: true }
+            });
+            groupPoolRoomTypeIds = groupPoolTypes.map(rt => rt.id);
+            totalRoomsOfType = await this.prisma.room.count({
+                where: { propertyId, roomTypeId: { in: groupPoolRoomTypeIds }, isEnabled: true }
+            });
+        } else if (roomTypeId) {
+            totalRoomsOfType = await this.prisma.room.count({
+                where: { propertyId, roomTypeId, isEnabled: true }
+            });
+        }
+
+        const bookings = await this.prisma.booking.findMany({
+            where: {
+                propertyId,
+                status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED', 'PENDING_PAYMENT'] },
+                id: excludeBookingId ? { not: excludeBookingId } : undefined,
+                OR: [
+                    {
+                        checkInDate: { lte: end },
+                        checkOutDate: { gte: start }
+                    }
+                ]
+            },
+            include: {
+                bookingRooms: {
+                    include: { room: true }
+                }
+            }
+        });
+
+        const calendarDays = eachDayOfInterval({ start, end });
+        const result: Record<string, { available: number, total: number, isFull: boolean }> = {};
+
+        for (const day of calendarDays) {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            let occupiedRooms = 0;
+
+            for (const b of bookings) {
+                if (b.status === 'PENDING_PAYMENT') {
+                    const thirtyMinsAgo = new Date(Date.now() - 30 * 60000);
+                    if (b.createdAt < thirtyMinsAgo) continue;
+                }
+
+                const bCheckIn = new Date(b.checkInDate);
+                bCheckIn.setHours(0, 0, 0, 0);
+                const bCheckOut = new Date(b.checkOutDate);
+                bCheckOut.setHours(0, 0, 0, 0);
+
+                if (day >= bCheckIn && day < bCheckOut) {
+                    if (isGroupBooking) {
+                        occupiedRooms += b.bookingRooms.filter((br: any) => 
+                            br.room?.roomTypeId && groupPoolRoomTypeIds.includes(br.room.roomTypeId)
+                        ).length;
+                    } else if (roomTypeId) {
+                        occupiedRooms += b.bookingRooms.filter((br: any) => 
+                            br.room?.roomTypeId === roomTypeId
+                        ).length;
+                    }
+                }
+            }
+
+            const availableCount = Math.max(0, totalRoomsOfType - occupiedRooms);
+            result[dateStr] = {
+                available: availableCount,
+                total: totalRoomsOfType,
+                isFull: totalRoomsOfType > 0 && availableCount === 0
+            };
+        }
+
+        return result;
     }
     /**
      * Search for all room types available for the given criteria

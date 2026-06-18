@@ -20,19 +20,15 @@ import {
     Receipt,
     Pencil
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
-import { BookingInvoice } from '../../components/bookings/BookingInvoice';
 import type { Booking } from '../../types/booking';
-import { useRef } from 'react';
-// import jsPDF from 'jspdf';
-// import { toPng } from 'html-to-image';
+
 
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const invoiceRef = useRef<HTMLDivElement>(null);
     const [isDownloading, setIsDownloading] = useState(false);
 
     const { data: booking, isLoading, error } = useQuery({
@@ -66,64 +62,9 @@ const BookingDetails = () => {
         );
     }
 
-    const property = (booking as any).property || (booking.room?.roomType as any)?.property;
-    const roomType = (booking.room?.roomType || (booking as any).roomType) as any;
+    const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
-
-    // const handleDownloadPDF = async () => {
-    //     setIsDownloading(true);
-    //     setTimeout(async () => {
-    //         if (!invoiceRef.current) {
-    //             setIsDownloading(false);
-    //             return;
-    //         }
-
-    //         const element = invoiceRef.current;
-    //         element.classList.add('pdf-capture-mode');
-
-    //         try {
-    //             const dataUrl = await toPng(element, {
-    //                 width: 800,
-    //                 quality: 1,
-    //                 pixelRatio: 2,
-    //                 backgroundColor: '#ffffff',
-    //                 cacheBust: true,
-    //                 style: {
-    //                     borderRadius: '0',
-    //                     boxShadow: 'none',
-    //                     border: 'none',
-    //                 }
-    //             });
-
-    //             const pdf = new jsPDF('p', 'mm', 'a4');
-    //             const imgWidth = 210;
-
-    //             const img = new Image();
-    //             img.src = dataUrl;
-    //             await new Promise((resolve, reject) => {
-    //                 img.onload = resolve;
-    //                 img.onerror = reject;
-    //                 setTimeout(() => reject(new Error('Image load timeout')), 5000);
-    //             });
-
-    //             const imgHeight = (img.height * imgWidth) / img.width;
-    //             pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
-
-    //             const fileName = balanceDue > 0
-    //                 ? `Invoice_Performa_${booking.bookingNumber}.pdf`
-    //                 : `Invoice_${booking.bookingNumber}.pdf`;
-
-    //             pdf.save(fileName);
-    //             toast.success('Invoice downloaded');
-    //         } catch (error) {
-    //             console.error('Error generating PDF:', error);
-    //             toast.error('Failed to generate PDF');
-    //         } finally {
-    //             element.classList.remove('pdf-capture-mode');
-    //             setIsDownloading(false);
-    //         }
-    //     }, 500);
-    // };
+    const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
 
     const handleDownloadBackendPDF = async () => {
         try {
@@ -194,14 +135,6 @@ const BookingDetails = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* <button
-                        onClick={handleDownloadPDF}
-                        disabled={isDownloading}
-                        className="inline-flex items-center gap-2 bg-primary text-primary-foreground hover:shadow-xl hover:shadow-primary/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
-                    >
-                        {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        Download Invoice
-                    </button> */}
                     <button
                         onClick={handleDownloadBackendPDF}
                         disabled={isDownloading}
@@ -251,7 +184,7 @@ const BookingDetails = () => {
                                     <p className="text-sm font-bold text-muted-foreground">{format(new Date(booking.checkInDate), 'yyyy')}</p>
                                     <p className="text-[11px] font-medium text-primary mt-1">
                                         {(booking as any).checkedInAt
-                                            ? `Actual: ${format(new Date((booking as any).checkedInAt), 'hh:mm a')}`
+                                            ? `Actual: ${format(new Date((booking as any).checkedInAt), 'MMM d, hh:mm a')}`
                                             : `Standard: ${format(new Date(`2000-01-01T${property?.defaultCheckInTime || '14:00'}:00`), 'hh:mm a')}`}
                                     </p>
                                 </div>
@@ -260,7 +193,7 @@ const BookingDetails = () => {
                             <div className="flex items-center justify-center py-4">
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="px-4 py-1.5 bg-muted rounded-2xl text-[10px] font-black uppercase tracking-widest border border-border">
-                                        {booking.numberOfNights} Night(s)
+                                        {displayNights} Night(s)
                                     </div>
                                     <div className="w-16 h-[2px] bg-border relative">
                                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary" />
@@ -277,7 +210,7 @@ const BookingDetails = () => {
                                     <p className="text-sm font-bold text-muted-foreground">{format(new Date(booking.checkOutDate), 'yyyy')}</p>
                                     <p className="text-[11px] font-medium text-amber-600 mt-1">
                                         {(booking as any).checkedOutAt
-                                            ? `Actual: ${format(new Date((booking as any).checkedOutAt), 'hh:mm a')}`
+                                            ? `Actual: ${format(new Date((booking as any).checkedOutAt), 'MMM d, hh:mm a')}`
                                             : `Standard: ${format(new Date(`2000-01-01T${property?.defaultCheckOutTime || '11:00'}:00`), 'hh:mm a')}`}
                                     </p>
                                 </div>
@@ -293,30 +226,32 @@ const BookingDetails = () => {
                         </h3>
                         <div className="space-y-6">
                             {/* Primary Room */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
-                                <div className="flex items-start gap-6">
-                                    <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
-                                        {roomType?.images?.[0] ? (
-                                            <img src={roomType.images[0]} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center"><House className="h-6 w-6 text-muted-foreground" /></div>
-                                        )}
+                            {booking.bookingRooms && booking.bookingRooms.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
+                                    <div className="flex items-start gap-6">
+                                        <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
+                                            {booking.bookingRooms[0].room?.roomType?.images?.[0] ? (
+                                                <img src={booking.bookingRooms[0].room.roomType.images[0]} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center"><House className="h-6 w-6 text-muted-foreground" /></div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{booking.bookingRooms[0].room?.roomType?.name}</p>
+                                            <p className="text-lg font-black text-foreground">Room Unit {booking.bookingRooms[0].room?.roomNumber}</p>
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Primary Accommodation</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{roomType?.name}</p>
-                                        <p className="text-lg font-black text-foreground">Room Unit {booking.room?.roomNumber}</p>
-                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Primary Accommodation</p>
+                                    <div className="flex flex-wrap gap-2 md:justify-end">
+                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.adultsCount} Adults</span>
+                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.childrenCount} Children</span>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2 md:justify-end">
-                                    <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.adultsCount} Adults</span>
-                                    <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.childrenCount} Children</span>
-                                </div>
-                            </div>
+                            ) : null}
 
                             {/* Linked Rooms (Blocks) */}
-                            {booking.roomBlocks?.map((block: any) => (
-                                <div key={block.id} className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
+                            {booking.bookingRooms?.slice(1).map((block: any) => (
+                                <div key={block.roomId} className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center p-6 bg-muted/20 rounded-3xl border border-border/50">
                                     <div className="flex items-start gap-6">
                                         <div className="h-16 w-16 rounded-2xl bg-muted overflow-hidden flex-shrink-0">
                                             {block.room?.roomType?.images?.[0] ? (
@@ -375,7 +310,11 @@ const BookingDetails = () => {
                             </div>
 
                             {/* Other Registered Guests */}
-                            {booking.guests?.map((guest: any, idx: number) => (
+                            {booking.guests?.filter((guest: any) => {
+                                const samePhone = guest.phone && guest.phone === booking.user?.phone;
+                                const sameName = guest.firstName === booking.user?.firstName && guest.lastName === booking.user?.lastName;
+                                return !(samePhone || sameName);
+                            }).map((guest: any, idx: number) => (
                                 <div key={guest.id} className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-muted/20 rounded-3xl border border-border/50">
                                     <div className="space-y-1">
                                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Guest {idx + 1}</span>
@@ -538,13 +477,6 @@ const BookingDetails = () => {
                 </div>
             )}
 
-            {/* Hidden component for capturing PDF */}
-            <div className="fixed -left-[9999px] top-0 pointer-events-none overflow-hidden" style={{ width: '800px' }}>
-                <BookingInvoice
-                    ref={invoiceRef}
-                    booking={booking}
-                />
-            </div>
         </div>
     );
 };

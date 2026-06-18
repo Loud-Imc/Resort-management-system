@@ -182,10 +182,11 @@ model Room {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   propertyId String
-  bookings   Booking[]
-  blocks     RoomBlock[]
-  property   Property    @relation(fields: [propertyId], references: [id])
-  roomType   RoomType    @relation(fields: [roomTypeId], references: [id])
+  bookings     Booking[]
+  blocks       RoomBlock[]
+  bookingRooms BookingRoom[]
+  property     Property    @relation(fields: [propertyId], references: [id])
+  roomType     RoomType    @relation(fields: [roomTypeId], references: [id])
 
   @@unique([propertyId, roomNumber])
   @@map("rooms")
@@ -295,6 +296,8 @@ model Booking {
   propertySettlement      PropertySettlement?
   review                  Review?
   roomBlocks              RoomBlock[]
+  bookingRooms            BookingRoom[]
+  expenses                Expense[]
 
   @@index([propertyId])
   @@index([status])
@@ -446,6 +449,7 @@ model Expense {
   paymentMethod String?
   category      ExpenseCategory @relation(fields: [categoryId], references: [id])
   property      Property?       @relation(fields: [propertyId], references: [id])
+  bookings      Booking[]
 
   @@map("expenses")
 }
@@ -650,6 +654,7 @@ model ChannelPartner {
   registrationFeePaid    Boolean               @default(false)
   aadhaarImage           String?
   licenceImage           String?
+  logo                   String?
   overrideCommissionRate Decimal?              @db.Decimal(5, 2)
   referrals              Booking[]             @relation("CPReferrals")
   user                   User                  @relation(fields: [userId], references: [id])
@@ -1226,4 +1231,21 @@ model PromotionRequest {
   property        Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@map("promotion_requests")
+}
+
+model BookingRoom {
+  id          String   @id @default(uuid())
+  bookingId   String
+  roomId      String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@unique([bookingId, roomId])
+  @@index([bookingId])
+  @@index([roomId])
+  @@map("booking_rooms")
 }

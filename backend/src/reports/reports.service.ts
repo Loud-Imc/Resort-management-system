@@ -82,58 +82,49 @@ export class ReportsService {
             }
         }
 
-        // 1. Today's check-ins
-        const checkIns = await this.prisma.booking.count({
+        // 1. Today's check-ins (Phase 6 BookingRoom Logic - accurately counts total doors instead of parent bookings)
+        const checkIns = await (this.prisma as any).bookingRoom.count({
             where: {
-                checkInDate: {
-                    gte: today,
-                    lt: tomorrow,
+                booking: {
+                    checkInDate: {
+                        gte: today,
+                        lt: tomorrow,
+                    },
+                    status: { in: ['CONFIRMED', 'CHECKED_IN'] },
                 },
-                status: { in: ['CONFIRMED', 'CHECKED_IN'] },
                 room: { property: propertyFilter }
             },
         });
 
-        // 2. Today's check-outs
-        const checkOuts = await this.prisma.booking.count({
+        // 2. Today's check-outs (Phase 6 BookingRoom Logic)
+        const checkOuts = await (this.prisma as any).bookingRoom.count({
             where: {
-                checkOutDate: {
-                    gte: today,
-                    lt: tomorrow,
+                booking: {
+                    checkOutDate: {
+                        gte: today,
+                        lt: tomorrow,
+                    },
+                    status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
                 },
-                status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
                 room: { property: propertyFilter }
             },
         });
 
-        // 3. Current Occupancy
+        // 3. Current Occupancy (Phase 6 BookingRoom Logic - eliminates messy RoomBlock array looping)
         const totalRooms = await this.prisma.room.count({
             where: { isEnabled: true, property: propertyFilter },
         });
 
-        const activeBookings = await this.prisma.booking.findMany({
+        const occupiedRooms = await (this.prisma as any).bookingRoom.count({
             where: {
-                status: 'CHECKED_IN',
-                checkInDate: { lte: new Date() },
-                checkOutDate: { gt: new Date() },
+                booking: {
+                    status: 'CHECKED_IN',
+                    checkInDate: { lte: new Date() },
+                    checkOutDate: { gt: new Date() },
+                },
                 room: { property: propertyFilter }
-            },
-            select: {
-                roomId: true,
-                roomBlocks: {
-                    select: { roomId: true }
-                }
             }
         });
-
-        const uniqueOccupiedRooms = new Set<string>();
-        activeBookings.forEach(b => {
-            if (b.roomId) uniqueOccupiedRooms.add(b.roomId);
-            b.roomBlocks?.forEach(rb => {
-                if (rb.roomId) uniqueOccupiedRooms.add(rb.roomId);
-            });
-        });
-        const occupiedRooms = uniqueOccupiedRooms.size;
 
         const bookedToday = await this.prisma.booking.count({
             where: {
@@ -242,6 +233,13 @@ export class ReportsService {
             },
         });
 
+        // 5. Rooms list for dashboard grid (Lite version)
+        const roomsList = await this.prisma.room.findMany({
+            where: { isEnabled: true, property: propertyFilter },
+            select: { id: true, roomNumber: true, status: true, roomTypeId: true },
+            orderBy: { roomNumber: 'asc' }
+        });
+
         return {
             date: today,
             checkIns,
@@ -261,6 +259,7 @@ export class ReportsService {
                 MAINTENANCE: maintenanceCount,
                 BLOCKED: blockedCount
             },
+            roomsList,
             // Super Admin Stats (Only if global admin)
             ...(isGlobalAdmin && {
                 superAdmin: {

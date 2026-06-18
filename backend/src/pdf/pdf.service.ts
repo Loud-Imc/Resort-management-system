@@ -69,8 +69,31 @@ export class PdfService {
         return `data:${mimeType};base64,${buffer.toString('base64')}`;
     } catch (e) {
         this.logger.error(`Error fetching image ${url}: ${e.message}`);
-        return null;
     }
+    return null;
+  }
+
+  private getExternalLogoBase64(logoUrl: string): string | null {
+    if (!logoUrl) return null;
+    
+    // Extract filename from URL
+    const urlParts = logoUrl.split('/');
+    const filename = urlParts[urlParts.length - 1];
+    
+    // Safety check against path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return null;
+    }
+    
+    const localPath = path.join(process.cwd(), 'uploads', filename);
+    if (fs.existsSync(localPath)) {
+      try {
+        return fs.readFileSync(localPath).toString('base64');
+      } catch (e) {
+        this.logger.error(`Error reading agency logo at ${localPath}: ${e.message}`);
+      }
+    }
+    return null;
   }
 
   async generateBookingConfirmation(booking: any, recipientType: 'GUEST' | 'PARTNER' = 'GUEST'): Promise<Buffer> {
@@ -101,10 +124,22 @@ export class PdfService {
       'Early check-in and late check-out are subject to availability.',
       'All special requests are subject to availability upon arrival.'
     ];
-    let guestInstructions = await this.systemSettingsService.getSetting('INVOICE_GUEST_INSTRUCTIONS');
-    if (!Array.isArray(guestInstructions) || guestInstructions.length === 0) {
-      guestInstructions = defaultInstructions;
+    let adminInstructions = await this.systemSettingsService.getSetting('INVOICE_GUEST_INSTRUCTIONS');
+    if (!Array.isArray(adminInstructions) || adminInstructions.length === 0) {
+      adminInstructions = defaultInstructions;
     }
+
+    let guestInstructions: string[] = [];
+    const propertyPolicies = property?.policies as any;
+    if (propertyPolicies && Array.isArray(propertyPolicies.invoiceInstructions) && propertyPolicies.invoiceInstructions.length > 0) {
+        guestInstructions.push(...propertyPolicies.invoiceInstructions);
+    }
+    guestInstructions.push(...adminInstructions);
+
+    const isCheckedIn = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(booking.status);
+    const docTitle = isCheckedIn 
+      ? 'INVOICE' 
+      : (isPartner ? 'PERFORMA INVOICE' : 'BOOKING CONFIRMATION');
 
     const docDefinition: any = {
       pageSize: 'A4',
@@ -115,24 +150,42 @@ export class PdfService {
           columns: [
             {
               width: '*',
-              stack: [
-                (() => {
-                  const logoBase64 = this.getLogoBase64();
-                  if (logoBase64) {
-                    return {
-                      image: `data:image/png;base64,${logoBase64}`,
-                      width: 120
-                    };
-                  }
-                  return { text: 'Route Guide', style: 'brandLogo' };
-                })(),
-                { text: 'Travel | Discover | Belong', style: 'brandTagline', margin: [0, 5, 0, 0] },
-              ],
+              stack: (() => {
+                const cpLogoUrl = booking.channelPartner?.logo;
+                const cpLogoBase64 = cpLogoUrl ? this.getExternalLogoBase64(cpLogoUrl) : null;
+                const routeGuideLogoBase64 = this.getLogoBase64();
+
+                if (isPartner && cpLogoBase64) {
+                    return [
+                        {
+                            image: `data:image/png;base64,${cpLogoBase64}`,
+                            width: 120,
+                            margin: [0, 0, 0, 5]
+                        },
+                        {
+                            text: 'Provided by',
+                            fontSize: 8,
+                            color: '#64748b',
+                            margin: [0, 0, 0, 3]
+                        },
+                        routeGuideLogoBase64 
+                          ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 70 }
+                          : { text: 'Route Guide', style: 'brandLogo', fontSize: 12 }
+                    ];
+                } else {
+                    return [
+                        routeGuideLogoBase64 
+                          ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
+                          : { text: 'Route Guide', style: 'brandLogo' },
+                        { text: 'Travel | Discover | Belong', style: 'brandTagline', margin: [0, 5, 0, 0] }
+                    ];
+                }
+              })(),
             },
             {
               width: 'auto',
               stack: [
-                { text: isPartner ? 'AGENCY INVOICE' : 'BOOKING CONFIRMATION', style: 'docTitle' },
+                { text: docTitle, style: 'docTitle' },
                 { text: `ID: #${booking.bookingNumber || 'N/A'}`, style: 'bookingId' },
                 { text: `Date: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate' },
               ],
@@ -279,7 +332,7 @@ export class PdfService {
                 { text: 'Grand Total', style: 'tableTotalLabel' },
                 { text: `₹${totalAmount.toLocaleString()}`, style: 'tableTotalValue', alignment: 'right' },
               ],
-              ...(isPartner ? [
+              ...(!isCheckedIn && isPartner ? [
                 [
                   { text: 'Instant Commission', style: 'tableCell', color: '#ef4444' },
                   { text: `-₹${cpCommission.toLocaleString()}`, style: 'tableCell', alignment: 'right', color: '#ef4444' },
@@ -289,14 +342,16 @@ export class PdfService {
                   { text: `₹${netInvestment.toLocaleString()}`, style: 'tableTotalValue', alignment: 'right', color: '#227c8a' },
                 ]
               ] : []),
-              [
-                { text: 'Total Amount Paid', style: 'tablePaidLabel' },
-                { text: `₹${Number(booking.paidAmount).toLocaleString()}`, style: 'tablePaidValue', alignment: 'right' },
-              ],
-              [
-                { text: 'Remaining Balance (Due at Check-in)', style: 'tableBalanceLabel' },
-                { text: `₹${Math.max(0, (isPartner ? netInvestment : totalAmount) - Number(booking.paidAmount)).toLocaleString()}`, style: 'tableBalanceValue', alignment: 'right' },
-              ],
+              ...(!isCheckedIn ? [
+                [
+                  { text: 'Total Amount Paid', style: 'tablePaidLabel' },
+                  { text: `₹${Number(booking.paidAmount).toLocaleString()}`, style: 'tablePaidValue', alignment: 'right' },
+                ],
+                [
+                  { text: 'Remaining Balance (Due at Check-in)', style: 'tableBalanceLabel' },
+                  { text: `₹${Math.max(0, (isPartner ? netInvestment : totalAmount) - Number(booking.paidAmount)).toLocaleString()}`, style: 'tableBalanceValue', alignment: 'right' },
+                ],
+              ] : []),
             ],
           },
           layout: {

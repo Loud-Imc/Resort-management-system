@@ -19,7 +19,8 @@ import {
     Calendar,
     X,
     Globe,
-    CalendarDays
+    CalendarDays,
+    User
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -90,6 +91,10 @@ export default function RoomsList() {
                 return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
             case RoomStatus.BLOCKED:
                 return 'bg-destructive/10 text-destructive';
+            case RoomStatus.RESERVED:
+                return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400';
+            case RoomStatus.OUT_TODAY:
+                return 'bg-orange-500/10 text-orange-600 dark:text-orange-400';
             default:
                 return 'bg-muted text-muted-foreground';
         }
@@ -105,8 +110,24 @@ export default function RoomsList() {
                 return <AlertTriangle className="h-4 w-4" />;
             case RoomStatus.BLOCKED:
                 return <Lock className="h-4 w-4" />;
+            case RoomStatus.RESERVED:
+                return <Calendar className="h-4 w-4" />;
+            case RoomStatus.OUT_TODAY:
+                return <AlertTriangle className="h-4 w-4" />;
             default:
                 return null;
+        }
+    };
+
+    const getCardStyle = (status: RoomStatus) => {
+        switch (status) {
+            case RoomStatus.AVAILABLE: return "border-border bg-card";
+            case RoomStatus.OCCUPIED: return "border-blue-500/20 bg-blue-500/5";
+            case RoomStatus.MAINTENANCE: return "border-amber-500/20 bg-amber-500/5";
+            case RoomStatus.BLOCKED: return "border-destructive/20 bg-destructive/5";
+            case RoomStatus.RESERVED: return "border-indigo-500/20 bg-indigo-500/5";
+            case RoomStatus.OUT_TODAY: return "border-orange-500/20 bg-orange-500/5";
+            default: return "border-border bg-card";
         }
     };
 
@@ -163,6 +184,8 @@ export default function RoomsList() {
                             <option value="">All Statuses</option>
                             <option value="AVAILABLE">Available</option>
                             <option value="OCCUPIED">Occupied</option>
+                            <option value="RESERVED">Reserved</option>
+                            <option value="OUT_TODAY">Out Today</option>
                             <option value="MAINTENANCE">Maintenance</option>
                             <option value="BLOCKED">Blocked</option>
                         </select>
@@ -182,11 +205,8 @@ export default function RoomsList() {
                             }}
                             className={clsx(
                                 "border rounded-xl p-4 transition-all hover:shadow-md group",
-                                room.status === RoomStatus.OCCUPIED && "cursor-pointer hover:border-blue-500/50",
-                                room.status === RoomStatus.AVAILABLE ? "border-border bg-card" :
-                                    room.status === RoomStatus.OCCUPIED ? "border-blue-500/20 bg-blue-500/5" :
-                                        room.status === RoomStatus.MAINTENANCE ? "border-amber-500/20 bg-amber-500/5" :
-                                            "border-destructive/20 bg-destructive/5"
+                                (room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && "cursor-pointer hover:border-blue-500/50",
+                                getCardStyle(room.status)
                             )}
                         >
                             <div className="flex justify-between items-start mb-2">
@@ -205,6 +225,26 @@ export default function RoomsList() {
                             <div className="text-sm text-muted-foreground mb-4">
                                 <p className="font-bold text-card-foreground">{room.roomType.name}</p>
                                 <p>Floor: {room.floor ?? '-'}</p>
+                                {(room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && room.bookingRooms && room.bookingRooms.length > 0 && (() => {
+                                    const activeBooking = room.bookingRooms.find((br: any) => ['CHECKED_IN', 'CONFIRMED'].includes(br.booking.status))?.booking;
+                                    if (!activeBooking) return null;
+                                    
+                                    const user = activeBooking.user;
+                                    const primaryGuest = activeBooking.guests?.[0];
+                                    let guestName = 'Guest';
+                                    
+                                    if (user?.firstName || user?.lastName) {
+                                        guestName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+                                    } else if (primaryGuest?.firstName || primaryGuest?.lastName) {
+                                        guestName = `${primaryGuest.firstName || ''} ${primaryGuest.lastName || ''}`.trim();
+                                    }
+                                    return (
+                                        <div className="mt-2 text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 p-2 rounded-lg flex items-center gap-2 border border-blue-500/20">
+                                            <User className="h-3 w-3 shrink-0" />
+                                            <span className="truncate">{guestName}</span>
+                                        </div>
+                                    );
+                                })()}
                                 {room.blocks && room.blocks.length > 0 && (() => {
                                     const block = room.blocks[0];
                                     const isExternal = block.reason.startsWith('External Booking');

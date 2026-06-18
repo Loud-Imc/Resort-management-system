@@ -14,7 +14,7 @@ export class ExpensesService {
      * Create expense
      */
     async create(createExpenseDto: CreateExpenseDto, userId: string) {
-        const { amount, description, categoryId, propertyId, date, receipts = [], isPaid, paymentMethod } = createExpenseDto;
+        const { amount, description, categoryId, propertyId, date, receipts = [], isPaid, paymentMethod, bookingIds = [] } = createExpenseDto;
 
         // Verify category exists
         const category = await this.prisma.expenseCategory.findUnique({
@@ -35,9 +35,19 @@ export class ExpensesService {
                 receipts,
                 isPaid,
                 paymentMethod,
+                bookings: bookingIds.length > 0 ? {
+                    connect: bookingIds.map(id => ({ id }))
+                } : undefined,
             },
             include: {
                 category: true,
+                bookings: {
+                    select: {
+                        id: true,
+                        bookingNumber: true,
+                        guests: true,
+                    }
+                }
             },
         });
 
@@ -91,6 +101,13 @@ export class ExpensesService {
             include: {
                 category: true,
                 property: true,
+                bookings: {
+                    select: {
+                        id: true,
+                        bookingNumber: true,
+                        guests: true,
+                    }
+                }
             },
             orderBy: {
                 date: 'desc',
@@ -110,6 +127,13 @@ export class ExpensesService {
             include: {
                 category: true,
                 property: true,
+                bookings: {
+                    select: {
+                        id: true,
+                        bookingNumber: true,
+                        guests: true,
+                    }
+                }
             },
         });
 
@@ -159,9 +183,21 @@ export class ExpensesService {
                 receipts: updateExpenseDto.receipts,
                 isPaid: updateExpenseDto.isPaid,
                 paymentMethod: updateExpenseDto.paymentMethod,
+                ...(updateExpenseDto.bookingIds && {
+                    bookings: {
+                        set: updateExpenseDto.bookingIds.map(id => ({ id }))
+                    }
+                })
             },
             include: {
                 category: true,
+                bookings: {
+                    select: {
+                        id: true,
+                        bookingNumber: true,
+                        guests: true,
+                    }
+                }
             },
         });
 

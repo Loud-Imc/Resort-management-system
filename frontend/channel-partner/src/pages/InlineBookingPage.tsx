@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Search, Calendar, Users, ChevronRight, CreditCard,
     Wallet, CheckCircle, Loader2, ArrowLeft, Star,
@@ -7,12 +7,8 @@ import {
     ShieldCheck, Building2, Tv, Coffee, Waves, Snowflake,
     ChevronLeft, MapPin, Plus
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import { toCanvas } from 'html-to-image';
 import api from '../services/api';
 import { formatPrice } from '../utils/currency';
-import type { InvoiceData } from '../utils/generateInvoicePdf';
-import CPInvoiceTemplate from '../components/CPInvoiceTemplate';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import BookingResultsGrid from '../components/booking/BookingResultsGrid';
 import RoomSelectionCard from '../components/booking/RoomSelectionCard';
@@ -121,14 +117,11 @@ const InlineBookingPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isTopUpOpen, setIsTopUpOpen] = useState(false);
 
-    // PDF & Send States
     const [showPreview, setShowPreview] = useState(false);
     const [previewType, setPreviewType] = useState<'GUEST' | 'PARTNER'>('GUEST');
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isSending, setIsSending] = useState<{ [key: string]: boolean }>({});
     const [sendSuccess, setSendSuccess] = useState<string | null>(null);
-    const [invoiceCaptureData, setInvoiceCaptureData] = useState<{ data: InvoiceData; type: 'GUEST' | 'PARTNER' } | null>(null);
-    const invoiceRef = useRef<HTMLDivElement>(null);
 
     const fetchCPStats = async () => {
         try {
@@ -169,65 +162,6 @@ const InlineBookingPage: React.FC = () => {
         }
     };
 
-    const getBookingInvoiceData = (): InvoiceData => {
-        // Use pricing from state if available (most accurate breakdown), fallback to booking response
-        const p = pricing || booking;
-        const total = Number(p?.totalAmount || serverTotal || 0);
-        const comm = Math.round(total * commissionRate / 100);
-
-        return {
-            bookingNumber: booking?.bookingNumber || p?.bookingId,
-            guestName: guests[0] ? `${guests[0].firstName} ${guests[0].lastName}`.trim() : 'Guest',
-            property: selectedProperty?.name || booking?.property?.name || 'N/A',
-            propertyImage: selectedProperty?.images?.[0] || booking?.property?.images?.[0] || booking?.room?.property?.images?.[0],
-            city: `${selectedProperty?.city || booking?.property?.city || ''}`,
-            checkIn: checkIn ? new Date(checkIn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
-            checkOut: checkOut ? new Date(checkOut).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
-            nights,
-            adults,
-            children,
-            status: booking?.status || 'CONFIRMED',
-            roomType: selectedRoom?.name || booking?.roomType?.name || booking?.room?.roomType?.name,
-            paymentMethod,
-            baseAmount: Number(p?.baseAmount || total),
-            taxAmount: Number(p?.taxAmount || 0),
-            extraAdultAmount: Number(p?.extraAdultAmount || 0),
-            extraChildAmount: Number(p?.extraChildAmount || 0),
-            offerDiscountAmount: Number(p?.offerDiscountAmount || 0),
-            referralDiscountAmount: Number(p?.cpDiscount || p?.referralDiscountAmount || 0),
-            commissionAmount: comm,
-            commissionRate,
-            discountRate,
-            grossTotal: total,
-            partnerNetPayable: total - comm,
-            paymentOption,
-            paidAmount: amountToPay,
-            balanceAmount: total - amountToPay,
-        };
-    };
-
-    const captureInvoice = async (type: 'GUEST' | 'PARTNER'): Promise<string> => {
-        // Mount template in hidden div, then capture
-        const data = getBookingInvoiceData();
-        setInvoiceCaptureData({ data, type });
-
-        // Wait for the DOM update
-        await new Promise(res => setTimeout(res, 300));
-
-        const element = invoiceRef.current;
-        if (!element) throw new Error('Invoice element not mounted');
-
-        const canvas = await toCanvas(element, {
-            quality: 1,
-            pixelRatio: 2,
-            backgroundColor: '#ffffff',
-            cacheBust: true,
-        });
-
-        setInvoiceCaptureData(null); // hide after capture
-        return canvas.toDataURL('image/png');
-    };
-
     const handlePreviewInvoice = async (type: 'GUEST' | 'PARTNER') => {
         if (!booking?.id) return;
         setPreviewType(type);
@@ -235,16 +169,11 @@ const InlineBookingPage: React.FC = () => {
         setPreviewUrl(null);
 
         try {
-            const imgData = await captureInvoice(type);
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 210;
-            const temp = new Image();
-            temp.src = imgData;
-            await new Promise(r => { temp.onload = r; });
-            const imgHeight = (temp.height * imgWidth) / temp.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-            const blob = pdf.output('blob');
-            const url = window.URL.createObjectURL(blob);
+            const apiType = type === 'GUEST' ? 'guest' : 'agency';
+            const response = await api.get(`/bookings/invoice/${booking.id}/${apiType}`, {
+                responseType: 'blob',
+            });
+            const url = window.URL.createObjectURL(new Blob([response as any], { type: 'application/pdf' }));
             setPreviewUrl(url);
         } catch (err) {
             console.error('Preview generation failed:', err);
@@ -256,16 +185,19 @@ const InlineBookingPage: React.FC = () => {
     const handleDownloadInvoice = async (type: 'GUEST' | 'PARTNER') => {
         if (!booking?.id) return;
         try {
-            const imgData = await captureInvoice(type);
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 210;
-            const temp = new Image();
-            temp.src = imgData;
-            await new Promise(r => { temp.onload = r; });
-            const imgHeight = (temp.height * imgWidth) / temp.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            const apiType = type === 'GUEST' ? 'guest' : 'agency';
+            const response = await api.get(`/bookings/invoice/${booking.id}/${apiType}`, {
+                responseType: 'blob',
+            });
+            const url = window.URL.createObjectURL(new Blob([response as any]));
+            const link = document.createElement('a');
+            link.href = url;
             const fileName = `${type === 'PARTNER' ? 'Agency' : 'Guest'}_Invoice_${booking.bookingNumber || 'Booking'}.pdf`;
-            pdf.save(fileName);
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+            window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error('Failed to download invoice:', err);
             setError('Failed to download invoice.');
@@ -561,25 +493,6 @@ const InlineBookingPage: React.FC = () => {
             gap: 'var(--section-padding)',
             width: '100%',
         }}>
-            {/* Hidden Invoice Template for DOM capture */}
-            <div
-                ref={invoiceRef}
-                style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    zIndex: -50,
-                    pointerEvents: 'none',
-                    opacity: invoiceCaptureData ? 1 : 0,
-                }}
-            >
-                {invoiceCaptureData && (
-                    <CPInvoiceTemplate
-                        data={invoiceCaptureData.data}
-                        type={invoiceCaptureData.type}
-                    />
-                )}
-            </div>
 
             {/* Sticky Header Container */}
             <div className="booking-sticky-header" style={{
