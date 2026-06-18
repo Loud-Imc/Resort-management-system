@@ -36,9 +36,10 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
     if (!isOpen) return null;
 
     // Find the active (usually CHECKED_IN or CONFIRMED) booking
-    const activeBooking = room?.bookings?.find(b =>
-        ['CHECKED_IN', 'CONFIRMED'].includes(b.status)
+    const activeBookingRoom = room?.bookingRooms?.find((br: any) =>
+        ['CHECKED_IN', 'CONFIRMED'].includes(br.booking.status)
     );
+    const activeBooking = activeBookingRoom?.booking;
 
     const handleViewBooking = () => {
         if (activeBooking) {

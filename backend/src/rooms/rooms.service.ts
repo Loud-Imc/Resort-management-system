@@ -109,7 +109,20 @@ export class RoomsService {
                     },
                     include: {
                         booking: {
-                            select: { status: true, checkInDate: true, checkOutDate: true, paymentStatus: true }
+                            select: { 
+                                status: true, 
+                                checkInDate: true, 
+                                checkOutDate: true, 
+                                paymentStatus: true,
+                                user: {
+                                    select: {
+                                        firstName: true,
+                                        lastName: true,
+                                        phone: true
+                                    }
+                                },
+                                guests: true
+                            }
                         }
                     },
                 },
@@ -192,6 +205,7 @@ export class RoomsService {
                                         phone: true,
                                     },
                                 },
+                                guests: true,
                             }
                         }
                     },

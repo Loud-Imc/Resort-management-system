@@ -19,7 +19,8 @@ import {
     Calendar,
     X,
     Globe,
-    CalendarDays
+    CalendarDays,
+    User
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -224,6 +225,26 @@ export default function RoomsList() {
                             <div className="text-sm text-muted-foreground mb-4">
                                 <p className="font-bold text-card-foreground">{room.roomType.name}</p>
                                 <p>Floor: {room.floor ?? '-'}</p>
+                                {(room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && room.bookingRooms && room.bookingRooms.length > 0 && (() => {
+                                    const activeBooking = room.bookingRooms.find((br: any) => ['CHECKED_IN', 'CONFIRMED'].includes(br.booking.status))?.booking;
+                                    if (!activeBooking) return null;
+                                    
+                                    const user = activeBooking.user;
+                                    const primaryGuest = activeBooking.guests?.[0];
+                                    let guestName = 'Guest';
+                                    
+                                    if (user?.firstName || user?.lastName) {
+                                        guestName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+                                    } else if (primaryGuest?.firstName || primaryGuest?.lastName) {
+                                        guestName = `${primaryGuest.firstName || ''} ${primaryGuest.lastName || ''}`.trim();
+                                    }
+                                    return (
+                                        <div className="mt-2 text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 p-2 rounded-lg flex items-center gap-2 border border-blue-500/20">
+                                            <User className="h-3 w-3 shrink-0" />
+                                            <span className="truncate">{guestName}</span>
+                                        </div>
+                                    );
+                                })()}
                                 {room.blocks && room.blocks.length > 0 && (() => {
                                     const block = room.blocks[0];
                                     const isExternal = block.reason.startsWith('External Booking');
