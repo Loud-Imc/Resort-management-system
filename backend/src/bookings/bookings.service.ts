@@ -1137,6 +1137,15 @@ export class BookingsService {
                 },
                 bookingSource: true,
                 payments: true,
+                bookingRooms: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                }
             },
         });
 
@@ -1172,6 +1181,15 @@ export class BookingsService {
                 },
                 payments: {
                     orderBy: { createdAt: 'desc' }
+                },
+                bookingRooms: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
                 }
             },
         });
@@ -1221,6 +1239,15 @@ export class BookingsService {
                 payments: true,
                 channelPartner: true,
                 roomBlocks: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                },
+                bookingRooms: {
                     include: {
                         room: {
                             include: {
@@ -1979,6 +2006,15 @@ export class BookingsService {
                 coupon: true,
                 channelPartner: true,
                 guests: true,
+                bookingRooms: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                }
             }
         });
 

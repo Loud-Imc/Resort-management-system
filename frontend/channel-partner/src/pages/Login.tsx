@@ -2,15 +2,45 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import ForgotPassword from '../components/auth/ForgotPassword';
 import logo from '../assets/routeguide.svg';
+
+type ErrorField = 'email' | 'password' | 'general' | null;
+
+function parseLoginError(err: any): { message: string; field: ErrorField } {
+    const raw: string =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Something went wrong. Please try again.';
+
+    const msg = Array.isArray(raw) ? raw[0] : raw;
+    const lower = msg.toLowerCase();
+
+    if (lower.includes('inactive')) {
+        return { message: 'Your account has been deactivated. Please contact support.', field: 'general' };
+    }
+    if (lower.includes('not found') || lower.includes('no account')) {
+        return { message: 'No account found with that email or phone number.', field: 'email' };
+    }
+    if (lower.includes('invalid credentials') || lower.includes('password')) {
+        return { message: 'Incorrect password. Please try again.', field: 'password' };
+    }
+    if (lower.includes('otp')) {
+        return { message: 'This account uses OTP login. Password login is not available.', field: 'general' };
+    }
+    if (lower.includes('access denied') || lower.includes('channel partner')) {
+        return { message: 'Access denied. This portal is for Channel Partners only.', field: 'general' };
+    }
+    return { message: msg, field: 'general' };
+}
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [errorField, setErrorField] = useState<ErrorField>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isForgotPassword, setIsForgotPassword] = useState(false);
 
@@ -20,6 +50,7 @@ const Login: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setErrorField(null);
         setIsLoading(true);
 
         try {
@@ -27,14 +58,15 @@ const Login: React.FC = () => {
             const userRoles = response.user.roles || [response.user.role];
 
             if (!userRoles.includes('ChannelPartner') && !userRoles.includes('SuperAdmin')) {
-                throw new Error('Access denied. This dashboard is for Channel Partners only.');
+                throw new Error('Access denied. This portal is for Channel Partners only.');
             }
 
             login(response.accessToken, response.user);
             navigate('/');
         } catch (err: any) {
-            const message = err.message || (typeof err === 'string' ? err : 'Invalid email or password');
+            const { message, field } = parseLoginError(err);
             setError(message);
+            setErrorField(field);
         } finally {
             setIsLoading(false);
         }
@@ -73,14 +105,18 @@ const Login: React.FC = () => {
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         {error && (
                             <div style={{
-                                padding: '0.8rem',
+                                padding: '0.8rem 1rem',
                                 borderRadius: 'var(--radius-sm)',
                                 background: 'rgba(239, 68, 68, 0.1)',
                                 color: '#ef4444',
-                                fontSize: '0.9rem',
-                                border: '1px solid rgba(239, 68, 68, 0.2)'
+                                fontSize: '0.875rem',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '0.5rem',
                             }}>
-                                {error}
+                                <AlertCircle size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
+                                <span>{error}</span>
                             </div>
                         )}
 
@@ -91,21 +127,30 @@ const Login: React.FC = () => {
                                 <input
                                     type="text"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        if (errorField === 'email') { setError(''); setErrorField(null); }
+                                    }}
                                     placeholder="Email or Phone Number"
                                     required
                                     style={{
                                         width: '100%',
                                         padding: '0.8rem 1rem 0.8rem 3rem',
                                         background: '#ffffff',
-                                        border: '1px solid var(--border-glass)',
+                                        border: errorField === 'email' ? '1px solid #f87171' : '1px solid var(--border-glass)',
                                         borderRadius: 'var(--radius-md)',
                                         color: 'var(--text-main)',
                                         outline: 'none',
-                                        transition: 'border-color 0.2s'
+                                        transition: 'border-color 0.2s',
+                                        boxShadow: errorField === 'email' ? '0 0 0 2px rgba(248,113,113,0.2)' : 'none',
                                     }}
                                     className="glass-pane-hover"
                                 />
+                                {errorField === 'email' && (
+                                    <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <AlertCircle size={12} /> No account found with that email or phone number.
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -116,17 +161,21 @@ const Login: React.FC = () => {
                                 <input
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        if (errorField === 'password') { setError(''); setErrorField(null); }
+                                    }}
                                     placeholder="••••••••"
                                     required
                                     style={{
                                         width: '100%',
                                         padding: '0.8rem 3rem 0.8rem 3rem',
                                         background: '#ffffff',
-                                        border: '1px solid var(--border-glass)',
+                                        border: errorField === 'password' ? '1px solid #f87171' : '1px solid var(--border-glass)',
                                         borderRadius: 'var(--radius-md)',
                                         color: 'var(--text-main)',
-                                        outline: 'none'
+                                        outline: 'none',
+                                        boxShadow: errorField === 'password' ? '0 0 0 2px rgba(248,113,113,0.2)' : 'none',
                                     }}
                                     className="glass-pane-hover"
                                 />
@@ -145,6 +194,11 @@ const Login: React.FC = () => {
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
+                            {errorField === 'password' && (
+                                <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <AlertCircle size={12} /> Incorrect password. Please try again.
+                                </p>
+                            )}
                         </div>
 
                         <button

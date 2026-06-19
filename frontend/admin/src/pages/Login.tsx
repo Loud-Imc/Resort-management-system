@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import logo from '../assets/routeguide.svg';
 
 const loginSchema = z.object({
@@ -14,8 +14,38 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
+type ErrorField = 'email' | 'password' | 'general' | null;
+
+function parseLoginError(err: any): { message: string; field: ErrorField } {
+    const raw: string =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Something went wrong. Please try again.';
+
+    const msg = Array.isArray(raw) ? raw[0] : raw;
+    const lower = msg.toLowerCase();
+
+    if (lower.includes('inactive')) {
+        return { message: 'Your account has been deactivated. Please contact support.', field: 'general' };
+    }
+    if (lower.includes('not found') || lower.includes('no account')) {
+        return { message: 'No account found with that email or phone number.', field: 'email' };
+    }
+    if (lower.includes('invalid credentials') || lower.includes('password')) {
+        return { message: 'Incorrect password. Please try again.', field: 'password' };
+    }
+    if (lower.includes('otp')) {
+        return { message: 'This account uses OTP login. Password login is not available.', field: 'general' };
+    }
+    if (lower.includes('not registered') || lower.includes('access denied') || lower.includes('administrative')) {
+        return { message: 'This account does not have administrator access.', field: 'general' };
+    }
+    return { message: msg, field: 'general' };
+}
+
 export default function Login() {
     const [error, setError] = useState<string | null>(null);
+    const [errorField, setErrorField] = useState<ErrorField>(null);
     const [showPassword, setShowPassword] = useState(false);
     const { login, isAuthenticated, isLoading } = useAuth();
     const navigate = useNavigate();
@@ -49,24 +79,13 @@ export default function Login() {
     const onSubmit = async (data: LoginFormData) => {
         try {
             setError(null);
+            setErrorField(null);
             await login(data);
-
-            // Post-login check for Admin role
-            // const storedUser = localStorage.getItem('user');
-            // if (storedUser) {
-            //     const user = JSON.parse(storedUser);
-            //     const roles = user.roles || [user.role];
-            //     if (!roles.includes('Admin') && !roles.includes('SuperAdmin')) {
-            //         logout();
-            //         setError('Account not registered for this portal. Administrative access required.');
-            //         return;
-            //     }
-            // }
-
             navigate('/');
         } catch (err: any) {
-            const message = err.response?.data?.message || err.message || 'Invalid email or password';
+            const { message, field } = parseLoginError(err);
             setError(message);
+            setErrorField(field);
         }
     };
 
@@ -80,8 +99,9 @@ export default function Login() {
                 </div>
 
                 {error && (
-                    <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 mb-8 text-sm font-medium">
-                        {error}
+                    <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 mb-8 text-sm font-medium flex items-start gap-3">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>{error}</span>
                     </div>
                 )}
 
@@ -93,11 +113,14 @@ export default function Login() {
                         <input
                             {...register('email')}
                             type="text"
-                            className="w-full px-4 py-3 border border-border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                            className={`w-full px-4 py-3 border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all ${
+                                errorField === 'email' ? 'border-destructive ring-1 ring-destructive/50' : 'border-border'
+                            }`}
                             placeholder="Email or Phone Number"
+                            onChange={() => { if (errorField === 'email') { setError(null); setErrorField(null); } }}
                         />
                         {errors.email && (
-                            <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
+                            <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.email.message}</p>
                         )}
                     </div>
 
@@ -109,8 +132,11 @@ export default function Login() {
                             <input
                                 {...register('password')}
                                 type={showPassword ? "text" : "password"}
-                                className="w-full px-4 py-3 border border-border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all pr-12"
+                                className={`w-full px-4 py-3 border bg-muted/50 text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all pr-12 ${
+                                    errorField === 'password' ? 'border-destructive ring-1 ring-destructive/50' : 'border-border'
+                                }`}
                                 placeholder="••••••••"
+                                onChange={() => { if (errorField === 'password') { setError(null); setErrorField(null); } }}
                             />
                             <button
                                 type="button"
@@ -121,7 +147,10 @@ export default function Login() {
                             </button>
                         </div>
                         {errors.password && (
-                            <p className="text-destructive text-xs mt-2 font-medium">{errors.password.message}</p>
+                            <p className="text-destructive text-xs mt-2 font-medium flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.password.message}</p>
+                        )}
+                        {errorField === 'password' && !errors.password && (
+                            <p className="text-destructive text-xs mt-2 font-medium flex items-center gap-1"><AlertCircle className="h-3 w-3" />Incorrect password. Please try again.</p>
                         )}
                     </div>
 

@@ -298,6 +298,23 @@ export default function ReschedulePage() {
 
         return list;
     }, [availableRooms, selectedRoomIds, booking]);
+    const selectedRoomTypesString = useMemo(() => {
+        if (!booking) return 'No Room Type';
+        
+        const roomsToUse = selectedRoomIds.length > 0 
+            ? displayRooms.filter(r => selectedRoomIds.includes(r.id))
+            : (booking.bookingRooms || []);
+
+        const types = roomsToUse.map((r: any) => {
+            if (r.roomType) return r.roomType;
+            if (r.room?.roomType?.name) return r.room.roomType.name;
+            return null;
+        }).filter(Boolean);
+
+        const uniqueTypes = Array.from(new Set(types));
+        if (uniqueTypes.length === 0) return 'No Room Type';
+        return uniqueTypes.join(', ');
+    }, [displayRooms, selectedRoomIds, booking]);
 
     // ── Auto-select rooms when list loads ─────────────────────────────────────
     useEffect(() => {
@@ -315,10 +332,17 @@ export default function ReschedulePage() {
         );
 
         if (booking.isGroupBooking) {
-            // For group bookings, if nothing valid is selected, auto-select a default count
-            if (validSelectedRoomIds.length === 0) {
-                const defaultCount = booking.bookingRooms?.length || 1;
-                setSelectedRoomIds(availableRooms.slice(0, defaultCount).map(r => r.id));
+            // For group bookings, make sure we select defaultCount rooms if possible
+            const defaultCount = booking.bookingRooms?.length || 1;
+            if (validSelectedRoomIds.length < defaultCount) {
+                const additionalNeeded = defaultCount - validSelectedRoomIds.length;
+                const unselectedAvailable = availableRooms
+                    .filter(r => !validSelectedRoomIds.includes(r.id))
+                    .map(r => r.id);
+                setSelectedRoomIds([
+                    ...validSelectedRoomIds,
+                    ...unselectedAvailable.slice(0, additionalNeeded)
+                ]);
             } else {
                 setSelectedRoomIds(validSelectedRoomIds);
             }
@@ -554,7 +578,7 @@ export default function ReschedulePage() {
                                 </span>
                                 {booking.channelPartner && (
                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 uppercase tracking-wider">
-                                        Channel Partner: {booking.channelPartner.name}
+                                        Channel Partner: {booking.channelPartner.accountHolderName}
                                     </span>
                                 )}
                             </p>
@@ -611,7 +635,7 @@ export default function ReschedulePage() {
                                             </div>
                                             <div className="space-y-1 pl-6 text-xs text-muted-foreground">
                                                 <p className="font-bold text-foreground">
-                                                    {roomTypes?.find((rt) => rt.id === rescheduleRoomTypeId)?.name || 'Selected Room Type'}
+                                                    {selectedRoomTypesString}
                                                 </p>
                                                 <p>
                                                     Unit:{' '}
