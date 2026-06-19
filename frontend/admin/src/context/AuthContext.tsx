@@ -8,6 +8,7 @@ interface AuthContextType {
     isLoading: boolean;
     login: (credentials: LoginCredentials) => Promise<void>;
     logout: () => void;
+    updateUser: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,6 +32,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const login = async (credentials: LoginCredentials) => {
         try {
             const { data } = await api.post<AuthResponse>('/auth/login', credentials);
+
+            // Portal guard — only SuperAdmin or Admin may access the admin portal
+            const roles: string[] = data.user.roles || (data.user.role ? [data.user.role] : []);
+            const ADMIN_ROLES = ['SuperAdmin', 'Admin'];
+            const hasAccess = roles.some(r => ADMIN_ROLES.includes(r));
+            if (!hasAccess) {
+                throw new Error('Access denied. This portal is for Administrators only.');
+            }
+
             localStorage.setItem('token', data.accessToken);
             localStorage.setItem('user', JSON.stringify(data.user));
             setUser(data.user);
@@ -48,8 +58,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(false);
     };
 
+    const updateUser = (userData: Partial<User>) => {
+        if (user) {
+            const roles = userData.roles && Array.isArray(userData.roles)
+                ? userData.roles.map((r: any) => typeof r === 'string' ? r : r.role?.name).filter(Boolean)
+                : userData.roles;
+
+            const updatedUser = { 
+                ...user, 
+                ...userData,
+                ...(roles ? { roles } : {}) 
+            };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

@@ -202,7 +202,7 @@ export default function CreateUser() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Last Name</label>
+                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Last Name (Optional)</label>
                             <div className="relative group">
                                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/50 group-focus-within:text-primary transition-colors" />
                                 <input

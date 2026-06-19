@@ -98,6 +98,10 @@ export class RegisterPropertyDto {
     ownerAadhaarImage?: string;
 
     @IsOptional()
+    @IsString()
+    ownerAadhaarImageBack?: string;
+
+    @IsOptional()
     @IsBoolean()
     allowsGroupBooking?: boolean;
 

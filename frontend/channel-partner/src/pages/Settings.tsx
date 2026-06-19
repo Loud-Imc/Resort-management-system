@@ -274,7 +274,7 @@ const Settings: React.FC = () => {
                                     <input name="firstName" value={formData.firstName} onChange={handleInputChange} style={inputStyle} />
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>Last Name</label>
+                                    <label style={labelStyle}>Last Name (Optional)</label>
                                     <input name="lastName" value={formData.lastName} onChange={handleInputChange} style={inputStyle} />
                                 </div>
                                 <div style={{ gridColumn: 'span 2' }}>

@@ -65,6 +65,18 @@ export default function DashboardLayout() {
         return <Navigate to="/login" replace />;
     }
 
+    // Portal role guard — belt-and-suspenders check on every render.
+    // Admin/SuperAdmin are explicitly allowed here to support the impersonation flow
+    // from the admin portal (they enter carrying their own token + Admin role).
+    const sessionRoles: string[] = user?.roles || (user?.role ? [user.role as string] : []);
+    const normalisedRoles = sessionRoles.map(r => r.toLowerCase());
+    const PROPERTY_BLOCKED_ONLY = ['channelpartner', 'customer'];
+    const isBlockedOnly = normalisedRoles.length > 0 && normalisedRoles.every(r => PROPERTY_BLOCKED_ONLY.includes(r));
+    if (isBlockedOnly) {
+        logout();
+        return <Navigate to="/login" replace />;
+    }
+
     const handleLogout = () => {
         logout();
         navigate('/login');
@@ -186,17 +198,17 @@ export default function DashboardLayout() {
                         Account Settings
                     </NavLink>
 
-                    <div className="flex items-center gap-3 px-4 py-3 mb-2">
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                    <Link to="/account-settings" className="flex items-center gap-3 px-4 py-3 mb-2 hover:bg-muted rounded-xl transition-all cursor-pointer group">
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold group-hover:ring-2 group-hover:ring-primary/20 transition-all shrink-0">
                             {user?.firstName?.charAt(0) || 'P'}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
+                            <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors leading-tight">
                                 {user?.firstName} {user?.lastName}
                             </p>
-                            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{user?.email}</p>
                         </div>
-                    </div>
+                    </Link>
                     <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-3 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -343,12 +355,12 @@ export default function DashboardLayout() {
                     <div className="flex items-center gap-4">
                         <NotificationBell />
                         <div className="h-6 w-[1px] bg-border mx-2" />
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+                        <Link to="/account-settings" className="flex items-center gap-2 hover:opacity-80 transition-all cursor-pointer group">
+                            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold group-hover:ring-2 group-hover:ring-primary/20 transition-all">
                                 {user?.firstName?.charAt(0)}
                             </div>
-                            <span className="text-sm font-medium">{user?.firstName}</span>
-                        </div>
+                            <span className="text-sm font-medium group-hover:text-primary transition-colors">{user?.firstName}</span>
+                        </Link>
                     </div>
                 </header>
 

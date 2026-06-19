@@ -32,6 +32,17 @@ function App() {
     );
   }
 
+  // Portal guard — only ChannelPartner or SuperAdmin may access CP portal
+  const CP_ALLOWED = ['ChannelPartner', 'SuperAdmin'];
+  const userRoles: string[] = (user as any)?.roles || ((user as any)?.role ? [(user as any).role] : []);
+  const hasCpAccess = userRoles.some(r => CP_ALLOWED.includes(r));
+
+  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+    if (!user) return <Navigate to="/login" />;
+    if (!hasCpAccess) return <Navigate to="/login" />;
+    return <DashboardLayout>{children}</DashboardLayout>;
+  };
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -39,108 +50,14 @@ function App() {
       <Route path="/delete-account" element={<DeleteAccount />} />
 
       {/* Protected Routes */}
-      <Route
-        path="/"
-        element={
-          user ? (
-            <DashboardLayout>
-              <Home />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
-
-      <Route
-        path="/referrals"
-        element={
-          user ? (
-            <DashboardLayout>
-              <Referrals />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
-
-      <Route
-        path="/rewards"
-        element={
-          user ? (
-            <DashboardLayout>
-              <Rewards />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
-
-      <Route
-        path="/bookings"
-        element={
-          user ? (
-            <DashboardLayout>
-              <Bookings />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
-
-      <Route
-        path="/settings"
-        element={
-          user ? (
-            <DashboardLayout>
-              <Settings />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
-
-      <Route
-        path="/wallet"
-        element={
-          user ? (
-            <DashboardLayout>
-              <WalletPage />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
-
-      <Route
-        path="/book"
-        element={
-          user ? (
-            <DashboardLayout>
-              <InlineBookingPage />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
-      <Route
-        path="/notifications"
-        element={
-          user ? (
-            <DashboardLayout>
-              <Notifications />
-            </DashboardLayout>
-          ) : (
-            <Navigate to="/login" />
-          )
-        }
-      />
+      <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+      <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
+      <Route path="/rewards" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
+      <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
+      <Route path="/book" element={<ProtectedRoute><InlineBookingPage /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
     </Routes>
   );
 }

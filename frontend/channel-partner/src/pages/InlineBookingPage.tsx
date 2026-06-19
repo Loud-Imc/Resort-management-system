@@ -102,7 +102,18 @@ const InlineBookingPage: React.FC = () => {
     const [availableRoomsMap, setAvailableRoomsMap] = useState<Record<string, RoomType[]>>({});
     const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
     const [viewingRoomDetails, setViewingRoomDetails] = useState<RoomType | null>(null);
-    const [guests, setGuests] = useState<{ firstName: string; lastName: string; email?: string; phone?: string; idType?: string; idNumber?: string; idImage?: string }[]>([]);
+    const [guests, setGuests] = useState<{
+        firstName: string;
+        lastName: string;
+        email?: string;
+        phone?: string;
+        idType?: string;
+        idNumber?: string;
+        idImage?: string;
+        idImageBack?: string;
+        isUploading?: boolean;
+        isUploadingBack?: boolean;
+    }[]>([]);
 
     // Server-side pricing
     const [pricing, setPricing] = useState<any>(null);
@@ -143,14 +154,14 @@ const InlineBookingPage: React.FC = () => {
     // Initialize guest with at least one entry
     useEffect(() => {
         if (guests.length === 0) {
-            setGuests([{ firstName: '', lastName: '', email: '', phone: '', idType: '', idNumber: '' }]);
+            setGuests([{ firstName: '', lastName: '', email: '', phone: '', idType: '', idNumber: '', idImage: '', idImageBack: '' }]);
         }
     }, [guests.length]);
 
     const handleAddGuest = () => {
         const totalMax = (adults + children);
         if (guests.length < totalMax) {
-            setGuests(prev => [...prev, { firstName: '', lastName: '', email: '', phone: '', idType: '', idNumber: '' }]);
+            setGuests(prev => [...prev, { firstName: '', lastName: '', email: '', phone: '', idType: '', idNumber: '', idImage: '', idImageBack: '' }]);
         } else {
             setError(`You have already added guest details for all ${totalMax} occupants.`);
         }
@@ -159,6 +170,47 @@ const InlineBookingPage: React.FC = () => {
     const handleRemoveGuest = (index: number) => {
         if (guests.length > 1) {
             setGuests(prev => prev.filter((_, i) => i !== index));
+        }
+    };
+
+    const handleGuestIdUpload = async (index: number, file: File, isBack: boolean = false) => {
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setGuests(prev => {
+            const newGuests = [...prev];
+            if (newGuests[index]) {
+                if (isBack) newGuests[index].isUploadingBack = true;
+                else newGuests[index].isUploading = true;
+            }
+            return newGuests;
+        });
+
+        try {
+            const data: any = await api.post('/uploads', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setGuests(prev => {
+                const newGuests = [...prev];
+                if (newGuests[index]) {
+                    if (isBack) newGuests[index].idImageBack = data.url;
+                    else newGuests[index].idImage = data.url;
+                }
+                return newGuests;
+            });
+        } catch (error) {
+            console.error('Upload error:', error);
+            alert(`Failed to upload ${isBack ? 'back side' : 'front side'} of ID`);
+        } finally {
+            setGuests(prev => {
+                const newGuests = [...prev];
+                if (newGuests[index]) {
+                    if (isBack) newGuests[index].isUploadingBack = false;
+                    else newGuests[index].isUploading = false;
+                }
+                return newGuests;
+            });
         }
     };
 
@@ -428,6 +480,7 @@ const InlineBookingPage: React.FC = () => {
                     idType: g.idType || undefined,
                     idNumber: g.idNumber || undefined,
                     idImage: g.idImage || undefined,
+                    idImageBack: g.idImageBack || undefined,
                 })),
                 referralCode: cpStats?.referralCode,
                 paymentMethod,
@@ -851,7 +904,7 @@ const InlineBookingPage: React.FC = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Last Name</label>
+                                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Last Name (Optional)</label>
                                                 <input
                                                     type="text"
                                                     value={g.lastName}
@@ -860,7 +913,7 @@ const InlineBookingPage: React.FC = () => {
                                                         newGuests[idx].lastName = e.target.value;
                                                         setGuests(newGuests);
                                                     }}
-                                                    placeholder="Last Name"
+                                                    placeholder="Last Name (Optional)"
                                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
                                                 />
                                             </div>
@@ -929,6 +982,83 @@ const InlineBookingPage: React.FC = () => {
                                                     placeholder="Identification Number"
                                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
                                                 />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Scan (Front)</label>
+                                                <div style={{ position: 'relative', border: '1px dashed var(--border-glass)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', textAlign: 'center', background: g.idImage ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', minHeight: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*,application/pdf"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleGuestIdUpload(idx, file, false);
+                                                        }}
+                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+                                                    />
+                                                    {g.isUploading ? (
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-teal)', fontWeight: 700 }}>Uploading...</span>
+                                                    ) : g.idImage ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', zIndex: 11 }}>
+                                                            <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 750 }}>✓ Front ID</span>
+                                                            <a href={g.idImage} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: 'var(--primary-teal)', textDecoration: 'underline', cursor: 'pointer' }}>View</a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    const updated = [...guests];
+                                                                    updated[idx].idImage = '';
+                                                                    setGuests(updated);
+                                                                }}
+                                                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Upload Front Side</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Scan (Back - Optional)</label>
+                                                <div style={{ position: 'relative', border: '1px dashed var(--border-glass)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', textAlign: 'center', background: g.idImageBack ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', minHeight: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*,application/pdf"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleGuestIdUpload(idx, file, true);
+                                                        }}
+                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+                                                    />
+                                                    {g.isUploadingBack ? (
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--primary-teal)', fontWeight: 700 }}>Uploading...</span>
+                                                    ) : g.idImageBack ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', zIndex: 11 }}>
+                                                            <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 750 }}>✓ Back ID</span>
+                                                            <a href={g.idImageBack} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: 'var(--primary-teal)', textDecoration: 'underline', cursor: 'pointer' }}>View</a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    const updated = [...guests];
+                                                                    updated[idx].idImageBack = '';
+                                                                    setGuests(updated);
+                                                                }}
+                                                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Upload Back Side</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

@@ -49,6 +49,7 @@ export default function Register() {
         // Document fields
         ownerAadhaarNumber: '',
         ownerAadhaarImage: '',
+        ownerAadhaarImageBack: '',
         licenceImage: '',
         gstNumber: '',
         // Property fields
@@ -421,14 +422,14 @@ export default function Register() {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name (Optional)</label>
                                         <input
                                             name="ownerLastName"
                                             type="text"
                                             value={formData.ownerLastName}
                                             onChange={handleChange}
                                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                            placeholder="Doe"
+                                            placeholder="Doe (Optional)"
                                         />
                                     </div>
                                 </div>
@@ -930,19 +931,27 @@ export default function Register() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <DocumentUpload
-                                                label="Aadhaar Card Copy"
+                                                label="Aadhaar Card Front Copy"
                                                 id="ownerAadhaarImage"
                                                 value={formData.ownerAadhaarImage}
                                                 onUpload={(url) => setFormData(prev => ({ ...prev, ownerAadhaarImage: url }))}
                                                 required
                                             />
                                             <DocumentUpload
-                                                label="Property Licence"
-                                                id="licenceImage"
-                                                value={formData.licenceImage}
-                                                onUpload={(url) => setFormData(prev => ({ ...prev, licenceImage: url }))}
-                                                required
+                                                label="Aadhaar Card Back Copy (Optional)"
+                                                id="ownerAadhaarImageBack"
+                                                value={formData.ownerAadhaarImageBack}
+                                                onUpload={(url) => setFormData(prev => ({ ...prev, ownerAadhaarImageBack: url }))}
                                             />
+                                            <div className="md:col-span-2">
+                                                <DocumentUpload
+                                                    label="Property Licence"
+                                                    id="licenceImage"
+                                                    value={formData.licenceImage}
+                                                    onUpload={(url) => setFormData(prev => ({ ...prev, licenceImage: url }))}
+                                                    required
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

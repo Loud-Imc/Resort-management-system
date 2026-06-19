@@ -221,6 +221,7 @@ export class PropertiesService {
                     gstNumber: details.gstNumber || null,
                     ownerAadhaarNumber: details.ownerAadhaarNumber || null,
                     ownerAadhaarImage: details.ownerAadhaarImage || null,
+                    ownerAadhaarImageBack: details.ownerAadhaarImageBack || null,
                     allowsGroupBooking: details.allowsGroupBooking || false,
                     maxGroupCapacity: details.maxGroupCapacity || null,
                     latitude: details.latitude ? new Prisma.Decimal(details.latitude) : null,
@@ -992,6 +993,7 @@ export class PropertiesService {
                 const sanitized: any = { ...property };
                 delete sanitized.ownerAadhaarNumber;
                 delete sanitized.ownerAadhaarImage;
+                delete sanitized.ownerAadhaarImageBack;
                 delete sanitized.licenceImage;
                 delete sanitized.gstNumber;
                 delete sanitized.platformCommission;

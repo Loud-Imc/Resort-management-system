@@ -361,7 +361,7 @@ export default function PropertyRequestsList() {
                                             <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
                                                 <FileText className="h-3.5 w-3.5" /> KYC / Legal Documents
                                             </h3>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                                                 <div className="bg-card rounded-lg p-3 border border-border/50">
                                                     <p className="text-xs text-muted-foreground">GST Number</p>
                                                     <p className="font-semibold text-sm">{details.gstNumber || <span className="text-muted-foreground italic">Not provided</span>}</p>
@@ -371,9 +371,16 @@ export default function PropertyRequestsList() {
                                                     <p className="font-semibold text-sm">{details.ownerAadhaarNumber ? `****${details.ownerAadhaarNumber.slice(-4)}` : <span className="text-muted-foreground italic">Not provided</span>}</p>
                                                 </div>
                                                 <div className="bg-card rounded-lg p-3 border border-border/50">
-                                                    <p className="text-xs text-muted-foreground">Aadhaar Image</p>
+                                                    <p className="text-xs text-muted-foreground">Aadhaar Front Image</p>
                                                     {details.ownerAadhaarImage
                                                         ? <a href={details.ownerAadhaarImage} target="_blank" rel="noopener noreferrer" className="text-primary text-sm font-semibold underline">View Document</a>
+                                                        : <span className="text-muted-foreground italic text-sm">Not provided</span>
+                                                    }
+                                                </div>
+                                                <div className="bg-card rounded-lg p-3 border border-border/50">
+                                                    <p className="text-xs text-muted-foreground">Aadhaar Back Image</p>
+                                                    {details.ownerAadhaarImageBack
+                                                        ? <a href={details.ownerAadhaarImageBack} target="_blank" rel="noopener noreferrer" className="text-primary text-sm font-semibold underline">View Document</a>
                                                         : <span className="text-muted-foreground italic text-sm">Not provided</span>
                                                     }
                                                 </div>

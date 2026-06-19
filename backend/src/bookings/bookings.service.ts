@@ -705,6 +705,7 @@ export class BookingsService {
                             idType: g.idType,
                             idNumber: g.idNumber,
                             idImage: g.idImage,
+                            idImageBack: g.idImageBack,
                         })),
                     },
                     isGroupBooking,
@@ -1078,7 +1079,8 @@ export class BookingsService {
                         lastName: true,
                         idType: true,
                         idNumber: true,
-                        idImage: true
+                        idImage: true,
+                        idImageBack: true
                     }
                 },
                 bookingRooms: {
@@ -1137,6 +1139,15 @@ export class BookingsService {
                 },
                 bookingSource: true,
                 payments: true,
+                bookingRooms: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                }
             },
         });
 
@@ -1172,6 +1183,15 @@ export class BookingsService {
                 },
                 payments: {
                     orderBy: { createdAt: 'desc' }
+                },
+                bookingRooms: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
                 }
             },
         });
@@ -1221,6 +1241,15 @@ export class BookingsService {
                 payments: true,
                 channelPartner: true,
                 roomBlocks: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                },
+                bookingRooms: {
                     include: {
                         room: {
                             include: {
@@ -1319,6 +1348,7 @@ export class BookingsService {
                         idType: guestUpdate.idType,
                         idNumber: guestUpdate.idNumber,
                         idImage: guestUpdate.idImage,
+                        idImageBack: guestUpdate.idImageBack,
                     },
                 });
             }
@@ -1915,6 +1945,7 @@ export class BookingsService {
                         idType: g.idType || null,
                         idNumber: g.idNumber || null,
                         idImage: g.idImage || null,
+                        idImageBack: g.idImageBack || null,
                     };
 
                     if ((g as any).id) {
@@ -1979,6 +2010,15 @@ export class BookingsService {
                 coupon: true,
                 channelPartner: true,
                 guests: true,
+                bookingRooms: {
+                    include: {
+                        room: {
+                            include: {
+                                roomType: true
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -2172,6 +2212,7 @@ export class BookingsService {
                         idType: g.idType || null,
                         idNumber: g.idNumber || null,
                         idImage: g.idImage || null,
+                        idImageBack: g.idImageBack || null,
                     };
 
                     if ((g as any).id) {

@@ -330,13 +330,13 @@ export default function Profile() {
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Last Name</label>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Last Name (Optional)</label>
                                                 <input
                                                     type="text"
                                                     value={formData.lastName}
                                                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                                     disabled={!isUpdating}
-                                                    placeholder='Last Name'
+                                                    placeholder='Last Name (Optional)'
                                                     className="w-full px-5 py-4 rounded-lg border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-primary-50 focus:border-primary-200 outline-none transition-all disabled:bg-gray-50/50 disabled:text-gray-400 font-medium text-gray-700"
                                                 />
                                             </div>

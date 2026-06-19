@@ -70,6 +70,7 @@ export interface Property {
     groupPriceChild?: number;
     licenceImage?: string;
     ownerAadhaarImage?: string;
+    ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;
 }
 
@@ -105,6 +106,7 @@ export interface CreatePropertyDto {
     groupPriceChild?: number;
     licenceImage?: string;
     ownerAadhaarImage?: string;
+    ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;
 }
 

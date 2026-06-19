@@ -1,19 +1,49 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import ForgotPassword from '../components/auth/ForgotPassword';
 import logo from '../assets/logo.svg';
 import toast from 'react-hot-toast';
 
+type ErrorField = 'email' | 'password' | 'general' | null;
+
+function parseLoginError(err: any): { message: string; field: ErrorField } {
+    const raw: string =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Something went wrong. Please try again.';
+
+    const msg = Array.isArray(raw) ? raw[0] : raw;
+    const lower = msg.toLowerCase();
+
+    if (lower.includes('inactive')) {
+        return { message: 'Your account has been deactivated. Please contact support.', field: 'general' };
+    }
+    if (lower.includes('not found') || lower.includes('no account')) {
+        return { message: 'No account found with that email or phone number.', field: 'email' };
+    }
+    if (lower.includes('invalid credentials') || lower.includes('password')) {
+        return { message: 'Incorrect password. Please try again.', field: 'password' };
+    }
+    if (lower.includes('otp')) {
+        return { message: 'This account uses OTP login. Password login is not available.', field: 'general' };
+    }
+    if (lower.includes('not registered') || lower.includes('portal') || lower.includes('property owner')) {
+        return { message: 'Access denied. This portal is for Property Owners and Staff only.', field: 'general' };
+    }
+    return { message: msg, field: 'general' };
+}
+
 export default function Login() {
-    const { login, logout } = useAuth();
+    const { login } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isForgotPassword, setIsForgotPassword] = useState(false);
+    const [errorField, setErrorField] = useState<ErrorField>(null);
     const [searchParams] = useSearchParams();
 
     useEffect(() => {
@@ -49,30 +79,14 @@ export default function Login() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        setErrorField(null);
         try {
             await login({ email, password });
-
-            // Post-login check for portal access (Property-related roles)
-            const storedUser = localStorage.getItem('property_user');
-            if (storedUser) {
-                const user = JSON.parse(storedUser);
-                // Ensure roles is an array of lowercase strings
-                const rawRoles = user.roles || [];
-                const roles = (rawRoles.length > 0 ? rawRoles : [user.role || '']).map((r: string) => r.toLowerCase());
-
-                const isSuperAdmin = roles.includes('superadmin');
-                const isRestrictedPortal = roles.every((r: string) => ['channelpartner', 'customer'].includes(r));
-
-                if (!isSuperAdmin && isRestrictedPortal) {
-                    logout();
-                    throw new Error('Account not registered for this portal. This dashboard is for Property Owners and Staff.');
-                }
-            }
-
             toast.success('Welcome back!');
             navigate('/');
         } catch (error: any) {
-            const message = error?.response?.data?.message || error?.message || 'Invalid credentials';
+            const { message, field } = parseLoginError(error);
+            setErrorField(field);
             toast.error(message);
         } finally {
             setIsLoading(false);
@@ -99,14 +113,27 @@ export default function Login() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1.5 font-bold">
                                     Email or Phone Number
                                 </label>
-                                <input
+                        <input
                                     type="text"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        if (errorField === 'email') setErrorField(null);
+                                    }}
+                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white ${
+                                        errorField === 'email'
+                                            ? 'border-red-400 ring-1 ring-red-300'
+                                            : 'border-gray-200'
+                                    }`}
                                     placeholder="Email or Phone Number"
                                     required
                                 />
+                                {errorField === 'email' && (
+                                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        No account found with that email or phone number.
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -117,8 +144,15 @@ export default function Login() {
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white pr-12"
+                                        onChange={(e) => {
+                                            setPassword(e.target.value);
+                                            if (errorField === 'password') setErrorField(null);
+                                        }}
+                                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white pr-12 ${
+                                            errorField === 'password'
+                                                ? 'border-red-400 ring-1 ring-red-300'
+                                                : 'border-gray-200'
+                                        }`}
                                         placeholder="••••••••"
                                         required
                                     />
@@ -130,6 +164,12 @@ export default function Login() {
                                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                     </button>
                                 </div>
+                                {errorField === 'password' && (
+                                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        Incorrect password. Please try again.
+                                    </p>
+                                )}
                             </div>
 
                             <button

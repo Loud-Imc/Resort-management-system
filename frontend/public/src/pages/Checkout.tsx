@@ -63,7 +63,9 @@ export default function Checkout() {
     const [user, setUser] = useState<any>(null);
     const [token, setToken] = useState<string | null>(null);
     const [idImage, setIdImage] = useState<string | null>(null);
+    const [idImageBack, setIdImageBack] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [isUploadingBack, setIsUploadingBack] = useState(false);
     const { selectedCurrency, rates } = useCurrency();
 
 
@@ -193,6 +195,22 @@ export default function Checkout() {
         }
     };
 
+    const handleFileUploadBack = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingBack(true);
+        try {
+            const data = await uploadService.uploadFile(file);
+            setIdImageBack(data.url);
+        } catch (error) {
+            console.error('Upload failed', error);
+            alert('Failed to upload ID back image');
+        } finally {
+            setIsUploadingBack(false);
+        }
+    };
+
 
     const [paymentOption, setPaymentOption] = useState<'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY'>('FULL');
     
@@ -238,6 +256,7 @@ export default function Checkout() {
                     idType: userData.idType || undefined,
                     idNumber: userData.idNumber || undefined,
                     idImage: idImage || undefined,
+                    idImageBack: idImageBack || undefined,
                 }]
             };
 
@@ -380,7 +399,7 @@ export default function Checkout() {
                                 {errors.firstName && <span className="text-xs text-red-500">{errors.firstName.message}</span>}
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Last Name</label>
+                                <label className="text-sm font-medium text-gray-700">Last Name (Optional)</label>
                                 <input
                                     {...register('lastName')}
                                     className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
@@ -485,28 +504,57 @@ export default function Checkout() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <label className="text-sm font-medium text-gray-700">Upload Guest ID</label>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleFileUpload}
-                                            className="hidden"
-                                            id="idImage-upload"
-                                        />
-                                        <label
-                                            htmlFor="idImage-upload"
-                                            className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600 flex items-center gap-2"
-                                        >
-                                            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                                            {idImage ? 'Change ID Image' : 'Click to Upload ID Image'}
-                                        </label>
-                                        {idImage && (
-                                            <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
-                                                <ShieldCheck className="h-4 w-4" /> ID Image Uploaded
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Guest ID (Front)</label>
+                                            <div className="flex items-center gap-4">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleFileUpload}
+                                                    className="hidden"
+                                                    id="idImage-upload"
+                                                />
+                                                <label
+                                                    htmlFor="idImage-upload"
+                                                    className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600 flex items-center gap-2"
+                                                >
+                                                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                                    {idImage ? 'Change Front Image' : 'Upload Front Image'}
+                                                </label>
+                                                {idImage && (
+                                                    <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
+                                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Uploaded
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Guest ID (Back - Optional)</label>
+                                            <div className="flex items-center gap-4">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleFileUploadBack}
+                                                    className="hidden"
+                                                    id="idImageBack-upload"
+                                                />
+                                                <label
+                                                    htmlFor="idImageBack-upload"
+                                                    className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600 flex items-center gap-2"
+                                                >
+                                                    {isUploadingBack ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                                    {idImageBack ? 'Change Back Image' : 'Upload Back Image'}
+                                                </label>
+                                                {idImageBack && (
+                                                    <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
+                                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Uploaded
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                     <p className="text-[10px] text-gray-400 italic">Accepted formats: JPG, PNG. Max 5MB.</p>
                                 </div>

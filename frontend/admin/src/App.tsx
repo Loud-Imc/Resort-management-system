@@ -77,6 +77,7 @@ import CategoryList from './pages/PropertyCategories/CategoryList';
 // Notifications
 import Notifications from './pages/Notifications';
 import PlatformSettings from './pages/Settings/PlatformSettings';
+import AccountSettings from './pages/Settings/AccountSettings';
 import ScrollToTop from './components/ScrollToTop';
 
 const queryClient = new QueryClient();
@@ -168,6 +169,7 @@ function App() {
 
                     {/* System Settings */}
                     <Route path="platform-settings" element={<PlatformSettings />} />
+                    <Route path="account-settings" element={<AccountSettings />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />

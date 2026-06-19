@@ -7,6 +7,7 @@ export interface User {
     roles: string[];
     permissions: string[];
     commissionPercentage?: number;
+    phone?: string;
 }
 
 export interface AuthResponse {

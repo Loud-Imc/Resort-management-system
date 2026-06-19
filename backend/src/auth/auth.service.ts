@@ -58,7 +58,7 @@ export class AuthService {
 
         if (!user) {
             console.warn(`[AuthService] Login failed: User not found for identifier: ${identifier}`);
-            throw new UnauthorizedException('Invalid credentials');
+            throw new UnauthorizedException('No account found with this email or phone number');
         }
 
         if (!user.password) {
@@ -69,7 +69,7 @@ export class AuthService {
         console.log(`[AuthService] Password validation result for user ${user.id}: ${isPasswordValid}`);
 
         if (!isPasswordValid) {
-            throw new UnauthorizedException('Invalid credentials');
+            throw new UnauthorizedException('Invalid password');
         }
 
         if (!user.isActive) {

@@ -62,7 +62,8 @@ export default function BookingsList() {
             id: g.id,
             idType: g.idType || '',
             idNumber: g.idNumber || '',
-            idImage: g.idImage || ''
+            idImage: g.idImage || '',
+            idImageBack: g.idImageBack || ''
         })));
         setIdErrors({});
     };
@@ -88,15 +89,20 @@ export default function BookingsList() {
         }
     };
 
-    const handleUploadImage = async (idx: number, file: File) => {
+    const handleUploadImage = async (idx: number, file: File, isBack = false) => {
         const guestId = verificationData[idx].id;
+        const uploadKey = isBack ? `back-${guestId}` : `front-${guestId}`;
         try {
-            setUploadingGuestId(guestId);
+            setUploadingGuestId(uploadKey);
             const res = await uploadService.upload(file);
             const newData = [...verificationData];
-            newData[idx].idImage = res.url;
+            if (isBack) {
+                newData[idx].idImageBack = res.url;
+            } else {
+                newData[idx].idImage = res.url;
+            }
             setVerificationData(newData);
-            toast.success('ID uploaded successfully');
+            toast.success(`ID ${isBack ? 'back' : 'front'} uploaded successfully`);
         } catch (error) {
             toast.error('Upload failed');
         } finally {
@@ -672,60 +678,123 @@ export default function BookingsList() {
                                                     </div>
                                                 </div>
 
-                                                <div className="space-y-1.5">
-                                                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1 block text-center md:text-left">Identity Proof</label>
-                                                    {guest.idImage ? (
-                                                        <div className="relative group rounded-[1.5rem] overflow-hidden border border-border/50 aspect-video bg-muted/30 shadow-sm hover:shadow-xl hover:border-primary transition-all duration-300">
-                                                            <img
-                                                                src={guest.idImage}
-                                                                alt="Identity Proof"
-                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                            />
-                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-[2px] gap-3">
-                                                                <a
-                                                                    href={guest.idImage}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all transform hover:-translate-y-1"
-                                                                >
-                                                                    <Eye className="h-5 w-5" />
-                                                                </a>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        const newData = [...verificationData];
-                                                                        newData[idx].idImage = '';
-                                                                        setVerificationData(newData);
-                                                                    }}
-                                                                    className="p-3 bg-destructive/20 hover:bg-destructive/40 rounded-2xl text-white transition-all transform hover:-translate-y-1"
-                                                                >
-                                                                    <Trash2 className="h-5 w-5" />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <label className="relative h-[106px] flex flex-col items-center justify-center border-2 border-dashed border-primary/20 bg-primary/5 rounded-[1.5rem] cursor-pointer hover:bg-primary/10 hover:border-primary/40 transition-all group overflow-hidden">
-                                                            {uploadingGuestId === guest.id ? (
-                                                                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                                                            ) : (
-                                                                <>
-                                                                    <div className="p-3 bg-primary/10 rounded-2xl mb-2 group-hover:scale-110 transition-transform">
-                                                                        <Upload className="h-5 w-5 text-primary" />
-                                                                    </div>
-                                                                    <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">Upload ID Document</span>
-                                                                    <input
-                                                                        type="file"
-                                                                        className="hidden"
-                                                                        accept="image/*"
-                                                                        onChange={(e) => {
-                                                                            const file = e.target.files?.[0];
-                                                                            if (file) handleUploadImage(idx, file);
-                                                                        }}
+                                                <div className="space-y-3">
+                                                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest pl-1 block text-center md:text-left">Identity Proof (Front & Optional Back)</label>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        {/* Front Side */}
+                                                        <div className="space-y-1">
+                                                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider pl-1">Front Side</span>
+                                                            {guest.idImage ? (
+                                                                <div className="relative group rounded-[1.5rem] overflow-hidden border border-border/50 aspect-video bg-muted/30 shadow-sm hover:shadow-xl hover:border-primary transition-all duration-300">
+                                                                    <img
+                                                                        src={guest.idImage}
+                                                                        alt="Front Side"
+                                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                                     />
-                                                                </>
+                                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-[2px] gap-3">
+                                                                        <a
+                                                                            href={guest.idImage}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all transform hover:-translate-y-1"
+                                                                        >
+                                                                            <Eye className="h-5 w-5" />
+                                                                        </a>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newData = [...verificationData];
+                                                                                newData[idx].idImage = '';
+                                                                                setVerificationData(newData);
+                                                                            }}
+                                                                            className="p-3 bg-destructive/20 hover:bg-destructive/40 rounded-2xl text-white transition-all transform hover:-translate-y-1"
+                                                                        >
+                                                                            <Trash2 className="h-5 w-5" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <label className="relative h-[106px] flex flex-col items-center justify-center border-2 border-dashed border-primary/20 bg-primary/5 rounded-[1.5rem] cursor-pointer hover:bg-primary/10 hover:border-primary/40 transition-all group overflow-hidden">
+                                                                    {uploadingGuestId === `front-${guest.id}` ? (
+                                                                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <div className="p-2.5 bg-primary/10 rounded-2xl mb-1 group-hover:scale-110 transition-transform">
+                                                                                <Upload className="h-4.5 w-4.5 text-primary" />
+                                                                            </div>
+                                                                            <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">Upload Front</span>
+                                                                            <input
+                                                                                type="file"
+                                                                                className="hidden"
+                                                                                accept="image/*"
+                                                                                onChange={(e) => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (file) handleUploadImage(idx, file, false);
+                                                                                }}
+                                                                            />
+                                                                        </>
+                                                                    )}
+                                                                </label>
                                                             )}
-                                                        </label>
-                                                    )}
+                                                        </div>
+
+                                                        {/* Back Side */}
+                                                        <div className="space-y-1">
+                                                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider pl-1">Back Side (Optional)</span>
+                                                            {guest.idImageBack ? (
+                                                                <div className="relative group rounded-[1.5rem] overflow-hidden border border-border/50 aspect-video bg-muted/30 shadow-sm hover:shadow-xl hover:border-primary transition-all duration-300">
+                                                                    <img
+                                                                        src={guest.idImageBack}
+                                                                        alt="Back Side"
+                                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                                    />
+                                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-[2px] gap-3">
+                                                                        <a
+                                                                            href={guest.idImageBack}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all transform hover:-translate-y-1"
+                                                                        >
+                                                                            <Eye className="h-5 w-5" />
+                                                                        </a>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newData = [...verificationData];
+                                                                                newData[idx].idImageBack = '';
+                                                                                setVerificationData(newData);
+                                                                            }}
+                                                                            className="p-3 bg-destructive/20 hover:bg-destructive/40 rounded-2xl text-white transition-all transform hover:-translate-y-1"
+                                                                        >
+                                                                            <Trash2 className="h-5 w-5" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <label className="relative h-[106px] flex flex-col items-center justify-center border-2 border-dashed border-primary/20 bg-primary/5 rounded-[1.5rem] cursor-pointer hover:bg-primary/10 hover:border-primary/40 transition-all group overflow-hidden">
+                                                                    {uploadingGuestId === `back-${guest.id}` ? (
+                                                                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <div className="p-2.5 bg-primary/10 rounded-2xl mb-1 group-hover:scale-110 transition-transform">
+                                                                                <Upload className="h-4.5 w-4.5 text-primary" />
+                                                                            </div>
+                                                                            <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest">Upload Back</span>
+                                                                            <input
+                                                                                type="file"
+                                                                                className="hidden"
+                                                                                accept="image/*"
+                                                                                onChange={(e) => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (file) handleUploadImage(idx, file, true);
+                                                                                }}
+                                                                            />
+                                                                        </>
+                                                                    )}
+                                                                </label>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

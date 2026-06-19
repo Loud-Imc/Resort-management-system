@@ -75,6 +75,7 @@ export default function PropertyForm() {
         groupPriceChild: 300,
         licenceImage: '',
         ownerAadhaarImage: '',
+        ownerAadhaarImageBack: '',
         ownerAadhaarNumber: '',
     });
 
@@ -161,6 +162,7 @@ export default function PropertyForm() {
                 groupPriceChild: property.groupPriceChild ? Number(property.groupPriceChild) : 0,
                 licenceImage: property.licenceImage || '',
                 ownerAadhaarImage: property.ownerAadhaarImage || '',
+                ownerAadhaarImageBack: property.ownerAadhaarImageBack || '',
                 ownerAadhaarNumber: property.ownerAadhaarNumber || '',
             });
         } catch (err: any) {
@@ -815,7 +817,7 @@ export default function PropertyForm() {
 
                         <div>
                             <label className="block text-sm font-bold text-muted-foreground mb-2">
-                                Owner Aadhaar Card (Front & Back)
+                                Owner Aadhaar Card (Front)
                             </label>
                             <ImageUpload
                                 images={formData.ownerAadhaarImage ? [formData.ownerAadhaarImage] : []}
@@ -823,8 +825,22 @@ export default function PropertyForm() {
                                 maxImages={1}
                             />
                             <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                Upload the owner's Aadhaar card image.
+                                Upload the front side of owner's Aadhaar card.
                             </p>
+
+                            <div className="mt-4">
+                                <label className="block text-sm font-bold text-muted-foreground mb-2">
+                                    Owner Aadhaar Card (Back - Optional)
+                                </label>
+                                <ImageUpload
+                                    images={formData.ownerAadhaarImageBack ? [formData.ownerAadhaarImageBack] : []}
+                                    onChange={(urls) => setFormData(prev => ({ ...prev, ownerAadhaarImageBack: urls[0] || '' }))}
+                                    maxImages={1}
+                                />
+                                <p className="text-xs text-muted-foreground mt-2 font-medium">
+                                    Upload the back side of owner's Aadhaar card.
+                                </p>
+                            </div>
 
                             <div className="mt-4">
                                 <label className="block text-sm font-bold text-muted-foreground mb-1">

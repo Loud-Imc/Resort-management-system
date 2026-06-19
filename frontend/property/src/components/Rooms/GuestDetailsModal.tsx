@@ -170,17 +170,24 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                                         <FileText className="h-4 w-4" /> Guest Documents
                                     </h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {activeBooking.guests.filter((g: any) => g.idType || g.idImage).map((guest: any, idx: number) => (
+                                        {activeBooking.guests.filter((g: any) => g.idType || g.idImage || g.idImageBack).map((guest: any, idx: number) => (
                                             <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center gap-3">
-                                                {guest.idImage ? (
-                                                    <a href={guest.idImage} target="_blank" rel="noopener noreferrer" className="w-12 h-12 shrink-0 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-blue-500 transition-all block bg-white dark:bg-gray-800">
-                                                        <img src={guest.idImage} alt={`${guest.firstName} ID`} className="w-full h-full object-cover" />
-                                                    </a>
-                                                ) : (
-                                                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-800 text-gray-500 rounded-lg flex items-center justify-center shrink-0">
-                                                        <FileText className="h-5 w-5" />
-                                                    </div>
-                                                )}
+                                                <div className="flex gap-1.5 shrink-0">
+                                                    {guest.idImage ? (
+                                                        <a href={guest.idImage} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-blue-500 transition-all block bg-white dark:bg-gray-800" title="Front Side">
+                                                            <img src={guest.idImage} alt={`${guest.firstName} ID Front`} className="w-full h-full object-cover" />
+                                                        </a>
+                                                    ) : (
+                                                        <div className="w-12 h-12 bg-gray-200 dark:bg-gray-800 text-gray-500 rounded-lg flex items-center justify-center">
+                                                            <FileText className="h-5 w-5" />
+                                                        </div>
+                                                    )}
+                                                    {guest.idImageBack && (
+                                                        <a href={guest.idImageBack} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-blue-500 transition-all block bg-white dark:bg-gray-800" title="Back Side">
+                                                            <img src={guest.idImageBack} alt={`${guest.firstName} ID Back`} className="w-full h-full object-cover" />
+                                                        </a>
+                                                    )}
+                                                </div>
                                                 <div className="overflow-hidden">
                                                     <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
                                                         {guest.firstName} {guest.lastName}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useMutation } from '@tanstack/react-query';
-import api from '../services/api';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { User, Mail, Phone, Loader2, AlertTriangle, Trash2, Edit2, Save, X, UserCircle, Lock, ShieldCheck } from 'lucide-react';
 
@@ -171,7 +171,7 @@ export default function AccountSettings() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
                 <div className="flex items-center gap-6 mb-8 pb-8 border-b border-gray-50 dark:border-gray-700/50">
                     <div className="w-20 h-20 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 font-bold text-2xl border border-blue-100 dark:border-blue-800 shadow-inner">
-                        {user?.firstName?.charAt(0) || 'P'}
+                        {user?.firstName?.charAt(0) || 'A'}
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
