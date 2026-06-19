@@ -23,6 +23,7 @@ export interface BookingGuest {
     idType?: string;
     idNumber?: string;
     idImage?: string;
+    idImageBack?: string;
     whatsappNumber?: string;
 }
 

@@ -319,6 +319,7 @@ model BookingGuest {
   createdAt      DateTime @default(now())
   whatsappNumber String?
   idImage        String?
+  idImageBack    String?
   booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@map("booking_guests")
@@ -529,6 +530,7 @@ model Property {
   gstNumber                   String?
   licenceImage                String?
   ownerAadhaarImage           String?
+  ownerAadhaarImageBack       String?
   ownerAadhaarNumber          String?
   allowsGroupBooking          Boolean              @default(false)
   maxGroupCapacity            Int?

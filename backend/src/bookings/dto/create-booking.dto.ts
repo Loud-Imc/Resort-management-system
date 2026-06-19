@@ -47,6 +47,11 @@ export class GuestInfoDto {
     @IsOptional()
     idImage?: string;
 
+    @ApiProperty({ example: 'https://example.com/id_back.jpg', required: false })
+    @IsString()
+    @IsOptional()
+    idImageBack?: string;
+
     @ApiProperty({ example: 'guest-uuid', required: false })
     @IsString()
     @IsOptional()

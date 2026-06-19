@@ -419,12 +419,12 @@ export function RescheduleBookingModal({
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">Last Name</label>
+                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">Last Name (Optional)</label>
                                                 <input
                                                     type="text"
                                                     value={bookerLastName}
                                                     onChange={(e) => setBookerLastName(e.target.value)}
-                                                    placeholder="Last Name"
+                                                    placeholder="Last Name (Optional)"
                                                     className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
                                                 />
                                             </div>
@@ -494,13 +494,13 @@ export function RescheduleBookingModal({
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">Last Name</label>
+                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">Last Name (Optional)</label>
                                                 <input
                                                     type="text"
                                                     value={guestLastName}
                                                     onChange={(e) => setGuestLastName(e.target.value)}
                                                     disabled={isGuestSameAsBooker}
-                                                    placeholder="Last Name"
+                                                    placeholder="Last Name (Optional)"
                                                     className={`w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none ${
                                                         isGuestSameAsBooker ? 'opacity-60 cursor-not-allowed bg-muted/50' : ''
                                                     }`}

@@ -21,6 +21,11 @@ export class GuestVerificationDto {
     @IsString()
     @IsOptional()
     idImage?: string;
+
+    @ApiProperty({ example: 'https://example.com/id-image-back.jpg', required: false })
+    @IsString()
+    @IsOptional()
+    idImageBack?: string;
 }
 
 export class CheckInDto {

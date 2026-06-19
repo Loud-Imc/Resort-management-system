@@ -670,7 +670,7 @@ export default function ReschedulePage() {
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 {[
                                                     { label: 'First Name *', value: bookerFirstName, set: setBookerFirstName, type: 'text' },
-                                                    { label: 'Last Name', value: bookerLastName, set: setBookerLastName, type: 'text' },
+                                                    { label: 'Last Name (Optional)', value: bookerLastName, set: setBookerLastName, type: 'text' },
                                                     { label: 'Email', value: bookerEmail, set: setBookerEmail, type: 'email' },
                                                     { label: 'Phone *', value: bookerPhone, set: setBookerPhone, type: 'text' },
                                                 ].map((f) => (
@@ -710,7 +710,7 @@ export default function ReschedulePage() {
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 {[
                                                     { label: 'First Name *', value: guestFirstName, set: setGuestFirstName, type: 'text' },
-                                                    { label: 'Last Name', value: guestLastName, set: setGuestLastName, type: 'text' },
+                                                    { label: 'Last Name (Optional)', value: guestLastName, set: setGuestLastName, type: 'text' },
                                                     { label: 'Email', value: guestEmail, set: setGuestEmail, type: 'email' },
                                                     { label: 'Phone', value: guestPhone, set: setGuestPhone, type: 'text' },
                                                 ].map((f) => (

@@ -7,7 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { bookingsService } from '../../services/bookings';
 import { uploadService } from '../../services/uploads';
-import { Loader2, ArrowLeft, Users, Save, Camera, ShieldCheck, Eye, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Users, Save, Camera, Eye, AlertCircle } from 'lucide-react';
 import type { Booking } from '../../types/booking';
 
 const editBookingSchema = z.object({
@@ -30,6 +30,7 @@ const editBookingSchema = z.object({
         idType: z.string().optional(),
         idNumber: z.string().optional(),
         idImage: z.string().optional(),
+        idImageBack: z.string().optional(),
     })).optional(),
 });
 
@@ -39,7 +40,7 @@ export default function EditBooking() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [idUploading, setIdUploading] = useState<Record<number, boolean>>({});
+    const [idUploading, setIdUploading] = useState<Record<string, boolean>>({});
 
     const { data: booking, isLoading: loadingBooking } = useQuery<Booking>({
         queryKey: ['booking', id],
@@ -85,6 +86,7 @@ export default function EditBooking() {
                     idType: g.idType || '',
                     idNumber: g.idNumber || '',
                     idImage: g.idImage || '',
+                    idImageBack: g.idImageBack || '',
                 })) || [],
             });
         }
@@ -105,20 +107,21 @@ export default function EditBooking() {
         },
     });
 
-    const handleGuestFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleGuestFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>, isBack = false) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setIdUploading(prev => ({ ...prev, [index]: true }));
+        const uploadKey = isBack ? `back-${index}` : `front-${index}`;
+        setIdUploading(prev => ({ ...prev, [uploadKey]: true }));
         try {
             const data = await uploadService.upload(file);
-            setValue(`guests.${index}.idImage`, data.url);
-            toast.success(`Guest ${index + 1} ID uploaded`);
+            setValue(`guests.${index}.${isBack ? 'idImageBack' : 'idImage'}`, data.url);
+            toast.success(`Guest ${index + 1} ID ${isBack ? 'Back' : 'Front'} uploaded`);
         } catch (error) {
             console.error('Upload failed', error);
-            toast.error(`Failed to upload ID for Guest ${index + 1}`);
+            toast.error(`Failed to upload ID ${isBack ? 'Back' : 'Front'} for Guest ${index + 1}`);
         } finally {
-            setIdUploading(prev => ({ ...prev, [index]: false }));
+            setIdUploading(prev => ({ ...prev, [uploadKey]: false }));
         }
     };
 
@@ -218,7 +221,7 @@ export default function EditBooking() {
                                         <label className="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Guest {index + 1} Name</label>
                                         <div className="flex gap-2">
                                             <input {...register(`guests.${index}.firstName`)} placeholder="First" className="flex-1 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-10 text-sm font-bold" />
-                                            <input {...register(`guests.${index}.lastName`)} placeholder="Last" className="flex-1 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-10 text-sm font-bold" />
+                                            <input {...register(`guests.${index}.lastName`)} placeholder="Last (Optional)" className="flex-1 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-10 text-sm font-bold" />
                                         </div>
                                     </div>
                                     <div>
@@ -245,28 +248,50 @@ export default function EditBooking() {
 
                                     {/* ID Upload */}
                                     <div className="md:col-span-2">
-                                        <div className="flex items-center gap-6">
-                                            <input type="file" accept="image/*" onChange={(e) => handleGuestFileUpload(index, e)} className="hidden" id={`guest-id-edit-${index}`} />
-                                            <label htmlFor={`guest-id-edit-${index}`} className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-2xl cursor-pointer hover:bg-gray-50 transition-all text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-300 flex items-center gap-3 shadow-sm active:scale-95">
-                                                {idUploading[index] ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : <Camera className="h-4 w-4" />}
-                                                {watch(`guests.${index}.idImage`) ? 'Update ID Scan' : 'Upload ID Scan'}
-                                            </label>
-                                            {watch(`guests.${index}.idImage`) && (
-                                                <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-2">
-                                                    <div className="h-10 w-16 rounded-lg border-2 border-emerald-100 dark:border-emerald-900 overflow-hidden relative group/img">
-                                                        <img src={watch(`guests.${index}.idImage`)} className="w-full h-full object-cover" />
-                                                        <a href={watch(`guests.${index}.idImage`)} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
-                                                            <Eye className="h-4 w-4 text-white" />
-                                                        </a>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1">
-                                                            <ShieldCheck className="h-3 w-3" /> Document Verified
-                                                        </span>
-                                                        <span className="text-[8px] text-gray-400 font-bold uppercase">Stored Securely</span>
-                                                    </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                            {/* Front Side */}
+                                            <div className="flex flex-col gap-2">
+                                                <span className="text-[9px] font-black text-gray-400 dark:text-gray-555 uppercase tracking-widest">Front Side</span>
+                                                <div className="flex items-center gap-4">
+                                                    <input type="file" accept="image/*" onChange={(e) => handleGuestFileUpload(index, e, false)} className="hidden" id={`guest-id-edit-front-${index}`} />
+                                                    <label htmlFor={`guest-id-edit-front-${index}`} className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-2xl cursor-pointer hover:bg-gray-50 transition-all text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-300 flex items-center gap-3 shadow-sm active:scale-95">
+                                                        {idUploading[`front-${index}`] ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : <Camera className="h-4 w-4" />}
+                                                        {watch(`guests.${index}.idImage`) ? 'Change Front' : 'Upload Front'}
+                                                    </label>
+                                                    {watch(`guests.${index}.idImage`) && (
+                                                        <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-2">
+                                                            <div className="h-10 w-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden relative group/img">
+                                                                <img src={watch(`guests.${index}.idImage`)} className="w-full h-full object-cover" />
+                                                                <a href={watch(`guests.${index}.idImage`)} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                                                                    <Eye className="h-4 w-4 text-white" />
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
+                                            </div>
+
+                                            {/* Back Side */}
+                                            <div className="flex flex-col gap-2">
+                                                <span className="text-[9px] font-black text-gray-400 dark:text-gray-555 uppercase tracking-widest">Back Side (Optional)</span>
+                                                <div className="flex items-center gap-4">
+                                                    <input type="file" accept="image/*" onChange={(e) => handleGuestFileUpload(index, e, true)} className="hidden" id={`guest-id-edit-back-${index}`} />
+                                                    <label htmlFor={`guest-id-edit-back-${index}`} className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-2xl cursor-pointer hover:bg-gray-50 transition-all text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-300 flex items-center gap-3 shadow-sm active:scale-95">
+                                                        {idUploading[`back-${index}`] ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : <Camera className="h-4 w-4" />}
+                                                        {watch(`guests.${index}.idImageBack`) ? 'Change Back' : 'Upload Back'}
+                                                    </label>
+                                                    {watch(`guests.${index}.idImageBack`) && (
+                                                        <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-2">
+                                                            <div className="h-10 w-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden relative group/img">
+                                                                <img src={watch(`guests.${index}.idImageBack`)} className="w-full h-full object-cover" />
+                                                                <a href={watch(`guests.${index}.idImageBack`)} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                                                                    <Eye className="h-4 w-4 text-white" />
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

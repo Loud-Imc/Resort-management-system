@@ -10,7 +10,7 @@ import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { uploadService } from '../../services/uploads';
-import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, Eye, X } from 'lucide-react';
+import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, X } from 'lucide-react';
 import clsx from 'clsx';
 import SearchableSelect from '../../components/SearchableSelect';
 import BookingAvailabilityCalendar from '../../components/bookings/BookingAvailabilityCalendar';
@@ -58,6 +58,7 @@ const bookingSchema = z.object({
         idType: z.string().optional(),
         idNumber: z.string().optional(),
         idImage: z.string().optional(),
+        idImageBack: z.string().optional(),
     })).min(1, 'At least 1 guest is required'),
 }).refine(data => {
     if (!data.isGroupBooking && !data.roomTypeId) return false;
@@ -153,7 +154,7 @@ export default function CreateBooking() {
             guestPhone: '',
             whatsappNumber: '',
             isBookerAlsoGuest: true,
-            guests: [{ firstName: '', lastName: '' }],
+            guests: [{ firstName: '', lastName: '', idImage: '', idImageBack: '' }],
         },
     });
 
@@ -240,22 +241,23 @@ export default function CreateBooking() {
 
     const { fields, append, remove } = useFieldArray({ control, name: 'guests' });
 
-    const [idUploading, setIdUploading] = useState<Record<number, boolean>>({});
+    const [idUploading, setIdUploading] = useState<Record<string, boolean>>({});
 
-    const handleGuestFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleGuestFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>, isBack = false) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setIdUploading(prev => ({ ...prev, [index]: true }));
+        const uploadKey = isBack ? `back-${index}` : `front-${index}`;
+        setIdUploading(prev => ({ ...prev, [uploadKey]: true }));
         try {
             const data = await uploadService.upload(file);
-            setValue(`guests.${index}.idImage`, data.url);
-            toast.success(`Guest ${index + 1} ID uploaded`);
+            setValue(`guests.${index}.${isBack ? 'idImageBack' : 'idImage'}`, data.url);
+            toast.success(`Guest ${index + 1} ID ${isBack ? 'Back' : 'Front'} uploaded`);
         } catch (error) {
             console.error('Upload failed', error);
-            toast.error(`Failed to upload ID for Guest ${index + 1}`);
+            toast.error(`Failed to upload ID ${isBack ? 'Back' : 'Front'} for Guest ${index + 1}`);
         } finally {
-            setIdUploading(prev => ({ ...prev, [index]: false }));
+            setIdUploading(prev => ({ ...prev, [uploadKey]: false }));
         }
     };
 
@@ -959,7 +961,7 @@ export default function CreateBooking() {
                                                 <input
                                                     type="text"
                                                     {...register('guestLastName')}
-                                                    placeholder="Enter last name"
+                                                    placeholder="Enter last name (Optional)"
                                                     className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
                                                 {errors.guestLastName && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestLastName.message}</p>}
@@ -1138,49 +1140,80 @@ export default function CreateBooking() {
                                                                  </div>
 
                                                                  <div>
-                                                                     <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-555 mb-2">Upload Guest ID Photo</label>
-                                                                     <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-gray-950 p-4 rounded-xl border border-gray-150 dark:border-gray-800/50 shadow-inner">
-                                                                         <input
-                                                                             type="file"
-                                                                             accept="image/*"
-                                                                             onChange={(e) => handleGuestFileUpload(index, e)}
-                                                                             className="hidden"
-                                                                             id={`guest-id-upload-${index}`}
-                                                                         />
-                                                                         <label
-                                                                             htmlFor={`guest-id-upload-${index}`}
-                                                                             className="px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 shadow-sm border-dashed"
-                                                                         >
-                                                                             {idUploading[index] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                                                                             {watch(`guests.${index}.idImage`) ? 'Change ID Image' : 'Upload ID Image'}
-                                                                         </label>
-                                                                         {watch(`guests.${index}.idImage`) && (
-                                                                             <div className="flex flex-wrap items-center gap-4 animate-in fade-in zoom-in-95">
-                                                                                 <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 px-2.5 py-1 rounded-lg">
-                                                                                     <ShieldCheck className="h-4 w-4" /> ID Uploaded
-                                                                                 </div>
-                                                                                 <div className="flex items-center">
-                                                                                     <a
-                                                                                         href={watch(`guests.${index}.idImage`)}
-                                                                                         target="_blank"
-                                                                                         rel="noreferrer"
-                                                                                         className="h-14 w-24 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:opacity-80 transition-all group/img relative shadow-sm block"
-                                                                                     >
-                                                                                         <img
-                                                                                             src={watch(`guests.${index}.idImage`)}
-                                                                                             alt="Guest ID"
-                                                                                             className="w-full h-full object-cover"
-                                                                                         />
-                                                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
-                                                                                             <Eye className="h-4 w-4 text-white" />
-                                                                                         </div>
-                                                                                     </a>
-                                                                                 </div>
-                                                                             </div>
-                                                                         )}
-                                                                     </div>
-                                                                     <p className="text-[10px] text-gray-400 italic mt-2">Accepted formats: JPG, PNG. Max 5MB.</p>
-                                                                 </div>
+                                                                      <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-555 mb-2">Upload Guest ID Photo (Front & Optional Back)</label>
+                                                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-gray-950 p-4 rounded-xl border border-gray-150 dark:border-gray-800/50 shadow-inner">
+                                                                          {/* Front Side */}
+                                                                          <div className="flex flex-col gap-2">
+                                                                              <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Front Side</span>
+                                                                              <div className="flex items-center gap-3">
+                                                                                  <input
+                                                                                      type="file"
+                                                                                      accept="image/*"
+                                                                                      onChange={(e) => handleGuestFileUpload(index, e, false)}
+                                                                                      className="hidden"
+                                                                                      id={`guest-id-upload-front-${index}`}
+                                                                                  />
+                                                                                  <label
+                                                                                      htmlFor={`guest-id-upload-front-${index}`}
+                                                                                      className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 shadow-sm border-dashed"
+                                                                                  >
+                                                                                      {idUploading[`front-${index}`] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                                                                                      {watch(`guests.${index}.idImage`) ? 'Change Front' : 'Upload Front'}
+                                                                                  </label>
+                                                                                  {watch(`guests.${index}.idImage`) && (
+                                                                                      <a
+                                                                                          href={watch(`guests.${index}.idImage`)}
+                                                                                          target="_blank"
+                                                                                          rel="noreferrer"
+                                                                                          className="h-10 w-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:opacity-80 transition-all group/img relative shadow-sm block"
+                                                                                      >
+                                                                                          <img
+                                                                                              src={watch(`guests.${index}.idImage`)}
+                                                                                              alt="Front ID"
+                                                                                              className="w-full h-full object-cover"
+                                                                                          />
+                                                                                      </a>
+                                                                                  )}
+                                                                              </div>
+                                                                          </div>
+
+                                                                          {/* Back Side */}
+                                                                          <div className="flex flex-col gap-2">
+                                                                              <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Back Side (Optional)</span>
+                                                                              <div className="flex items-center gap-3">
+                                                                                  <input
+                                                                                      type="file"
+                                                                                      accept="image/*"
+                                                                                      onChange={(e) => handleGuestFileUpload(index, e, true)}
+                                                                                      className="hidden"
+                                                                                      id={`guest-id-upload-back-${index}`}
+                                                                                  />
+                                                                                  <label
+                                                                                      htmlFor={`guest-id-upload-back-${index}`}
+                                                                                      className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 shadow-sm border-dashed"
+                                                                                  >
+                                                                                      {idUploading[`back-${index}`] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                                                                                      {watch(`guests.${index}.idImageBack`) ? 'Change Back' : 'Upload Back'}
+                                                                                  </label>
+                                                                                  {watch(`guests.${index}.idImageBack`) && (
+                                                                                      <a
+                                                                                          href={watch(`guests.${index}.idImageBack`)}
+                                                                                          target="_blank"
+                                                                                          rel="noreferrer"
+                                                                                          className="h-10 w-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:opacity-80 transition-all group/img relative shadow-sm block"
+                                                                                      >
+                                                                                          <img
+                                                                                              src={watch(`guests.${index}.idImageBack`)}
+                                                                                              alt="Back ID"
+                                                                                              className="w-full h-full object-cover"
+                                                                                          />
+                                                                                      </a>
+                                                                                  )}
+                                                                              </div>
+                                                                          </div>
+                                                                      </div>
+                                                                      <p className="text-[10px] text-gray-400 italic mt-2">Accepted formats: JPG, PNG. Max 5MB.</p>
+                                                                  </div>
                                                              </div>
                                                          )}
                                                      </div>

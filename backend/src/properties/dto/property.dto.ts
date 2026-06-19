@@ -175,6 +175,11 @@ export class CreatePropertyDto {
     @IsString()
     ownerAadhaarImage?: string;
 
+    @ApiProperty({ description: 'Owner Aadhaar card back image URL' })
+    @IsOptional()
+    @IsString()
+    ownerAadhaarImageBack?: string;
+
     @ApiProperty({ description: 'Owner Aadhaar number' })
     @IsOptional()
     @IsString()
@@ -336,6 +341,10 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
     ownerAadhaarImage?: string;
+
+    @IsOptional()
+    @IsString()
+    ownerAadhaarImageBack?: string;
 
     @IsOptional()
     @IsString()

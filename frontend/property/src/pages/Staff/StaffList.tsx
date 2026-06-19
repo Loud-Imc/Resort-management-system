@@ -402,7 +402,7 @@ export default function StaffList() {
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="space-y-1">
-                                                <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name</label>
+                                                <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name (Optional)</label>
                                                 <input type="text" value={newUser.lastName}
                                                     onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
@@ -526,7 +526,7 @@ function EditStaffModal({
                                 className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name (Optional)</label>
                             <input type="text" value={newUser.lastName}
                                 onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
                                 className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />

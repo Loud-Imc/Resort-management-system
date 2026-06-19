@@ -212,7 +212,7 @@ export default function AccountSettings() {
                     {/* Last Name */}
                     <div className="space-y-2">
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5 px-1">
-                            <UserCircle className="h-3.5 w-3.5" /> Last Name
+                            <UserCircle className="h-3.5 w-3.5" /> Last Name (Optional)
                         </label>
                         {isEditing ? (
                             <input
@@ -220,7 +220,6 @@ export default function AccountSettings() {
                                 value={formData.lastName}
                                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium text-gray-900 dark:text-white"
-                                required
                             />
                         ) : (
                             <p className="font-semibold text-gray-900 dark:text-white px-1 text-lg">{user?.lastName || '—'}</p>
