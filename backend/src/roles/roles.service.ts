@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { ADMIN_ONLY_PERMISSIONS } from '../auth/constants/permissions.constant';
 
 @Injectable()
 export class RolesService {
@@ -14,6 +15,15 @@ export class RolesService {
         const isSuperAdmin = user?.roles?.includes('SuperAdmin');
         const isGlobalAdmin = isSuperAdmin || user?.roles?.includes('Admin');
         const isSystem = isGlobalAdmin && !propertyId;
+
+        // Segregation check: Property-scoped roles cannot contain admin-only permissions
+        const isPropertyScoped = !!propertyId || (!isGlobalAdmin && user?.propertyId);
+        if (isPropertyScoped && permissions && permissions.length > 0) {
+            const invalidAdminPerms = permissions.filter(p => ADMIN_ONLY_PERMISSIONS.includes(p));
+            if (invalidAdminPerms.length > 0) {
+                throw new ForbiddenException(`Property-scoped roles cannot be assigned administrative permissions: ${invalidAdminPerms.join(', ')}`);
+            }
+        }
 
         // Security: Validate assigned permissions
         if (permissions && permissions.length > 0 && user) {
@@ -168,6 +178,15 @@ export class RolesService {
         const isGlobalAdmin = isSuperAdmin || user?.roles?.includes('Admin');
         if (!isGlobalAdmin && role.isSystem) {
             throw new ForbiddenException('Cannot modify system roles');
+        }
+
+        // Segregation check: Property-scoped roles cannot contain admin-only permissions
+        const isPropertyScoped = !!role.propertyId;
+        if (isPropertyScoped && permissions && permissions.length > 0) {
+            const invalidAdminPerms = permissions.filter(p => ADMIN_ONLY_PERMISSIONS.includes(p));
+            if (invalidAdminPerms.length > 0) {
+                throw new ForbiddenException(`Property-scoped roles cannot be assigned administrative permissions: ${invalidAdminPerms.join(', ')}`);
+            }
         }
 
         // Security: Validate assigned permissions

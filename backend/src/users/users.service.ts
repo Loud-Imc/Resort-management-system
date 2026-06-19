@@ -559,7 +559,19 @@ export class UsersService {
                     },
                 },
                 ownedProperties: { select: { id: true } },
-                propertyStaff: { select: { propertyId: true } },
+                propertyStaff: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: {
+                                        permission: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
             },
         });
     }

@@ -200,7 +200,7 @@ export default function DashboardHome() {
     if (statsLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -245,7 +245,7 @@ export default function DashboardHome() {
                 </div>
                 <button
                     onClick={() => navigate('/bookings/create')}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
                 >
                     <Plus className="h-4 w-4" />
                     Walk-in Booking
@@ -255,7 +255,7 @@ export default function DashboardHome() {
             {/* Quick Actions */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                    { label: 'New Booking', icon: Plus, path: '/bookings/create', color: 'bg-blue-600 hover:bg-blue-700 text-white' },
+                    { label: 'New Booking', icon: Plus, path: '/bookings/create', color: 'bg-primary hover:bg-primary/90 text-primary-foreground' },
                     { label: 'View Bookings', icon: Calendar, path: '/bookings', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
                     { label: 'Manage Rooms', icon: BedDouble, path: '/rooms', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
                     { label: 'My Property', icon: TrendingUp, path: '/my-property', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
@@ -275,11 +275,11 @@ export default function DashboardHome() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div
                     onClick={() => { setDetailsType('BOOKINGS'); setDetailsModalOpen(true); }}
-                    className="cursor-pointer bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-700 hover:-translate-y-1 transition-all group relative overflow-hidden"
+                    className="cursor-pointer bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 hover:shadow-lg hover:border-primary/50 dark:hover:border-primary/50 hover:-translate-y-1 transition-all group relative overflow-hidden"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                            <Calendar className="h-5 w-5 text-blue-600" />
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                            <Calendar className="h-5 w-5 text-primary" />
                         </div>
                         <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Today's Bookings</p>
@@ -369,7 +369,7 @@ export default function DashboardHome() {
                         <div className="flex items-start justify-between mb-4">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <BedDouble className="h-5 w-5 text-blue-600" />
+                                    <BedDouble className="h-5 w-5 text-primary" />
                                     {selectedDate ? `Room Status for ${format(selectedDate, 'MMM d, yyyy')}` : 'Room Status'}
                                 </h2>
                                 {selectedProperty && (
@@ -392,7 +392,7 @@ export default function DashboardHome() {
                                 )}
                                 <button
                                     onClick={() => navigate('/rooms')}
-                                    className="text-sm text-blue-600 hover:underline font-medium flex items-center gap-1"
+                                    className="text-sm text-primary hover:underline font-medium flex items-center gap-1"
                                 >
                                     All Rooms <ArrowRight className="h-3.5 w-3.5" />
                                 </button>
@@ -404,7 +404,7 @@ export default function DashboardHome() {
                                 <BedDouble className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
                                 <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">No rooms found.</p>
                                 <button onClick={() => navigate('/rooms/create')}
-                                    className="mt-3 text-sm text-blue-600 hover:underline font-medium">
+                                    className="mt-3 text-sm text-primary hover:underline font-medium">
                                     + Add your first room
                                 </button>
                             </div>
@@ -442,7 +442,7 @@ export default function DashboardHome() {
 
                                         {room.status === 'OUT_TODAY' && (
                                             <div 
-                                                className="absolute bottom-0 left-0 w-full bg-blue-500/10 text-blue-700 dark:text-blue-300 dark:bg-blue-500/20 text-[10px] font-bold py-2 border-t border-blue-200 dark:border-blue-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-all cursor-pointer z-20 flex items-center justify-center gap-1 backdrop-blur-sm"
+                                                className="absolute bottom-0 left-0 w-full bg-primary/10 text-primary dark:text-primary-foreground dark:bg-primary/20 text-[10px] font-bold py-2 border-t border-primary/20 dark:border-primary/30 hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary transition-all cursor-pointer z-20 flex items-center justify-center gap-1 backdrop-blur-sm"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleBookClick(room as Room);

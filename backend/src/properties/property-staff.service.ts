@@ -40,28 +40,18 @@ export class PropertyStaffService {
 
         if (existingStaff) throw new ConflictException('User is already assigned as staff for this property');
 
-        // Execute in transaction for consistency
-        return this.prisma.$transaction(async (tx) => {
-            // Assign role to user if not already assigned
-            await tx.userRole.upsert({
-                where: { userId_roleId: { userId, roleId } },
-                create: { userId, roleId },
-                update: {}
-            });
-
-            return tx.propertyStaff.create({
-                data: {
-                    propertyId,
-                    userId,
-                    roleId
+        return this.prisma.propertyStaff.create({
+            data: {
+                propertyId,
+                userId,
+                roleId
+            },
+            include: {
+                user: {
+                    select: { id: true, firstName: true, lastName: true, email: true }
                 },
-                include: {
-                    user: {
-                        select: { id: true, firstName: true, lastName: true, email: true }
-                    },
-                    role: true
-                }
-            });
+                role: true
+            }
         });
     }
 
@@ -114,25 +104,11 @@ export class PropertyStaffService {
                 const newRole = await this.prisma.role.findUnique({ where: { id: data.roleId } });
                 if (!newRole) throw new NotFoundException('Role not found');
 
-                // Remove old role from UserRoles
-                await tx.userRole.delete({
-                    where: { userId_roleId: { userId, roleId: staff.roleId } }
-                }).catch(() => null);
-
-                // Assign new role
-                await tx.userRole.upsert({
-                    where: { userId_roleId: { userId, roleId: data.roleId } },
-                    create: { userId, roleId: data.roleId },
-                    update: {}
-                });
-
-                // Update PropertyStaff record with new roleId
                 await tx.propertyStaff.update({
                     where: { propertyId_userId: { propertyId, userId } },
                     data: { roleId: data.roleId }
                 });
             }
-
             // Return updated staff record
             return tx.propertyStaff.findUnique({
                 where: { propertyId_userId: { propertyId, userId } },
@@ -169,17 +145,10 @@ export class PropertyStaffService {
             throw new ForbiddenException('Only property owners or admins can manage staff');
         }
 
-        return this.prisma.$transaction(async (tx) => {
-            // Remove the role assignment from UserRoles as well
-            await tx.userRole.delete({
-                where: { userId_roleId: { userId, roleId: staff.roleId } }
-            }).catch(() => null);
-
-            return tx.propertyStaff.delete({
-                where: {
-                    propertyId_userId: { propertyId, userId }
-                }
-            });
+        return this.prisma.propertyStaff.delete({
+            where: {
+                propertyId_userId: { propertyId, userId }
+            }
         });
     }
 

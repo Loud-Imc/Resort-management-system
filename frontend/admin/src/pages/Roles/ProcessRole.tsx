@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { rolesService } from '../../services/roles';
 import { useAuth } from '../../context/AuthContext';
-import { Loader2, ArrowLeft, Save, AlertCircle, Shield, Building2, Calendar, Star, Lock } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, AlertCircle, Shield, Building2, Calendar, Star, Lock, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { useEffect } from 'react';
 import { Role } from '../../types/user';
@@ -19,6 +19,68 @@ const roleSchema = z.object({
 });
 
 type RoleFormData = z.infer<typeof roleSchema>;
+
+// Tabs Configuration based on Sidebar Categories - 1-to-1 Mapping
+const getTabsForCategory = (category: 'SYSTEM' | 'PROPERTY' | 'EVENT') => {
+    if (category === 'SYSTEM') {
+        return [
+            { id: 'exec-dashboard', label: 'Executive Dashboard', prefix: ['reports.viewDashboard'] },
+            { id: 'platform-reports', label: 'Platform Reports', prefix: ['reports.viewFinancial'] },
+            { id: 'all-properties', label: 'All Properties', prefix: ['properties.read', 'properties.update', 'properties.create', 'properties.delete'] },
+            { id: 'property-requests', label: 'Property Requests', prefix: ['properties.approve'] },
+            { id: 'cp-onboarding', label: 'CP Onboarding', prefix: ['channelPartners'] },
+            { id: 'settlements', label: 'Settlements', prefix: ['finance.approveSettlement', 'finance.processPayout'] },
+            { id: 'wallet-adjustments', label: 'Wallet Adjustments', prefix: ['finance.approveAdjustment'] },
+            { id: 'refund-requests', label: 'Refund Requests', prefix: ['finance.approveRefund'] },
+            { id: 'reconciliation', label: 'Reconciliation', prefix: ['finance.reconcilePayment'] },
+            { id: 'growth-dashboard', label: 'Growth Dashboard', prefix: ['marketing.read'] },
+            { id: 'coupons', label: 'Coupons', prefix: ['marketing.manageCoupons', 'marketing.approveCoupon'] },
+            { id: 'web-banners', label: 'Web Banners', prefix: ['marketing.manageOffers'] },
+            { id: 'broadcast-alerts', label: 'Broadcast Alerts', prefix: ['marketing.manageBroadcasts'] },
+            { id: 'platform-settings', label: 'Platform Settings', prefix: ['settings'] },
+            { id: 'platform-users', label: 'Platform Users', prefix: ['users'] },
+            { id: 'system-roles', label: 'System Roles', prefix: ['roles'] },
+            { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] },
+        ];
+    } else if (category === 'PROPERTY') {
+        return [
+            { id: 'dashboard', label: 'Dashboard', prefix: ['reports.viewDashboard'] },
+            { id: 'bookings', label: 'Bookings', prefix: ['bookings'] },
+            { id: 'guests', label: 'Guests', prefix: ['users.read'] },
+            { id: 'rooms', label: 'Rooms', prefix: ['rooms'] },
+            { id: 'room-types', label: 'Room Types', prefix: ['roomTypes'] },
+            { id: 'payments', label: 'Payments', prefix: ['payments'] },
+            { id: 'financials', label: 'Financials', prefix: ['reports.viewFinancial', 'income'] },
+            { id: 'add-expenses', label: 'Add Expenses', prefix: ['expenses'] },
+            { id: 'offers-marketing', label: 'Offers & Marketing', prefix: ['marketing.read', 'marketing.manageCoupons'] },
+            { id: 'promotional-boosters', label: 'Promotional Boosters', prefix: ['marketing.manageOffers'] },
+            { id: 'sources', label: 'Sources', prefix: ['bookingSources'] },
+            { id: 'my-team', label: 'My Team', prefix: ['propertyStaff', 'users.create', 'users.update', 'users.delete'] },
+            { id: 'roles', label: 'Roles', prefix: ['roles'] },
+            { id: 'reports', label: 'Reports', prefix: ['reports.viewOccupancy'] },
+            { id: 'calendar-sync', label: 'Calendar Sync', prefix: ['settings'] },
+            { id: 'my-property', label: 'My Property', prefix: ['properties'] },
+            { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] },
+        ];
+    } else { // EVENT
+        return [
+            { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] }
+        ];
+    }
+};
+
+const getPermissionTabId = (permName: string, tabs: any[]) => {
+    // 1. Check exact matches first
+    const exactMatch = tabs.find(tab => tab.prefix.includes(permName));
+    if (exactMatch) return exactMatch.id;
+
+    // 2. Check module matches (e.g. 'rooms')
+    const moduleName = permName.split('.')[0];
+    const moduleMatch = tabs.find(tab => tab.prefix.includes(moduleName));
+    if (moduleMatch) return moduleMatch.id;
+
+    return undefined; // Not in any tab for this category
+};
 
 export default function ProcessRole() {
     const { id } = useParams();
@@ -47,9 +109,16 @@ export default function ProcessRole() {
         enabled: isEditing,
     });
 
-    const { data: availablePermissions = [], isLoading: isLoadingPermissions } = useQuery({
+    const { data: availablePermissions = [], isLoading: isLoadingPermissions } = useQuery<any[]>({
         queryKey: ['permissions'],
         queryFn: rolesService.getPermissions,
+    });
+
+    // Determine current tabs & permissions
+    const tabs = getTabsForCategory(currentCategory);
+    const categoryPermissions = availablePermissions.filter(perm => {
+        const tabId = getPermissionTabId(perm.name, tabs);
+        return tabId !== undefined;
     });
 
     useEffect(() => {
@@ -57,7 +126,7 @@ export default function ProcessRole() {
             reset({
                 name: role.name,
                 description: role.description,
-                category: role.category || 'PROPERTY',
+                category: (role.category || 'PROPERTY') as any,
                 permissions: role.permissions || [],
             });
         }
@@ -81,7 +150,13 @@ export default function ProcessRole() {
     });
 
     const onSubmit = (data: RoleFormData) => {
-        mutation.mutate(data);
+        const validPerms = data.permissions.filter(perm => {
+            return getPermissionTabId(perm, tabs) !== undefined;
+        });
+        mutation.mutate({
+            ...data,
+            permissions: validPerms
+        });
     };
 
     const isMarketingRole = role?.name === 'Marketing';
@@ -107,33 +182,30 @@ export default function ProcessRole() {
         setValue('permissions', updated, { shouldDirty: true });
     };
 
-    const toggleGroup = (groupPermissions: typeof availablePermissions) => {
-        const current = selectedPermissions || [];
-        const groupIds = groupPermissions.map(p => p.name);
-        const allSelected = groupIds.every(id => current.includes(id));
+    const toggleTabGroup = (tabId: string) => {
+        const tabPermissions = categoryPermissions.filter(p => getPermissionTabId(p.name, tabs) === tabId);
+        const tabIds = tabPermissions.map(p => p.name);
+        const allSelected = tabIds.every(id => selectedPermissions.includes(id));
 
         let updated: string[];
         if (allSelected) {
-            updated = current.filter(id => !groupIds.includes(id));
+            updated = selectedPermissions.filter(id => !tabIds.includes(id));
             if (isMarketingRole) {
-                // Restore any fixed permissions that were filtered out
                 fixedMarketingPermissions.forEach(fixed => {
-                    if (groupIds.includes(fixed) && !updated.includes(fixed)) {
+                    if (tabIds.includes(fixed) && !updated.includes(fixed)) {
                         updated.push(fixed);
                     }
                 });
             }
         } else {
-            const unique = new Set([...current, ...groupIds]);
-            updated = Array.from(unique);
+            updated = Array.from(new Set([...selectedPermissions, ...tabIds]));
         }
         setValue('permissions', updated, { shouldDirty: true });
     };
 
     const toggleAll = () => {
-        const current = selectedPermissions || [];
-        const allIds = availablePermissions.map(p => p.name);
-        const allSelected = allIds.every(id => current.includes(id));
+        const allIds = categoryPermissions.map(p => p.name);
+        const allSelected = allIds.every(id => selectedPermissions.includes(id));
 
         if (allSelected) {
             let cleared = [] as string[];
@@ -145,7 +217,7 @@ export default function ProcessRole() {
         } else {
             setValue('permissions', allIds, { shouldDirty: true });
         }
-    }
+    };
 
     if ((isEditing && isLoadingRole) || isLoadingPermissions) {
         return (
@@ -155,19 +227,9 @@ export default function ProcessRole() {
         );
     }
 
-    // Restriction check
     const isUpdatingSystemRole = isEditing && role?.isSystem;
     const canEditProtectedFields = isSuperAdmin || !role?.isSystem;
-
-    const groupedPermissions = availablePermissions.reduce((acc, perm) => {
-        const group = perm.module || 'Other';
-        if (!acc[group]) acc[group] = [];
-        acc[group].push(perm);
-        return acc;
-    }, {} as Record<string, typeof availablePermissions>);
-
-    const allPermissionsSelected = availablePermissions.length > 0 &&
-        availablePermissions.every(p => (selectedPermissions || []).includes(p.name));
+    const allPermissionsSelected = categoryPermissions.length > 0 && categoryPermissions.every(p => selectedPermissions.includes(p.name));
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -203,7 +265,7 @@ export default function ProcessRole() {
                             <input
                                 {...register('name')}
                                 disabled={!canEditProtectedFields}
-                                className="w-full px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all underline-none disabled:opacity-60"
+                                className="w-full px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none disabled:opacity-60"
                                 placeholder="e.g. Shift Manager"
                             />
                             {errors.name && (
@@ -265,7 +327,7 @@ export default function ProcessRole() {
 
                 {/* Permissions */}
                 <div className="bg-card p-6 rounded-xl shadow-sm border border-border">
-                    <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+                    <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4 border-b border-border/50 pb-4">
                         <h2 className="text-lg font-semibold text-foreground">Access Permissions</h2>
                         <button
                             type="button"
@@ -277,60 +339,68 @@ export default function ProcessRole() {
                                     : "bg-primary/10 text-primary hover:bg-primary/20"
                             )}
                         >
-                            {allPermissionsSelected ? 'Deselect All' : 'Select All Permissions'}
+                            {allPermissionsSelected ? 'Deselect All' : 'Select All Categories'}
                         </button>
                     </div>
 
-                    <div className="space-y-8">
-                        {Object.entries(groupedPermissions).map(([group, permissions]) => {
-                            const groupIds = permissions.map(p => p.name);
-                            const isGroupSelected = groupIds.every(id => (selectedPermissions || []).includes(id));
+                    {/* Permissions list stacked vertically one after another */}
+                    <div className="space-y-6">
+                        {tabs.map(tab => {
+                            const tabPermissions = categoryPermissions.filter(p => getPermissionTabId(p.name, tabs) === tab.id);
+                            if (tabPermissions.length === 0) return null;
+
+                            const count = tabPermissions.filter(p => selectedPermissions.includes(p.name)).length;
+                            const total = tabPermissions.length;
+                            const isTabSelected = total > 0 && tabPermissions.every(p => selectedPermissions.includes(p.name));
 
                             return (
-                                <div key={group} className="bg-muted/30 p-4 rounded-xl border border-border/50">
+                                <div key={tab.id} className="bg-muted/30 p-5 rounded-xl border border-border/50">
                                     <div className="flex items-center justify-between mb-4 border-b border-border/50 pb-2">
-                                        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{group}</h3>
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{tab.label}</h3>
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-muted text-muted-foreground">
+                                                {count}/{total}
+                                            </span>
+                                        </div>
                                         <button
                                             type="button"
-                                            onClick={() => toggleGroup(permissions)}
-                                            className="text-xs font-medium text-primary hover:text-primary/80"
+                                            onClick={() => toggleTabGroup(tab.id)}
+                                            className="text-xs font-bold text-primary hover:text-primary/80"
                                         >
-                                            {isGroupSelected ? 'Deselect Group' : 'Select Group'}
+                                            {isTabSelected ? 'Deselect Category' : 'Select Category'}
                                         </button>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {permissions.map((perm) => (
+                                        {tabPermissions.map((perm) => (
                                             <div
                                                 key={perm.id}
                                                 onClick={() => togglePermission(perm.name)}
                                                 className={clsx(
-                                                    "cursor-pointer p-3 rounded-lg border text-sm font-medium transition-all flex items-center gap-3 relative",
+                                                    "cursor-pointer p-4 rounded-xl border text-sm font-medium transition-all flex items-center gap-3 relative",
                                                     selectedPermissions?.includes(perm.name)
                                                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                                        : "bg-card border-border text-muted-foreground hover:bg-muted",
+                                                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted",
                                                     isMarketingRole && fixedMarketingPermissions.includes(perm.name) && "opacity-90 ring-1 ring-primary/50"
                                                 )}
                                             >
                                                 <div className={clsx(
-                                                    "w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0",
+                                                    "w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0",
                                                     selectedPermissions?.includes(perm.name)
                                                         ? "bg-white border-white"
                                                         : "border-muted-foreground bg-background"
                                                 )}>
                                                     {selectedPermissions?.includes(perm.name) && (
                                                         isMarketingRole && fixedMarketingPermissions.includes(perm.name) ? (
-                                                            <Lock className="w-3 h-3 text-primary" />
+                                                            <Lock className="w-3.5 h-3.5 text-primary" />
                                                         ) : (
-                                                            <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
-                                                            </svg>
+                                                            <Check className="w-3.5 h-3.5 text-primary stroke-[4px]" />
                                                         )
                                                     )}
                                                 </div>
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold">{perm.description}</span>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-bold truncate">{perm.description}</span>
                                                     <span className={clsx(
-                                                        "text-[10px] font-normal",
+                                                        "text-[10px] font-normal truncate",
                                                         selectedPermissions?.includes(perm.name) ? "text-primary-foreground/80" : "text-muted-foreground"
                                                     )}>{perm.name}</span>
                                                 </div>

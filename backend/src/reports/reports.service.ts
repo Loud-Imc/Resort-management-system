@@ -736,7 +736,7 @@ export class ReportsService {
         });
 
         const performance = await Promise.all(roomTypes.map(async (rt) => {
-            const bookings = await this.prisma.booking.findMany({
+            const stayingBookings = await this.prisma.booking.findMany({
                 where: {
                     roomTypeId: rt.id,
                     status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
@@ -745,7 +745,28 @@ export class ReportsService {
                 }
             });
 
-            const revenue = bookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
+            // Count bookings created in this range
+            const bookingsCount = await this.prisma.booking.count({
+                where: {
+                    roomTypeId: rt.id,
+                    status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
+                    createdAt: { gte: sDate, lte: eDate }
+                }
+            });
+
+            // Sum actual incomes recorded in this range for this room type
+            const incomeAggregate = await this.prisma.income.aggregate({
+                where: {
+                    date: { gte: sDate, lte: eDate },
+                    booking: {
+                        roomTypeId: rt.id,
+                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] }
+                    }
+                },
+                _sum: { amount: true }
+            });
+            const revenue = Number(incomeAggregate._sum.amount || 0);
+
             const totalRooms = rt.rooms.length;
 
             // Calculate total possible room nights
@@ -755,7 +776,7 @@ export class ReportsService {
 
             // Calculate actual occupied nights in range
             let occupiedNights = 0;
-            bookings.forEach(b => {
+            stayingBookings.forEach(b => {
                 const bStart = b.checkInDate > sDate ? b.checkInDate : sDate;
                 const bEnd = b.checkOutDate < eDate ? b.checkOutDate : eDate;
                 const bDiff = Math.ceil(Math.abs(bEnd.getTime() - bStart.getTime()) / (1000 * 60 * 60 * 24));
@@ -767,8 +788,10 @@ export class ReportsService {
                 name: rt.name,
                 propertyName: rt.property.name,
                 revenue,
-                bookingsCount: bookings.length,
-                occupancyRate: possibleNights > 0 ? Math.round((occupiedNights / possibleNights) * 100) : 0
+                bookingsCount,
+                occupancyRate: possibleNights > 0 ? Math.round((occupiedNights / possibleNights) * 100) : 0,
+                occupiedNights,
+                possibleNights
             };
         }));
 

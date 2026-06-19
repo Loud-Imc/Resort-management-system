@@ -109,7 +109,7 @@ export default function BookingsCalendarWidget({
             <div className="flex flex-col gap-4 mb-6">
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <CalendarIcon className="h-5 w-5 text-blue-600" />
+                        <CalendarIcon className="h-5 w-5 text-primary" />
                         Calendar
                     </h2>
                     
@@ -139,7 +139,7 @@ export default function BookingsCalendarWidget({
                         className={clsx(
                             "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all",
                             activeTab === 'occupancy' 
-                                ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm" 
+                                ? "bg-white dark:bg-gray-800 text-primary shadow-sm" 
                                 : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                         )}
                     >
@@ -151,7 +151,7 @@ export default function BookingsCalendarWidget({
                         className={clsx(
                             "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all",
                             activeTab === 'bookings' 
-                                ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm" 
+                                ? "bg-white dark:bg-gray-800 text-primary shadow-sm" 
                                 : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                         )}
                     >
@@ -192,8 +192,8 @@ export default function BookingsCalendarWidget({
                         cellBgClass = "bg-transparent border-transparent opacity-40 hover:opacity-100";
                         dateNumClass = "text-gray-400 dark:text-gray-500";
                     } else if (isSelected) {
-                        cellBgClass = "bg-blue-50 dark:bg-blue-900/20 border-blue-500 shadow-sm ring-1 ring-blue-500";
-                        dateNumClass = "text-blue-700 dark:text-blue-400";
+                        cellBgClass = "bg-primary/10 dark:bg-primary/20 border-primary shadow-sm ring-1 ring-primary";
+                        dateNumClass = "text-primary";
                     } else if (hasData) {
                         if (isFullyBooked) {
                             cellBgClass = "bg-emerald-600 border-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:border-emerald-700 dark:hover:bg-emerald-600 shadow-sm text-white";
@@ -217,7 +217,7 @@ export default function BookingsCalendarWidget({
                                 cellBgClass,
                                 {
                                     // Today highlighting (applied on top as ring)
-                                    "ring-2 ring-blue-500/30": isTodayDate && !isSelected,
+                                    "ring-2 ring-primary/30": isTodayDate && !isSelected,
                                     "font-bold": isTodayDate,
                                 }
                             )}
@@ -267,7 +267,7 @@ export default function BookingsCalendarWidget({
             {/* Loading Overlay */}
             {isLoading && (
                 <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 flex items-center justify-center backdrop-blur-[2px] z-10">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
             )}
             
