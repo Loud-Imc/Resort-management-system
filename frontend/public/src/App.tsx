@@ -29,6 +29,7 @@ import NotificationManager from './components/NotificationManager';
 import DeleteAccount from './pages/DeleteAccount';
 import ScrollToTop from './components/common/ScrollToTop';
 import PayOnline from './pages/PayOnline';
+import ComingSoon from './pages/ComingSoon';
 
 import { CurrencyProvider } from './context/CurrencyContext';
 import { SearchProvider } from './context/SearchContext';
@@ -43,11 +44,24 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  const isComingSoon = import.meta.env.VITE_COMING_SOON === 'true';
+
+  if (isComingSoon) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <CurrencyProvider>
+          <ComingSoon />
+        </CurrencyProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <CurrencyProvider>
         <BrowserRouter>
           <ScrollToTop />
+
           <SearchProvider>
             <Toaster position="top-center" reverseOrder={false} />
             <NotificationManager />

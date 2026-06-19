@@ -441,7 +441,7 @@ export default function MyProperty() {
     };
 
     if (loading) {
-        return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
+        return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
     }
 
     if (!property) {
@@ -460,7 +460,7 @@ export default function MyProperty() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Building2 className="h-6 w-6 text-blue-600" /> My Property
+                        <Building2 className="h-6 w-6 text-primary" /> My Property
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your property details, images and settings</p>
                 </div>
@@ -468,7 +468,7 @@ export default function MyProperty() {
                     {!editMode ? (
                         <>
                             <button onClick={() => setEditMode(true)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+                                className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
                                 Edit Details
                             </button>
                             <button onClick={handleToggleActive}
@@ -485,7 +485,7 @@ export default function MyProperty() {
                                 Cancel
                             </button>
                             <button onClick={handleSave} disabled={saving}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-70">
+                                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-70">
                                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
                             </button>
                         </>
@@ -501,7 +501,7 @@ export default function MyProperty() {
                     {property.isActive ? 'Active' : 'Disabled'}
                 </span>
                 <span className={clsx("flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold",
-                    property.isVerified ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400")}>
+                    property.isVerified ? "bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-foreground" : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400")}>
                     {property.isVerified ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                     {property.isVerified ? 'Verified' : 'Unverified'}
                 </span>
@@ -598,7 +598,7 @@ export default function MyProperty() {
                         checked={allowsGroupBooking}
                         onChange={(e) => setAllowsGroupBooking(e.target.checked)}
                         disabled={!editMode}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                     />
                     <label htmlFor="allowsGroupBooking" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Allow Group Bookings (Multiple people in one booking)
@@ -608,7 +608,7 @@ export default function MyProperty() {
                 {allowsGroupBooking && (
                     <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
                         <div className="space-y-2">
-                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Total Group Capacity</label>
+                            <label className="block text-xs font-bold text-primary uppercase tracking-wider">Total Group Capacity</label>
                             <div className="flex items-center gap-3">
                                 <Users className="h-4 w-4 text-gray-400" />
                                 <span className="text-lg font-black text-gray-900 dark:text-white">
@@ -616,7 +616,7 @@ export default function MyProperty() {
                                 </span>
                             </div>
                             <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic leading-relaxed">
-                                Auto-calculated from the <span className="font-bold text-blue-500">Max Group Occupancy</span> set on each room type in the group pool.
+                                Auto-calculated from the <span className="font-bold text-primary">Max Group Occupancy</span> set on each room type in the group pool.
                                 To change this number, go to <span className="font-bold">Room Types → Edit</span> a room type, enable
                                 <span className="font-bold"> "Enable Group Bookings"</span> and set its Max Group Occupancy.
                             </p>
@@ -624,7 +624,7 @@ export default function MyProperty() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Group Price (Adult)</label>
+                                <label className="block text-xs font-bold text-primary uppercase tracking-wider">Group Price (Adult)</label>
                                 <div className="flex items-center gap-3">
                                     <span className="text-sm font-bold text-gray-400">₹</span>
                                     <input
@@ -633,7 +633,7 @@ export default function MyProperty() {
                                         onChange={(e) => setGroupPriceAdult(e.target.value === '' ? '' : parseInt(e.target.value))}
                                         disabled={!editMode}
                                         placeholder="e.g. 600"
-                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceAdult === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold`}
+                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceAdult === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm font-bold`}
                                     />
                                 </div>
                                 {allowsGroupBooking && groupPriceAdult === '' && (
@@ -641,7 +641,7 @@ export default function MyProperty() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Group Price (Child)</label>
+                                <label className="block text-xs font-bold text-primary uppercase tracking-wider">Group Price (Child)</label>
                                 <div className="flex items-center gap-3">
                                     <span className="text-sm font-bold text-gray-400">₹</span>
                                     <input
@@ -650,7 +650,7 @@ export default function MyProperty() {
                                         onChange={(e) => setGroupPriceChild(e.target.value === '' ? '' : parseInt(e.target.value))}
                                         disabled={!editMode}
                                         placeholder="e.g. 400"
-                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceChild === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold`}
+                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceChild === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm font-bold`}
                                     />
                                 </div>
                                 {allowsGroupBooking && groupPriceChild === '' && (
@@ -667,7 +667,7 @@ export default function MyProperty() {
                                 checked={isGroupGstInclusive}
                                 onChange={(e) => setIsGroupGstInclusive(e.target.checked)}
                                 disabled={!editMode}
-                                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary"
                             />
                             <label htmlFor="isGroupGstInclusive" className="text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
                                 These prices are inclusive of GST
@@ -680,7 +680,7 @@ export default function MyProperty() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                     {editMode ? (
                         <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" />
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
                     ) : (
                         <p className="text-sm text-gray-600 dark:text-gray-400">{description || 'No description'}</p>
                     )}
@@ -693,7 +693,7 @@ export default function MyProperty() {
                             <p className="text-xs text-gray-500">These instructions will be displayed on guest invoices (one per line). Use <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-amber-600">{'{{PROPERTY_PHONE}}'}</code> to insert your phone number.</p>
                         </div>
                         {editMode && (
-                            <button onClick={() => setInvoiceInstructions([...invoiceInstructions, ''])} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors">
+                            <button onClick={() => setInvoiceInstructions([...invoiceInstructions, ''])} className="p-1.5 text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-full transition-colors">
                                 <Plus className="h-4 w-4" />
                             </button>
                         )}
@@ -714,7 +714,7 @@ export default function MyProperty() {
                                                 setInvoiceInstructions(newInst);
                                             }} 
                                             placeholder="e.g. Please present a valid photo ID upon check-in."
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm" 
+                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm" 
                                         />
                                         <button onClick={() => setInvoiceInstructions(invoiceInstructions.filter((_, i) => i !== index))} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                                             <Trash2 className="h-4 w-4" />
@@ -742,7 +742,7 @@ export default function MyProperty() {
             {/* Address */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-blue-600" /> Address
+                    <MapPin className="h-5 w-5 text-primary" /> Address
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="md:col-span-2">
@@ -763,7 +763,7 @@ export default function MyProperty() {
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Geo-Location</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1.5">Google Maps Link (for extraction)</label>
+                            <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-1.5">Google Maps Link (for extraction)</label>
                             {editMode ? (
                                 <div className="space-y-2">
                                     <div className="relative">
@@ -775,7 +775,7 @@ export default function MyProperty() {
                                             value={googleMapsLink}
                                             onChange={(e) => handleMapsLinkChange(e.target.value)}
                                             placeholder="Paste Google Maps URL to extract coordinates..."
-                                            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none text-sm font-medium"
+                                            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium"
                                         />
                                     </div>
                                     <div className="flex items-center justify-between">
@@ -785,7 +785,7 @@ export default function MyProperty() {
                                         <button
                                             type="button"
                                             onClick={handleFetchLocation}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg transition-colors border border-blue-100 dark:border-blue-800"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30 text-primary dark:text-primary-foreground text-xs font-bold rounded-lg transition-colors border border-primary/20 dark:border-primary-800"
                                         >
                                             <Navigation className="h-3.5 w-3.5" />
                                             Fetch Current Location
@@ -796,7 +796,7 @@ export default function MyProperty() {
                                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-800">
                                     <Globe className="h-4 w-4 text-gray-400 shrink-0" />
                                     {googleMapsLink ? (
-                                        <a href={googleMapsLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
+                                        <a href={googleMapsLink} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate">
                                             {googleMapsLink}
                                         </a>
                                     ) : (
@@ -813,7 +813,7 @@ export default function MyProperty() {
                                 value={latitude}
                                 onChange={(e) => setLatitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
                                 disabled={!editMode}
-                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-blue-500/20 outline-none disabled:opacity-70"
+                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-70"
                                 placeholder="0.000000"
                             />
                         </div>
@@ -825,7 +825,7 @@ export default function MyProperty() {
                                 value={longitude}
                                 onChange={(e) => setLongitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
                                 disabled={!editMode}
-                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-blue-500/20 outline-none disabled:opacity-70"
+                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-70"
                                 placeholder="0.000000"
                             />
                         </div>
@@ -836,7 +836,7 @@ export default function MyProperty() {
             {/* Amenities */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <Globe className="h-5 w-5 text-blue-600" /> Amenities
+                    <Globe className="h-5 w-5 text-primary" /> Amenities
                 </h2>
 
                 {/* Predefined List (Only in Edit Mode) */}
@@ -860,8 +860,8 @@ export default function MyProperty() {
                                         className={clsx(
                                             "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
                                             isSelected
-                                                ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none"
-                                                : "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400"
+                                                ? "bg-primary border-primary text-primary-foreground shadow-md shadow-primary/20 dark:shadow-none"
+                                                : "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-primary/50"
                                         )}
                                     >
                                         {a}
@@ -878,9 +878,9 @@ export default function MyProperty() {
                     </label>
                     <div className="flex flex-wrap gap-2">
                         {amenities.map((a, i) => (
-                            <span key={i} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium border border-blue-100 dark:border-blue-800">
+                            <span key={i} className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-foreground rounded-lg text-sm font-medium border border-primary/20 dark:border-primary-800">
                                 {a}
-                                {editMode && <button onClick={() => removeAmenity(i)} className="ml-1 text-blue-400 hover:text-red-500"><X className="h-3 w-3" /></button>}
+                                {editMode && <button onClick={() => removeAmenity(i)} className="ml-1 text-primary/70 hover:text-red-500"><X className="h-3 w-3" /></button>}
                             </span>
                         ))}
                         {amenities.length === 0 && <p className="text-sm text-gray-400 dark:text-gray-500">No amenities listed</p>}
@@ -891,8 +891,8 @@ export default function MyProperty() {
                     <div className="flex gap-2 pt-2">
                         <input value={newAmenity} onChange={e => setNewAmenity(e.target.value)} placeholder="Add custom amenity"
                             onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
-                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none" />
-                        <button onClick={addAmenity} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 dark:shadow-none">
+                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                        <button onClick={addAmenity} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 dark:shadow-none">
                             <Plus className="h-4 w-4" />
                         </button>
                     </div>
@@ -907,7 +907,7 @@ export default function MyProperty() {
                     : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
             )}>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5 text-blue-600" /> Gallery
+                    <ImageIcon className="h-5 w-5 text-primary" /> Gallery
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {images.map((img, i) => (
@@ -922,8 +922,8 @@ export default function MyProperty() {
                         </div>
                     ))}
                     {editMode && (
-                        <label className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-blue-400 transition-colors">
-                            {uploading ? <Loader2 className="h-6 w-6 animate-spin text-blue-600" /> : (
+                        <label className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                            {uploading ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : (
                                 <>
                                     <Camera className="h-6 w-6 text-gray-400" />
                                     <span className="text-xs text-gray-400 mt-1">Add Image</span>
@@ -945,12 +945,12 @@ export default function MyProperty() {
             )}>
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <ShieldAlert className="h-5 w-5 text-blue-600" /> Cancellation Policies
+                        <ShieldAlert className="h-5 w-5 text-primary" /> Cancellation Policies
                     </h2>
                     {!showPolicyForm && (
                         <button
                             onClick={() => setShowPolicyForm(true)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/20 dark:hover:bg-primary/30"
                         >
                             <Plus className="h-4 w-4" /> Add Policy
                         </button>
@@ -1011,7 +1011,7 @@ export default function MyProperty() {
                             ))}
                             <button
                                 onClick={addRule}
-                                className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
                             >
                                 <Plus className="h-3 w-3" /> Add Rule
                             </button>
@@ -1026,7 +1026,7 @@ export default function MyProperty() {
                             </button>
                             <button
                                 onClick={handleAddPolicy}
-                                className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                                className="px-4 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
                             >
                                 Create Policy
                             </button>
@@ -1038,15 +1038,15 @@ export default function MyProperty() {
                     {policies.map(p => (
                         <div key={p.id} className={clsx(
                             "p-4 rounded-xl border border-gray-200 dark:border-gray-700 transition-all",
-                            p.isDefault ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800" : "bg-white dark:bg-gray-800"
+                            p.isDefault ? "bg-primary/5 dark:bg-primary/10 border-primary/20 dark:border-primary-800" : "bg-white dark:bg-gray-800"
                         )}>
                             <div className="flex items-start justify-between">
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
-                                        <FileText className="h-4 w-4 text-blue-600" />
+                                        <FileText className="h-4 w-4 text-primary" />
                                         <h3 className="font-medium text-gray-900 dark:text-white">{p.name}</h3>
                                         {p.isDefault && (
-                                            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                            <span className="px-2 py-0.5 bg-primary/20 dark:bg-primary/30 text-primary rounded-full text-[10px] font-bold uppercase tracking-wider">
                                                 Default
                                             </span>
                                         )}
@@ -1057,7 +1057,7 @@ export default function MyProperty() {
                                     {!p.isDefault && (
                                         <button
                                             onClick={() => handleSetDefaultPolicy(p.id)}
-                                            className="text-xs text-blue-600 hover:underline"
+                                            className="text-xs text-primary hover:underline"
                                         >
                                             Set as Default
                                         </button>
@@ -1076,7 +1076,7 @@ export default function MyProperty() {
                             <div className="mt-4 flex flex-wrap gap-2">
                                 {((p.rules as any[]) || []).sort((a, b) => b.hoursBeforeCheckIn - a.hoursBeforeCheckIn).map((rule, idx) => (
                                     <div key={idx} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg text-[10px] font-medium text-gray-600 dark:text-gray-400">
-                                        {rule.hoursBeforeCheckIn}h: <span className="text-blue-600 dark:text-blue-400">{rule.refundPercentage}%</span>
+                                        {rule.hoursBeforeCheckIn}h: <span className="text-primary">{rule.refundPercentage}%</span>
                                     </div>
                                 ))}
                             </div>
@@ -1104,7 +1104,7 @@ function Field({ label, icon, value, onChange, editMode, type = 'text' }: {
             </label>
             {editMode ? (
                 <input type={type} value={value} onChange={e => onChange(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm" />
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm" />
             ) : (
                 <p className="text-sm text-gray-600 dark:text-gray-400 py-2">{value || '—'}</p>
             )}

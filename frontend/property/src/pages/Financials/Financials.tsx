@@ -16,7 +16,7 @@ import {
 import ExpenseModal from '../../components/Financials/ExpenseModal';
 import type { Expense } from '../../types/expense';
 
-const COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#8b5cf6'];
+const COLORS = ['#08474e', '#22c55e', '#eab308', '#f97316', '#ef4444', '#8b5cf6'];
 
 export default function Financials() {
     const { selectedProperty } = useProperty();
@@ -81,7 +81,7 @@ export default function Financials() {
 
     if (isLoading) return (
         <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
     );
 
@@ -115,7 +115,7 @@ export default function Financials() {
                             className="text-sm border-none bg-transparent focus:ring-0 p-0 text-gray-900 dark:text-white font-medium" />
                     </div>
                     <button onClick={() => { setSelectedExpense(null); setIsExpenseModalOpen(true); }}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition-all">
+                        className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2.5 rounded-xl font-medium shadow-sm transition-all">
                         <Plus className="h-4 w-4" /> Add Expense
                     </button>
                 </div>
@@ -126,7 +126,7 @@ export default function Financials() {
                 <SummaryCard title="Total Income" value={`₹${report?.summary?.totalIncome?.toLocaleString() || '0'}`} icon={<TrendingUp className="h-6 w-6 text-emerald-500" />} color="emerald" />
                 <SummaryCard title="Total Expenses" value={`₹${report?.summary?.totalExpenses?.toLocaleString() || '0'}`} icon={<TrendingDown className="h-6 w-6 text-rose-500" />} color="rose" />
                 <SummaryCard title="Platform Fees" value={`₹${report?.summary?.totalPlatformFees?.toLocaleString() || '0'}`} icon={<Tag className="h-6 w-6 text-orange-500" />} color="orange" />
-                <SummaryCard title="Net Profit" value={`₹${report?.summary?.netProfit?.toLocaleString() || '0'}`} icon={<IndianRupee className="h-6 w-6 text-blue-500" />} color="blue" isNegative={report?.summary?.netProfit < 0} />
+                <SummaryCard title="Net Profit" value={`₹${report?.summary?.netProfit?.toLocaleString() || '0'}`} icon={<IndianRupee className="h-6 w-6 text-primary" />} color="primary" isNegative={report?.summary?.netProfit < 0} />
                 <SummaryCard title="Profit Margin" value={`${typeof report?.summary?.profitMargin === 'number' ? report.summary.profitMargin.toFixed(1) : '0'}%`} icon={<PieChartIcon className="h-6 w-6 text-purple-500" />} color="purple" />
             </div>
 
@@ -160,7 +160,7 @@ export default function Financials() {
                                     <XAxis type="number" tickFormatter={(value: number) => `₹${value}`} fontSize={12} />
                                     <YAxis dataKey="name" type="category" width={100} fontSize={12} />
                                     <Tooltip formatter={(value: any) => [`₹${Number(value || 0).toLocaleString()}`, 'Amount']} />
-                                    <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                                    <Bar dataKey="value" fill="#08474e" radius={[0, 4, 4, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : <p className="text-gray-400 italic text-center pt-20">No expense data for this period</p>}
@@ -180,7 +180,7 @@ export default function Financials() {
                             onClick={() => setIsFilterExpanded(!isFilterExpanded)}
                             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                         >
-                            <Filter className="h-4 w-4" /> Filters {Object.values(filters).some(v => v !== '' && v !== 'all') && <span className="w-2 h-2 rounded-full bg-blue-500"></span>}
+                            <Filter className="h-4 w-4" /> Filters {Object.values(filters).some(v => v !== '' && v !== 'all') && <span className="w-2 h-2 rounded-full bg-primary"></span>}
                         </button>
                     </div>
 
@@ -196,7 +196,7 @@ export default function Financials() {
                                         value={filters.search}
                                         onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
                                         placeholder="Search..."
-                                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                                     />
                                 </div>
                             </div>
@@ -207,7 +207,7 @@ export default function Financials() {
                                 <select 
                                     value={filters.category}
                                     onChange={e => setFilters(prev => ({ ...prev, category: e.target.value }))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
                                 >
                                     <option value="">All Categories</option>
                                     {uniqueCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}
@@ -221,7 +221,7 @@ export default function Financials() {
                                     type="date"
                                     value={filters.date}
                                     onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
                                 />
                             </div>
 
@@ -231,7 +231,7 @@ export default function Financials() {
                                 <select 
                                     value={filters.paymentMethod}
                                     onChange={e => setFilters(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
                                 >
                                     <option value="">All Methods</option>
                                     {uniquePaymentMethods.map((m: string) => <option key={m} value={m}>{m}</option>)}
@@ -244,7 +244,7 @@ export default function Financials() {
                                 <select 
                                     value={filters.isPaid}
                                     onChange={e => setFilters(prev => ({ ...prev, isPaid: e.target.value }))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
                                 >
                                     <option value="all">All Statuses</option>
                                     <option value="paid">Paid</option>
@@ -260,7 +260,7 @@ export default function Financials() {
                                     value={filters.minAmount}
                                     onChange={e => setFilters(prev => ({ ...prev, minAmount: e.target.value }))}
                                     placeholder="Min ₹"
-                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
                                 />
                             </div>
 
@@ -272,7 +272,7 @@ export default function Financials() {
                                     value={filters.maxAmount}
                                     onChange={e => setFilters(prev => ({ ...prev, maxAmount: e.target.value }))}
                                     placeholder="Max ₹"
-                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
                                 />
                             </div>
                             
@@ -311,7 +311,7 @@ export default function Financials() {
                                     <tr key={expense.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
                                         onClick={() => { setSelectedExpense(expense); setIsExpenseModalOpen(true); }}>
                                         <td className="px-6 py-4"><div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-400" /><span className="text-sm font-medium text-gray-900 dark:text-white">{format(new Date(expense.date), 'dd MMM, yyyy')}</span></div></td>
-                                        <td className="px-6 py-4"><div className="flex items-center gap-2"><div className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg"><Tag className="h-3 w-3 text-blue-600" /></div><span className="text-sm font-medium text-gray-900 dark:text-white">{expense.category.name}</span></div></td>
+                                        <td className="px-6 py-4"><div className="flex items-center gap-2"><div className="px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-lg"><Tag className="h-3 w-3 text-primary" /></div><span className="text-sm font-medium text-gray-900 dark:text-white">{expense.category.name}</span></div></td>
                                         <td className="px-6 py-4"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-gray-400 shrink-0" /><span className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{expense.description}</span></div></td>
                                         <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                                             {expense.bookings && expense.bookings.length > 0 ? (
@@ -320,7 +320,7 @@ export default function Financials() {
                                                         <button
                                                             key={b.id}
                                                             onClick={() => navigate(`/bookings/${b.id}`)}
-                                                            className="inline-flex items-center px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300 rounded text-xs font-medium border border-blue-100 dark:border-blue-800/50 transition-colors"
+                                                            className="inline-flex items-center px-2 py-0.5 bg-primary/10 hover:bg-primary/20 text-primary dark:bg-primary/20 dark:hover:bg-primary/30 dark:text-primary-foreground rounded text-xs font-medium border border-primary/20 dark:border-primary-800/50 transition-colors"
                                                         >
                                                             {b.bookingNumber}
                                                         </button>
@@ -363,9 +363,9 @@ function SummaryCard({ title, value, icon, color, isNegative }: any) {
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">{title}</p>
-                    <p className={`text-2xl font-bold mt-2 ${isNegative ? 'text-rose-500' : `text-${color}-500`}`}>{value}</p>
+                    <p className={`text-2xl font-bold mt-2 ${isNegative ? 'text-rose-500' : (color === 'primary' ? 'text-primary' : `text-${color}-500`)}`}>{value}</p>
                 </div>
-                <div className={`p-3 bg-${color}-50 dark:bg-${color}-900/20 rounded-xl group-hover:scale-110 transition-transform`}>{icon}</div>
+                <div className={`p-3 ${color === 'primary' ? 'bg-primary/10 dark:bg-primary/20 text-primary' : `bg-${color}-50 dark:bg-${color}-900/20`} rounded-xl group-hover:scale-110 transition-transform`}>{icon}</div>
             </div>
         </div>
     );

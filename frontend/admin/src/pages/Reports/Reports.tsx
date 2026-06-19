@@ -117,6 +117,31 @@ export default function Reports() {
         occupied: day.occupied,
     })) || [];
 
+    const propertyPerformance = roomPerformance?.reduce((acc: any[], curr: any) => {
+        const existing = acc.find((item: any) => item.propertyName === curr.propertyName);
+        if (existing) {
+            existing.revenue += curr.revenue;
+            existing.bookingsCount += curr.bookingsCount;
+            existing.occupiedNights += curr.occupiedNights || 0;
+            existing.possibleNights += curr.possibleNights || 0;
+        } else {
+            acc.push({
+                propertyName: curr.propertyName,
+                revenue: curr.revenue,
+                bookingsCount: curr.bookingsCount,
+                occupiedNights: curr.occupiedNights || 0,
+                possibleNights: curr.possibleNights || 0
+            });
+        }
+        return acc;
+    }, []).map((item: any) => ({
+        name: item.propertyName,
+        propertyName: item.propertyName,
+        revenue: item.revenue,
+        bookingsCount: item.bookingsCount,
+        occupancyRate: item.possibleNights > 0 ? Math.round((item.occupiedNights / item.possibleNights) * 100) : 0
+    })) || [];
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
@@ -307,18 +332,18 @@ export default function Reports() {
                 </div>
             </div>
 
-            {/* Charts Row 2: Room Performance & Data Table */}
+            {/* Charts Row 2: Property Performance & Data Table */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
                     <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h3 className="text-lg font-bold">Room Performance</h3>
-                            <p className="text-xs text-muted-foreground font-medium">Revenue generated per building/category</p>
+                            <h3 className="text-lg font-bold">Property Performance</h3>
+                            <p className="text-xs text-muted-foreground font-medium">Revenue generated per property</p>
                         </div>
                     </div>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={roomPerformance}>
+                            <BarChart data={propertyPerformance}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                                 <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
                                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
@@ -333,7 +358,7 @@ export default function Reports() {
 
                 <div className="bg-card p-6 rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
                     <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold">Performance Summary</h3>
+                        <h3 className="text-lg font-bold">Property Performance Summary</h3>
                         <button className="text-primary text-xs font-black uppercase tracking-wider flex items-center gap-1">
                             Export PDF <ArrowUpRight className="h-3 w-3" />
                         </button>
@@ -342,16 +367,16 @@ export default function Reports() {
                         <table className="w-full text-left">
                             <thead className="bg-muted text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky top-0">
                                 <tr>
-                                    <th className="px-4 py-3 rounded-l-lg">Unit Type</th>
+                                    <th className="px-4 py-3 rounded-l-lg">Property</th>
                                     <th className="px-4 py-3">Bookings</th>
                                     <th className="px-4 py-3">Occ. %</th>
                                     <th className="px-4 py-3 rounded-r-lg text-right">Revenue</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
-                                {roomPerformance?.map((item: any) => (
-                                    <tr key={item.roomTypeId} className="group hover:bg-muted/30 transition-colors">
-                                        <td className="px-4 py-4 font-bold text-sm">{item.name}</td>
+                                {propertyPerformance?.map((item: any) => (
+                                    <tr key={item.propertyName} className="group hover:bg-muted/30 transition-colors">
+                                        <td className="px-4 py-4 font-bold text-sm">{item.propertyName}</td>
                                         <td className="px-4 py-4 text-sm font-medium">{item.bookingsCount}</td>
                                         <td className="px-4 py-4">
                                             <div className="flex items-center gap-2">
@@ -667,12 +692,16 @@ function DrillDownModal({ type, data, onClose }: { type: string, data: any, onCl
                                 {roomPerf?.reduce((acc: any[], curr: any) => {
                                     const existing = acc.find(a => a.property === curr.propertyName);
                                     if (existing) {
-                                        existing.totalRows++;
-                                        existing.totalOcc += curr.occupancyRate;
-                                    } else acc.push({ property: curr.propertyName, totalOcc: curr.occupancyRate, totalRows: 1 });
+                                        existing.occupiedNights += curr.occupiedNights || 0;
+                                        existing.possibleNights += curr.possibleNights || 0;
+                                    } else acc.push({
+                                        property: curr.propertyName,
+                                        occupiedNights: curr.occupiedNights || 0,
+                                        possibleNights: curr.possibleNights || 0
+                                    });
                                     return acc;
                                 }, []).map((p: any) => {
-                                    const avgOccValue = p.totalOcc / p.totalRows;
+                                    const avgOccValue = p.possibleNights > 0 ? (p.occupiedNights / p.possibleNights) * 100 : 0;
                                     const displayOcc = avgOccValue < 1 && avgOccValue > 0 ? avgOccValue.toFixed(1) : Math.round(avgOccValue);
                                     return (
                                         <div key={p.property} className="space-y-1.5">

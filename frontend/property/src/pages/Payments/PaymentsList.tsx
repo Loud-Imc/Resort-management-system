@@ -104,8 +104,8 @@ export default function PaymentsList() {
                             {statsLoading ? '...' : `₹${stats?.totalVolume.toLocaleString()}`}
                         </p>
                     </div>
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <CreditCard className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    <div className="p-3 bg-primary/10 dark:bg-primary/20 rounded-lg">
+                        <CreditCard className="h-6 w-6 text-primary" />
                     </div>
                 </div>
 
@@ -194,7 +194,7 @@ export default function PaymentsList() {
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-bold text-foreground">
                                             {payment.razorpayPaymentId || (
-                                                <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 uppercase text-[10px] font-black tracking-widest">
+                                                <span className="flex items-center gap-1.5 text-primary uppercase text-[10px] font-black tracking-widest">
                                                     <CreditCard className="h-3 w-3" /> {payment.paymentMethod || 'MANUAL'}
                                                 </span>
                                             )}

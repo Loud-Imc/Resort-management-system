@@ -206,7 +206,7 @@ export default function StaffList() {
         return matchesSearch && !isAlreadyStaff;
     });
 
-    if (loading) return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
+    if (loading) return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
     return (
         <div className="space-y-6">
@@ -214,14 +214,14 @@ export default function StaffList() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Users className="h-7 w-7 text-blue-600" /> Staff Management
+                        <Users className="h-7 w-7 text-primary" /> Staff Management
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {selectedProperty?.name} • Managing the on-ground team
                     </p>
                 </div>
                 <button onClick={() => { setIsAddModalOpen(true); loadUsers(); }}
-                    className="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-all flex items-center gap-2 font-medium shadow-sm">
+                    className="bg-primary text-primary-foreground px-5 py-2.5 rounded-xl hover:bg-primary/90 transition-all flex items-center gap-2 font-medium shadow-sm">
                     <Plus className="h-4 w-4" /> Add Staff Member
                 </button>
             </div>
@@ -235,15 +235,15 @@ export default function StaffList() {
             {/* Staff Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {(Array.isArray(staff) ? staff : []).map((member) => (
-                    <div key={member.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden group hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all flex flex-col">
+                    <div key={member.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden group hover:shadow-md hover:border-primary/50 dark:hover:border-primary-800 transition-all flex flex-col">
                         <div className="p-6 flex-1">
                             <div className="flex justify-between items-start mb-4">
-                                <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600">
+                                <div className="h-12 w-12 bg-primary/10 dark:bg-primary/20 rounded-2xl flex items-center justify-center text-primary">
                                     <UserIcon className="h-6 w-6" />
                                 </div>
                                 <div className="flex gap-1">
                                     <button onClick={() => handleEditClick(member)}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-all" title="Edit Staff">
+                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-xl transition-all" title="Edit Staff">
                                         <Edit2 className="h-4 w-4" />
                                     </button>
                                     <button onClick={() => handleRemoveStaff(member.userId)}
@@ -258,7 +258,7 @@ export default function StaffList() {
                             </div>
                         </div>
                         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700 mt-auto flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-600 border border-blue-200 dark:border-blue-800">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 dark:bg-primary/20 text-primary border border-primary/20 dark:border-primary-800">
                                 <Shield className="h-3.5 w-3.5" /> {typeof member.role === 'string' ? member.role : (member.role as any)?.name}
                             </span>
                             <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Active Team</span>
@@ -276,7 +276,7 @@ export default function StaffList() {
                             Start by adding team members to manage bookings and services at this property.
                         </p>
                         <button onClick={() => { setIsAddModalOpen(true); loadUsers(); }}
-                            className="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium">
+                            className="inline-flex items-center gap-2 text-primary hover:underline font-medium">
                             <Plus className="h-4 w-4" /> Add your first staff member
                         </button>
                     </div>
@@ -290,7 +290,7 @@ export default function StaffList() {
                     <div className="relative bg-white dark:bg-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Plus className="h-5 w-5 text-blue-600" /> Add Team Member
+                                <Plus className="h-5 w-5 text-primary" /> Add Team Member
                             </h2>
                             <button onClick={() => { setIsAddModalOpen(false); resetModalState(); }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
                                 <X className="h-5 w-5 text-gray-400" />
@@ -315,11 +315,11 @@ export default function StaffList() {
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Initial Password</label>
-                                            <p className="text-sm font-bold text-blue-600 dark:text-blue-400 font-mono">{createdCredentials.password}</p>
+                                            <p className="text-sm font-bold text-primary font-mono">{createdCredentials.password}</p>
                                         </div>
                                     </div>
                                     <button onClick={() => { setIsAddModalOpen(false); resetModalState(); }}
-                                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-sm">
+                                        className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold transition-all shadow-sm">
                                         Done, Back to Team
                                     </button>
                                 </div>
@@ -331,7 +331,7 @@ export default function StaffList() {
                                             onClick={() => { setIsCreatingNew(false); setSelectedUser(null); }}
                                             className={clsx(
                                                 "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
-                                                !isCreatingNew ? "bg-white dark:bg-gray-800 text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                                !isCreatingNew ? "bg-white dark:bg-gray-800 text-primary shadow-sm" : "text-gray-500 hover:text-gray-700"
                                             )}
                                         >
                                             Search Existing
@@ -340,7 +340,7 @@ export default function StaffList() {
                                             onClick={() => { setIsCreatingNew(true); setSelectedUser(null); }}
                                             className={clsx(
                                                 "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
-                                                isCreatingNew ? "bg-white dark:bg-gray-800 text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                                isCreatingNew ? "bg-white dark:bg-gray-800 text-primary shadow-sm" : "text-gray-500 hover:text-gray-700"
                                             )}
                                         >
                                             Create New
@@ -354,14 +354,14 @@ export default function StaffList() {
                                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                                     <input type="text" placeholder="Search by name or email..." value={searchQuery}
                                                         onChange={(e) => setSearchQuery(e.target.value)} autoFocus
-                                                        className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
+                                                        className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none text-gray-900 dark:text-white transition-all" />
                                                 </div>
                                                 <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
                                                     {(Array.isArray(filteredUsers) ? filteredUsers : []).map(u => (
                                                         <button key={u.id} onClick={() => setSelectedUser(u)}
-                                                            className="w-full text-left p-3 rounded-xl border border-transparent hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex items-center justify-between group">
+                                                            className="w-full text-left p-3 rounded-xl border border-transparent hover:border-primary/50 dark:hover:border-primary-800 hover:bg-primary/10 dark:hover:bg-primary/20 transition-all flex items-center justify-between group">
                                                             <div className="flex items-center gap-3">
-                                                                <div className="h-10 w-10 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-400 group-hover:text-blue-600 transition-colors font-bold">
+                                                                <div className="h-10 w-10 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-400 group-hover:text-primary transition-colors font-bold">
                                                                     {u.firstName?.[0]}{u.lastName?.[0]}
                                                                 </div>
                                                                 <div>
@@ -370,7 +370,7 @@ export default function StaffList() {
                                                                 </div>
                                                             </div>
                                                             <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
-                                                                <Plus className="h-4 w-4 text-blue-600" />
+                                                                <Plus className="h-4 w-4 text-primary" />
                                                             </div>
                                                         </button>
                                                     ))}
@@ -380,9 +380,9 @@ export default function StaffList() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl flex items-center justify-between">
+                                            <div className="p-4 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary-800 rounded-2xl flex items-center justify-between">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600">
+                                                    <div className="h-10 w-10 bg-primary/20 dark:bg-primary/30 rounded-xl flex items-center justify-center text-primary">
                                                         <Check className="h-5 w-5" />
                                                     </div>
                                                     <div>
@@ -390,7 +390,7 @@ export default function StaffList() {
                                                         <p className="text-xs text-gray-500 dark:text-gray-400">{selectedUser.email}</p>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => setSelectedUser(null)} className="text-xs text-blue-600 font-bold hover:underline px-3 py-1">Change</button>
+                                                <button onClick={() => setSelectedUser(null)} className="text-xs text-primary font-bold hover:underline px-3 py-1">Change</button>
                                             </div>
                                         )
                                     ) : (
@@ -399,31 +399,31 @@ export default function StaffList() {
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">First Name</label>
                                                 <input type="text" value={newUser.firstName}
                                                     onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
-                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name</label>
                                                 <input type="text" value={newUser.lastName}
                                                     onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
-                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Email Address</label>
                                                 <input type="email" value={newUser.email}
                                                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Phone Number</label>
                                                 <input type="tel" value={newUser.phone}
                                                     onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 space-y-1">
                                                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">Account Password</label>
                                                 <input type="text" value={newUser.password}
                                                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono text-gray-900 dark:text-white" />
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-gray-900 dark:text-white" />
                                             </div>
                                             <div className="col-span-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                                                 <p className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
@@ -442,8 +442,8 @@ export default function StaffList() {
                                             {(Array.isArray(dbRoles) ? dbRoles : []).map(role => (
                                                 <button key={role.id} type="button" onClick={() => setSelectedRoleId(role.id)}
                                                     className={clsx("px-4 py-3 rounded-xl text-left border-2 transition-all flex flex-col gap-0.5",
-                                                        selectedRoleId === role.id ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-600 hover:border-gray-300 bg-white dark:bg-gray-800")}>
-                                                    <p className={clsx("text-sm font-bold", selectedRoleId === role.id ? "text-blue-600" : "text-gray-900 dark:text-white")}>{role.name}</p>
+                                                        selectedRoleId === role.id ? "border-primary bg-primary/10 dark:bg-primary/20" : "border-gray-200 dark:border-gray-600 hover:border-gray-300 bg-white dark:bg-gray-800")}>
+                                                    <p className={clsx("text-sm font-bold", selectedRoleId === role.id ? "text-primary" : "text-gray-900 dark:text-white")}>{role.name}</p>
                                                     <p className="text-[10px] text-gray-400 font-medium italic">Scope: {role.isSystem ? 'System' : 'Property'}</p>
                                                 </button>
                                             ))}
@@ -457,7 +457,7 @@ export default function StaffList() {
                                 <button onClick={() => { setIsAddModalOpen(false); resetModalState(); }}
                                     className="px-5 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all">Cancel</button>
                                 <button onClick={handleAddStaff} disabled={(!selectedUser && !isCreatingNew) || submitting}
-                                    className="px-8 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-sm transition-all">
+                                    className="px-8 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-sm transition-all">
                                     {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                                     {submitting ? 'Processing...' : 'Add to Team'}
                                 </button>
@@ -505,7 +505,7 @@ function EditStaffModal({
             <div className="relative bg-white dark:bg-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Edit2 className="h-5 w-5 text-blue-600" /> Edit Team Member
+                        <Edit2 className="h-5 w-5 text-primary" /> Edit Team Member
                     </h2>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
                         <X className="h-5 w-5 text-gray-400" />
@@ -517,25 +517,25 @@ function EditStaffModal({
                             <label className="text-xs font-bold text-gray-500 uppercase ml-1">Email Address</label>
                             <input type="email" value={newUser.email}
                                 onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-bold text-gray-500 uppercase ml-1">First Name</label>
                             <input type="text" value={newUser.firstName}
                                 onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
-                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-bold text-gray-500 uppercase ml-1">Last Name</label>
                             <input type="text" value={newUser.lastName}
                                 onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
-                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                         </div>
                         <div className="col-span-2 space-y-1">
                             <label className="text-xs font-bold text-gray-500 uppercase ml-1">Phone Number</label>
                             <input type="tel" value={newUser.phone}
                                 onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white" />
+                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm text-gray-900 dark:text-white" />
                         </div>
                     </div>
 
@@ -548,8 +548,8 @@ function EditStaffModal({
                             {(Array.isArray(dbRoles) ? dbRoles : []).map((role: any) => (
                                 <button key={role.id} type="button" onClick={() => setSelectedRoleId(role.id)}
                                     className={clsx("px-4 py-3 rounded-xl text-left border-2 transition-all flex flex-col gap-0.5",
-                                        selectedRoleId === role.id ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-gray-600 hover:border-gray-300 bg-white dark:bg-gray-800")}>
-                                    <p className={clsx("text-sm font-bold", selectedRoleId === role.id ? "text-blue-600" : "text-gray-900 dark:text-white")}>{role.name}</p>
+                                        selectedRoleId === role.id ? "border-primary bg-primary/10 dark:bg-primary/20" : "border-gray-200 dark:border-gray-600 hover:border-gray-300 bg-white dark:bg-gray-800")}>
+                                    <p className={clsx("text-sm font-bold", selectedRoleId === role.id ? "text-primary" : "text-gray-900 dark:text-white")}>{role.name}</p>
                                     <p className="text-[10px] text-gray-400 font-medium italic">Scope: {role.isSystem ? 'System' : 'Property'}</p>
                                 </button>
                             ))}
@@ -560,7 +560,7 @@ function EditStaffModal({
                     <button onClick={onClose}
                         className="px-5 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all">Cancel</button>
                     <button onClick={onSubmit} disabled={submitting}
-                        className="px-8 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-sm transition-all">
+                        className="px-8 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-sm transition-all">
                         {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                         {submitting ? 'Updating...' : 'Save Changes'}
                     </button>

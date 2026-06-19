@@ -291,3 +291,43 @@ export const PERMISSION_GROUPS = {
     ]
 };
 
+// --- Strict Permission Segregation & Siloing ---
+
+export const ADMIN_ONLY_PERMISSIONS = [
+    PERMISSIONS.PROPERTIES.APPROVE,
+    PERMISSIONS.PROPERTIES.CREATE,
+    PERMISSIONS.PROPERTIES.DELETE,
+    ...Object.values(PERMISSIONS.FINANCE),
+    ...Object.values(PERMISSIONS.ADMIN),
+    PERMISSIONS.CHANNEL_PARTNERS.CREATE,
+    PERMISSIONS.CHANNEL_PARTNERS.DELETE,
+    PERMISSIONS.MARKETING.APPROVE_COUPON,
+    PERMISSIONS.MARKETING.MANAGE_LOYALTY,
+    PERMISSIONS.USERS.MANAGE_ROLES,
+];
+
+export const PROPERTY_ONLY_PERMISSIONS = [
+    ...Object.values(PERMISSIONS.ROOMS),
+    ...Object.values(PERMISSIONS.ROOM_TYPES),
+    ...Object.values(PERMISSIONS.BOOKINGS),
+    ...Object.values(PERMISSIONS.EXPENSES),
+    ...Object.values(PERMISSIONS.INCOME),
+    ...Object.values(PERMISSIONS.BOOKING_SOURCES),
+    ...Object.values(PERMISSIONS.PROPERTY_STAFF),
+];
+
+// All system permissions list
+export const ALL_SYSTEM_PERMISSIONS_LIST = Object.values(PERMISSIONS).flatMap(group => Object.values(group));
+
+// Shared permissions: accessible in both admin and property contexts (e.g. general read, user creation, etc.)
+export const SHARED_PERMISSIONS = ALL_SYSTEM_PERMISSIONS_LIST.filter(
+    perm => !ADMIN_ONLY_PERMISSIONS.includes(perm) && !PROPERTY_ONLY_PERMISSIONS.includes(perm)
+);
+
+// Admin Portal available permissions: ADMIN_ONLY + SHARED
+export const ADMIN_PERMISSIONS_LIST = [...ADMIN_ONLY_PERMISSIONS, ...SHARED_PERMISSIONS];
+
+// Property Portal available permissions: PROPERTY_ONLY + SHARED
+export const PROPERTY_PERMISSIONS_LIST = [...PROPERTY_ONLY_PERMISSIONS, ...SHARED_PERMISSIONS];
+
+

@@ -13,7 +13,7 @@ import {
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import FinancialDetailsModal from '../../components/Reports/FinancialDetailsModal';
 
-const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const COLORS = ['#08474e', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function Reports() {
     const { selectedProperty } = useProperty();
@@ -71,7 +71,7 @@ export default function Reports() {
 
     if (isLoading) return (
         <div className="flex flex-col items-center justify-center p-24 space-y-4">
-            <Loader2 className="animate-spin h-12 w-12 text-blue-600" />
+            <Loader2 className="animate-spin h-12 w-12 text-primary" />
             <p className="text-gray-500 dark:text-gray-400 font-medium animate-pulse">Generating your reports...</p>
         </div>
     );
@@ -93,18 +93,18 @@ export default function Reports() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/50 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm">
                 <div>
                     <div className="flex items-center gap-4 mb-1">
-                        <TrendingUp className="h-5 w-5 text-blue-600" />
+                        <TrendingUp className="h-5 w-5 text-primary" />
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedProperty?.name} Reports</h1>
                         <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
                             <button
                                 onClick={() => setActiveTab('PERFORMANCE')}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'PERFORMANCE' ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'PERFORMANCE' ? 'bg-white dark:bg-gray-600 shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
                             >
                                 Performance
                             </button>
                             <button
                                 onClick={() => setActiveTab('GST')}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'GST' ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'GST' ? 'bg-white dark:bg-gray-600 shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
                             >
                                 GST Compliance
                             </button>
@@ -144,7 +144,7 @@ export default function Reports() {
                     {['week', 'month', 'last-month'].map((t) => (
                         <button key={t} onClick={() => handleRangeChange(t)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${rangeType === t
-                                ? 'bg-blue-600 text-white shadow-sm scale-105'
+                                ? 'bg-primary text-primary-foreground shadow-sm scale-105'
                                 : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600'}`}>
                             {t.replace('-', ' ')}
                         </button>
@@ -168,7 +168,7 @@ export default function Reports() {
                 <KPICard title="Avg. Occupancy" value={`${occupancyReport?.averageOccupancy || 0}%`}
                     icon={<Bed className="h-4 w-4 text-sky-500" />} color="text-sky-500" />
                 <KPICard title="Total Bookings" value={financialReport?.summary?.bookingsCount || 0}
-                    icon={<Users className="h-4 w-4 text-blue-600" />} color="text-blue-600" onClick={() => { setDetailsType('BOOKINGS'); setDetailsModalOpen(true); }} isClickable />
+                    icon={<Users className="h-4 w-4 text-primary" />} color="text-primary" onClick={() => { setDetailsType('BOOKINGS'); setDetailsModalOpen(true); }} isClickable />
                 <KPICard title={activeTab === 'GST' ? "GST Collected" : "Net Earnings"}
                     value={`₹${(activeTab === 'GST' ? gstReport?.summary?.totalTax : financialReport?.summary?.netProfit)?.toLocaleString() || '0'}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />} color="text-amber-500" />
@@ -192,15 +192,15 @@ export default function Reports() {
                                         <AreaChart data={occupancyData}>
                                             <defs>
                                                 <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                                    <stop offset="5%" stopColor="hsl(186, 81%, 30%)" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="hsl(186, 81%, 30%)" stopOpacity={0} />
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                             <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
                                             <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
                                             <Tooltip />
-                                            <Area type="monotone" dataKey="rate" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorRate)" name="Occupancy %" />
+                                            <Area type="monotone" dataKey="rate" stroke="hsl(186, 81%, 30%)" strokeWidth={3} fillOpacity={1} fill="url(#colorRate)" name="Occupancy %" />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 ) : <p className="text-gray-400 italic text-center pt-20">No occupancy data for this period</p>}
@@ -212,7 +212,7 @@ export default function Reports() {
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">Booking Sources</h3>
                                 <button
                                     onClick={() => setShowSourceInfo(!showSourceInfo)}
-                                    className={`p-1.5 rounded-lg transition-all ${showSourceInfo ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    className={`p-1.5 rounded-lg transition-all ${showSourceInfo ? 'bg-primary/10 text-primary dark:bg-primary/20' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                                     title="How are these calculated?"
                                 >
                                     <HelpCircle className="h-5 w-5" />
@@ -220,21 +220,21 @@ export default function Reports() {
                             </div>
 
                             {showSourceInfo && (
-                                <div className="mb-6 p-4 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="mb-6 p-4 rounded-xl bg-primary/5 dark:bg-primary/10 border border-primary/20 dark:border-primary/30 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="flex gap-3">
-                                        <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                                        <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                                         <div className="space-y-3">
                                             <div>
-                                                <p className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wider mb-1">Room Booking</p>
-                                                <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80 leading-relaxed">Direct/Manual bookings created via the property dashboard with payment settled at creation.</p>
+                                                <p className="text-[10px] font-bold text-primary dark:text-primary-foreground uppercase tracking-wider mb-1">Room Booking</p>
+                                                <p className="text-[11px] text-primary/85 dark:text-primary-foreground/80 leading-relaxed">Direct/Manual bookings created via the property dashboard with payment settled at creation.</p>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wider mb-1">Online Booking</p>
-                                                <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80 leading-relaxed">Guest-led bookings from the public website via Razorpay or Channel Partner wallet settlements.</p>
+                                                <p className="text-[10px] font-bold text-primary dark:text-primary-foreground uppercase tracking-wider mb-1">Online Booking</p>
+                                                <p className="text-[11px] text-primary/85 dark:text-primary-foreground/80 leading-relaxed">Guest-led bookings from the public website via Razorpay or Channel Partner wallet settlements.</p>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wider mb-1">Manual Payment</p>
-                                                <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80 leading-relaxed">Subsequent balance payments recorded manually (e.g. Cash at check-in) or approved payment requests.</p>
+                                                <p className="text-[10px] font-bold text-primary dark:text-primary-foreground uppercase tracking-wider mb-1">Manual Payment</p>
+                                                <p className="text-[11px] text-primary/85 dark:text-primary-foreground/80 leading-relaxed">Subsequent balance payments recorded manually (e.g. Cash at check-in) or approved payment requests.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -288,7 +288,7 @@ export default function Reports() {
                                             <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
                                             <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
                                             <Tooltip />
-                                            <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Revenue" />
+                                            <Bar dataKey="revenue" fill="hsl(186, 81%, 30%)" radius={[4, 4, 0, 0]} name="Revenue" />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 ) : <p className="text-gray-400 italic text-center pt-16">No room data</p>}
@@ -317,7 +317,7 @@ export default function Reports() {
                                                 <td className="px-4 py-4">
                                                     <div className="flex items-center gap-2">
                                                         <div className="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-600 min-w-[60px]">
-                                                            <div className="h-full rounded-full bg-blue-600" style={{ width: `${item.occupancyRate}%` }} />
+                                                            <div className="h-full rounded-full bg-primary" style={{ width: `${item.occupancyRate}%` }} />
                                                         </div>
                                                         <span className="text-xs font-bold text-gray-900 dark:text-white">{item.occupancyRate}%</span>
                                                     </div>
@@ -369,7 +369,7 @@ export default function Reports() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <p className="font-medium text-sm text-gray-900 dark:text-white">{item.guestName}</p>
-                                            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">GSTIN: {item.gstNumber}</p>
+                                            <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">GSTIN: {item.gstNumber}</p>
                                         </td>
                                         <td className="px-6 py-4 text-right text-sm font-medium text-gray-700 dark:text-gray-300">₹{item.taxableAmount.toLocaleString()}</td>
                                         <td className="px-6 py-4 text-right text-sm font-bold text-emerald-600">₹{item.taxAmount.toLocaleString()}</td>
@@ -402,14 +402,14 @@ export default function Reports() {
 
 function KPICard({ title, value, icon, color, onClick, isClickable }: any) {
     return (
-        <div onClick={onClick} className={`bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all group overflow-hidden relative ${isClickable ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:border-blue-300 dark:hover:border-blue-700' : 'hover:shadow-md'}`}>
+        <div onClick={onClick} className={`bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all group overflow-hidden relative ${isClickable ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 dark:hover:border-primary/50' : 'hover:shadow-md'}`}>
             <div className="flex justify-between items-start mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">{title}</h3>
-                <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">{icon}</div>
+                <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 group-hover:bg-primary/10 dark:group-hover:bg-primary/20 transition-colors">{icon}</div>
             </div>
             <p className={`text-2xl font-bold ${color}`}>{value}</p>
             {isClickable && (
-                <div className="absolute inset-x-0 bottom-0 h-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
             )}
         </div>
     );
