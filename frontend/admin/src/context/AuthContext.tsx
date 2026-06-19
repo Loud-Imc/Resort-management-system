@@ -8,6 +8,7 @@ interface AuthContextType {
     isLoading: boolean;
     login: (credentials: LoginCredentials) => Promise<void>;
     logout: () => void;
+    updateUser: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,8 +58,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(false);
     };
 
+    const updateUser = (userData: Partial<User>) => {
+        if (user) {
+            const roles = userData.roles && Array.isArray(userData.roles)
+                ? userData.roles.map((r: any) => typeof r === 'string' ? r : r.role?.name).filter(Boolean)
+                : userData.roles;
+
+            const updatedUser = { 
+                ...user, 
+                ...userData,
+                ...(roles ? { roles } : {}) 
+            };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

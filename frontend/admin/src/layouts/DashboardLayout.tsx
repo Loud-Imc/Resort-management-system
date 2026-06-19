@@ -215,17 +215,17 @@ export default function DashboardLayout() {
                         Notifications
                     </Link>
 
-                    <div className="flex items-center gap-3 px-4 py-3 mb-2">
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                    <Link to="/account-settings" className="flex items-center gap-3 px-4 py-3 mb-2 hover:bg-muted rounded-xl transition-all cursor-pointer group">
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold group-hover:ring-2 group-hover:ring-primary/20 transition-all shrink-0">
                             {user?.firstName?.charAt(0) || 'A'}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
+                            <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors leading-tight">
                                 {user?.firstName} {user?.lastName}
                             </p>
-                            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{user?.email}</p>
                         </div>
-                    </div>
+                    </Link>
                     <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-3 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"

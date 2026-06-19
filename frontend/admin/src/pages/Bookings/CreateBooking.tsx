@@ -38,7 +38,7 @@ const bookingSchema = z.object({
     paymentOption: z.enum(['FULL', 'PARTIAL']),
     guests: z.array(z.object({
         firstName: z.string().min(1, 'First name is required'),
-        lastName: z.string().min(1, 'Last name is required'),
+        lastName: z.string().optional().or(z.literal('')),
         email: z.string().email('Invalid email').optional().or(z.literal('')),
         phone: z.string().optional(),
         age: z.number().optional(),
@@ -520,7 +520,7 @@ export default function CreateBooking() {
                                                 <div>
                                                     <input
                                                         {...register(`guests.${index}.lastName`)}
-                                                        placeholder="Last Name"
+                                                        placeholder="Last Name (Optional)"
                                                         className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
                                                     />
                                                     {errors.guests?.[index]?.lastName && (
