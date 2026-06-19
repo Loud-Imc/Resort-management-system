@@ -18,10 +18,10 @@ export class RegisterDto {
     @IsNotEmpty()
     firstName: string;
 
-    @ApiProperty({ example: 'Doe' })
+    @ApiProperty({ example: 'Doe', required: false })
     @IsString()
-    @IsNotEmpty()
-    lastName: string;
+    @IsOptional()
+    lastName?: string;
 
     @ApiProperty({ example: '+1234567890', required: false })
     @IsString()

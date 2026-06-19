@@ -317,7 +317,7 @@ export default function Register() {
 
     const nextStep = () => {
         if (step === 1) {
-            if (!formData.ownerFirstName || !formData.ownerLastName || !formData.ownerEmail || !formData.ownerPhone || !formData.ownerPassword) {
+            if (!formData.ownerFirstName || !formData.ownerEmail || !formData.ownerPhone || !formData.ownerPassword) {
                 toast.error('Please fill all owner details');
                 return;
             }
@@ -425,7 +425,6 @@ export default function Register() {
                                         <input
                                             name="ownerLastName"
                                             type="text"
-                                            required
                                             value={formData.ownerLastName}
                                             onChange={handleChange}
                                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"

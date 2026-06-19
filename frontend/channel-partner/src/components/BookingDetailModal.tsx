@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { X, User, Users, Briefcase, MapPin, CreditCard, Info, CheckCircle2, Clock, XCircle, AlertCircle, ShieldCheck } from 'lucide-react';
+import { X, User, Users, Briefcase, MapPin, CreditCard, Info, CheckCircle2, Clock, XCircle, AlertCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatPrice } from '../utils/currency';
+import api from '../services/api';
 
 interface BookingDetailModalProps {
     isOpen: boolean;
@@ -12,6 +13,34 @@ interface BookingDetailModalProps {
 
 const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ isOpen, onClose, booking }) => {
     if (!booking) return null;
+
+    const [isDownloading, setIsDownloading] = React.useState<{ [key: string]: boolean }>({});
+
+    const handleDownloadInvoice = async (booking: any, type: 'GUEST' | 'PARTNER') => {
+        const key = `${booking.id}-${type}`;
+        setIsDownloading(prev => ({ ...prev, [key]: true }));
+        try {
+            const apiType = type === 'GUEST' ? 'guest' : 'agency';
+            const response = await api.get(`/bookings/invoice/${booking.id}/${apiType}`, {
+                responseType: 'blob',
+            });
+
+            const url = window.URL.createObjectURL(new Blob([response as any]));
+            const link = document.createElement('a');
+            link.href = url;
+            const fileName = `${type === 'PARTNER' ? 'Agency' : 'Guest'}_Invoice_${booking.bookingNumber || 'Booking'}.pdf`;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('PDF generation failed:', err);
+            alert('Failed to generate PDF.');
+        } finally {
+            setIsDownloading(prev => ({ ...prev, [key]: false }));
+        }
+    };
 
     const getStatusInfo = (status: string) => {
         switch (status) {
@@ -225,29 +254,50 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ isOpen, onClose
                                 {/* Download Actions */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <button 
-                                        onClick={() => (window as any).handleDownloadInvoice(booking, 'GUEST')}
+                                        onClick={() => handleDownloadInvoice(booking, 'GUEST')}
+                                        disabled={isDownloading[`${booking.id}-GUEST`]}
                                         style={{ 
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
-                                            padding: '1rem', borderRadius: '16px', background: 'rgba(255,255,255,0.05)',
-                                            border: '1px solid var(--border-glass)', color: 'white', fontWeight: 700,
-                                            cursor: 'pointer', transition: 'all 0.2s'
+                                            padding: '1rem', borderRadius: '16px', 
+                                            background: 'rgba(20, 184, 166, 0.08)',
+                                            border: '1px solid var(--primary-teal)', 
+                                            color: 'var(--primary-teal)', 
+                                            fontWeight: 700,
+                                            cursor: isDownloading[`${booking.id}-GUEST`] ? 'not-allowed' : 'pointer',
+                                            opacity: isDownloading[`${booking.id}-GUEST`] ? 0.7 : 1,
+                                            transition: 'all 0.2s'
                                         }}
                                         className="hover-scale"
                                     >
-                                        <Users size={20} color="var(--primary-teal)" />
+                                        {isDownloading[`${booking.id}-GUEST`] ? (
+                                            <Loader2 size={20} className="animate-spin" style={{ color: 'var(--primary-teal)' }} />
+                                        ) : (
+                                            <Users size={20} color="var(--primary-teal)" />
+                                        )}
                                         <span>Guest Invoice</span>
                                     </button>
                                     <button 
-                                        onClick={() => (window as any).handleDownloadInvoice(booking, 'PARTNER')}
+                                        onClick={() => handleDownloadInvoice(booking, 'PARTNER')}
+                                        disabled={isDownloading[`${booking.id}-PARTNER`]}
                                         style={{ 
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
-                                            padding: '1rem', borderRadius: '16px', background: 'rgba(20,184,166,0.1)',
-                                            border: '1px solid var(--primary-teal)', color: 'white', fontWeight: 700,
-                                            cursor: 'pointer', transition: 'all 0.2s'
+                                            padding: '1rem', borderRadius: '16px', 
+                                            background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
+                                            border: 'none', 
+                                            color: 'white', 
+                                            fontWeight: 700,
+                                            cursor: isDownloading[`${booking.id}-PARTNER`] ? 'not-allowed' : 'pointer',
+                                            opacity: isDownloading[`${booking.id}-PARTNER`] ? 0.7 : 1,
+                                            transition: 'all 0.2s',
+                                            boxShadow: '0 4px 12px rgba(20, 184, 166, 0.2)'
                                         }}
                                         className="hover-scale"
                                     >
-                                        <Briefcase size={20} color="var(--primary-teal)" />
+                                        {isDownloading[`${booking.id}-PARTNER`] ? (
+                                            <Loader2 size={20} className="animate-spin" style={{ color: '#ffffff' }} />
+                                        ) : (
+                                            <Briefcase size={20} color="#ffffff" />
+                                        )}
                                         <span>Agency Invoice</span>
                                     </button>
                                 </div>

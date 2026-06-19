@@ -554,6 +554,11 @@ export default function BookingsList() {
                                             <div className="text-xs text-muted-foreground mt-0.5">
                                                 {booking.isManualBooking ? 'Manual' : 'Online'}
                                             </div>
+                                            {booking.channelPartner && (
+                                                <div className="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
+                                                    CP: {booking.channelPartner.accountHolderName}
+                                                </div>
+                                            )}
                                             {/* Status badge */}
                                             <div className="mt-1.5">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${

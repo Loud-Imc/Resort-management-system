@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 
 const userSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
-    lastName: z.string().min(1, 'Last name is required'),
+    lastName: z.string().optional().or(z.literal('')),
     email: z.string().email('Invalid email address'),
     password: z.string().optional().or(z.literal('')), // Validated manually in mutation for create mode
     phone: z.union([z.string(), z.null(), z.undefined()]).transform(v => (v === '' || v === null) ? undefined : v),

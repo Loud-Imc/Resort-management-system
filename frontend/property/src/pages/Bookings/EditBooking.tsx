@@ -23,7 +23,7 @@ const editBookingSchema = z.object({
     guests: z.array(z.object({
         id: z.string().optional(),
         firstName: z.string().min(1, 'First name is required'),
-        lastName: z.string().min(1, 'Last name is required'),
+        lastName: z.string().optional().or(z.literal('')),
         email: z.string().email('Invalid email').optional().or(z.literal('')),
         phone: z.string().optional(),
         whatsappNumber: z.string().optional(),

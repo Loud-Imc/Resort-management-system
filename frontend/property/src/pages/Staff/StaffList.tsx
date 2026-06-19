@@ -94,7 +94,7 @@ export default function StaffList() {
 
     const handleAddStaff = async () => {
         if (!propertyId || (!selectedUser && !isCreatingNew)) return;
-        if (isCreatingNew && (!newUser.firstName || !newUser.lastName || !newUser.email)) {
+        if (isCreatingNew && (!newUser.firstName || !newUser.email)) {
             toast.error('Please fill in all required fields');
             return;
         }
