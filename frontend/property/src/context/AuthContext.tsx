@@ -46,6 +46,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const login = async (credentials: LoginCredentials) => {
         const { data } = await api.post<AuthResponse>('/auth/login', credentials);
+
+        // Portal guard — block accounts that have no property-related role at all.
+        // Allowed: SuperAdmin, Admin (impersonation), PropertyOwner, Staff, Marketing.
+        // Blocked: pure ChannelPartner or pure Customer accounts.
+        const roles: string[] = data.user.roles?.length
+            ? data.user.roles
+            : (data.user.role ? [data.user.role] : []);
+
+        const normalised = roles.map((r: string) => r.toLowerCase());
+        const PROPERTY_BLOCKED_ONLY = ['channelpartner', 'customer'];
+        const isBlockedOnly = normalised.every(r => PROPERTY_BLOCKED_ONLY.includes(r));
+
+        if (isBlockedOnly) {
+            throw new Error('Access denied. This portal is for Property Owners and Staff only.');
+        }
+
         localStorage.setItem('property_token', data.accessToken);
         localStorage.setItem('property_user', JSON.stringify(data.user));
         setUser(data.user);

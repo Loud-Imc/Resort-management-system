@@ -36,7 +36,7 @@ function parseLoginError(err: any): { message: string; field: ErrorField } {
 }
 
 export default function Login() {
-    const { login, logout } = useAuth();
+    const { login } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -82,23 +82,6 @@ export default function Login() {
         setErrorField(null);
         try {
             await login({ email, password });
-
-            // Post-login check for portal access (Property-related roles)
-            const storedUser = localStorage.getItem('property_user');
-            if (storedUser) {
-                const user = JSON.parse(storedUser);
-                const rawRoles = user.roles || [];
-                const roles = (rawRoles.length > 0 ? rawRoles : [user.role || '']).map((r: string) => r.toLowerCase());
-
-                const isSuperAdmin = roles.includes('superadmin');
-                const isRestrictedPortal = roles.every((r: string) => ['channelpartner', 'customer'].includes(r));
-
-                if (!isSuperAdmin && isRestrictedPortal) {
-                    logout();
-                    throw new Error('Access denied. This portal is for Property Owners and Staff only.');
-                }
-            }
-
             toast.success('Welcome back!');
             navigate('/');
         } catch (error: any) {

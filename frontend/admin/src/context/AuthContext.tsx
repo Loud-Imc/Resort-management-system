@@ -31,6 +31,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const login = async (credentials: LoginCredentials) => {
         try {
             const { data } = await api.post<AuthResponse>('/auth/login', credentials);
+
+            // Portal guard — only SuperAdmin or Admin may access the admin portal
+            const roles: string[] = data.user.roles || (data.user.role ? [data.user.role] : []);
+            const ADMIN_ROLES = ['SuperAdmin', 'Admin'];
+            const hasAccess = roles.some(r => ADMIN_ROLES.includes(r));
+            if (!hasAccess) {
+                throw new Error('Access denied. This portal is for Administrators only.');
+            }
+
             localStorage.setItem('token', data.accessToken);
             localStorage.setItem('user', JSON.stringify(data.user));
             setUser(data.user);

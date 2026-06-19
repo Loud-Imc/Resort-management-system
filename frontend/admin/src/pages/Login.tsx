@@ -37,7 +37,7 @@ function parseLoginError(err: any): { message: string; field: ErrorField } {
     if (lower.includes('otp')) {
         return { message: 'This account uses OTP login. Password login is not available.', field: 'general' };
     }
-    if (lower.includes('not registered') || lower.includes('access denied') || lower.includes('administrative')) {
+    if (lower.includes('not registered') || lower.includes('access denied') || lower.includes('administrator')) {
         return { message: 'This account does not have administrator access.', field: 'general' };
     }
     return { message: msg, field: 'general' };

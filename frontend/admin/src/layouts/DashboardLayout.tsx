@@ -56,6 +56,14 @@ export default function DashboardLayout() {
         return <Navigate to="/login" replace />;
     }
 
+    // Portal role guard — belt-and-suspenders check on every render
+    const sessionRoles: string[] = user?.roles || (user?.role ? [user.role as string] : []);
+    const hasAdminAccess = sessionRoles.some(r => ['SuperAdmin', 'Admin'].includes(r));
+    if (!hasAdminAccess) {
+        logout();
+        return <Navigate to="/login" replace />;
+    }
+
     const handleLogout = () => {
         logout();
         navigate('/login');

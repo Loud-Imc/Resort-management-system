@@ -65,6 +65,18 @@ export default function DashboardLayout() {
         return <Navigate to="/login" replace />;
     }
 
+    // Portal role guard — belt-and-suspenders check on every render.
+    // Admin/SuperAdmin are explicitly allowed here to support the impersonation flow
+    // from the admin portal (they enter carrying their own token + Admin role).
+    const sessionRoles: string[] = user?.roles || (user?.role ? [user.role as string] : []);
+    const normalisedRoles = sessionRoles.map(r => r.toLowerCase());
+    const PROPERTY_BLOCKED_ONLY = ['channelpartner', 'customer'];
+    const isBlockedOnly = normalisedRoles.length > 0 && normalisedRoles.every(r => PROPERTY_BLOCKED_ONLY.includes(r));
+    if (isBlockedOnly) {
+        logout();
+        return <Navigate to="/login" replace />;
+    }
+
     const handleLogout = () => {
         logout();
         navigate('/login');
