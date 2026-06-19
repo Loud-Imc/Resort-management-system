@@ -16,7 +16,7 @@ export type BookingStatus = typeof BookingStatus[keyof typeof BookingStatus];
 export interface BookingGuest {
     id: string;
     firstName: string;
-    lastName: string;
+    lastName?: string;
     email?: string;
     phone?: string;
     age?: number;
@@ -66,6 +66,7 @@ export interface Booking {
     channelPartner?: {
         id: string;
         name: string;
+        accountHolderName?: string;
         referralCode: string;
     };
     room: {

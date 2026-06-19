@@ -402,8 +402,8 @@ const InlineBookingPage: React.FC = () => {
             return;
         }
 
-        if (guests.length === 0 || !guests[0].firstName || !guests[0].lastName) {
-            setError('Primary guest details (First Name and Last Name) are required at minimum.');
+        if (guests.length === 0 || !guests[0].firstName) {
+            setError('Primary guest details (First Name) are required at minimum.');
             return;
         }
         setIsSubmitting(true);
@@ -422,7 +422,7 @@ const InlineBookingPage: React.FC = () => {
                 groupSize: isGroupBooking ? (adults + children) : undefined,
                 guests: guests.map(g => ({
                     firstName: g.firstName,
-                    lastName: g.lastName || '-',
+                    lastName: g.lastName || undefined,
                     email: g.email || undefined,
                     phone: g.phone || undefined,
                     idType: g.idType || undefined,

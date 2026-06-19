@@ -74,21 +74,29 @@ export class PdfService {
   }
 
   private getExternalLogoBase64(logoUrl: string): string | null {
+    this.logger.log(`[getExternalLogoBase64] Called with: ${logoUrl}`);
     if (!logoUrl) return null;
     
     // Extract filename from URL
     const urlParts = logoUrl.split('/');
     const filename = urlParts[urlParts.length - 1];
+    this.logger.log(`[getExternalLogoBase64] Extracted filename: ${filename}`);
     
     // Safety check against path traversal
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      this.logger.log(`[getExternalLogoBase64] Path traversal check failed`);
       return null;
     }
     
     const localPath = path.join(process.cwd(), 'uploads', filename);
-    if (fs.existsSync(localPath)) {
+    this.logger.log(`[getExternalLogoBase64] localPath: ${localPath}`);
+    const exists = fs.existsSync(localPath);
+    this.logger.log(`[getExternalLogoBase64] File exists on disk: ${exists}`);
+    if (exists) {
       try {
-        return fs.readFileSync(localPath).toString('base64');
+        const base64 = fs.readFileSync(localPath).toString('base64');
+        this.logger.log(`[getExternalLogoBase64] Successfully read base64, length: ${base64.length}`);
+        return base64;
       } catch (e) {
         this.logger.error(`Error reading agency logo at ${localPath}: ${e.message}`);
       }
@@ -152,25 +160,37 @@ export class PdfService {
               width: '*',
               stack: (() => {
                 const cpLogoUrl = booking.channelPartner?.logo;
+                this.logger.log(`[generateBookingConfirmation] cpLogoUrl from booking: ${cpLogoUrl}`);
+                this.logger.log(`[generateBookingConfirmation] booking.channelPartner: ${JSON.stringify(booking.channelPartner ? { id: booking.channelPartner.id, logo: booking.channelPartner.logo } : null)}`);
                 const cpLogoBase64 = cpLogoUrl ? this.getExternalLogoBase64(cpLogoUrl) : null;
                 const routeGuideLogoBase64 = this.getLogoBase64();
 
-                if (isPartner && cpLogoBase64) {
+                if (cpLogoBase64) {
                     return [
                         {
-                            image: `data:image/png;base64,${cpLogoBase64}`,
-                            width: 120,
-                            margin: [0, 0, 0, 5]
-                        },
-                        {
-                            text: 'Provided by',
-                            fontSize: 8,
-                            color: '#64748b',
-                            margin: [0, 0, 0, 3]
-                        },
-                        routeGuideLogoBase64 
-                          ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 70 }
-                          : { text: 'Route Guide', style: 'brandLogo', fontSize: 12 }
+                            columns: [
+                                {
+                                    image: `data:image/png;base64,${cpLogoBase64}`,
+                                    width: 90,
+                                    margin: [0, 0, 0, 0]
+                                },
+                                {
+                                    width: 'auto',
+                                    stack: [
+                                        {
+                                            text: 'Provided by',
+                                            fontSize: 6.5,
+                                            color: '#64748b',
+                                            margin: [0, 0, 0, 1]
+                                        },
+                                        routeGuideLogoBase64 
+                                          ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 38 }
+                                          : { text: 'Route Guide', style: 'brandLogo', fontSize: 8 }
+                                    ],
+                                    margin: [12, 45, 0, 0]
+                                }
+                            ]
+                        }
                     ];
                 } else {
                     return [

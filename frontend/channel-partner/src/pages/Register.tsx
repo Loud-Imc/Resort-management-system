@@ -214,7 +214,7 @@ const Register: React.FC = () => {
 
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>Last Name</label>
-                                <input name="lastName" placeholder="Doe" value={formData.lastName} onChange={handleChange} required style={inputStyle} className="glass-pane-hover" />
+                                <input name="lastName" placeholder="Doe" value={formData.lastName} onChange={handleChange} style={inputStyle} className="glass-pane-hover" />
                             </div>
 
                             <div style={{ gridColumn: 'span 2' }}>

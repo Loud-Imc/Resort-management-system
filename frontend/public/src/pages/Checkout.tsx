@@ -29,7 +29,7 @@ const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string;
 
 const userSchema = z.object({
     firstName: z.string().min(2, 'First name is required'),
-    lastName: z.string().min(2, 'Last name is required'),
+    lastName: z.string().optional().or(z.literal('')),
     email: z.string().email('Invalid email address'),
     phone: z.string().min(10, 'Valid phone number is required'),
     whatsappNumber: z.string().optional(),

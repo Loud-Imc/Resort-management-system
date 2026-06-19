@@ -1105,7 +1105,7 @@ async getStats(userId: string) {
         const {
             firstName, lastName, email, phone, password,
             bankName, accountHolderName, accountNumber, ifscCode, upiId,
-            notificationPrefs
+            notificationPrefs, logo
         } = dto;
 
         // 1. Update User Record if personal info provided
@@ -1144,6 +1144,7 @@ async getStats(userId: string) {
         if (ifscCode !== undefined) cpUpdateData.ifscCode = ifscCode;
         if (upiId !== undefined) cpUpdateData.upiId = upiId;
         if (notificationPrefs !== undefined) cpUpdateData.notificationPrefs = notificationPrefs;
+        if (logo !== undefined) cpUpdateData.logo = logo;
 
         if (Object.keys(cpUpdateData).length > 0) {
             await this.prisma.channelPartner.update({

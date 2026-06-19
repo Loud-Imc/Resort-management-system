@@ -14,7 +14,7 @@ export type BookingStatus = typeof BookingStatus[keyof typeof BookingStatus];
 export interface BookingGuest {
     id: string;
     firstName: string;
-    lastName: string;
+    lastName?: string;
     email?: string;
     phone?: string;
     age?: number;
@@ -77,7 +77,7 @@ export interface CreateBookingDto {
     roomTypeId: string;
     guests: {
         firstName: string;
-        lastName: string;
+        lastName?: string;
         email?: string;
         phone?: string;
         age?: number;

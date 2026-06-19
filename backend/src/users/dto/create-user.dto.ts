@@ -17,10 +17,10 @@ export class CreateUserDto {
     @IsNotEmpty()
     firstName: string;
 
-    @ApiProperty()
+    @ApiProperty({ required: false })
     @IsString()
-    @IsNotEmpty()
-    lastName: string;
+    @IsOptional()
+    lastName?: string;
 
     @ApiProperty({ required: false })
     @IsString()

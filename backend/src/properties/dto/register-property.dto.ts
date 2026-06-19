@@ -17,8 +17,8 @@ export class RegisterPropertyDto {
     ownerFirstName: string;
 
     @IsString()
-    @IsNotEmpty()
-    ownerLastName: string;
+    @IsOptional()
+    ownerLastName?: string;
 
     @IsString()
     @IsNotEmpty()

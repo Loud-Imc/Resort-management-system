@@ -252,6 +252,25 @@ export default function DashboardHome() {
                 </button>
             </div>
 
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                    { label: 'New Booking', icon: Plus, path: '/bookings/create', color: 'bg-blue-600 hover:bg-blue-700 text-white' },
+                    { label: 'View Bookings', icon: Calendar, path: '/bookings', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
+                    { label: 'Manage Rooms', icon: BedDouble, path: '/rooms', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
+                    { label: 'My Property', icon: TrendingUp, path: '/my-property', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
+                ].map((action) => (
+                    <button
+                        key={action.label}
+                        onClick={() => navigate(action.path)}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${action.color}`}
+                    >
+                        <action.icon className="h-4 w-4" />
+                        {action.label}
+                    </button>
+                ))}
+            </div>
+
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div
@@ -454,24 +473,6 @@ export default function DashboardHome() {
                 </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                    { label: 'New Booking', icon: Plus, path: '/bookings/create', color: 'bg-blue-600 hover:bg-blue-700 text-white' },
-                    { label: 'View Bookings', icon: Calendar, path: '/bookings', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
-                    { label: 'Manage Rooms', icon: BedDouble, path: '/rooms', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
-                    { label: 'My Property', icon: TrendingUp, path: '/my-property', color: 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700' },
-                ].map((action) => (
-                    <button
-                        key={action.label}
-                        onClick={() => navigate(action.path)}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${action.color}`}
-                    >
-                        <action.icon className="h-4 w-4" />
-                        {action.label}
-                    </button>
-                ))}
-            </div>
 
             {/* Guest Details Modal */}
             <GuestDetailsModal

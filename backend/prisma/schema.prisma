@@ -309,7 +309,7 @@ model Booking {
 model BookingGuest {
   id             String   @id @default(uuid())
   firstName      String
-  lastName       String
+  lastName       String?
   email          String?
   phone          String?
   age            Int?

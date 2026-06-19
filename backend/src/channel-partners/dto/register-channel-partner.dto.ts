@@ -16,8 +16,8 @@ export class RegisterChannelPartnerDto {
     firstName: string;
 
     @IsString()
-    @IsNotEmpty()
-    lastName: string;
+    @IsOptional()
+    lastName?: string;
 
     @IsString()
     @IsNotEmpty()

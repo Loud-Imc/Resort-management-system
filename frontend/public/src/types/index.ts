@@ -66,7 +66,7 @@ export interface AvailabilityResponse {
 
 export interface GuestInfo {
     firstName: string;
-    lastName: string;
+    lastName?: string;
     email?: string;
     phone?: string;
     whatsappNumber?: string;
