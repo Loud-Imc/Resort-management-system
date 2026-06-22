@@ -9,18 +9,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
 import Login from './pages/Login';
 
-// Bookings
-import BookingsList from './pages/Bookings/BookingsList';
-import CreateBooking from './pages/Bookings/CreateBooking';
 
-// Rooms
-import RoomsList from './pages/Rooms/RoomsList';
-import CreateRoom from './pages/Rooms/CreateRoom';
-import EditRoom from './pages/Rooms/EditRoom';
-
-// Room Types
-import RoomTypesList from './pages/RoomTypes/RoomTypesList';
-import CreateRoomType from './pages/RoomTypes/CreateRoomType';
 
 // Users (Staff)
 import UsersList from './pages/Users/UsersList';
@@ -30,20 +19,10 @@ import CreateUser from './pages/Users/CreateUser';
 import RolesList from './pages/Roles/RolesList';
 import ProcessRole from './pages/Roles/ProcessRole';
 
-// Guests
-import GuestsList from './pages/Guests/GuestsList';
-import GuestDetails from './pages/Guests/GuestDetails';
 
-// Payments
-// Payments
-import PaymentsList from './pages/Payments/PaymentsList';
-
-// Booking Sources
-import BookingSourcesList from './pages/BookingSources/BookingSourcesList';
 
 // Financials
 import {
-  Financials,
   SettlementsList,
   RedemptionsList,
   AdjustmentRequestsList,
@@ -56,7 +35,6 @@ import Reports from './pages/Reports/Reports';
 
 // Properties
 import { PropertiesList, PropertyForm, PropertyRequestsList } from './pages/Properties';
-import StaffList from './pages/Properties/StaffList';
 
 // Channel Partners
 import { CPList } from './pages/ChannelPartners';
@@ -98,20 +76,7 @@ function App() {
                   <Route path="/" element={<DashboardLayout />}>
                     <Route index element={<DashboardHome />} />
 
-                    {/* Main Booking Management */}
-                    <Route path="bookings" element={<BookingsList />} />
-                    <Route path="bookings/create" element={<CreateBooking />} />
-                    <Route path="booking-sources" element={<BookingSourcesList />} />
 
-                    {/* Room Management */}
-                    <Route path="rooms" element={<RoomsList />} />
-                    <Route path="rooms/create" element={<CreateRoom />} />
-                    <Route path="rooms/edit/:id" element={<EditRoom />} />
-
-                    {/* Room Type Management */}
-                    <Route path="room-types" element={<RoomTypesList />} />
-                    <Route path="room-types/create" element={<CreateRoomType />} />
-                    <Route path="room-types/edit/:id" element={<CreateRoomType />} />
 
                     {/* User/Staff Management */}
                     <Route path="users" element={<UsersList />} />
@@ -123,18 +88,14 @@ function App() {
                     <Route path="roles/create" element={<ProcessRole />} />
                     <Route path="roles/edit/:id" element={<ProcessRole />} />
 
-                    {/* Guest Management */}
-                    <Route path="guests" element={<GuestsList />} />
-                    <Route path="guests/:id" element={<GuestDetails />} />
+
 
                     {/* Financials & Reports */}
-                    <Route path="financials" element={<Financials />} />
                     <Route path="financials/settlements" element={<SettlementsList />} />
                     <Route path="financials/redemptions" element={<RedemptionsList />} />
                     <Route path="financials/adjustments" element={<AdjustmentRequestsList />} />
                     <Route path="financials/refunds" element={<RefundRequestsList />} />
                     <Route path="financials/reconciliation" element={<ReconciliationPage />} />
-                    <Route path="payments" element={<PaymentsList />} />
                     <Route path="reports" element={<Reports />} />
 
                     {/* Property Management */}
@@ -143,7 +104,7 @@ function App() {
                     <Route path="properties/new" element={<PropertyForm />} />
                     <Route path="properties/:id" element={<PropertyForm />} />
                     <Route path="properties/:id/edit" element={<PropertyForm />} />
-                    <Route path="properties/:id/staff" element={<StaffList />} />
+
                     <Route path="property-categories" element={<CategoryList />} />
 
                     {/* Channel Partners */}
