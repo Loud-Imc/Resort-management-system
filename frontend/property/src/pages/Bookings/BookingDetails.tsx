@@ -218,6 +218,53 @@ const BookingDetails = () => {
                         </div>
                     </div>
 
+                    {/* Guests List */}
+                    <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 shadow-sm">
+                        <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-8 flex items-center gap-3">
+                            <User className="h-4 w-4 text-primary" />
+                            Registered Guests
+                        </h3>
+                        <div className="space-y-4">
+                            {/* Primary Booker */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-primary/5 rounded-3xl border border-primary/20">
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-black text-primary uppercase tracking-widest">Primary Booker</span>
+                                    <p className="text-sm font-black text-foreground">{booking.user?.firstName} {booking.user?.lastName}</p>
+                                </div>
+                                <div className="space-y-1 flex items-center gap-2">
+                                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <p className="text-[11px] font-bold text-muted-foreground break-all">{booking.user?.email || 'N/A'}</p>
+                                </div>
+                                <div className="space-y-1 flex items-center gap-2">
+                                    <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <p className="text-[11px] font-bold text-muted-foreground">{booking.user?.phone || 'N/A'}</p>
+                                </div>
+                            </div>
+
+                            {/* Other Registered Guests */}
+                            {booking.guests?.filter((guest: any) => {
+                                const samePhone = guest.phone && guest.phone === booking.user?.phone;
+                                const sameName = guest.firstName === booking.user?.firstName && guest.lastName === booking.user?.lastName;
+                                return !(samePhone || sameName);
+                            }).map((guest: any, idx: number) => (
+                                <div key={guest.id} className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-muted/20 rounded-3xl border border-border/50">
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Guest {idx + 1}</span>
+                                        <p className="text-sm font-black text-foreground">{guest.firstName} {guest.lastName}</p>
+                                    </div>
+                                    <div className="space-y-1 flex items-center gap-2">
+                                        <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <p className="text-[11px] font-bold text-muted-foreground">{guest.idType || 'ID'}: {guest.idNumber || 'Not verified'}</p>
+                                    </div>
+                                    <div className="space-y-1 flex items-center gap-2">
+                                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <p className="text-[11px] font-bold text-muted-foreground">{guest.phone || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* Accommodation Card */}
                     <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 shadow-sm">
                         <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-8 flex items-center gap-3">
@@ -283,53 +330,6 @@ const BookingDetails = () => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Guests List */}
-                    <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 shadow-sm">
-                        <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-8 flex items-center gap-3">
-                            <User className="h-4 w-4 text-primary" />
-                            Registered Guests
-                        </h3>
-                        <div className="space-y-4">
-                            {/* Primary Booker */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-primary/5 rounded-3xl border border-primary/20">
-                                <div className="space-y-1">
-                                    <span className="text-[9px] font-black text-primary uppercase tracking-widest">Primary Booker</span>
-                                    <p className="text-sm font-black text-foreground">{booking.user?.firstName} {booking.user?.lastName}</p>
-                                </div>
-                                <div className="space-y-1 flex items-center gap-2">
-                                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                                    <p className="text-[11px] font-bold text-muted-foreground break-all">{booking.user?.email || 'N/A'}</p>
-                                </div>
-                                <div className="space-y-1 flex items-center gap-2">
-                                    <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                    <p className="text-[11px] font-bold text-muted-foreground">{booking.user?.phone || 'N/A'}</p>
-                                </div>
-                            </div>
-
-                            {/* Other Registered Guests */}
-                            {booking.guests?.filter((guest: any) => {
-                                const samePhone = guest.phone && guest.phone === booking.user?.phone;
-                                const sameName = guest.firstName === booking.user?.firstName && guest.lastName === booking.user?.lastName;
-                                return !(samePhone || sameName);
-                            }).map((guest: any, idx: number) => (
-                                <div key={guest.id} className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-muted/20 rounded-3xl border border-border/50">
-                                    <div className="space-y-1">
-                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Guest {idx + 1}</span>
-                                        <p className="text-sm font-black text-foreground">{guest.firstName} {guest.lastName}</p>
-                                    </div>
-                                    <div className="space-y-1 flex items-center gap-2">
-                                        <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <p className="text-[11px] font-bold text-muted-foreground">{guest.idType || 'ID'}: {guest.idNumber || 'Not verified'}</p>
-                                    </div>
-                                    <div className="space-y-1 flex items-center gap-2">
-                                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <p className="text-[11px] font-bold text-muted-foreground">{guest.phone || 'N/A'}</p>
-                                    </div>
-                                </div>
-                            ))}
                         </div>
                     </div>
                 </div>
