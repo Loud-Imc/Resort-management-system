@@ -47,7 +47,7 @@ const PROPERTY_TABS = [
     { id: 'reports', label: 'Reports', prefix: ['reports.viewOccupancy'] },
     { id: 'calendar-sync', label: 'Calendar Sync', prefix: ['settings'] },
     { id: 'my-property', label: 'My Property', prefix: ['properties'] },
-    { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] },
+    // { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] },
 ];
 
 const getPermissionTabId = (permName: string) => {

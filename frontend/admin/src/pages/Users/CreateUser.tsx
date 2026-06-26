@@ -3,10 +3,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { usersService } from '../../services/users';
 import { rolesService } from '../../services/roles';
-import staffService from '../../services/staff';
 import { Loader2, ArrowLeft, Save, Eye, EyeOff, User, Mail, Phone, Lock, Shield, Activity, Percent, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Role, User as UserType } from '../../types/user';
@@ -32,9 +31,6 @@ type UserFormInput = z.input<typeof userSchema>;
 export default function CreateUser() {
     const navigate = useNavigate();
     const { id } = useParams();
-    const [searchParams] = useSearchParams();
-    const propertyId = searchParams.get('propertyId');
-    const defaultRole = searchParams.get('role');
 
     const isEditMode = !!id;
     const queryClient = useQueryClient();
@@ -102,22 +98,8 @@ export default function CreateUser() {
             }
             return usersService.create(data);
         },
-        onSuccess: async (newUser: UserType) => {
+        onSuccess: async () => {
             toast.success(`User ${isEditMode ? 'updated' : 'created'} successfully`);
-
-            // If we came from a property staff management page, auto-link the user
-            if (!isEditMode && propertyId && defaultRole) {
-                try {
-                    await staffService.addStaff(propertyId, newUser.id, defaultRole);
-                    toast.success(`Assigned as ${defaultRole} to property`);
-                    navigate(`/properties/${propertyId}/staff`);
-                    return;
-                } catch (err) {
-                    console.error('Failed to auto-link staff:', err);
-                    toast.error('User created, but failed to link to property automatically');
-                }
-            }
-
             queryClient.invalidateQueries({ queryKey: ['users'] });
             navigate('/users');
         },
