@@ -587,6 +587,14 @@ export default function BookingsList() {
                                                     </span>
                                                 </div>
                                             )}
+                                            {/* Historical badge */}
+                                            {booking.isHistoricalEntry && (
+                                                <div className="mt-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-gray-500/10 text-gray-600 dark:text-gray-400 border border-gray-500/20 uppercase tracking-wider">
+                                                        🕰️ Historical
+                                                    </span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-foreground">

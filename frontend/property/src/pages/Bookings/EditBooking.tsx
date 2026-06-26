@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { bookingsService } from '../../services/bookings';
 import { uploadService } from '../../services/uploads';
 import { Loader2, ArrowLeft, Users, Save, Camera, Eye, AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
 import type { Booking } from '../../types/booking';
 
 const editBookingSchema = z.object({
@@ -20,6 +21,8 @@ const editBookingSchema = z.object({
     overrideTotal: z.number().optional(),
     roomId: z.string().optional(),
     selectedRoomIds: z.array(z.string()).optional(),
+    checkInDate: z.string().optional(),
+    checkOutDate: z.string().optional(),
     guests: z.array(z.object({
         id: z.string().optional(),
         firstName: z.string().min(1, 'First name is required'),
@@ -76,6 +79,8 @@ export default function EditBooking() {
                 whatsappNumber: (booking as any).whatsappNumber || '',
                 specialRequests: (booking as any).specialRequests || '',
                 gstNumber: (booking as any).gstNumber || '',
+                checkInDate: booking.checkInDate ? format(new Date(booking.checkInDate), 'yyyy-MM-dd') : '',
+                checkOutDate: booking.checkOutDate ? format(new Date(booking.checkOutDate), 'yyyy-MM-dd') : '',
                 guests: (booking as any).guests?.map((g: any) => ({
                     id: g.id,
                     firstName: g.firstName,
@@ -159,6 +164,22 @@ export default function EditBooking() {
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 gap-6">
+                    {/* Historical Dates Block */}
+                    {booking.isHistoricalEntry && (
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
+                            <h2 className="text-sm font-black uppercase tracking-widest text-blue-600 mb-4">Historical Dates</h2>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Check-in Date</label>
+                                    <input type="date" {...register('checkInDate')} className="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-12 font-bold" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Check-out Date</label>
+                                    <input type="date" {...register('checkOutDate')} className="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl shadow-sm h-12 font-bold" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {/* Guest Contact */}
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
                         <h2 className="text-sm font-black uppercase tracking-widest text-blue-600 mb-4">Contact Information</h2>

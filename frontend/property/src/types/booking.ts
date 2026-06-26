@@ -127,6 +127,7 @@ export interface Booking {
     createdAt: string;
     isPriceOverridden?: boolean;
     overrideReason?: string;
+    isHistoricalEntry?: boolean;
 }
 
 export interface CreateBookingDto {
