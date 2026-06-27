@@ -356,13 +356,14 @@ export class BookingsController {
         @Request() req: any,
         @Res() res: any,
     ) {
-        // Enforce permissions: Only CP, Admin, or Property Staff can access partner invoices
+        // Enforce permissions: Check if user has permission to read bookings
         if (type === 'PARTNER') {
             const user = req.user;
-            const roles = user.roles || [];
-            const isAuthorized = roles.some((r: string) =>
+            const hasPermission = user.permissions?.includes(PERMISSIONS.BOOKINGS.READ);
+            const isAuthorized = user.roles?.some((r: string) =>
                 ['SuperAdmin', 'Admin', 'ChannelPartner', 'PropertyOwner', 'PropertyStaff'].includes(r)
-            );
+            ) || hasPermission;
+            
             if (!isAuthorized) {
                 throw new ForbiddenException('You are not authorized to view partner invoices');
             }
