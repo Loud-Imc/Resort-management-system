@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { bookingsService } from '../../services/bookings';
 import {
     ChevronLeft,
@@ -29,6 +29,7 @@ import type { Booking } from '../../types/booking';
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [isDownloading, setIsDownloading] = useState(false);
 
     const { data: booking, isLoading, error } = useQuery({
@@ -38,6 +39,26 @@ const BookingDetails = () => {
     }) as { data: Booking | undefined, isLoading: boolean, error: any };
 
     const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
+
+    const checkInMutation = useMutation({
+        mutationFn: (bookingId: string) => bookingsService.checkIn({ id: bookingId, data: { guestVerification: [] } }),
+        onSuccess: () => {
+            toast.success('Guest checked in successfully');
+            queryClient.invalidateQueries({ queryKey: ['booking', id] });
+        },
+        onError: (err: any) => {
+            toast.error(err.response?.data?.message || 'Failed to check-in');
+        },
+    });
+
+    const checkOutMutation = useMutation({
+        mutationFn: (bookingId: string) => bookingsService.checkOut({ id: bookingId, data: {} }),
+        onSuccess: () => {
+            toast.success('Guest checked out successfully');
+            queryClient.invalidateQueries({ queryKey: ['booking', id] });
+        },
+        onError: () => toast.error('Failed to check-out'),
+    });
 
     if (isLoading) {
         return (
@@ -143,6 +164,34 @@ const BookingDetails = () => {
                         {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                         Download Invoice
                     </button>
+                    {['CONFIRMED', 'RESERVED'].includes(booking.status) && (
+                        <button
+                            onClick={() => {
+                                if (window.confirm("Are you sure you want to check-in this guest?")) {
+                                    checkInMutation.mutate(booking.id);
+                                }
+                            }}
+                            disabled={checkInMutation.isPending}
+                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                        >
+                            {checkInMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                            Check In
+                        </button>
+                    )}
+                    {booking.status === 'CHECKED_IN' && (
+                        <button
+                            onClick={() => {
+                                if (window.confirm("Are you sure you want to check-out this guest?")) {
+                                    checkOutMutation.mutate(booking.id);
+                                }
+                            }}
+                            disabled={checkOutMutation.isPending}
+                            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white hover:shadow-xl hover:shadow-red-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                        >
+                            {checkOutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                            Check Out
+                        </button>
+                    )}
                     {['CONFIRMED', 'RESERVED', 'NO_SHOW'].includes(booking.status) && (
                         <button
                             onClick={() => navigate(`/bookings/${booking.id}/reschedule`)}

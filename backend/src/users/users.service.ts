@@ -10,13 +10,15 @@ import * as bcrypt from 'bcrypt';
 import { normalizePhone } from '../common/utils/phone';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PdfService } from '../pdf/pdf.service';
 
 @Injectable()
 export class UsersService {
     constructor(
         private prisma: PrismaService,
         private mailService: MailService,
-        private notificationsService: NotificationsService
+        private notificationsService: NotificationsService,
+        private pdfService: PdfService
     ) { }
 
     async create(createUserDto: CreateUserDto & { roleIds?: string[] }) {
@@ -325,7 +327,7 @@ export class UsersService {
             updateData.password = await bcrypt.hash(password, 10);
         }
 
-        return this.prisma.user.update({
+        const updatedUser = await this.prisma.user.update({
             where: { id },
             data: {
                 ...updateData,
@@ -342,6 +344,12 @@ export class UsersService {
                 }
             }
         });
+
+        if (roleIds) {
+            this.notificationsService.sendUserEvent(id, 'PERMISSIONS_UPDATED', { message: 'Your permissions have been updated' });
+        }
+
+        return updatedUser;
     }
 
     async findAll(user: any, params?: { propertyId?: string, isStaffOnly?: string, search?: string }) {
@@ -1020,6 +1028,49 @@ export class UsersService {
         });
 
         return { message: 'Account deleted successfully' };
+    }
+
+    async generateAllGuestsReportPdf(reqUser: any, userIds: string[]): Promise<Buffer> {
+        // Fetch only the requested users
+        const users = await this.prisma.user.findMany({
+            where: {
+                id: { in: userIds }
+            },
+            include: {
+                roles: {
+                    include: { role: true }
+                },
+                bookings: {
+                    include: {
+                        roomType: true,
+                        property: true
+                    }
+                }
+            }
+        });
+        
+        // Ensure that these are considered "customers" based on the frontend logic
+        const customers = users.filter((u: any) => u.roles?.some((r: any) => r.role?.name === 'Customer'));
+        
+        return this.pdfService.generateAllGuestsReport(customers);
+    }
+
+    async generateIndividualGuestReportPdf(userId: string, reqUser: any, query: { startDate?: string; endDate?: string }): Promise<Buffer> {
+        const user = await this.findOne(userId, reqUser);
+        
+        let filteredBookings = user.bookings || [];
+        if (query.startDate) {
+            const start = new Date(query.startDate);
+            start.setHours(0, 0, 0, 0);
+            filteredBookings = filteredBookings.filter((b: any) => new Date(b.checkInDate) >= start);
+        }
+        if (query.endDate) {
+            const end = new Date(query.endDate);
+            end.setHours(23, 59, 59, 999);
+            filteredBookings = filteredBookings.filter((b: any) => new Date(b.checkInDate) <= end);
+        }
+
+        return this.pdfService.generateIndividualGuestReport(user, filteredBookings, query.startDate, query.endDate);
     }
 }
 

@@ -73,11 +73,13 @@ async function main() {
     for (const permissionName of allPermissions) {
         await prisma.permission.upsert({
             where: { name: permissionName },
-            update: {},
+            update: {
+                description: permissionName,
+            },
             create: {
                 name: permissionName,
                 module: permissionName.split('.')[0],
-                description: `Permission for ${permissionName}`,
+                description: permissionName,
             },
         });
     }

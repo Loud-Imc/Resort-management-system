@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersService } from '../../services/users';
 import type { User } from '../../types/user';
-import { Loader2, ArrowLeft, Mail, Phone, Calendar, ShieldCheck, Shield } from 'lucide-react';
-import { format, differenceInCalendarDays } from 'date-fns';
+import { Loader2, ArrowLeft, Mail, Phone, Calendar, ShieldCheck, Shield, Download } from 'lucide-react';
+import { format, differenceInCalendarDays, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 
 export default function GuestDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
+
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     const { data: user, isLoading } = useQuery<User>({
         queryKey: ['user', id],
@@ -27,8 +31,15 @@ export default function GuestDetails() {
         </div>
     );
 
-    const totalBookings = user.bookings?.length || 0;
-    const totalSpent = user.bookings?.reduce((acc: number, booking: any) => acc + Number(booking.totalAmount), 0) || 0;
+    const filteredBookings = user.bookings?.filter((booking: any) => {
+        const checkIn = new Date(booking.checkInDate);
+        if (startDate && isBefore(checkIn, startOfDay(new Date(startDate)))) return false;
+        if (endDate && isAfter(checkIn, endOfDay(new Date(endDate)))) return false;
+        return true;
+    }) || [];
+
+    const totalBookings = filteredBookings.length || 0;
+    const totalSpent = filteredBookings.reduce((acc: number, booking: any) => acc + Number(booking.totalAmount), 0) || 0;
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -38,6 +49,24 @@ export default function GuestDetails() {
             case 'CANCELLED': return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400';
             case 'PENDING_PAYMENT': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400';
             default: return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
+        }
+    };
+
+    const handleDownloadReport = async () => {
+        if (!user.id) return;
+        try {
+            const blob = await usersService.downloadIndividualGuestReport(user.id, {
+                startDate,
+                endDate
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Guest_${user.firstName}_${user.lastName || ''}_Report.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to download report:', error);
         }
     };
 
@@ -92,7 +121,7 @@ export default function GuestDetails() {
                         </div>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6 border border-gray-200 dark:border-gray-600 flex-shrink-0 min-w-[200px]">
-                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">Lifecycle Stats</p>
+                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">Lifecycle Stats (Filtered)</p>
                         <div className="space-y-4">
                             <div>
                                 <p className="text-2xl font-black text-gray-900 dark:text-white">{totalBookings}</p>
@@ -109,11 +138,26 @@ export default function GuestDetails() {
 
             {/* Booking History */}
             <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-blue-600" /> Booking History
-                </h3>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-blue-600" /> Booking History
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm text-sm">
+                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="border-none bg-transparent focus:ring-0 p-0 text-gray-900 dark:text-white" />
+                            <span className="text-gray-400">to</span>
+                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="border-none bg-transparent focus:ring-0 p-0 text-gray-900 dark:text-white" />
+                        </div>
+                        <button 
+                            onClick={handleDownloadReport}
+                            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-xl transition-colors shadow-sm"
+                        >
+                            <Download className="h-4 w-4" /> Download PDF
+                        </button>
+                    </div>
+                </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    {user.bookings && user.bookings.length > 0 ? (
+                    {filteredBookings && filteredBookings.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead className="bg-gray-50 dark:bg-gray-700/50">
@@ -126,7 +170,7 @@ export default function GuestDetails() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                    {user.bookings.map((booking: any) => (
+                                    {filteredBookings.map((booking: any) => (
                                         <tr key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="font-bold text-blue-600">#{booking.bookingNumber}</span>

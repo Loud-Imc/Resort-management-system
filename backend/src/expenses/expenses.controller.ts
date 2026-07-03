@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Request, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { ExpensesService } from './expenses.service';
@@ -61,6 +61,32 @@ export class ExpensesController {
             new Date(endDate),
             propertyId
         );
+    }
+
+    @Get('report/pdf')
+    @Permissions(PERMISSIONS.EXPENSES.READ)
+    @ApiOperation({ summary: 'Download expenses report as PDF' })
+    @ApiQuery({ name: 'categoryId', required: false })
+    @ApiQuery({ name: 'startDate', required: false })
+    @ApiQuery({ name: 'endDate', required: false })
+    @ApiQuery({ name: 'propertyId', required: false })
+    @ApiQuery({ name: 'search', required: false })
+    @ApiQuery({ name: 'paymentMethod', required: false })
+    @ApiQuery({ name: 'isPaid', required: false })
+    @ApiQuery({ name: 'minAmount', required: false })
+    @ApiQuery({ name: 'maxAmount', required: false })
+    async downloadPdfReport(
+        @Request() req,
+        @Query() filters: any,
+        @Res() res
+    ) {
+        const buffer = await this.expensesService.generatePdfReport(req.user, filters);
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="Expenses_Report.pdf"`,
+            'Content-Length': buffer.length,
+        });
+        res.end(buffer);
     }
 
     @Get(':id')

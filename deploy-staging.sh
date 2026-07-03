@@ -20,10 +20,13 @@ git fetch origin dev
 git reset --hard origin/dev
 NEW_COMMIT=$(git rev-parse HEAD)
 
-if [ "$OLD_COMMIT" == "initial" ] || [ "$OLD_COMMIT" == "$NEW_COMMIT" ]; then
-    echo "ℹ️ No previous commit found or no changes detected. Checking all services..."
+if [ "$OLD_COMMIT" == "initial" ]; then
+    echo "ℹ️ No previous commit found. Forcing build for all services..."
     CHANGED_FILES=""
     FORCE_BUILD=true
+elif [ "$OLD_COMMIT" == "$NEW_COMMIT" ]; then
+    echo "ℹ️ No changes detected between commits. Skipping all builds."
+    exit 0
 else
     echo "🔍 Detecting changes between $OLD_COMMIT and $NEW_COMMIT..."
     CHANGED_FILES=$(git diff --name-only $OLD_COMMIT $NEW_COMMIT)

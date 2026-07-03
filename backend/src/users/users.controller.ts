@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Patch, Request, Query, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch, Request, Query, Delete, StreamableFile } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
@@ -61,6 +61,36 @@ export class UsersController {
     @ApiOperation({ summary: 'Confirm account deletion with OTP' })
     async deleteAccountWithOtp(@Request() req, @Body() dto: DeleteAccountOtpDto) {
         return this.usersService.deleteAccountWithOtp(req.user.id, dto);
+    }
+
+    @Post('report/guests/pdf')
+    @Permissions(PERMISSIONS.USERS.READ)
+    @ApiOperation({ summary: 'Download all guests report as PDF' })
+    async downloadAllGuestsReport(
+        @Request() req,
+        @Body() body: { userIds: string[] }
+    ) {
+        const buffer = await this.usersService.generateAllGuestsReportPdf(req.user, body.userIds || []);
+        return new StreamableFile(buffer, {
+            type: 'application/pdf',
+            disposition: 'attachment; filename="guests_report.pdf"',
+        });
+    }
+
+    @Get(':id/report/pdf')
+    @Permissions(PERMISSIONS.USERS.READ)
+    @ApiOperation({ summary: 'Download individual guest report as PDF' })
+    async downloadIndividualGuestReport(
+        @Request() req,
+        @Param('id') id: string,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string
+    ) {
+        const buffer = await this.usersService.generateIndividualGuestReportPdf(id, req.user, { startDate, endDate });
+        return new StreamableFile(buffer, {
+            type: 'application/pdf',
+            disposition: 'attachment; filename="guest_report.pdf"',
+        });
     }
 
     @Get()

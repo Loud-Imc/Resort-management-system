@@ -11,7 +11,7 @@ interface SocketContextType {
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshUser } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -65,6 +65,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             duration: 6000,
             icon: '🛎️'
         });
+      });
+
+      socketInstance.on('PERMISSIONS_UPDATED', async () => {
+        toast('Your permissions have been updated by an administrator.', {
+            icon: '🔐',
+            duration: 6000,
+        });
+        if (refreshUser) {
+            await refreshUser();
+        }
       });
 
       setSocket(socketInstance);

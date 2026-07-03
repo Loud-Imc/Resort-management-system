@@ -30,4 +30,11 @@ export const expensesService = {
         const { data } = await api.post<ExpenseCategory>('/expenses/categories', dto);
         return data;
     },
+    downloadReport: async (filters: any) => {
+        const response = await api.get('/expenses/report/pdf', {
+            params: filters,
+            responseType: 'blob'
+        });
+        return response.data;
+    }
 };

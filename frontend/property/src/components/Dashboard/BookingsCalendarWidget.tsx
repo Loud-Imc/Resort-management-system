@@ -217,8 +217,9 @@ export default function BookingsCalendarWidget({
                                 cellBgClass,
                                 {
                                     // Today highlighting (applied on top as ring)
-                                    "ring-2 ring-primary/30": isTodayDate && !isSelected,
-                                    "font-bold": isTodayDate,
+                                    "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-gray-800 shadow-md": isTodayDate && !isSelected,
+                                    "font-black text-amber-600 dark:text-amber-400": isTodayDate && !isSelected,
+                                    "font-black": isTodayDate && isSelected,
                                 }
                             )}
                         >

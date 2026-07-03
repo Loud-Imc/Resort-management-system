@@ -10,12 +10,18 @@ import {
     Calendar,
     Mail,
     Phone,
-    ShieldCheck
+    ShieldCheck,
+    Download
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function GuestsList() {
     const [search, setSearch] = useState('');
+    const [idType, setIdType] = useState('all');
+    const [status, setStatus] = useState('all');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    
     const { selectedProperty } = useProperty();
 
     const { data: users, isLoading } = useQuery<User[]>({
@@ -31,9 +37,31 @@ export default function GuestsList() {
         const matchesSearch =
             (user.firstName || '').toLowerCase().includes(q) ||
             (user.lastName || '').toLowerCase().includes(q) ||
-            (user.email || '').toLowerCase().includes(q);
+            (user.email || '').toLowerCase().includes(q) ||
+            (user.phone || '').toLowerCase().includes(q);
 
-        return isCustomer && matchesSearch;
+        const matchesIdType = idType === 'all' || 
+            (idType === 'none' ? !user.idType : user.idType === idType);
+            
+        const matchesStatus = status === 'all' || 
+            (status === 'active' ? user.isActive : !user.isActive);
+
+        let matchesDate = true;
+        if (user.createdAt) {
+            const userDate = new Date(user.createdAt);
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                if (userDate < start) matchesDate = false;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                if (userDate > end) matchesDate = false;
+            }
+        }
+
+        return isCustomer && matchesSearch && matchesIdType && matchesStatus && matchesDate;
     });
 
     if (isLoading) {
@@ -44,23 +72,99 @@ export default function GuestsList() {
         );
     }
 
+    const handleDownloadReport = async () => {
+        if (!filteredUsers || filteredUsers.length === 0) return;
+        try {
+            const blob = await usersService.downloadAllGuestsReport({
+                userIds: filteredUsers.map(u => u.id)
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Guests_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to download report:', error);
+        }
+    };
+
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">Guest Management</h1>
-                <p className="text-sm text-muted-foreground mt-1">View guest profiles and booking history</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">Guest Management</h1>
+                    <p className="text-sm text-muted-foreground mt-1">View guest profiles and booking history</p>
+                </div>
+                <button 
+                    onClick={handleDownloadReport}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-xl transition-colors shadow-sm"
+                >
+                    <Download className="h-4 w-4" /> Download Report
+                </button>
             </div>
 
             <div className="bg-card p-4 rounded-xl shadow-sm border border-border">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-50" />
-                    <input
-                        type="text"
-                        placeholder="Search guests by name or email..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-                    />
+                <div className="flex flex-col gap-4">
+                    {/* Row 1: Search */}
+                    <div className="relative w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-50" />
+                        <input
+                            type="text"
+                            placeholder="Search guests..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full pl-10 px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                        />
+                    </div>
+                    
+                    {/* Row 2: ID Type & Status */}
+                    <div className="flex flex-col sm:flex-row gap-4 w-full">
+                        <select
+                            value={idType}
+                            onChange={(e) => setIdType(e.target.value)}
+                            className="px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all flex-1"
+                        >
+                            <option value="all">All ID Types</option>
+                            <option value="AADHAR">Aadhar Card</option>
+                            <option value="PASSPORT">Passport</option>
+                            <option value="DRIVING_LICENSE">Driving License</option>
+                            <option value="VOTER_ID">Voter ID</option>
+                            <option value="PAN_CARD">PAN Card</option>
+                            <option value="none">No ID Provided</option>
+                        </select>
+                        <select
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                            className="px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all flex-1"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+
+                    {/* Row 3: Date Filters */}
+                    <div className="flex flex-col sm:flex-row gap-4 w-full">
+                        <div className="flex items-center gap-2 flex-1 bg-background border border-border rounded-lg px-3 focus-within:ring-2 focus-within:ring-primary transition-all">
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">From:</span>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full py-2 bg-transparent text-foreground focus:outline-none text-sm"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 flex-1 bg-background border border-border rounded-lg px-3 focus-within:ring-2 focus-within:ring-primary transition-all">
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">To:</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full py-2 bg-transparent text-foreground focus:outline-none text-sm"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 

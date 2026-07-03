@@ -306,6 +306,9 @@ export class PdfService {
                       { text: `Group Booking of ${booking.groupSize || 0} People`, style: 'groupBookingInfo', margin: [0, 0, 0, 4] }
                     ] : []),
                     { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },
+                    ...(booking.bookingRooms && booking.bookingRooms.length > 0 ? [
+                      { text: `Room(s): ${booking.bookingRooms.map((br: any) => br.room?.roomNumber).filter(Boolean).join(', ')}`, style: 'guestCount' }
+                    ] : []),
                     { text: `${booking.numberOfNights || 0} Night(s)`, style: 'guestCount' },
                   ],
                   margin: [0, 15, 0, 0]
@@ -389,7 +392,7 @@ export class PdfService {
           columns: [
             {
               width: '*',
-              stack: [
+              stack: isCheckedIn ? [] : [
                 { text: 'IMPORTANT INFORMATION', style: 'infoTitle' },
                 {
                   ul: guestInstructions.map((instruction: string) => 
@@ -457,6 +460,270 @@ export class PdfService {
     try {
       const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
       
+      return new Promise((resolve, reject) => {
+        const chunks: any[] = [];
+        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', (err: any) => reject(err));
+        pdfDoc.end();
+      });
+    } catch (error) {
+      this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async generateExpensesReport(expenses: any[], filters: any): Promise<Buffer> {
+    const routeGuideLogoBase64 = this.getLogoBase64();
+    const totalAmount = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    const docDefinition: any = {
+      pageSize: 'A4',
+      pageMargins: [30, 40, 30, 40],
+      content: [
+        {
+          columns: [
+            routeGuideLogoBase64 
+              ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
+              : { text: 'Route Guide', style: 'brandLogo' },
+            {
+              stack: [
+                { text: 'EXPENSES REPORT', style: 'docTitle', alignment: 'right' },
+                { text: `Generated: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate', alignment: 'right' },
+                ...(filters.startDate && filters.endDate ? [{ text: `Period: ${new Date(filters.startDate).toLocaleDateString('en-IN')} to ${new Date(filters.endDate).toLocaleDateString('en-IN')}`, style: 'docDate', alignment: 'right' }] : [])
+              ]
+            }
+          ],
+          margin: [0, 0, 0, 20]
+        },
+        {
+          text: `Total Expenses: ₹${totalAmount.toLocaleString('en-IN')}`,
+          style: 'summaryHeader',
+          margin: [0, 0, 0, 15]
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['auto', '*', 'auto', 'auto', 'auto', 'auto'],
+            body: [
+              [
+                { text: 'Date', style: 'tableHeader' },
+                { text: 'Description', style: 'tableHeader' },
+                { text: 'Category', style: 'tableHeader' },
+                { text: 'Method', style: 'tableHeader' },
+                { text: 'Status', style: 'tableHeader' },
+                { text: 'Amount', style: 'tableHeader', alignment: 'right' }
+              ],
+              ...expenses.map(e => [
+                { text: new Date(e.date).toLocaleDateString('en-IN'), style: 'tableCell' },
+                { text: e.description || '', style: 'tableCell' },
+                { text: e.category?.name || 'Uncategorized', style: 'tableCell' },
+                { text: e.paymentMethod || '-', style: 'tableCell' },
+                { text: e.isPaid ? 'Paid' : 'Unpaid', style: 'tableCell', color: e.isPaid ? '#059669' : '#dc2626' },
+                { text: `₹${(e.amount || 0).toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right' }
+              ])
+            ]
+          },
+          layout: {
+            hLineWidth: (i: number) => i === 0 || i === 1 || i === expenses.length + 1 ? 1 : 0.5,
+            vLineWidth: () => 0,
+            hLineColor: () => '#e2e8f0',
+            paddingTop: () => 6,
+            paddingBottom: () => 6,
+          }
+        }
+      ],
+      styles: {
+        brandLogo: { fontSize: 20, bold: true, color: '#227c8a', letterSpacing: 1 },
+        docTitle: { fontSize: 16, bold: true, color: '#0f172a' },
+        docDate: { fontSize: 9, color: '#64748b', margin: [0, 2, 0, 0] },
+        summaryHeader: { fontSize: 12, bold: true, color: '#227c8a' },
+        tableHeader: { fontSize: 10, bold: true, color: '#475569', fillColor: '#f8fafc' },
+        tableCell: { fontSize: 9, color: '#1e293b' }
+      }
+    };
+
+    try {
+      const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
+      
+      return new Promise((resolve, reject) => {
+        const chunks: any[] = [];
+        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', (err: any) => reject(err));
+        pdfDoc.end();
+      });
+    } catch (error) {
+      this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async generateAllGuestsReport(guests: any[]): Promise<Buffer> {
+    const routeGuideLogoBase64 = this.getLogoBase64();
+
+    const docDefinition: any = {
+      pageSize: 'A4',
+      pageMargins: [30, 40, 30, 40],
+      content: [
+        {
+          columns: [
+            routeGuideLogoBase64 
+              ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
+              : { text: 'Route Guide', style: 'brandLogo' },
+            {
+              stack: [
+                { text: 'GUESTS REPORT', style: 'docTitle', alignment: 'right' },
+                { text: `Generated: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate', alignment: 'right' }
+              ]
+            }
+          ],
+          margin: [0, 0, 0, 20]
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+            body: [
+              [
+                { text: 'Name', style: 'tableHeader' },
+                { text: 'Email', style: 'tableHeader' },
+                { text: 'Phone', style: 'tableHeader' },
+                { text: 'Bookings', style: 'tableHeader', alignment: 'center' },
+                { text: 'Status', style: 'tableHeader', alignment: 'center' }
+              ],
+              ...guests.map(g => [
+                { text: `${g.firstName} ${g.lastName || ''}`.trim(), style: 'tableCell' },
+                { text: g.email || '-', style: 'tableCell' },
+                { text: g.phone || '-', style: 'tableCell' },
+                { text: (g.bookings?.length || 0).toString(), style: 'tableCell', alignment: 'center' },
+                { text: g.isActive ? 'Active' : 'Inactive', style: 'tableCell', alignment: 'center', color: g.isActive ? '#059669' : '#94a3b8' }
+              ])
+            ]
+          },
+          layout: {
+            hLineWidth: (i: number) => i === 0 || i === 1 || i === guests.length + 1 ? 1 : 0.5,
+            vLineWidth: () => 0,
+            hLineColor: () => '#e2e8f0',
+            paddingTop: () => 6,
+            paddingBottom: () => 6,
+          }
+        }
+      ],
+      styles: {
+        brandLogo: { fontSize: 20, bold: true, color: '#227c8a', letterSpacing: 1 },
+        docTitle: { fontSize: 16, bold: true, color: '#0f172a' },
+        docDate: { fontSize: 9, color: '#64748b', margin: [0, 2, 0, 0] },
+        tableHeader: { fontSize: 10, bold: true, color: '#475569', fillColor: '#f8fafc' },
+        tableCell: { fontSize: 9, color: '#1e293b' }
+      }
+    };
+
+    try {
+      const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
+      return new Promise((resolve, reject) => {
+        const chunks: any[] = [];
+        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', (err: any) => reject(err));
+        pdfDoc.end();
+      });
+    } catch (error) {
+      this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async generateIndividualGuestReport(guest: any, bookings: any[], startDate?: string, endDate?: string): Promise<Buffer> {
+    const routeGuideLogoBase64 = this.getLogoBase64();
+    const totalSpent = bookings.reduce((sum, b) => sum + Number(b.totalAmount || 0), 0);
+
+    const docDefinition: any = {
+      pageSize: 'A4',
+      pageMargins: [30, 40, 30, 40],
+      content: [
+        {
+          columns: [
+            routeGuideLogoBase64 
+              ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
+              : { text: 'Route Guide', style: 'brandLogo' },
+            {
+              stack: [
+                { text: 'GUEST PROFILE & HISTORY', style: 'docTitle', alignment: 'right' },
+                { text: `Generated: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate', alignment: 'right' },
+                ...(startDate && endDate ? [{ text: `Period: ${new Date(startDate).toLocaleDateString('en-IN')} to ${new Date(endDate).toLocaleDateString('en-IN')}`, style: 'docDate', alignment: 'right' }] : [])
+              ]
+            }
+          ],
+          margin: [0, 0, 0, 20]
+        },
+        {
+          table: {
+            widths: ['*'],
+            body: [
+              [
+                {
+                  stack: [
+                    { text: `${guest.firstName} ${guest.lastName || ''}`.trim(), fontSize: 16, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+                    { text: `Email: ${guest.email || 'N/A'} | Phone: ${guest.phone || 'N/A'}`, fontSize: 10, color: '#475569', margin: [0, 0, 0, 2] },
+                    { text: `ID: ${guest.idType ? guest.idType.replace('_', ' ') : 'N/A'} - ${guest.idNumber || 'N/A'}`, fontSize: 10, color: '#475569' }
+                  ],
+                  fillColor: '#f8fafc',
+                  margin: [15, 15, 15, 15],
+                  border: [false, false, false, false]
+                }
+              ]
+            ]
+          },
+          margin: [0, 0, 0, 20]
+        },
+        {
+          text: `Filtered Bookings (${bookings.length}) - Total Spent: ₹${totalSpent.toLocaleString('en-IN')}`,
+          style: 'summaryHeader',
+          margin: [0, 0, 0, 10]
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['auto', '*', 'auto', 'auto', 'auto'],
+            body: [
+              [
+                { text: 'Booking Ref', style: 'tableHeader' },
+                { text: 'Room Type', style: 'tableHeader' },
+                { text: 'Dates', style: 'tableHeader' },
+                { text: 'Status', style: 'tableHeader' },
+                { text: 'Amount', style: 'tableHeader', alignment: 'right' }
+              ],
+              ...bookings.map(b => [
+                { text: `#${b.bookingNumber}`, style: 'tableCell', bold: true },
+                { text: b.roomType?.name || '-', style: 'tableCell' },
+                { text: `${new Date(b.checkInDate).toLocaleDateString('en-IN')} - ${new Date(b.checkOutDate).toLocaleDateString('en-IN')}`, style: 'tableCell' },
+                { text: b.status.replace('_', ' '), style: 'tableCell' },
+                { text: `₹${Number(b.totalAmount || 0).toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right' }
+              ])
+            ]
+          },
+          layout: {
+            hLineWidth: (i: number) => i === 0 || i === 1 || i === bookings.length + 1 ? 1 : 0.5,
+            vLineWidth: () => 0,
+            hLineColor: () => '#e2e8f0',
+            paddingTop: () => 6,
+            paddingBottom: () => 6,
+          }
+        }
+      ],
+      styles: {
+        brandLogo: { fontSize: 20, bold: true, color: '#227c8a', letterSpacing: 1 },
+        docTitle: { fontSize: 16, bold: true, color: '#0f172a' },
+        docDate: { fontSize: 9, color: '#64748b', margin: [0, 2, 0, 0] },
+        summaryHeader: { fontSize: 12, bold: true, color: '#227c8a' },
+        tableHeader: { fontSize: 10, bold: true, color: '#475569', fillColor: '#f8fafc' },
+        tableCell: { fontSize: 9, color: '#1e293b' }
+      }
+    };
+
+    try {
+      const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
       return new Promise((resolve, reject) => {
         const chunks: any[] = [];
         pdfDoc.on('data', (chunk: any) => chunks.push(chunk));

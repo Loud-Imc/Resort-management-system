@@ -112,6 +112,13 @@ export class NotificationsService {
   /**
    * Send a Real-time notification to Dashboards
    */
+  async sendUserEvent(userId: string, event: string, data: any) {
+    this.gateway.sendToRoom(`user_${userId}`, event, data);
+  }
+
+  /**
+   * Send a Real-time notification to Dashboards
+   */
   async notifyDashboard(event: string, data: any, propertyId?: string) {
     this.logger.log(`Broadcasting dashboard event: ${event}`);
 
