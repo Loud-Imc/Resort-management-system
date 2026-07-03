@@ -316,7 +316,7 @@ export class ReportsService {
 
         // Helper to fetch core metrics for a period
         const fetchMetrics = async (start: Date, end: Date) => {
-            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialCount, platformFees] = await Promise.all([
+            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialData, platformFees] = await Promise.all([
                 this.prisma.income.aggregate({
                     where: {
                         date: { gte: start, lte: end },
@@ -385,8 +385,10 @@ export class ReportsService {
                 this.prisma.booking.count({
                     where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, isManualBooking: true }
                 }), // Property Dashboard
-                this.prisma.booking.count({
-                    where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' }
+                this.prisma.booking.aggregate({
+                    where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' },
+                    _count: true,
+                    _sum: { paidAmount: true }
                 }), // Partial Payments
                 this.prisma.payment.aggregate({
                     where: {
@@ -407,7 +409,8 @@ export class ReportsService {
                 online: publicCount,
                 partner: cpCount,
                 property: propertyCount,
-                partial: partialCount
+                partial: partialData._count,
+                partialAmount: Number(partialData._sum?.paidAmount || 0)
             };
 
             // Duration in days for RevPAR calculation

@@ -3,11 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto, UpdateExpenseDto, CreateExpenseCategoryDto } from './dto/expense.dto';
 import { AuditService } from '../audit/audit.service';
 
+import { PdfService } from '../pdf/pdf.service';
+
 @Injectable()
 export class ExpensesService {
     constructor(
         private prisma: PrismaService,
         private auditService: AuditService,
+        private pdfService: PdfService,
     ) { }
 
     /**
@@ -315,6 +318,29 @@ export class ExpensesService {
         });
 
         return category;
+    }
+
+    async generatePdfReport(user: any, filters: any): Promise<Buffer> {
+        // Fetch all matching expenses
+        const expenses = await this.findAll(user, {
+            ...filters,
+            startDate: filters.startDate ? new Date(filters.startDate) : undefined,
+            endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+        });
+
+        // Further filter them down by the exact same logic the frontend uses
+        const filteredExpenses = expenses.filter(expense => {
+            if (filters.search && !expense.description.toLowerCase().includes(filters.search.toLowerCase())) return false;
+            if (filters.category && expense.category?.name !== filters.category) return false;
+            if (filters.paymentMethod && expense.paymentMethod !== filters.paymentMethod) return false;
+            if (filters.isPaid === 'paid' && !expense.isPaid) return false;
+            if (filters.isPaid === 'unpaid' && expense.isPaid) return false;
+            if (filters.minAmount && Number(expense.amount) < Number(filters.minAmount)) return false;
+            if (filters.maxAmount && Number(expense.amount) > Number(filters.maxAmount)) return false;
+            return true;
+        });
+
+        return this.pdfService.generateExpensesReport(filteredExpenses, filters);
     }
 
     /**

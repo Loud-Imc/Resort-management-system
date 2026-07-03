@@ -1000,6 +1000,7 @@ enum RoomStatus {
   OCCUPIED
   MAINTENANCE
   BLOCKED
+  RESERVED
 }
 
 enum BookingPaymentMethod {

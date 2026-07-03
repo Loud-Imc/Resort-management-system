@@ -21,4 +21,17 @@ export const usersService = {
     delete: async (id: string) => {
         await api.delete(`/users/${id}`);
     },
+    downloadAllGuestsReport: async (filters: { userIds: string[] }) => {
+        const response = await api.post('/users/report/guests/pdf', filters, {
+            responseType: 'blob'
+        });
+        return response.data;
+    },
+    downloadIndividualGuestReport: async (id: string, filters: any) => {
+        const response = await api.get(`/users/${id}/report/pdf`, {
+            params: filters,
+            responseType: 'blob'
+        });
+        return response.data;
+    }
 };

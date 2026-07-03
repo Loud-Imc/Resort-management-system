@@ -630,11 +630,45 @@ export class BookingsService {
 
             const isFullyPaid = calculatedPaidAmount >= finalTotal - 0.01;
 
-            const bookingStatus = isHistoricalEntry && checkOut < new Date()
-                ? 'CHECKED_OUT'
-                : (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY')
+            let bookingStatus = 'PENDING_PAYMENT';
+            if (isHistoricalEntry) {
+                const propertyIdForTime = (createBookingDto as any).propertyId || (roomTypeId ? (await tx.roomType.findUnique({where: {id: roomTypeId}}))?.propertyId : undefined);
+                
+                let defaultCheckOutTime = '11:00';
+                if (propertyIdForTime) {
+                    const prop = await tx.property.findUnique({ where: { id: propertyIdForTime }, select: { defaultCheckOutTime: true } });
+                    if (prop?.defaultCheckOutTime) defaultCheckOutTime = prop.defaultCheckOutTime;
+                }
+                
+                const [hours, minutes] = defaultCheckOutTime.split(':').map(Number);
+                
+                const checkOutDateTime = new Date(checkOut);
+                checkOutDateTime.setHours(hours, minutes, 0, 0);
+                
+                const now = new Date();
+                const todayMidnight = new Date();
+                todayMidnight.setHours(0, 0, 0, 0);
+                
+                if (checkOut < todayMidnight) {
+                    // Case 1: Checkout date is in the past
+                    bookingStatus = 'CHECKED_OUT';
+                } else if (checkOut.getTime() === todayMidnight.getTime()) {
+                    // Case 2 & 3: Checkout is today
+                    if (now >= checkOutDateTime) {
+                        bookingStatus = 'CHECKED_OUT'; // Case 3
+                    } else {
+                        bookingStatus = 'CHECKED_IN'; // Case 2
+                    }
+                } else {
+                    // Case 4: Checkout is tomorrow or later
+                    bookingStatus = 'CHECKED_IN';
+                }
+            } else {
+                bookingStatus = (isManualBooking || createBookingDto.paymentMethod === 'WALLET' || createBookingDto.paymentOption === 'PAY_AT_PROPERTY')
                     ? (isFullyPaid ? 'CONFIRMED' : 'RESERVED')
                     : 'PENDING_PAYMENT';
+            }
+
 
             const newBooking = await tx.booking.create({
                 data: {
@@ -1329,6 +1363,16 @@ export class BookingsService {
     async checkIn(id: string, user: any, dto?: any) {
         const booking = await this.findOne(id, user);
 
+        // Fetch room to check status before allowing check-in
+        const room = await this.prisma.room.findUnique({
+            where: { id: booking.roomId },
+            select: { status: true }
+        });
+
+        if (room?.status === 'OCCUPIED') {
+            throw new BadRequestException('Cannot check in: Previous guest has not checked out yet.');
+        }
+
         if (!['CONFIRMED', 'RESERVED', 'NO_SHOW'].includes(booking.status)) {
             throw new BadRequestException('Only confirmed, reserved, or no-show bookings can be checked in');
         }
@@ -1447,10 +1491,40 @@ export class BookingsService {
 
         // Update room status
         const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
-        await this.prisma.room.updateMany({
-            where: { id: { in: roomIds } },
-            data: { status: 'AVAILABLE' },
+        
+        // Check for incoming bookings today
+        const todayMidnight = new Date();
+        todayMidnight.setHours(0, 0, 0, 0);
+        const tomorrowMidnight = new Date(todayMidnight.getTime() + 24 * 60 * 60 * 1000);
+        
+        const incomingBookings = await this.prisma.booking.findMany({
+            where: {
+                roomId: { in: roomIds },
+                status: { in: ['CONFIRMED', 'RESERVED'] },
+                checkInDate: {
+                    gte: todayMidnight,
+                    lt: tomorrowMidnight
+                }
+            },
+            select: { roomId: true }
         });
+
+        const reservedRoomIds = incomingBookings.map(b => b.roomId);
+        const availableRoomIds = roomIds.filter(id => !reservedRoomIds.includes(id));
+
+        if (availableRoomIds.length > 0) {
+            await this.prisma.room.updateMany({
+                where: { id: { in: availableRoomIds } },
+                data: { status: 'AVAILABLE' },
+            });
+        }
+        
+        if (reservedRoomIds.length > 0) {
+            await this.prisma.room.updateMany({
+                where: { id: { in: reservedRoomIds } },
+                data: { status: 'RESERVED' },
+            });
+        }
 
         // Release associated room blocks immediately upon checkout
         await this.prisma.roomBlock.deleteMany({
@@ -2664,6 +2738,11 @@ export class BookingsService {
                 room: {
                     include: {
                         property: true,
+                    },
+                },
+                bookingRooms: {
+                    include: {
+                        room: true,
                     },
                 },
                 channelPartner: {

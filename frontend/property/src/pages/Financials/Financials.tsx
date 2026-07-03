@@ -7,7 +7,7 @@ import { expensesService } from '../../services/expenses';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import {
     Loader2, IndianRupee, TrendingUp, TrendingDown,
-    PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight, Search, Filter
+    PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight, Search, Filter, Download
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -33,7 +33,6 @@ export default function Financials() {
     const [filters, setFilters] = useState({
         search: '',
         category: '',
-        date: '',
         paymentMethod: '',
         isPaid: 'all',
         minAmount: '',
@@ -64,13 +63,37 @@ export default function Financials() {
         enabled: !!selectedProperty?.id,
     });
 
-    const uniqueCategories = Array.from(new Set(recentExpenses?.map(e => e.category?.name))).filter(Boolean) as string[];
+    const { data: expenseCategories } = useQuery({
+        queryKey: ['expense-categories', selectedProperty?.id],
+        queryFn: () => expensesService.getCategories(selectedProperty?.id),
+        enabled: !!selectedProperty?.id,
+    });
+
+    const uniqueCategories = expenseCategories?.map((c: any) => c.name) || [];
     const uniquePaymentMethods = Array.from(new Set(recentExpenses?.map(e => e.paymentMethod))).filter(Boolean) as string[];
+
+    const handleDownloadReport = async () => {
+        try {
+            const blob = await expensesService.downloadReport({
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+                propertyId: selectedProperty?.id,
+                ...filters
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Expenses_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to download report:', error);
+        }
+    };
 
     const filteredExpenses = recentExpenses?.filter(expense => {
         if (filters.search && !expense.description.toLowerCase().includes(filters.search.toLowerCase())) return false;
         if (filters.category && expense.category?.name !== filters.category) return false;
-        if (filters.date && format(new Date(expense.date), 'yyyy-MM-dd') !== filters.date) return false;
         if (filters.paymentMethod && expense.paymentMethod !== filters.paymentMethod) return false;
         if (filters.isPaid === 'paid' && !expense.isPaid) return false;
         if (filters.isPaid === 'unpaid' && expense.isPaid) return false;
@@ -176,12 +199,20 @@ export default function Financials() {
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Expenses</h3>
                             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Showing expenses for selected dates</p>
                         </div>
-                        <button 
-                            onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                        >
-                            <Filter className="h-4 w-4" /> Filters {Object.values(filters).some(v => v !== '' && v !== 'all') && <span className="w-2 h-2 rounded-full bg-primary"></span>}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={handleDownloadReport}
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors shadow-sm"
+                            >
+                                <Download className="h-4 w-4" /> Download PDF
+                            </button>
+                            <button 
+                                onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                            >
+                                <Filter className="h-4 w-4" /> Filters {Object.values(filters).some(v => v !== '' && v !== 'all') && <span className="w-2 h-2 rounded-full bg-primary"></span>}
+                            </button>
+                        </div>
                     </div>
 
                     {isFilterExpanded && (
@@ -214,16 +245,7 @@ export default function Financials() {
                                 </select>
                             </div>
 
-                            {/* Date */}
-                            <div>
-                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Exact Date</label>
-                                <input 
-                                    type="date"
-                                    value={filters.date}
-                                    onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))}
-                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
-                                />
-                            </div>
+
 
                             {/* Payment Method */}
                             <div>
@@ -279,7 +301,7 @@ export default function Financials() {
                             {/* Clear Filters */}
                             <div className="col-span-full flex justify-end">
                                 <button 
-                                    onClick={() => setFilters({ search: '', category: '', date: '', paymentMethod: '', isPaid: 'all', minAmount: '', maxAmount: '' })}
+                                    onClick={() => setFilters({ search: '', category: '', paymentMethod: '', isPaid: 'all', minAmount: '', maxAmount: '' })}
                                     className="text-sm text-rose-500 hover:text-rose-600 font-medium"
                                 >
                                     Clear All Filters

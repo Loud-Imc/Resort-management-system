@@ -20,66 +20,40 @@ const roleSchema = z.object({
 
 type RoleFormData = z.infer<typeof roleSchema>;
 
-// Tabs Configuration based on Sidebar Categories - 1-to-1 Mapping
+// Tabs Configuration based on Functional Categories
 const getTabsForCategory = (category: 'SYSTEM' | 'PROPERTY' | 'EVENT') => {
     if (category === 'SYSTEM') {
         return [
-            { id: 'exec-dashboard', label: 'Executive Dashboard', prefix: ['reports.viewDashboard'] },
-            { id: 'platform-reports', label: 'Platform Reports', prefix: ['reports.viewFinancial'] },
-            { id: 'all-properties', label: 'All Properties', prefix: ['properties.read', 'properties.update', 'properties.create', 'properties.delete'] },
-            { id: 'property-requests', label: 'Property Requests', prefix: ['properties.approve'] },
-            { id: 'cp-onboarding', label: 'CP Onboarding', prefix: ['channelPartners'] },
-            { id: 'settlements', label: 'Settlements', prefix: ['finance.approveSettlement', 'finance.processPayout'] },
-            { id: 'wallet-adjustments', label: 'Wallet Adjustments', prefix: ['finance.approveAdjustment'] },
-            { id: 'refund-requests', label: 'Refund Requests', prefix: ['finance.approveRefund'] },
-            { id: 'reconciliation', label: 'Reconciliation', prefix: ['finance.reconcilePayment'] },
-            { id: 'growth-dashboard', label: 'Growth Dashboard', prefix: ['marketing.read'] },
-            { id: 'coupons', label: 'Coupons', prefix: ['marketing.manageCoupons', 'marketing.approveCoupon'] },
-            { id: 'web-banners', label: 'Web Banners', prefix: ['marketing.manageOffers'] },
-            { id: 'broadcast-alerts', label: 'Broadcast Alerts', prefix: ['marketing.manageBroadcasts'] },
-            { id: 'platform-settings', label: 'Platform Settings', prefix: ['settings'] },
-            { id: 'platform-users', label: 'Platform Users', prefix: ['users'] },
-            { id: 'system-roles', label: 'System Roles', prefix: ['roles'] },
-            { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] },
+            { id: 'platform-ops', label: 'Platform Operations', prefix: ['properties.', 'admin.impersonateProperty', 'settings.'] },
+            { id: 'bookings-inv', label: 'Bookings & Inventory', prefix: ['bookings.', 'rooms.', 'roomTypes.', 'bookingSources.'] },
+            { id: 'finance-settlements', label: 'Finance & Settlements', prefix: ['finance.', 'payments.', 'income.', 'expenses.', 'admin.manageFinance'] },
+            { id: 'users-security', label: 'Users & Security', prefix: ['users.', 'roles.', 'propertyStaff.', 'admin.manageSystemRoles'] },
+            { id: 'marketing-partners', label: 'Marketing & Partners', prefix: ['marketing.', 'channelPartners.'] },
+            { id: 'reports-analytics', label: 'Reports & Analytics', prefix: ['reports.'] },
         ];
     } else if (category === 'PROPERTY') {
         return [
-            { id: 'dashboard', label: 'Dashboard', prefix: ['reports.viewDashboard'] },
-            { id: 'bookings', label: 'Bookings', prefix: ['bookings'] },
-            { id: 'guests', label: 'Guests', prefix: ['users.read'] },
-            { id: 'rooms', label: 'Rooms', prefix: ['rooms'] },
-            { id: 'room-types', label: 'Room Types', prefix: ['roomTypes'] },
-            { id: 'payments', label: 'Payments', prefix: ['payments'] },
-            { id: 'financials', label: 'Financials', prefix: ['reports.viewFinancial', 'income'] },
-            { id: 'add-expenses', label: 'Add Expenses', prefix: ['expenses'] },
-            { id: 'offers-marketing', label: 'Offers & Marketing', prefix: ['marketing.read', 'marketing.manageCoupons'] },
-            { id: 'promotional-boosters', label: 'Promotional Boosters', prefix: ['marketing.manageOffers'] },
-            { id: 'sources', label: 'Sources', prefix: ['bookingSources'] },
-            { id: 'my-team', label: 'My Team', prefix: ['propertyStaff', 'users.create', 'users.update', 'users.delete'] },
-            { id: 'roles', label: 'Roles', prefix: ['roles'] },
-            { id: 'reports', label: 'Reports', prefix: ['reports.viewOccupancy'] },
-            { id: 'calendar-sync', label: 'Calendar Sync', prefix: ['settings'] },
-            { id: 'my-property', label: 'My Property', prefix: ['properties'] },
-            { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] },
+            { id: 'dashboard-reports', label: 'Dashboard & Reports', prefix: ['reports.'] },
+            { id: 'property-rooms', label: 'Property & Rooms', prefix: ['properties.', 'rooms.', 'roomTypes.'] },
+            { id: 'bookings-ops', label: 'Bookings & Operations', prefix: ['bookings.', 'bookingSources.'] },
+            { id: 'financials', label: 'Financials', prefix: ['payments.', 'income.', 'expenses.'] },
+            { id: 'marketing', label: 'Marketing & Offers', prefix: ['marketing.'] },
+            { id: 'team-access', label: 'Team & Access Control', prefix: ['users.', 'propertyStaff.', 'roles.'] },
+            { id: 'settings', label: 'Settings', prefix: ['settings.'] },
         ];
     } else { // EVENT
-        return [
-            { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] }
-        ];
+        return [];
     }
 };
 
 const getPermissionTabId = (permName: string, tabs: any[]) => {
-    // 1. Check exact matches first
-    const exactMatch = tabs.find(tab => tab.prefix.includes(permName));
-    if (exactMatch) return exactMatch.id;
+    // Hide event permissions entirely right now as they are not used
+    if (permName.startsWith('events.') || permName.startsWith('eventBookings.')) {
+        return undefined;
+    }
 
-    // 2. Check module matches (e.g. 'rooms')
-    const moduleName = permName.split('.')[0];
-    const moduleMatch = tabs.find(tab => tab.prefix.includes(moduleName));
-    if (moduleMatch) return moduleMatch.id;
-
-    return undefined; // Not in any tab for this category
+    const match = tabs.find(tab => tab.prefix.some((p: string) => permName.startsWith(p)));
+    return match ? match.id : undefined;
 };
 
 export default function ProcessRole() {
@@ -398,7 +372,7 @@ export default function ProcessRole() {
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="font-bold truncate">{perm.description}</span>
+                                                    <span className="font-bold truncate">{perm.description.replace(/^Permission for /i, '')}</span>
                                                     <span className={clsx(
                                                         "text-[10px] font-normal truncate",
                                                         selectedPermissions?.includes(perm.name) ? "text-primary-foreground/80" : "text-muted-foreground"

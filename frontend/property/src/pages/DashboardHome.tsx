@@ -38,6 +38,7 @@ export default function DashboardHome() {
     // New Historical Modal state
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [isHistoricalModalOpen, setIsHistoricalModalOpen] = useState(false);
+    const [historicalRoomId, setHistoricalRoomId] = useState<string>('');
     const [historicalRoomNumber, setHistoricalRoomNumber] = useState('');
 
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -91,8 +92,9 @@ export default function DashboardHome() {
                 return target >= checkIn && target < checkOut;
             });
 
-            // Find booking checking out on targetDate
+            // Find booking checking out on targetDate (ignore if already CHECKED_OUT)
             let checkoutBookingToday = roomBookings.find((b: any) => {
+                if (b.status === 'CHECKED_OUT') return false;
                 const checkOut = new Date(b.checkOutDate); checkOut.setHours(0,0,0,0);
                 return target.getTime() === checkOut.getTime();
             });
@@ -161,11 +163,13 @@ export default function DashboardHome() {
             handleBookClick(room);
         } else if (room._activeBooking) {
             setSelectedBooking(room._activeBooking);
+            setHistoricalRoomId(room.id);
             setHistoricalRoomNumber(room.roomNumber);
             setIsHistoricalModalOpen(true);
         } else if (room.status === 'OUT_TODAY' && room._checkoutBooking) {
             // Main card click on OUT TODAY opens the guest who is leaving
             setSelectedBooking(room._checkoutBooking);
+            setHistoricalRoomId(room.id);
             setHistoricalRoomNumber(room.roomNumber);
             setIsHistoricalModalOpen(true);
         } else if (room.status === 'OCCUPIED' || room.status === 'RESERVED') {
@@ -436,8 +440,15 @@ export default function DashboardHome() {
                                         )}
 
                                         <div className="font-bold text-lg">{room.roomNumber}</div>
-                                        <div className="mt-1 capitalize text-xs truncate w-full px-1 flex flex-col items-center leading-tight">
-                                            <span>{(room as any)._guestName || room.status?.toLowerCase().replace('_', ' ')}</span>
+                                        <div className="mt-1 flex flex-col items-center w-full">
+                                            {(room as any)._guestName && (
+                                                <span className="font-semibold text-xs truncate w-full px-1 text-center">
+                                                    {(room as any)._guestName}
+                                                </span>
+                                            )}
+                                            <span className="text-[10px] uppercase font-bold tracking-wider mt-0.5 opacity-80">
+                                                {room.status?.replace('_', ' ')}
+                                            </span>
                                         </div>
 
                                         {room.status === 'OUT_TODAY' && (
@@ -483,6 +494,7 @@ export default function DashboardHome() {
 
             <HistoricalGuestDetailsModal
                 booking={selectedBooking}
+                roomId={historicalRoomId}
                 roomNumber={historicalRoomNumber}
                 isOpen={isHistoricalModalOpen}
                 onClose={() => setIsHistoricalModalOpen(false)}

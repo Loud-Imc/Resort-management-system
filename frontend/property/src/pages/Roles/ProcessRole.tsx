@@ -29,38 +29,25 @@ const roleSchema = z.object({
 
 type RoleFormData = z.infer<typeof roleSchema>;
 
-// Property Sidebar Categories Map - Exact 1-to-1
+// Functional Categories Mapping for better UI grouping
 const PROPERTY_TABS = [
-    { id: 'dashboard', label: 'Dashboard', prefix: ['reports.viewDashboard'] },
-    { id: 'bookings', label: 'Bookings', prefix: ['bookings'] },
-    { id: 'guests', label: 'Guests', prefix: ['users.read'] },
-    { id: 'rooms', label: 'Rooms', prefix: ['rooms'] },
-    { id: 'room-types', label: 'Room Types', prefix: ['roomTypes'] },
-    { id: 'payments', label: 'Payments', prefix: ['payments'] },
-    { id: 'financials', label: 'Financials', prefix: ['reports.viewFinancial', 'income'] },
-    { id: 'add-expenses', label: 'Add Expenses', prefix: ['expenses'] },
-    { id: 'offers-marketing', label: 'Offers & Marketing', prefix: ['marketing.read', 'marketing.manageCoupons'] },
-    { id: 'promotional-boosters', label: 'Promotional Boosters', prefix: ['marketing.manageOffers'] },
-    { id: 'sources', label: 'Sources', prefix: ['bookingSources'] },
-    { id: 'my-team', label: 'My Team', prefix: ['propertyStaff', 'users.create', 'users.update', 'users.delete'] },
-    { id: 'roles', label: 'Roles', prefix: ['roles'] },
-    { id: 'reports', label: 'Reports', prefix: ['reports.viewOccupancy'] },
-    { id: 'calendar-sync', label: 'Calendar Sync', prefix: ['settings'] },
-    { id: 'my-property', label: 'My Property', prefix: ['properties'] },
-    // { id: 'events', label: 'Events & Ticketing', prefix: ['events', 'eventBookings'] },
+    { id: 'dashboard-reports', label: 'Dashboard & Reports', prefix: ['reports.'] },
+    { id: 'property-rooms', label: 'Property & Rooms', prefix: ['properties.', 'rooms.', 'roomTypes.'] },
+    { id: 'bookings-ops', label: 'Bookings & Operations', prefix: ['bookings.', 'bookingSources.'] },
+    { id: 'financials', label: 'Financials', prefix: ['payments.', 'income.', 'expenses.'] },
+    { id: 'marketing', label: 'Marketing & Offers', prefix: ['marketing.'] },
+    { id: 'team-access', label: 'Team & Access Control', prefix: ['users.', 'propertyStaff.', 'roles.'] },
+    { id: 'settings', label: 'Settings', prefix: ['settings.'] },
 ];
 
 const getPermissionTabId = (permName: string) => {
-    // 1. Check exact matches first
-    const exactMatch = PROPERTY_TABS.find(tab => tab.prefix.includes(permName));
-    if (exactMatch) return exactMatch.id;
+    // Hide event permissions from UI entirely right now as they are not used
+    if (permName.startsWith('events.') || permName.startsWith('eventBookings.')) {
+        return undefined;
+    }
 
-    // 2. Check module matches (e.g. 'rooms')
-    const moduleName = permName.split('.')[0];
-    const moduleMatch = PROPERTY_TABS.find(tab => tab.prefix.includes(moduleName));
-    if (moduleMatch) return moduleMatch.id;
-
-    return undefined; // Filter out if not mapped (e.g. admin-only permissions)
+    const match = PROPERTY_TABS.find(tab => tab.prefix.some(p => permName.startsWith(p)));
+    return match ? match.id : undefined;
 };
 
 export default function ProcessRole() {
@@ -258,7 +245,7 @@ export default function ProcessRole() {
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="font-bold truncate">{perm.description}</span>
+                                                    <span className="font-bold truncate">{perm.description.replace(/^Permission for /i, '')}</span>
                                                     <span className={clsx("text-[10px] font-normal truncate", selectedPermissions?.includes(perm.name) ? "text-white/80" : "text-gray-400")}>{perm.name}</span>
                                                 </div>
                                             </div>

@@ -667,7 +667,12 @@ function DrillDownModal({ type, data, onClose }: { type: string, data: any, onCl
                                         <p className="text-[9px] text-amber-600/70">Bookings with balance amount pending</p>
                                     </div>
                                 </div>
-                                <div className="text-2xl font-black text-amber-900">{financial?.summary?.bookingsBySource?.partial || 0}</div>
+                                <div className="text-right">
+                                    <div className="text-2xl font-black text-amber-900">{financial?.summary?.bookingsBySource?.partial || 0}</div>
+                                    <div className="text-xs font-bold text-amber-700 mt-1">
+                                        ₹{financial?.summary?.bookingsBySource?.partialAmount?.toLocaleString() || 0} Paid
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div className="bg-card border border-border rounded-xl p-4">

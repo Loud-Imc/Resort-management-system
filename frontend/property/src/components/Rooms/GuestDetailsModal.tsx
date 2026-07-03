@@ -43,7 +43,7 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
 
     const handleViewBooking = () => {
         if (activeBooking) {
-            navigate(`/bookings?id=${activeBooking.id}`);
+            navigate(`/bookings/${activeBooking.id}`);
             onClose();
         }
     };
@@ -55,10 +55,10 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                 <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
                     <div>
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <BedDouble className="h-5 w-5 text-blue-600" />
+                            <BedDouble className="h-5 w-5 text-primary" />
                             Room {room?.roomNumber || '...'}
                         </h2>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Guest & Booking Details</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Room & Booking Details</p>
                     </div>
                     <button
                         onClick={onClose}
@@ -71,7 +71,7 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                 <div className="p-6">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             <p className="text-sm text-gray-500 font-medium">Fetching details...</p>
                         </div>
                     ) : error ? (
@@ -86,9 +86,32 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                         </div>
                     ) : (
                         <div className="space-y-6">
+                            {/* Room Info */}
+                            {room?.roomType && (
+                                <div className="grid grid-cols-3 gap-3 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-2xl border border-gray-100 dark:border-gray-700">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Type</p>
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate" title={room.roomType.name}>{room.roomType.name}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Floor / Size</p>
+                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {room.floor || '-'} / {room.roomType.size || '-'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Capacity</p>
+                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            <Users className="h-3 w-3 inline mr-1 text-gray-400"/>
+                                            {room.roomType.maxAdults}A, {room.roomType.maxChildren}C
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Guest Primary Info */}
-                            <div className="flex items-start gap-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/20">
-                                <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 dark:shadow-none">
+                            <div className="flex items-start gap-4 p-4 bg-primary/5 dark:bg-primary/10 rounded-2xl border border-primary/20">
+                                <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20 dark:shadow-none shrink-0">
                                     <User className="h-6 w-6" />
                                 </div>
                                 <div>
@@ -107,7 +130,7 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                                 </div>
                                 <button
                                     onClick={handleViewBooking}
-                                    className="ml-auto p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-xl transition-all group"
+                                    className="ml-auto p-2 text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-xl transition-all group shrink-0"
                                     title="Go to Booking"
                                 >
                                     <ExternalLink className="h-5 w-5 group-hover:scale-110 transition-transform" />
@@ -136,7 +159,7 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                             <div className="bg-gray-50 dark:bg-gray-900/30 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
                                 <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700">
                                     <div className="p-4 flex flex-col items-center text-center">
-                                        <Calendar className="h-5 w-5 text-blue-500 mb-1" />
+                                        <Calendar className="h-5 w-5 text-primary mb-1" />
                                         <p className="text-[10px] font-bold text-gray-400 uppercase">Check-in</p>
                                         <p className="text-sm font-bold text-gray-900 dark:text-white">
                                             {format(new Date(activeBooking.checkInDate), 'MMM d, yyyy')}
@@ -174,7 +197,7 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                                             <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center gap-3">
                                                 <div className="flex gap-1.5 shrink-0">
                                                     {guest.idImage ? (
-                                                        <a href={guest.idImage} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-blue-500 transition-all block bg-white dark:bg-gray-800" title="Front Side">
+                                                        <a href={guest.idImage} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-primary transition-all block bg-white dark:bg-gray-800" title="Front Side">
                                                             <img src={guest.idImage} alt={`${guest.firstName} ID Front`} className="w-full h-full object-cover" />
                                                         </a>
                                                     ) : (
@@ -183,7 +206,7 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                                                         </div>
                                                     )}
                                                     {guest.idImageBack && (
-                                                        <a href={guest.idImageBack} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-blue-500 transition-all block bg-white dark:bg-gray-800" title="Back Side">
+                                                        <a href={guest.idImageBack} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-primary transition-all block bg-white dark:bg-gray-800" title="Back Side">
                                                             <img src={guest.idImageBack} alt={`${guest.firstName} ID Back`} className="w-full h-full object-cover" />
                                                         </a>
                                                     )}
@@ -212,7 +235,7 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                                 </button>
                                 <button
                                     onClick={handleViewBooking}
-                                    className="flex-[2] px-4 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-2 group"
+                                    className="flex-[2] px-4 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 dark:shadow-none flex items-center justify-center gap-2 group"
                                 >
                                     View Full Booking
                                     <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />

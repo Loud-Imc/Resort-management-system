@@ -9,6 +9,7 @@ interface AuthContextType {
     login: (credentials: LoginCredentials) => Promise<void>;
     logout: () => void;
     updateUser: (userData: Partial<User>) => void;
+    refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,8 +75,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const refreshUser = async () => {
+        try {
+            const { data } = await api.get('/users/me');
+            if (data) {
+                // Ensure roles are flattened if needed
+                const roles = data.roles && Array.isArray(data.roles)
+                    ? data.roles.map((r: any) => typeof r === 'string' ? r : r.role?.name).filter(Boolean)
+                    : data.roles;
+                
+                const updatedUser = {
+                    ...data,
+                    ...(roles ? { roles } : {})
+                };
+                
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+            }
+        } catch (error) {
+            console.error('Failed to refresh user profile:', error);
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout, updateUser }}>
+        <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout, updateUser, refreshUser }}>
             {children}
         </AuthContext.Provider>
     );
