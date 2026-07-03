@@ -67,7 +67,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       });
 
-      socketInstance.on('PERMISSIONS_UPDATED', async (data) => {
+      socketInstance.on('PERMISSIONS_UPDATED', async () => {
         toast('Your permissions have been updated by an administrator.', {
             icon: '🔐',
             duration: 6000,
