@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useProperty } from '../../context/PropertyContext';
+// import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { reportsService } from '../../services/reports';
 import {
@@ -33,7 +33,6 @@ const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export default function Reports() {
     const { user } = useAuth();
-    const { selectedProperty } = useProperty();
     const isGlobalAdmin = user?.roles?.some(r => ['SuperAdmin', 'Admin'].includes(r));
 
     const [dateRange, setDateRange] = useState({
@@ -46,33 +45,33 @@ export default function Reports() {
 
     // Fetch Financial Summary
     const { data: financialReport, isLoading: loadingFinancial } = useQuery({
-        queryKey: ['financialReport', dateRange, selectedProperty?.id],
-        queryFn: () => reportsService.getFinancialReport(dateRange.startDate, dateRange.endDate, selectedProperty?.id),
+        queryKey: ['financialReport', dateRange],
+        queryFn: () => reportsService.getFinancialReport(dateRange.startDate, dateRange.endDate),
     });
 
     // Fetch Occupancy Report
     const { data: occupancyReport, isLoading: loadingOccupancy } = useQuery({
-        queryKey: ['occupancyReport', dateRange, selectedProperty?.id],
-        queryFn: () => reportsService.getOccupancyReport(dateRange.startDate, dateRange.endDate, selectedProperty?.id),
+        queryKey: ['occupancyReport', dateRange],
+        queryFn: () => reportsService.getOccupancyReport(dateRange.startDate, dateRange.endDate),
     });
 
     // Fetch Room Performance
     const { data: roomPerformance, isLoading: loadingRooms } = useQuery({
-        queryKey: ['roomPerformance', dateRange, selectedProperty?.id],
-        queryFn: () => reportsService.getRoomPerformanceReport(dateRange.startDate, dateRange.endDate, selectedProperty?.id),
+        queryKey: ['roomPerformance', dateRange],
+        queryFn: () => reportsService.getRoomPerformanceReport(dateRange.startDate, dateRange.endDate),
     });
 
     // Fetch Partner Performance (Super Admin Only)
     const { data: partnerReport } = useQuery({
         queryKey: ['partnerReport', dateRange],
         queryFn: () => reportsService.getPartnerReport(dateRange.startDate, dateRange.endDate),
-        enabled: isGlobalAdmin && !selectedProperty, // Show global partner report if no property selected
+        enabled: isGlobalAdmin, // Show global partner report
     });
 
     // Fetch Abandoned Bookings
     const { data: abandonedBookings } = useQuery({
-        queryKey: ['abandonedBookings', dateRange, selectedProperty?.id],
-        queryFn: () => reportsService.getAbandonedBookings(dateRange.startDate, dateRange.endDate, selectedProperty?.id),
+        queryKey: ['abandonedBookings', dateRange],
+        queryFn: () => reportsService.getAbandonedBookings(dateRange.startDate, dateRange.endDate),
     });
 
     const handleRangeChange = (type: string) => {
@@ -150,26 +149,24 @@ export default function Reports() {
                     <div className="flex items-center gap-2 mb-1">
                         <TrendingUp className="h-5 w-5 text-primary" />
                         <h1 className="text-2xl font-black text-foreground">
-                            {selectedProperty ? `${selectedProperty.name} Reports` : 'Global Network Analytics'}
+                            Global Network Analytics
                         </h1>
                     </div>
                     <p className="text-sm text-muted-foreground font-medium">
-                        {isGlobalAdmin && !selectedProperty
-                            ? 'Analyzing performance across all 12 properties'
-                            : 'Detailed performance metrics for the selected period'}
+                        Analyzing performance across all properties
                     </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                     <div className="flex gap-2 mr-4 pr-4 border-r border-border">
                         <button
-                            onClick={() => reportsService.exportExcel(dateRange.startDate, dateRange.endDate, selectedProperty?.id)}
+                            onClick={() => reportsService.exportExcel(dateRange.startDate, dateRange.endDate)}
                             className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
                         >
                             Excel
                         </button>
                         <button
-                            onClick={() => reportsService.exportPdf(dateRange.startDate, dateRange.endDate, selectedProperty?.id)}
+                            onClick={() => reportsService.exportPdf(dateRange.startDate, dateRange.endDate)}
                             className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
                         >
                             PDF
@@ -241,7 +238,7 @@ export default function Reports() {
                 />
                 <KPICard
                     title="Platform Profit"
-                    value={`₹${((isGlobalAdmin && !selectedProperty ? financialReport?.platformSummary?.netPlatformProfit : financialReport?.summary?.netProfit) || 0).toLocaleString()}`}
+                    value={`₹${((isGlobalAdmin ? financialReport?.platformSummary?.netPlatformProfit : financialReport?.summary?.netProfit) || 0).toLocaleString()}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />}
                     trend={financialReport?.summary?.growth?.profit}
                     color="text-amber-500"
@@ -396,7 +393,7 @@ export default function Reports() {
             </div>
 
             {/* Platform Partner Insights (Super Admin Only) */}
-            {isGlobalAdmin && !selectedProperty && partnerReport && (
+            {isGlobalAdmin && partnerReport && (
                 <div className="bg-card p-6 rounded-2xl border-2 border-primary/20 shadow-xl shadow-primary/5">
                     <div className="flex items-center gap-3 mb-8">
                         <div className="p-2 rounded-lg bg-primary/10">
@@ -425,7 +422,7 @@ export default function Reports() {
             )}
 
             {/* Platform Net Breakdown (Super Admin Only) */}
-            {isGlobalAdmin && !selectedProperty && financialReport?.platformSummary && (
+            {isGlobalAdmin && financialReport?.platformSummary && (
                 <PlatformSummaryCard summary={financialReport.platformSummary} />
             )}
 
