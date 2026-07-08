@@ -16,7 +16,8 @@ import {
     RefreshCw,
     Tag,
     Rocket,
-    Plus
+    Plus,
+    PackageSearch
 } from 'lucide-react';
 
 export function useNavigation() {
@@ -89,6 +90,10 @@ export function useNavigation() {
 
             ...(hasPermission('reports.viewDashboard') ? [
                 { icon: PieChart, label: 'Reports', path: '/reports' }
+            ] : []),
+
+            ...(hasPermission('properties.read') ? [
+                { icon: PackageSearch, label: 'Assets', path: '/assets' },
             ] : []),
 
             ...(hasPermission('settings.manage') ? [

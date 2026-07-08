@@ -6,7 +6,7 @@ import { reportsService } from '../../services/reports';
 import { expensesService } from '../../services/expenses';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import {
-    Loader2, IndianRupee, TrendingUp, TrendingDown,
+    Loader2, IndianRupee, TrendingUp, TrendingDown, Info,
     PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight, Search, Filter, Download
 } from 'lucide-react';
 import {
@@ -14,6 +14,7 @@ import {
     ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 import ExpenseModal from '../../components/Financials/ExpenseModal';
+import FinancialDetailsModal from '../../components/Reports/FinancialDetailsModal';
 import type { Expense } from '../../types/expense';
 
 const COLORS = ['#08474e', '#22c55e', '#eab308', '#f97316', '#ef4444', '#8b5cf6'];
@@ -24,8 +25,14 @@ export default function Financials() {
         startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
         endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     });
+    const [expenseDateRange, setExpenseDateRange] = useState({
+        startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+        endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
+    });
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
     const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | 'PLATFORM_FEES' | 'OCCUPANCY' | 'NET_EARNINGS' | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     
@@ -55,9 +62,9 @@ export default function Financials() {
     });
 
     const { data: recentExpenses, isLoading: loadingExpenses } = useQuery<Expense[]>({
-        queryKey: ['expenses', 'recent', selectedProperty?.id, dateRange],
+        queryKey: ['expenses', 'recent', selectedProperty?.id, expenseDateRange],
         queryFn: () => expensesService.getAll({
-            startDate: dateRange.startDate, endDate: dateRange.endDate,
+            startDate: expenseDateRange.startDate, endDate: expenseDateRange.endDate,
             propertyId: selectedProperty?.id,
         }),
         enabled: !!selectedProperty?.id,
@@ -75,8 +82,8 @@ export default function Financials() {
     const handleDownloadReport = async () => {
         try {
             const blob = await expensesService.downloadReport({
-                startDate: dateRange.startDate,
-                endDate: dateRange.endDate,
+                startDate: expenseDateRange.startDate,
+                endDate: expenseDateRange.endDate,
                 propertyId: selectedProperty?.id,
                 ...filters
             });
@@ -146,10 +153,10 @@ export default function Financials() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                <SummaryCard title="Total Income" value={`₹${report?.summary?.totalIncome?.toLocaleString() || '0'}`} icon={<TrendingUp className="h-6 w-6 text-emerald-500" />} color="emerald" />
-                <SummaryCard title="Total Expenses" value={`₹${report?.summary?.totalExpenses?.toLocaleString() || '0'}`} icon={<TrendingDown className="h-6 w-6 text-rose-500" />} color="rose" />
-                <SummaryCard title="Platform Fees" value={`₹${report?.summary?.totalPlatformFees?.toLocaleString() || '0'}`} icon={<Tag className="h-6 w-6 text-orange-500" />} color="orange" />
-                <SummaryCard title="Net Profit" value={`₹${report?.summary?.netProfit?.toLocaleString() || '0'}`} icon={<IndianRupee className="h-6 w-6 text-primary" />} color="primary" isNegative={report?.summary?.netProfit < 0} />
+                <SummaryCard title="Total Income" value={`₹${report?.summary?.totalIncome?.toLocaleString() || '0'}`} icon={<TrendingUp className="h-6 w-6 text-emerald-500" />} color="emerald" infoNote="Revenue is calculated based on the check-in month of the booking, not when the booking was made." onClick={() => { setDetailsType('REVENUE'); setIsDetailsModalOpen(true); }} isClickable />
+                <SummaryCard title="Total Expenses" value={`₹${report?.summary?.totalExpenses?.toLocaleString() || '0'}`} icon={<TrendingDown className="h-6 w-6 text-rose-500" />} color="rose" onClick={() => { document.getElementById('expenses-section')?.scrollIntoView({ behavior: 'smooth' }); }} isClickable />
+                <SummaryCard title="Platform Fees" value={`₹${report?.summary?.totalPlatformFees?.toLocaleString() || '0'}`} icon={<Tag className="h-6 w-6 text-orange-500" />} color="orange" onClick={() => { setDetailsType('PLATFORM_FEES'); setIsDetailsModalOpen(true); }} isClickable />
+                <SummaryCard title="Net Profit" value={`₹${report?.summary?.netProfit?.toLocaleString() || '0'}`} icon={<IndianRupee className="h-6 w-6 text-primary" />} color="primary" isNegative={report?.summary?.netProfit < 0} onClick={() => { setDetailsType('NET_EARNINGS'); setIsDetailsModalOpen(true); }} isClickable />
                 <SummaryCard title="Profit Margin" value={`${typeof report?.summary?.profitMargin === 'number' ? report.summary.profitMargin.toFixed(1) : '0'}%`} icon={<PieChartIcon className="h-6 w-6 text-purple-500" />} color="purple" />
             </div>
 
@@ -192,25 +199,35 @@ export default function Financials() {
             </div>
 
             {/* Recent Expenses Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div id="expenses-section" className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4">
                         <div>
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Expenses</h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Showing expenses for selected dates</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Manage and track your property expenses</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button 
-                                onClick={handleDownloadReport}
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors shadow-sm"
-                            >
-                                <Download className="h-4 w-4" /> Download PDF
-                            </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <Calendar className="h-3.5 w-3.5 text-gray-400 ml-1" />
+                                <input type="date" value={expenseDateRange.startDate}
+                                    onChange={(e) => setExpenseDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                                    className="text-xs border-none bg-transparent focus:ring-0 p-0 text-gray-700 dark:text-gray-200 font-medium w-[105px]" />
+                                <span className="text-gray-400 text-xs">to</span>
+                                <input type="date" value={expenseDateRange.endDate}
+                                    onChange={(e) => setExpenseDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                                    className="text-xs border-none bg-transparent focus:ring-0 p-0 text-gray-700 dark:text-gray-200 font-medium w-[105px]" />
+                            </div>
                             <button 
                                 onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                             >
                                 <Filter className="h-4 w-4" /> Filters {Object.values(filters).some(v => v !== '' && v !== 'all') && <span className="w-2 h-2 rounded-full bg-primary"></span>}
+                            </button>
+                            <button 
+                                onClick={handleDownloadReport}
+                                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                            >
+                                <Download className="h-4 w-4" /> Export
                             </button>
                         </div>
                     </div>
@@ -375,16 +392,32 @@ export default function Financials() {
             </div>
 
             <ExpenseModal isOpen={isExpenseModalOpen} onClose={() => setIsExpenseModalOpen(false)} expense={selectedExpense} />
+            <FinancialDetailsModal 
+                isOpen={isDetailsModalOpen} 
+                onClose={() => setIsDetailsModalOpen(false)} 
+                type={detailsType} 
+                dateRange={dateRange} 
+                propertyId={selectedProperty?.id} 
+                financialReport={report} 
+                totalExpenses={report?.summary?.totalExpenses} 
+            />
         </div>
     );
 }
 
-function SummaryCard({ title, value, icon, color, isNegative }: any) {
+function SummaryCard({ title, value, icon, color, isNegative, infoNote, onClick, isClickable }: any) {
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 group hover:shadow-md transition-all">
+        <div onClick={onClick} className={`bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 group transition-all relative overflow-hidden ${isClickable ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:border-primary/50' : 'hover:shadow-md'}`}>
             <div className="flex items-center justify-between">
                 <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">{title}</p>
+                    <div className="flex items-center gap-1.5">
+                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">{title}</p>
+                        {infoNote && (
+                            <div title={infoNote} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help">
+                                <Info className="h-4 w-4" />
+                            </div>
+                        )}
+                    </div>
                     <p className={`text-2xl font-bold mt-2 ${isNegative ? 'text-rose-500' : (color === 'primary' ? 'text-primary' : `text-${color}-500`)}`}>{value}</p>
                 </div>
                 <div className={`p-3 ${color === 'primary' ? 'bg-primary/10 dark:bg-primary/20 text-primary' : `bg-${color}-50 dark:bg-${color}-900/20`} rounded-xl group-hover:scale-110 transition-transform`}>{icon}</div>

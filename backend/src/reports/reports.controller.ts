@@ -145,23 +145,30 @@ export class ReportsController {
     @Get('export/excel')
     @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
     @ApiOperation({ summary: 'Export reports to Excel' })
+    @ApiQuery({ name: 'section', required: false })
     async exportExcel(
         @Request() req,
         @Res({ passthrough: true }) res: Response,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
         @Query('propertyId') propertyId?: string,
+        @Query('section') section?: string,
     ) {
         const buffer = await this.reportsService.generateExcelReport(
             req.user,
             new Date(startDate),
             new Date(endDate),
             propertyId,
+            section,
         );
+
+        const filename = section 
+            ? `Report_${section}_${startDate}_${endDate}.xlsx` 
+            : `Report_${startDate}_${endDate}.xlsx`;
 
         res.set({
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition': `attachment; filename=Report_${startDate}_${endDate}.xlsx`,
+            'Content-Disposition': `attachment; filename=${filename}`,
         });
 
         return new StreamableFile(buffer);
@@ -170,23 +177,32 @@ export class ReportsController {
     @Get('export/pdf')
     @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
     @ApiOperation({ summary: 'Export reports to PDF' })
+    @ApiQuery({ name: 'section', required: false })
     async exportPdf(
         @Request() req,
         @Res({ passthrough: true }) res: Response,
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
         @Query('propertyId') propertyId?: string,
+        @Query('section') section?: string,
+        @Query('search') search?: string,
     ) {
         const buffer = await this.reportsService.generatePdfReport(
             req.user,
             new Date(startDate),
             new Date(endDate),
             propertyId,
+            section,
+            search,
         );
+
+        const filename = section 
+            ? `Report_${section}_${startDate}_${endDate}.pdf` 
+            : `Report_${startDate}_${endDate}.pdf`;
 
         res.set({
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename=Report_${startDate}_${endDate}.pdf`,
+            'Content-Disposition': `attachment; filename=${filename}`,
         });
 
         return new StreamableFile(buffer);

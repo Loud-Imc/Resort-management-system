@@ -319,12 +319,32 @@ export class ReportsService {
             const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialData, platformFees] = await Promise.all([
                 this.prisma.income.aggregate({
                     where: {
-                        date: { gte: start, lte: end },
                         OR: [
-                            { booking: { property: propertyFilter } },
-                            { eventBooking: { event: { property: propertyFilter } } },
-                            // If global (propertyFilter is empty or has all properties), include platform-level income
-                            ...(isGlobalAdmin && !propertyId ? [{ propertyId: null }] : [])
+                            // Booking income: recognized on check-in date
+                            {
+                                bookingId: { not: null },
+                                booking: {
+                                    checkInDate: { gte: start, lte: end },
+                                    property: propertyFilter
+                                }
+                            },
+                            // Event booking income: recognized on event date
+                            {
+                                eventBookingId: { not: null },
+                                eventBooking: {
+                                    event: {
+                                        date: { gte: start, lte: end },
+                                        property: propertyFilter
+                                    }
+                                }
+                            },
+                            // General/Manual income (no booking, no event)
+                            {
+                                bookingId: null,
+                                eventBookingId: null,
+                                date: { gte: start, lte: end },
+                                ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                            }
                         ]
                     },
                     _sum: { amount: true }
@@ -386,15 +406,26 @@ export class ReportsService {
                     where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, isManualBooking: true }
                 }), // Property Dashboard
                 this.prisma.booking.aggregate({
-                    where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' },
+                    where: { checkInDate: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' },
                     _count: true,
                     _sum: { paidAmount: true }
                 }), // Partial Payments
                 this.prisma.payment.aggregate({
                     where: {
-                        paymentDate: { gte: start, lte: end },
-                        status: 'PAID',
-                        booking: { property: propertyFilter }
+                        OR: [
+                            {
+                                bookingId: { not: null },
+                                booking: {
+                                    checkInDate: { gte: start, lte: end },
+                                    property: propertyFilter
+                                }
+                            },
+                            {
+                                bookingId: null,
+                                paymentDate: { gte: start, lte: end }
+                            }
+                        ],
+                        status: 'PAID'
                     },
                     _sum: { platformFee: true }
                 })
@@ -602,7 +633,7 @@ export class ReportsService {
 
         const bookings = await this.prisma.booking.findMany({
             where: {
-                createdAt: { gte: sDate, lte: eDate },
+                checkInDate: { gte: sDate, lte: eDate },
                 room: { property: propertyFilter }
             },
             include: { user: { select: { firstName: true, lastName: true } }, room: true, roomType: true }
@@ -614,13 +645,27 @@ export class ReportsService {
                 OR: [
                     { booking: { property: propertyFilter } },
                     { eventBooking: { event: { property: propertyFilter } } },
-                    ...(isGlobalAdmin && !propertyId ? [{ propertyId: null }] : [])
+                    { 
+                        bookingId: null, 
+                        eventBookingId: null,
+                        ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                    }
                 ]
             },
             include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } }, payment: true }
         });
 
-        return { bookings, incomes };
+        const platformFeeDetails = await this.prisma.payment.findMany({
+            where: {
+                paymentDate: { gte: sDate, lte: eDate },
+                status: 'PAID',
+                platformFee: { gt: 0 },
+                booking: { property: propertyFilter }
+            },
+            include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } } }
+        });
+
+        return { bookings, incomes, platformFeeDetails };
     }
 
     /**
@@ -753,7 +798,7 @@ export class ReportsService {
                 where: {
                     roomTypeId: rt.id,
                     status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
-                    createdAt: { gte: sDate, lte: eDate }
+                    checkInDate: { gte: sDate, lte: eDate }
                 }
             });
 
@@ -849,7 +894,7 @@ export class ReportsService {
         return report;
     }
 
-    async generateExcelReport(user: any, startDate: Date, endDate: Date, propertyId?: string): Promise<Buffer> {
+    async generateExcelReport(user: any, startDate: Date, endDate: Date, propertyId?: string, section?: string): Promise<Buffer> {
         const sDate = this.setStartOfDay(startDate);
         const eDate = this.setEndOfDay(endDate);
 
@@ -857,6 +902,16 @@ export class ReportsService {
             const financial = await this.getFinancialReport(user, sDate, eDate, propertyId);
             const occupancy = await this.getOccupancyReport(user, sDate, eDate, propertyId);
             const roomPerf = await this.getRoomPerformanceReport(user, sDate, eDate, propertyId);
+            
+            // Fetch Expenses
+            const expenses = await this.prisma.expense.findMany({
+                where: {
+                    date: { gte: sDate, lte: eDate },
+                    propertyId: propertyId || undefined,
+                },
+                include: { category: true }
+            });
+            const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
             let propertyName = "Global Network Analytics";
             if (propertyId) {
@@ -869,9 +924,7 @@ export class ReportsService {
             const darkTeal = 'FF093F4A';
             const lightTeal = 'FFF1F8FA';
 
-            // Helper to style a sheet
             const styleSheet = (ws: ExcelJS.Worksheet, title: string) => {
-                // Add Header
                 ws.mergeCells('A1:D1');
                 const mainHeader = ws.getCell('A1');
                 mainHeader.value = 'ROUTE GUIDE';
@@ -899,66 +952,112 @@ export class ReportsService {
                 ws.getRow(2).height = 25;
             };
 
-            // 1. Overview Sheet
-            const summarySheet = workbook.addWorksheet('Overview');
-            styleSheet(summarySheet, 'Performance Summary');
-            summarySheet.columns = [
-                { header: 'Metric', key: 'metric', width: 30 },
-                { header: 'Value', key: 'value', width: 25 },
-                { header: '', key: '', width: 10 },
-                { header: '', key: '', width: 10 },
-            ];
-            summarySheet.getRow(5).values = ['Key Metric', 'Performance Value'];
-            summarySheet.addRows([
-                { metric: 'Total Gross Volume', value: `₹${(financial.summary?.totalVolume || financial.summary?.totalIncome || 0).toLocaleString()}` },
-                { metric: 'Total Confirmed Bookings', value: (financial.summary?.bookingsCount || 0) },
-                { metric: 'Average Occupancy Rate', value: `${occupancy.averageOccupancy || 0}%` },
-                { metric: 'Net Revenue/Profit', value: `₹${(financial.summary?.netProfit || 0).toLocaleString()}` },
-            ]);
+            const wantsAll = !section;
 
-            // 2. Financials Sheet
-            const finSheet = workbook.addWorksheet('Revenue Sources');
-            styleSheet(finSheet, 'Revenue Breakdown');
-            finSheet.columns = [
-                { header: 'Booking Source', key: 'source', width: 30 },
-                { header: 'Total Revenue Generated', key: 'amount', width: 25 },
-                { header: '', key: '', width: 10 },
-                { header: '', key: '', width: 10 },
-            ];
-            finSheet.getRow(5).values = ['Source Channel', 'Revenue Amount'];
-            (financial.incomeBySource || []).forEach((item: any) => {
-                finSheet.addRow({
-                    source: (item.source || 'Direct').replace(/_/g, ' '),
-                    amount: `₹${Number(item._sum?.amount || 0).toLocaleString()}`,
+            if (wantsAll || section === 'summary') {
+                const summarySheet = workbook.addWorksheet('Overview');
+                styleSheet(summarySheet, 'Performance Summary');
+                summarySheet.columns = [
+                    { header: 'Metric', key: 'metric', width: 30 },
+                    { header: 'Value', key: 'value', width: 25 },
+                    { header: '', key: '', width: 10 },
+                    { header: '', key: '', width: 10 },
+                ];
+                summarySheet.getRow(5).values = ['Key Metric', 'Performance Value'];
+                summarySheet.addRows([
+                    { metric: 'Total Gross Volume (Revenue)', value: `₹${(financial.summary?.totalVolume || financial.summary?.totalIncome || 0).toLocaleString()}` },
+                    { metric: 'Total Platform Fees', value: `₹${(financial.summary?.totalPlatformFees || 0).toLocaleString()}` },
+                    { metric: 'Total Confirmed Bookings', value: (financial.summary?.bookingsCount || 0) },
+                    { metric: 'Average Occupancy Rate', value: `${occupancy.averageOccupancy || 0}%` },
+                    { metric: 'Total Expenses', value: `₹${totalExpenses.toLocaleString()}` },
+                    { metric: 'Net Revenue/Profit', value: `₹${(financial.summary?.netProfit || 0).toLocaleString()}` },
+                ]);
+            }
+
+            if (wantsAll || section === 'sources') {
+                const finSheet = workbook.addWorksheet('Revenue Sources');
+                styleSheet(finSheet, 'Revenue Breakdown');
+                finSheet.columns = [
+                    { header: 'Booking Source', key: 'source', width: 30 },
+                    { header: 'Total Revenue Generated', key: 'amount', width: 25 },
+                    { header: '', key: '', width: 10 },
+                    { header: '', key: '', width: 10 },
+                ];
+                finSheet.getRow(5).values = ['Source Channel', 'Revenue Amount'];
+                (financial.incomeBySource || []).forEach((item: any) => {
+                    finSheet.addRow({
+                        source: (item.source || 'Direct').replace(/_/g, ' '),
+                        amount: `₹${Number(item._sum?.amount || 0).toLocaleString()}`,
+                    });
                 });
-            });
+            }
 
-            // 3. Room Performance
-            const roomSheet = workbook.addWorksheet('Unit Analysis');
-            styleSheet(roomSheet, 'Room Type Performance');
-            roomSheet.columns = [
-                { header: 'Accommodation Type', key: 'name', width: 30 },
-                { header: 'Bookings', key: 'count', width: 15 },
-                { header: 'Revenue', key: 'revenue', width: 20 },
-                { header: 'Occupancy %', key: 'rate', width: 15 },
-            ];
-            roomSheet.getRow(5).values = ['Unit Type', 'Bookings', 'Revenue', 'Occ %'];
-            (roomPerf || []).forEach((item: any) => {
-                roomSheet.addRow({
-                    name: item.name || 'Unknown',
-                    count: item.bookingsCount || 0,
-                    revenue: `₹${(item.revenue || 0).toLocaleString()}`,
-                    rate: `${item.occupancyRate || 0}%`,
+            if (wantsAll || section === 'occupancy') {
+                const occSheet = workbook.addWorksheet('Occupancy Trend');
+                styleSheet(occSheet, 'Occupancy Trend');
+                occSheet.columns = [
+                    { header: 'Date', key: 'date', width: 20 },
+                    { header: 'Occupancy Rate (%)', key: 'rate', width: 20 },
+                    { header: 'Occupied Rooms', key: 'occupied', width: 20 },
+                    { header: 'Total Rooms', key: 'total', width: 20 },
+                ];
+                occSheet.getRow(5).values = ['Date', 'Occupancy Rate (%)', 'Occupied Rooms', 'Total Rooms'];
+                (occupancy.dailyStats || []).forEach((day: any) => {
+                    occSheet.addRow({
+                        date: new Date(day.date).toLocaleDateString(),
+                        rate: day.occupancyRate,
+                        occupied: day.occupied,
+                        total: day.total,
+                    });
                 });
-            });
+            }
 
-            // Global Zebra Striping & Borders
+            if (wantsAll || section === 'room-performance') {
+                const roomSheet = workbook.addWorksheet('Unit Analysis');
+                styleSheet(roomSheet, 'Room Type Performance');
+                roomSheet.columns = [
+                    { header: 'Accommodation Type', key: 'name', width: 30 },
+                    { header: 'Bookings', key: 'count', width: 15 },
+                    { header: 'Revenue', key: 'revenue', width: 20 },
+                    { header: 'Occupancy %', key: 'rate', width: 15 },
+                ];
+                roomSheet.getRow(5).values = ['Unit Type', 'Bookings', 'Revenue', 'Occ %'];
+                (roomPerf || []).forEach((item: any) => {
+                    roomSheet.addRow({
+                        name: item.name || 'Unknown',
+                        count: item.bookingsCount || 0,
+                        revenue: `₹${(item.revenue || 0).toLocaleString()}`,
+                        rate: `${item.occupancyRate || 0}%`,
+                    });
+                });
+            }
+
+            if (wantsAll || section === 'expenses') {
+                const expSheet = workbook.addWorksheet('Expenses');
+                styleSheet(expSheet, 'Expenses Details');
+                expSheet.columns = [
+                    { header: 'Date', key: 'date', width: 15 },
+                    { header: 'Category', key: 'category', width: 25 },
+                    { header: 'Description', key: 'desc', width: 40 },
+                    { header: 'Amount', key: 'amount', width: 20 },
+                    { header: 'Status', key: 'status', width: 15 },
+                ];
+                expSheet.getRow(5).values = ['Date', 'Category', 'Description', 'Amount', 'Status'];
+                expenses.forEach((exp: any) => {
+                    expSheet.addRow({
+                        date: new Date(exp.date).toLocaleDateString(),
+                        category: exp.category?.name || 'Uncategorized',
+                        desc: exp.description || 'N/A',
+                        amount: `₹${Number(exp.amount).toLocaleString()}`,
+                        status: exp.isPaid ? 'PAID' : 'PENDING'
+                    });
+                });
+            }
+
             workbook.worksheets.forEach(ws => {
                 ws.eachRow((row, rowNumber) => {
                     if (rowNumber > 5) {
-                        if (rowNumber % 2 === 0) {
-                            row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: lightTeal } };
-                        }
+                        if (rowNumber % 2 === 0) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: lightTeal } };
                         row.eachCell(cell => {
                             cell.border = {
                                 top: { style: 'thin', color: { argb: 'FFDDEEFE' } },
@@ -979,7 +1078,7 @@ export class ReportsService {
         }
     }
 
-    async generatePdfReport(user: any, startDate: Date, endDate: Date, propertyId?: string): Promise<Buffer> {
+    async generatePdfReport(user: any, startDate: Date, endDate: Date, propertyId?: string, section?: string, search?: string): Promise<Buffer> {
         const sDate = this.setStartOfDay(startDate);
         const eDate = this.setEndOfDay(endDate);
 
@@ -987,6 +1086,14 @@ export class ReportsService {
             const financial = await this.getFinancialReport(user, sDate, eDate, propertyId);
             const occupancy = await this.getOccupancyReport(user, sDate, eDate, propertyId);
             const roomPerf = await this.getRoomPerformanceReport(user, sDate, eDate, propertyId);
+            const expenses = await this.prisma.expense.findMany({
+                where: {
+                    date: { gte: sDate, lte: eDate },
+                    propertyId: propertyId || undefined,
+                },
+                include: { category: true }
+            });
+            const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
             let propertyName = "Global Network Analytics";
             if (propertyId) {
@@ -1003,114 +1110,110 @@ export class ReportsService {
                     bolditalics: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-MediumItalic.ttf')
                 }
             };
-            log(`Using fonts from: ${fonts.Roboto.normal}`);
 
             const urlResolver = new URLResolver(virtualFs);
             const printer = new PdfPrinter(fonts, virtualFs, urlResolver);
+            const wantsAll = !section;
 
-            const docDefinition: any = {
-                pageSize: 'A4',
-                pageMargins: [40, 60, 40, 60],
-                content: [
-                    // Header
-                    {
-                        columns: [
-                            {
-                                width: '*',
-                                stack: [
-                                    { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
-                                    { text: 'Performance Analytics Report', style: 'brandSub', margin: [0, 5, 0, 0] }
-                                ]
-                            },
-                            {
-                                width: 'auto',
-                                stack: [
-                                    { text: 'BUSINESS PERFORMANCE', style: 'docTitle' },
-                                    { text: `Period: ${sDate.toLocaleDateString()} - ${eDate.toLocaleDateString()}`, style: 'docPeriod' }
-                                ],
-                                alignment: 'right'
-                            }
-                        ],
-                        margin: [0, 0, 0, 30]
-                    },
+            const contentBlocks: any[] = [];
 
-                    // Property Title
-                    {
-                        table: {
-                            widths: ['*'],
-                            body: [[{ text: propertyName.toUpperCase(), style: 'propertyBanner' }]]
+            // Header (Always included)
+            contentBlocks.push(
+                {
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
+                                { text: section ? `${section.toUpperCase()} REPORT` : 'PERFORMANCE ANALYTICS REPORT', style: 'brandSub', margin: [0, 5, 0, 0] }
+                            ]
                         },
-                        layout: 'noBorders',
-                        margin: [0, 0, 0, 20]
-                    },
+                        {
+                            width: 'auto',
+                            stack: [
+                                { text: 'BUSINESS PERFORMANCE', style: 'docTitle' },
+                                { text: `Period: ${sDate.toLocaleDateString()} - ${eDate.toLocaleDateString()}`, style: 'docPeriod' }
+                            ],
+                            alignment: 'right'
+                        }
+                    ],
+                    margin: [0, 0, 0, 30]
+                },
+                {
+                    table: { widths: ['*'], body: [[{ text: propertyName.toUpperCase(), style: 'propertyBanner' }]] },
+                    layout: 'noBorders', margin: [0, 0, 0, 20]
+                }
+            );
 
-                    // KPI Grid
+            if (wantsAll || section === 'summary') {
+                contentBlocks.push(
                     {
                         columns: [
-                            {
-                                width: '*',
-                                stack: [
-                                    { text: 'TOTAL REVENUE', style: 'kpiLabel' },
-                                    { text: `₹${(financial.summary?.totalVolume || financial.summary?.totalIncome || 0).toLocaleString()}`, style: 'kpiValue' }
-                                ]
-                            },
-                            {
-                                width: '*',
-                                stack: [
-                                    { text: 'CONFIRMED BOOKINGS', style: 'kpiLabel' },
-                                    { text: (financial.summary?.bookingsCount || 0).toString(), style: 'kpiValue' }
-                                ]
-                            },
-                            {
-                                width: '*',
-                                stack: [
-                                    { text: 'AVG. OCCUPANCY', style: 'kpiLabel' },
-                                    { text: `${occupancy.averageOccupancy || 0}%`, style: 'kpiValue' }
-                                ]
-                            },
-                            {
-                                width: '*',
-                                stack: [
-                                    { text: 'NET PROFIT', style: 'kpiLabel' },
-                                    { text: `₹${(financial.summary?.netProfit || 0).toLocaleString()}`, style: 'kpiValue', color: '#0d9488' }
-                                ]
-                            }
-                        ],
-                        margin: [0, 0, 0, 40]
+                            { width: '*', stack: [{ text: 'TOTAL REVENUE', style: 'kpiLabel' }, { text: `₹${(financial.summary?.totalVolume || financial.summary?.totalIncome || 0).toLocaleString()}`, style: 'kpiValue' }] },
+                            { width: '*', stack: [{ text: 'PLATFORM FEES', style: 'kpiLabel' }, { text: `₹${(financial.summary?.totalPlatformFees || 0).toLocaleString()}`, style: 'kpiValue' }] },
+                            { width: '*', stack: [{ text: 'CONFIRMED BOOKINGS', style: 'kpiLabel' }, { text: (financial.summary?.bookingsCount || 0).toString(), style: 'kpiValue' }] },
+                        ], margin: [0, 0, 0, 20]
                     },
+                    {
+                        columns: [
+                            { width: '*', stack: [{ text: 'AVG. OCCUPANCY', style: 'kpiLabel' }, { text: `${occupancy.averageOccupancy || 0}%`, style: 'kpiValue' }] },
+                            { width: '*', stack: [{ text: 'TOTAL EXPENSES', style: 'kpiLabel' }, { text: `₹${totalExpenses.toLocaleString()}`, style: 'kpiValue', color: '#ef4444' }] },
+                            { width: '*', stack: [{ text: 'NET PROFIT', style: 'kpiLabel' }, { text: `₹${(financial.summary?.netProfit || 0).toLocaleString()}`, style: 'kpiValue', color: '#0d9488' }] }
+                        ], margin: [0, 0, 0, 40]
+                    }
+                );
+            }
 
-                    // Charts Placeholder / Summary Table
+            if (wantsAll || section === 'sources') {
+                contentBlocks.push(
                     { text: 'REVENUE BY SOURCE', style: 'sectionHeader' },
                     {
                         table: {
                             widths: ['*', 'auto'],
                             body: [
-                                [
-                                    { text: 'Source Channel', style: 'tableHeader' },
-                                    { text: 'Revenue', style: 'tableHeader', alignment: 'right' }
-                                ],
+                                [ { text: 'Source Channel', style: 'tableHeader' }, { text: 'Revenue', style: 'tableHeader', alignment: 'right' } ],
                                 ...((financial.incomeBySource || []).map(item => [
                                     { text: (item.source || 'Direct').replace(/_/g, ' '), style: 'tableCell' },
                                     { text: `₹${Number(item._sum?.amount || 0).toLocaleString()}`, style: 'tableCellBold', alignment: 'right' }
                                 ]))
                             ]
-                        },
-                        layout: 'lightHorizontalLines',
-                        margin: [0, 5, 0, 30]
-                    },
+                        }, layout: 'lightHorizontalLines', margin: [0, 5, 0, 30]
+                    }
+                );
+            }
 
+            if (wantsAll || section === 'occupancy') {
+                contentBlocks.push(
+                    { text: 'OCCUPANCY TREND', style: 'sectionHeader' },
+                    {
+                        table: {
+                            headerRows: 1, widths: ['*', 'auto', 'auto', 'auto'],
+                            body: [
+                                [ { text: 'DATE', style: 'tableHeader' }, { text: 'RATE (%)', style: 'tableHeader', alignment: 'center' }, { text: 'OCCUPIED', style: 'tableHeader', alignment: 'center' }, { text: 'TOTAL', style: 'tableHeader', alignment: 'center' } ],
+                                ...(occupancy.dailyStats || []).map((day: any) => [
+                                    { text: new Date(day.date).toLocaleDateString(), style: 'tableCell' },
+                                    { text: `${day.occupancyRate}%`, style: 'tableCell', alignment: 'center' },
+                                    { text: (day.occupied || 0).toString(), style: 'tableCell', alignment: 'center' },
+                                    { text: (day.total || 0).toString(), style: 'tableCell', alignment: 'center' }
+                                ])
+                            ]
+                        },
+                        layout: {
+                            paddingTop: (i) => i === 0 ? 10 : 8, paddingBottom: (i) => i === 0 ? 10 : 8,
+                            fillColor: (i) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null), hLineColor: () => '#e2e8f0',
+                        }, margin: [0, 5, 0, 30]
+                    }
+                );
+            }
+
+            if (wantsAll || section === 'room-performance') {
+                contentBlocks.push(
                     { text: 'ACCOMMODATION PERFORMANCE', style: 'sectionHeader' },
                     {
                         table: {
-                            headerRows: 1,
-                            widths: ['*', 'auto', 'auto', 'auto'],
+                            headerRows: 1, widths: ['*', 'auto', 'auto', 'auto'],
                             body: [
-                                [
-                                    { text: 'UNIT TYPE', style: 'tableHeader' },
-                                    { text: 'BOOKINGS', style: 'tableHeader', alignment: 'center' },
-                                    { text: 'OCC. %', style: 'tableHeader', alignment: 'center' },
-                                    { text: 'TOTAL REVENUE', style: 'tableHeader', alignment: 'right' }
-                                ],
+                                [ { text: 'UNIT TYPE', style: 'tableHeader' }, { text: 'BOOKINGS', style: 'tableHeader', alignment: 'center' }, { text: 'OCC. %', style: 'tableHeader', alignment: 'center' }, { text: 'TOTAL REVENUE', style: 'tableHeader', alignment: 'right' } ],
                                 ...(roomPerf || []).map((item) => [
                                     { text: item.name || 'Unknown', style: 'tableCell' },
                                     { text: (item.bookingsCount || 0).toString(), style: 'tableCell', alignment: 'center' },
@@ -1120,25 +1223,126 @@ export class ReportsService {
                             ]
                         },
                         layout: {
-                            paddingTop: (i) => i === 0 ? 10 : 8,
-                            paddingBottom: (i) => i === 0 ? 10 : 8,
-                            fillColor: (i) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null),
-                            hLineColor: () => '#e2e8f0',
-                        }
-                    },
-
-                    {
-                        text: 'Disclaimer: This report is generated automatically by Route Guide Analytics. Data might have slight variations based on real-time processing.',
-                        style: 'disclaimer',
-                        margin: [0, 40, 0, 0]
+                            paddingTop: (i) => i === 0 ? 10 : 8, paddingBottom: (i) => i === 0 ? 10 : 8,
+                            fillColor: (i) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null), hLineColor: () => '#e2e8f0',
+                        }, margin: [0, 5, 0, 30]
                     }
-                ],
+                );
+            }
+
+            if (wantsAll || section === 'expenses') {
+                contentBlocks.push(
+                    { text: 'EXPENSES BREAKDOWN', style: 'sectionHeader' },
+                    {
+                        table: {
+                            headerRows: 1, widths: ['auto', '*', '*', 'auto', 'auto'],
+                            body: [
+                                [ { text: 'DATE', style: 'tableHeader' }, { text: 'CATEGORY', style: 'tableHeader' }, { text: 'DESCRIPTION', style: 'tableHeader' }, { text: 'STATUS', style: 'tableHeader', alignment: 'center' }, { text: 'AMOUNT', style: 'tableHeader', alignment: 'right' } ],
+                                ...expenses.map((exp: any) => [
+                                    { text: new Date(exp.date).toLocaleDateString(), style: 'tableCell' },
+                                    { text: exp.category?.name || 'Uncategorized', style: 'tableCell' },
+                                    { text: exp.description || 'N/A', style: 'tableCell' },
+                                    { text: exp.isPaid ? 'PAID' : 'PENDING', style: 'tableCell', alignment: 'center' },
+                                    { text: `₹${Number(exp.amount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right' }
+                                ])
+                            ]
+                        },
+                        layout: {
+                            paddingTop: (i) => i === 0 ? 10 : 8, paddingBottom: (i) => i === 0 ? 10 : 8,
+                            fillColor: (i) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null), hLineColor: () => '#e2e8f0',
+                        }, margin: [0, 5, 0, 30]
+                    }
+                );
+            }
+
+            if (section === 'bookings_details' || section === 'revenue_details' || section === 'platform_fees_details') {
+                const details = await this.getFinancialDetails(user, sDate, eDate, propertyId);
+
+                if (section === 'bookings_details') {
+                    contentBlocks.push(
+                        { text: 'BOOKINGS DETAILS', style: 'sectionHeader' },
+                        {
+                            table: {
+                                headerRows: 1, widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto'],
+                                body: [
+                                    [ { text: 'BOOKING #', style: 'tableHeader' }, { text: 'DATE', style: 'tableHeader' }, { text: 'DATES', style: 'tableHeader' }, { text: 'GUEST', style: 'tableHeader' }, { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }, { text: 'STATUS', style: 'tableHeader', alignment: 'center' } ],
+                                    ...details.bookings.map((b: any) => [
+                                        { text: `#${b.bookingNumber}`, style: 'tableCellBold' },
+                                        { text: new Date(b.createdAt).toLocaleDateString(), style: 'tableCell' },
+                                        { text: `${new Date(b.checkInDate).toLocaleDateString()} - ${new Date(b.checkOutDate).toLocaleDateString()}`, style: 'tableCell' },
+                                        { text: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'N/A', style: 'tableCell' },
+                                        { text: `₹${Number(b.totalAmount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right' },
+                                        { text: b.status, style: 'tableCell', alignment: 'center' }
+                                    ])
+                                ]
+                            },
+                            layout: {
+                                paddingTop: (i: number) => i === 0 ? 10 : 8, paddingBottom: (i: number) => i === 0 ? 10 : 8,
+                                fillColor: (i: number) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null), hLineColor: () => '#e2e8f0',
+                            }, margin: [0, 5, 0, 30]
+                        }
+                    );
+                } else if (section === 'revenue_details') {
+                    contentBlocks.push(
+                        { text: 'REVENUE DETAILS', style: 'sectionHeader' },
+                        {
+                            table: {
+                                headerRows: 1, widths: ['auto', 'auto', '*', 'auto'],
+                                body: [
+                                    [ { text: 'DATE RECEIVED', style: 'tableHeader' }, { text: 'SOURCE', style: 'tableHeader' }, { text: 'DESCRIPTION', style: 'tableHeader' }, { text: 'AMOUNT', style: 'tableHeader', alignment: 'right' } ],
+                                    ...details.incomes.map((i: any) => [
+                                        { text: new Date(i.date).toLocaleDateString(), style: 'tableCell' },
+                                        { text: i.source.replace(/_/g, ' '), style: 'tableCellBold' },
+                                        { text: i.description + (i.booking ? ` (Booking #${i.booking.bookingNumber})` : ''), style: 'tableCell' },
+                                        { text: `₹${Number(i.amount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right', color: '#059669' }
+                                    ])
+                                ]
+                            },
+                            layout: {
+                                paddingTop: (i: number) => i === 0 ? 10 : 8, paddingBottom: (i: number) => i === 0 ? 10 : 8,
+                                fillColor: (i: number) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null), hLineColor: () => '#e2e8f0',
+                            }, margin: [0, 5, 0, 30]
+                        }
+                    );
+                } else if (section === 'platform_fees_details') {
+                    contentBlocks.push(
+                        { text: 'PLATFORM FEES DETAILS', style: 'sectionHeader' },
+                        {
+                            table: {
+                                headerRows: 1, widths: ['auto', '*', 'auto', 'auto'],
+                                body: [
+                                    [ { text: 'PAYMENT DATE', style: 'tableHeader' }, { text: 'BOOKING # / GUEST', style: 'tableHeader' }, { text: 'PAID AMOUNT', style: 'tableHeader', alignment: 'right' }, { text: 'PLATFORM FEE', style: 'tableHeader', alignment: 'right' } ],
+                                    ...details.platformFeeDetails.map((p: any) => [
+                                        { text: new Date(p.paymentDate).toLocaleDateString(), style: 'tableCell' },
+                                        { text: `#${p.booking?.bookingNumber} - ${p.booking?.user?.firstName} ${p.booking?.user?.lastName}`, style: 'tableCell' },
+                                        { text: `₹${Number(p.paidAmount).toLocaleString()}`, style: 'tableCell', alignment: 'right' },
+                                        { text: `₹${Number(p.platformFee).toLocaleString()}`, style: 'tableCellBold', alignment: 'right', color: '#ea580c' }
+                                    ])
+                                ]
+                            },
+                            layout: {
+                                paddingTop: (i: number) => i === 0 ? 10 : 8, paddingBottom: (i: number) => i === 0 ? 10 : 8,
+                                fillColor: (i: number) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null), hLineColor: () => '#e2e8f0',
+                            }, margin: [0, 5, 0, 30]
+                        }
+                    );
+                }
+            }
+
+            contentBlocks.push({
+                text: 'Disclaimer: This report is generated automatically by Route Guide Analytics. Data might have slight variations based on real-time processing.',
+                style: 'disclaimer', margin: [0, 40, 0, 0]
+            });
+
+            const docDefinition: any = {
+                pageSize: 'A4',
+                pageMargins: [40, 60, 40, 60],
+                content: contentBlocks,
                 footer: (currentPage, pageCount) => ({
                     columns: [
                         { text: `Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, style: 'footer' },
                         { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'footer' }
-                    ],
-                    margin: [40, 0, 40, 0]
+                    ], margin: [40, 0, 40, 0]
                 }),
                 styles: {
                     brandLogo: { fontSize: 24, bold: true, color: '#227c8a', letterSpacing: 2 },
@@ -1158,23 +1362,13 @@ export class ReportsService {
                 defaultStyle: { font: 'Roboto' }
             };
 
-            log(`Calling createPdfKitDocument...`);
             const pdfDoc = await printer.createPdfKitDocument(docDefinition);
-            log(`document created, starting stream...`);
 
             return new Promise((resolve, reject) => {
                 const chunks: any[] = [];
-                pdfDoc.on('data', (chunk: any) => {
-                    chunks.push(chunk);
-                });
-                pdfDoc.on('end', () => {
-                    log(`stream end, chunks size: ${chunks.length}`);
-                    resolve(Buffer.concat(chunks));
-                });
-                pdfDoc.on('error', (err: any) => {
-                    log(`PDF Stream Error: ${err.message}`);
-                    reject(err);
-                });
+                pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+                pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+                pdfDoc.on('error', (err: any) => reject(err));
                 pdfDoc.end();
             });
         } catch (error) {
@@ -1183,6 +1377,7 @@ export class ReportsService {
             throw error;
         }
     }
+
 
     async getAbandonedBookings(user: any, startDate: Date, endDate: Date, propertyId?: string) {
         const sDate = this.setStartOfDay(startDate);

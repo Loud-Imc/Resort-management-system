@@ -76,6 +76,7 @@ export default function ReschedulePage() {
     const [adultsCount, setAdultsCount] = useState<number>(1);
     const [childrenCount, setChildrenCount] = useState<number>(0);
     const [isGuestSameAsBooker, setIsGuestSameAsBooker] = useState<boolean>(true);
+    const [hydratedBookingId, setHydratedBookingId] = useState<string | null>(null);
 
     const selectedRoomType = useMemo(() => {
         return roomTypes?.find(rt => rt.id === rescheduleRoomTypeId);
@@ -112,7 +113,9 @@ export default function ReschedulePage() {
 
     // ── Hydrate state from fetched booking ────────────────────────────────────
     useEffect(() => {
-        if (!booking) return;
+        if (!booking || hydratedBookingId === booking.id) return;
+        setHydratedBookingId(booking.id);
+
         setNewCheckInDate(format(new Date(booking.checkInDate), 'yyyy-MM-dd'));
         setNewCheckOutDate(format(new Date(booking.checkOutDate), 'yyyy-MM-dd'));
         setUseRescheduleOverride(booking.isPriceOverridden || false);
@@ -142,7 +145,10 @@ export default function ReschedulePage() {
             // If guest phone is empty (created with "Add booker as primary guest"), default to same-as-booker.
             const differentFirstName = g0.firstName?.trim() !== u.firstName?.trim();
             const bothHavePhone = !!(g0.phone && u.phone);
-            const differentPhone = bothHavePhone && g0.phone !== u.phone;
+            const normalizePhone = (p?: string | null) => (p || '').replace(/\D/g, '').replace(/^0+/, '');
+            const nGuest = normalizePhone(g0.phone);
+            const nUser = normalizePhone(u.phone);
+            const differentPhone = bothHavePhone && !(nGuest.endsWith(nUser) || nUser.endsWith(nGuest));
             setIsGuestSameAsBooker(!differentFirstName && !differentPhone);
         } else {
             // No guest record at all → booker is the guest
@@ -398,9 +404,15 @@ export default function ReschedulePage() {
             toast.error('Rescheduling is only allowed within 3 months (90 days) of the original check-in date.');
             return;
         }
+        const finalGuestFirstName = isGuestSameAsBooker ? bookerFirstName : guestFirstName;
+        const finalGuestLastName = isGuestSameAsBooker ? bookerLastName : guestLastName;
+        const finalGuestEmail = isGuestSameAsBooker ? bookerEmail : guestEmail;
+        const finalGuestPhone = isGuestSameAsBooker ? bookerPhone : guestPhone;
+        const finalGuestWhatsapp = isGuestSameAsBooker ? bookerWhatsapp : guestWhatsapp;
+
         if (!bookerFirstName.trim()) { toast.error('Booker First Name is required.'); return; }
         if (!bookerPhone.trim()) { toast.error('Booker Phone Number is required.'); return; }
-        if (!guestFirstName.trim()) { toast.error('Guest First Name is required.'); return; }
+        if (!finalGuestFirstName.trim()) { toast.error('Guest First Name is required.'); return; }
 
         if (!booking.isGroupBooking && selectedRoomIds.length < requiredRooms) {
             toast.error(`Please select at least ${requiredRooms} room(s) to accommodate all guests.`);
@@ -432,11 +444,11 @@ export default function ReschedulePage() {
                 guests: [
                     {
                         id: booking.guests?.[0]?.id,
-                        firstName: guestFirstName,
-                        lastName: guestLastName || '',
-                        email: guestEmail || undefined,
-                        phone: guestPhone || undefined,
-                        whatsappNumber: guestWhatsapp || undefined,
+                        firstName: finalGuestFirstName,
+                        lastName: finalGuestLastName || '',
+                        email: finalGuestEmail || undefined,
+                        phone: finalGuestPhone || undefined,
+                        whatsappNumber: finalGuestWhatsapp || undefined,
                     },
                 ],
             },

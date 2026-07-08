@@ -10,6 +10,10 @@ export const usersService = {
         const { data } = await api.get<User>(`/users/${id}`);
         return data;
     },
+    findByPhone: async (phone: string) => {
+        const { data } = await api.get<User>(`/users/by-phone/${encodeURIComponent(phone)}`);
+        return data;
+    },
     create: async (userData: any) => {
         const { data } = await api.post<User>('/users', userData);
         return data;

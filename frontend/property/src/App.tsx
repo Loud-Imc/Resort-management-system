@@ -22,6 +22,7 @@ import CreateRoom from './pages/Rooms/CreateRoom';
 import EditRoom from './pages/Rooms/EditRoom';
 import RoomTypesList from './pages/RoomTypes/RoomTypesList';
 import CreateRoomType from './pages/RoomTypes/CreateRoomType';
+import AssetsList from './pages/Assets/AssetsList';
 import GuestsList from './pages/Guests/GuestsList';
 import GuestDetails from './pages/Guests/GuestDetails';
 import PaymentsList from './pages/Payments/PaymentsList';
@@ -81,6 +82,7 @@ function App() {
                     <Route path="room-types" element={<RoomTypesList />} />
                     <Route path="room-types/create" element={<CreateRoomType />} />
                     <Route path="room-types/edit/:id" element={<CreateRoomType />} />
+                    <Route path="assets" element={<AssetsList />} />
 
                     {/* Financials */}
                     <Route path="payments" element={<PaymentsList />} />

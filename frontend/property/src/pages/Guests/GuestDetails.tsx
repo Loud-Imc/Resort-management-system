@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersService } from '../../services/users';
 import type { User } from '../../types/user';
-import { Loader2, ArrowLeft, Mail, Phone, Calendar, ShieldCheck, Shield, Download } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Calendar, ShieldCheck, Shield, Download, FileText, Printer } from 'lucide-react';
 import { format, differenceInCalendarDays, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
+import { useMemo } from 'react';
 
 export default function GuestDetails() {
     const { id } = useParams();
@@ -18,6 +19,19 @@ export default function GuestDetails() {
         queryFn: () => usersService.getById(id!),
         enabled: !!id,
     });
+
+    const latestIdentityDocs = useMemo(() => {
+        if (!user?.bookings) return null;
+        for (const booking of user.bookings) {
+            if (booking.guests && booking.guests.length > 0) {
+                const guestWithId = booking.guests.find((g: any) => g.idImage || g.idImageBack);
+                if (guestWithId) {
+                    return guestWithId;
+                }
+            }
+        }
+        return null;
+    }, [user?.bookings]);
 
     if (isLoading) return (
         <div className="flex items-center justify-center h-64">
@@ -67,6 +81,21 @@ export default function GuestDetails() {
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Failed to download report:', error);
+        }
+    };
+
+    const handlePrintImage = (imageUrl: string) => {
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(`
+                <html>
+                    <head><title>Print ID Document</title></head>
+                    <body style="margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+                        <img src="${imageUrl}" style="max-width: 100%; max-height: 100vh; object-fit: contain;" onload="window.print(); window.close();" />
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
         }
     };
 
@@ -135,6 +164,51 @@ export default function GuestDetails() {
                     </div>
                 </div>
             </div>
+
+            {/* Identity Documents */}
+            {latestIdentityDocs && (
+                <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+                        <FileText className="h-5 w-5 text-emerald-600" /> Identity Documents
+                    </h3>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                        <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+                            <div className="flex-1">
+                                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+                                    {latestIdentityDocs.firstName} {latestIdentityDocs.lastName}
+                                </h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                                        {latestIdentityDocs.idType || 'Document'}:
+                                    </span> {latestIdentityDocs.idNumber || 'No ID Number provided'}
+                                </p>
+                            </div>
+                            <div className="flex gap-4">
+                                {latestIdentityDocs.idImage && (
+                                    <div className="flex flex-col gap-2 items-center">
+                                        <a href={latestIdentityDocs.idImage} target="_blank" rel="noopener noreferrer" className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 hover:border-primary transition-colors bg-gray-50 dark:bg-gray-900 block" title="Front Side">
+                                            <img src={latestIdentityDocs.idImage} alt="ID Front" className="w-full h-full object-cover" />
+                                        </a>
+                                        <button onClick={() => handlePrintImage(latestIdentityDocs.idImage)} className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">
+                                            <Printer className="h-3 w-3" /> Print Front
+                                        </button>
+                                    </div>
+                                )}
+                                {latestIdentityDocs.idImageBack && (
+                                    <div className="flex flex-col gap-2 items-center">
+                                        <a href={latestIdentityDocs.idImageBack} target="_blank" rel="noopener noreferrer" className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 hover:border-primary transition-colors bg-gray-50 dark:bg-gray-900 block" title="Back Side">
+                                            <img src={latestIdentityDocs.idImageBack} alt="ID Back" className="w-full h-full object-cover" />
+                                        </a>
+                                        <button onClick={() => handlePrintImage(latestIdentityDocs.idImageBack)} className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">
+                                            <Printer className="h-3 w-3" /> Print Back
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Booking History */}
             <div>

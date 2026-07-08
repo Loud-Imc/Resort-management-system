@@ -91,6 +91,31 @@ export class PropertiesController {
         return this.propertiesService.updateRequest(req.user.id, id, payload);
     }
 
+    @Get('expand-url')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Expand shortened Google Maps URL' })
+    async expandUrl(@Query('url') shortUrl: string) {
+        if (!shortUrl) return { url: '' };
+        try {
+            const response = await axios.get(shortUrl, {
+                maxRedirects: 0,
+                validateStatus: (status) => status >= 200 && status < 400
+            });
+            
+            if (response.status >= 300 && response.status < 400 && response.headers.location) {
+                return { url: response.headers.location };
+            }
+            
+            return { url: response.request?.res?.responseUrl || shortUrl };
+        } catch (error: any) {
+            if (error.response && error.response.headers && error.response.headers.location) {
+                return { url: error.response.headers.location };
+            }
+            return { url: shortUrl };
+        }
+    }
+
     // ============================================
     // PUBLIC ENDPOINTS
     // ============================================

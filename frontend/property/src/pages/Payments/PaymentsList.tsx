@@ -14,24 +14,29 @@ import {
     Filter,
     Info
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { Payment } from '../../types/payment';
 import { useProperty } from '../../context/PropertyContext';
+import { Calendar } from 'lucide-react';
 
 export default function PaymentsList() {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<'ALL' | 'PAID' | 'PENDING' | 'FAILED' | 'REFUNDED'>('ALL');
+    const [dateRange, setDateRange] = useState({
+        startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+        endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
+    });
     const { selectedProperty } = useProperty();
 
     const { data: payments, isLoading } = useQuery<Payment[]>({
-        queryKey: ['payments', selectedProperty?.id],
-        queryFn: () => paymentsService.getAll(selectedProperty?.id),
+        queryKey: ['payments', selectedProperty?.id, dateRange.startDate, dateRange.endDate],
+        queryFn: () => paymentsService.getAll(selectedProperty?.id, dateRange.startDate, dateRange.endDate),
         enabled: !!selectedProperty?.id,
     });
 
     const { data: stats, isLoading: statsLoading } = useQuery({
-        queryKey: ['paymentStats', selectedProperty?.id],
-        queryFn: () => paymentsService.getStats(selectedProperty?.id),
+        queryKey: ['paymentStats', selectedProperty?.id, dateRange.startDate, dateRange.endDate],
+        queryFn: () => paymentsService.getStats(selectedProperty?.id, dateRange.startDate, dateRange.endDate),
         enabled: !!selectedProperty?.id,
     });
 
@@ -135,6 +140,14 @@ export default function PaymentsList() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex items-center gap-2 bg-background border border-border px-3 rounded-lg flex-shrink-0">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <input type="date" className="bg-transparent border-none text-sm font-medium focus:ring-0 p-2 text-foreground" value={dateRange.startDate}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))} />
+                    <span className="text-muted-foreground">-</span>
+                    <input type="date" className="bg-transparent border-none text-sm font-medium focus:ring-0 p-2 text-foreground" value={dateRange.endDate}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))} />
+                </div>
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
