@@ -270,8 +270,8 @@ export default function Reports() {
                                 <div className="flex items-center gap-4">
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">Booking Sources</h3>
                                     <div className="flex gap-2">
-                                        {/* <button onClick={() => reportsService.exportExcel(dateRange.startDate, dateRange.endDate, selectedProperty?.id, 'financial')} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded transition-colors">Excel</button> */}
-                                        <button onClick={() => reportsService.exportPdf(dateRange.startDate, dateRange.endDate, selectedProperty?.id, 'financial')} className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors">PDF</button>
+                                        {/* <button onClick={() => reportsService.exportExcel(dateRange.startDate, dateRange.endDate, selectedProperty?.id, 'sources')} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded transition-colors">Excel</button> */}
+                                        <button onClick={() => reportsService.exportPdf(dateRange.startDate, dateRange.endDate, selectedProperty?.id, 'sources')} className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors">PDF</button>
                                     </div>
                                 </div>
                                 <button
