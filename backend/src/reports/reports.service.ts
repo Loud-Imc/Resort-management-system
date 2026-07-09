@@ -128,7 +128,7 @@ export class ReportsService {
 
         const bookedToday = await this.prisma.booking.count({
             where: {
-                createdAt: {
+                checkInDate: {
                     gte: today,
                     lt: tomorrow
                 },
@@ -204,13 +204,29 @@ export class ReportsService {
         // 4. Today's Revenue (Income created today)
         const incomeToday = await this.prisma.income.aggregate({
             where: {
-                date: {
-                    gte: today,
-                    lt: tomorrow,
-                },
                 OR: [
-                    { booking: { property: propertyFilter } },
-                    { eventBooking: { event: { property: propertyFilter } } }
+                    {
+                        bookingId: { not: null },
+                        booking: {
+                            checkInDate: { gte: today, lt: tomorrow },
+                            property: propertyFilter
+                        }
+                    },
+                    {
+                        eventBookingId: { not: null },
+                        eventBooking: {
+                            event: {
+                                date: { gte: today, lt: tomorrow },
+                                property: propertyFilter
+                            }
+                        }
+                    },
+                    {
+                        bookingId: null,
+                        eventBookingId: null,
+                        date: { gte: today, lt: tomorrow },
+                        ...(isGlobalAdmin ? {} : { property: propertyFilter })
+                    }
                 ]
             },
             _sum: {
@@ -358,7 +374,7 @@ export class ReportsService {
                 }),
                 this.prisma.booking.count({
                     where: {
-                        createdAt: { gte: start, lte: end },
+                        checkInDate: { gte: start, lte: end },
                         room: { property: propertyFilter }
                     }
                 }),
@@ -384,7 +400,7 @@ export class ReportsService {
                 }),
                 this.prisma.booking.count({
                     where: {
-                        createdAt: { gte: start, lte: end },
+                        checkInDate: { gte: start, lte: end },
                         room: { property: propertyFilter },
                         isManualBooking: false,
                         OR: [
@@ -395,7 +411,7 @@ export class ReportsService {
                 }), // Public Website (Guest-led)
                 this.prisma.booking.count({
                     where: {
-                        createdAt: { gte: start, lte: end },
+                        checkInDate: { gte: start, lte: end },
                         room: { property: propertyFilter },
                         isManualBooking: false,
                         channelPartnerId: { not: null },
@@ -403,7 +419,7 @@ export class ReportsService {
                     }
                 }), // CP Dashboard (Partner-led)
                 this.prisma.booking.count({
-                    where: { createdAt: { gte: start, lte: end }, room: { property: propertyFilter }, isManualBooking: true }
+                    where: { checkInDate: { gte: start, lte: end }, room: { property: propertyFilter }, isManualBooking: true }
                 }), // Property Dashboard
                 this.prisma.booking.aggregate({
                     where: { checkInDate: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' },
@@ -472,15 +488,52 @@ export class ReportsService {
         };
 
         // 3. Income by Source
-        const incomeBySource = await this.prisma.income.groupBy({
-            by: ['source'],
+        const rawIncomes = await this.prisma.income.findMany({
             where: {
-                date: { gte: sDate, lte: eDate },
-                property: propertyId ? { id: propertyId } : (isGlobalAdmin ? undefined : propertyFilter)
+                OR: [
+                    {
+                        bookingId: { not: null },
+                        booking: {
+                            checkInDate: { gte: sDate, lte: eDate },
+                            property: propertyId ? { id: propertyId } : (isGlobalAdmin ? undefined : propertyFilter)
+                        }
+                    },
+                    {
+                        eventBookingId: { not: null },
+                        eventBooking: {
+                            event: {
+                                date: { gte: sDate, lte: eDate },
+                                property: propertyId ? { id: propertyId } : (isGlobalAdmin ? undefined : propertyFilter)
+                            }
+                        }
+                    },
+                    {
+                        bookingId: null,
+                        eventBookingId: null,
+                        date: { gte: sDate, lte: eDate },
+                        ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                    }
+                ]
             },
-            _sum: { amount: true },
-            _count: { _all: true }
+            include: { property: true }
         });
+
+        const incomeBySourceMap = new Map<string, { _sum: { amount: number }, _count: { _all: number } }>();
+        for (const item of rawIncomes) {
+            const source = item.source || 'UNKNOWN';
+            if (!incomeBySourceMap.has(source)) {
+                incomeBySourceMap.set(source, { _sum: { amount: 0 }, _count: { _all: 0 } });
+            }
+            const agg = incomeBySourceMap.get(source)!;
+            agg._sum.amount += Number(item.amount || 0);
+            agg._count._all += 1;
+        }
+        
+        const incomeBySource = Array.from(incomeBySourceMap.entries()).map(([source, agg]) => ({
+            source,
+            _sum: agg._sum,
+            _count: agg._count
+        }));
 
         // Platform-Specific Financial Logic
         let platformSummary: any = null;
@@ -524,10 +577,7 @@ export class ReportsService {
             const operationalCost = Number(platformExpensesTotal._sum.amount || 0);
 
             // Income Sources Aggregation
-            const incomeBreakdownArray = await this.prisma.income.findMany({
-                where: { date: { gte: sDate, lte: eDate } },
-                include: { property: true }
-            });
+            const incomeBreakdownArray = rawIncomes;
 
             const cpRegistrationIncomes = incomeBreakdownArray.filter(i => i.source === 'CP_REGISTRATION_FEE');
             const cpFees = cpRegistrationIncomes.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -641,13 +691,27 @@ export class ReportsService {
 
         const incomes = await this.prisma.income.findMany({
             where: {
-                date: { gte: sDate, lte: eDate },
                 OR: [
-                    { booking: { property: propertyFilter } },
-                    { eventBooking: { event: { property: propertyFilter } } },
-                    { 
-                        bookingId: null, 
+                    {
+                        bookingId: { not: null },
+                        booking: {
+                            checkInDate: { gte: sDate, lte: eDate },
+                            property: propertyFilter
+                        }
+                    },
+                    {
+                        eventBookingId: { not: null },
+                        eventBooking: {
+                            event: {
+                                date: { gte: sDate, lte: eDate },
+                                property: propertyFilter
+                            }
+                        }
+                    },
+                    {
+                        bookingId: null,
                         eventBookingId: null,
+                        date: { gte: sDate, lte: eDate },
                         ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
                     }
                 ]
@@ -657,10 +721,22 @@ export class ReportsService {
 
         const platformFeeDetails = await this.prisma.payment.findMany({
             where: {
-                paymentDate: { gte: sDate, lte: eDate },
                 status: 'PAID',
                 platformFee: { gt: 0 },
-                booking: { property: propertyFilter }
+                OR: [
+                    {
+                        bookingId: { not: null },
+                        booking: {
+                            checkInDate: { gte: sDate, lte: eDate },
+                            property: propertyFilter
+                        }
+                    },
+                    {
+                        bookingId: null,
+                        paymentDate: { gte: sDate, lte: eDate },
+                        ...(isGlobalAdmin && !propertyId ? {} : {}) // Adjust if payments without booking have property link
+                    }
+                ]
             },
             include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } } }
         });
@@ -805,10 +881,11 @@ export class ReportsService {
             // Sum actual incomes recorded in this range for this room type
             const incomeAggregate = await this.prisma.income.aggregate({
                 where: {
-                    date: { gte: sDate, lte: eDate },
+                    bookingId: { not: null },
                     booking: {
                         roomTypeId: rt.id,
-                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] }
+                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
+                        checkInDate: { gte: sDate, lte: eDate }
                     }
                 },
                 _sum: { amount: true }
@@ -1456,7 +1533,7 @@ export class ReportsService {
         const bookings = await this.prisma.booking.findMany({
             where: {
                 status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
-                confirmedAt: {
+                checkInDate: {
                     gte: sDate,
                     lte: eDate,
                 },

@@ -43,11 +43,27 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
         roomId: '',
     });
 
+    const [isCustomCategory, setIsCustomCategory] = useState(false);
+
     const { data: rooms } = useQuery({
         queryKey: ['rooms', selectedProperty?.id],
         queryFn: () => roomsService.getAll({ propertyId: selectedProperty?.id }),
         enabled: !!selectedProperty?.id && isOpen,
     });
+
+    const { data: assets } = useQuery({
+        queryKey: ['assets', selectedProperty?.id],
+        queryFn: () => assetsService.getAll({ propertyId: selectedProperty?.id as string }),
+        enabled: !!selectedProperty?.id && isOpen,
+    });
+
+    const dynamicCategories = React.useMemo(() => {
+        const existingCustom = (assets || [])
+            .map(a => a.category)
+            .filter(c => c && !CATEGORIES.includes(c));
+        return [...CATEGORIES, ...Array.from(new Set(existingCustom))];
+    }, [assets]);
+
 
     useEffect(() => {
         if (asset) {
@@ -76,6 +92,7 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
                 notes: '',
                 roomId: '',
             });
+            setIsCustomCategory(false);
         }
     }, [asset, isOpen]);
 
@@ -174,15 +191,47 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
                                 <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
                                     <Tag className="h-3.5 w-3.5 text-primary" /> Category
                                 </label>
-                                <select
-                                    value={formData.category}
-                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                >
-                                    {CATEGORIES.map(c => (
-                                        <option key={c} value={c}>{c}</option>
-                                    ))}
-                                </select>
+                                {isCustomCategory ? (
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            required
+                                            value={formData.category}
+                                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                            className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                            placeholder="Enter custom category"
+                                            autoFocus
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsCustomCategory(false);
+                                                setFormData({ ...formData, category: 'Furniture' });
+                                            }}
+                                            className="px-3 bg-muted text-muted-foreground rounded-xl hover:bg-muted/80 text-sm font-semibold"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={formData.category}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'ADD_NEW') {
+                                                setIsCustomCategory(true);
+                                                setFormData({ ...formData, category: '' });
+                                            } else {
+                                                setFormData({ ...formData, category: e.target.value });
+                                            }
+                                        }}
+                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    >
+                                        {dynamicCategories.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                        <option value="ADD_NEW">+ Add New Category</option>
+                                    </select>
+                                )}
                             </div>
                         </div>
 

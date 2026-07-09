@@ -65,6 +65,43 @@ export class ExpensesService {
         return expense;
     }
 
+    async createBulk(dtos: CreateExpenseDto[], userId: string) {
+        // We use a transaction of sequential creates to handle relation connections
+        const createdExpenses = await this.prisma.$transaction(
+            dtos.map(dto => this.prisma.expense.create({
+                data: {
+                    amount: dto.amount,
+                    description: dto.description,
+                    categoryId: dto.categoryId,
+                    propertyId: dto.propertyId,
+                    date: dto.date ? new Date(dto.date) : new Date(),
+                    receipts: dto.receipts || [],
+                    isPaid: dto.isPaid ?? true,
+                    paymentMethod: dto.paymentMethod,
+                    bookings: (dto.bookingIds && dto.bookingIds.length > 0) ? {
+                        connect: dto.bookingIds.map(id => ({ id }))
+                    } : undefined,
+                },
+                include: {
+                    category: true,
+                    bookings: {
+                        select: { id: true, bookingNumber: true, guests: true }
+                    }
+                },
+            }))
+        );
+
+        await this.auditService.createLog({
+            action: 'CREATE_BULK',
+            entity: 'Expense',
+            entityId: createdExpenses[0]?.id || 'bulk',
+            userId,
+            newValue: { count: createdExpenses.length },
+        });
+
+        return createdExpenses;
+    }
+
     /**
      * Get all expenses with filters
      */

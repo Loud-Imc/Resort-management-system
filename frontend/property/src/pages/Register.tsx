@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
@@ -1052,10 +1052,28 @@ function DocumentUpload({ label, id, value, onUpload, required }: { label: strin
                     {isUploading ? (
                         <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
                     ) : value ? (
-                        <>
-                            <CheckCircle2 className="h-6 w-6 text-primary-600 mb-2" />
-                            <span className="text-xs font-bold text-primary-700">Uploaded Successfully</span>
-                        </>
+                        <div className="w-full relative">
+                            {value.toLowerCase().match(/\.(pdf)$/) ? (
+                                <div className="flex flex-col items-center text-center py-2">
+                                    <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mb-2">
+                                        <FileText className="w-6 h-6 text-primary-600" />
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900 mb-1">PDF Document Uploaded</span>
+                                    <span className="text-xs text-primary-600 hover:text-primary-700">Click to change</span>
+                                </div>
+                            ) : (
+                                <div className="relative group/preview w-full rounded-lg overflow-hidden">
+                                    <img 
+                                        src={value} 
+                                        alt="Preview" 
+                                        className="w-full h-32 object-contain bg-black/5" 
+                                    />
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="text-white text-sm font-medium">Click to change</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <>
                             <ClipboardList className="h-6 w-6 text-gray-400 mb-2" />

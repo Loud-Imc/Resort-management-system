@@ -103,6 +103,24 @@ function ExpenseRow({ index, register, errors, watch, setValue, categories, book
         }
     };
 
+    const selectedCategoryId = watch(`expenses.${index}.categoryId`);
+    const selectedCategory = categories?.find((c: any) => c.id === selectedCategoryId);
+    const canDeleteCategory = selectedCategory && selectedCategory._count?.expenses === 0;
+
+    const deleteCategory = async () => {
+        if (!selectedCategoryId) return;
+        if (!window.confirm('Are you sure you want to delete this category?')) return;
+        try {
+            await expensesService.deleteCategory(selectedCategoryId);
+            await queryClient.invalidateQueries({ queryKey: ['expenseCategories'] });
+            setValue(`expenses.${index}.categoryId`, '');
+            toast.success('Category deleted successfully');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to delete category');
+        }
+    };
+
+
     return (
         <div className="flex gap-3 items-start p-1 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group">
             {/* Date */}
@@ -148,6 +166,12 @@ function ExpenseRow({ index, register, errors, watch, setValue, categories, book
                              className="p-1.5 text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors border border-transparent hover:border-primary/20 dark:hover:border-primary-800" title="Add New Category">
                              <Plus className="h-4 w-4" />
                          </button>
+                         {canDeleteCategory && (
+                             <button type="button" onClick={deleteCategory}
+                                 className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800" title="Delete Category">
+                                 <Trash2 className="h-4 w-4" />
+                             </button>
+                         )}
                      </div>
                  )}
                  {errors?.expenses?.[index]?.categoryId && !isAddingCategory && <p className="text-[10px] text-red-500 mt-1">{errors.expenses[index].categoryId.message}</p>}
@@ -315,12 +339,12 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
                 delete payload.id;
                 return expensesService.update(expense.id, payload);
             } else {
-                // Create multiple
-                const promises = data.expenses.map(exp => {
-                    const payload = { ...exp, propertyId: exp.propertyId || selectedProperty?.id };
-                    return expensesService.create(payload);
-                });
-                return Promise.all(promises);
+                // Create multiple via single bulk API call
+                const payloads = data.expenses.map(exp => ({
+                    ...exp,
+                    propertyId: exp.propertyId || selectedProperty?.id
+                }));
+                return expensesService.createBulk(payloads);
             }
         },
         onSuccess: () => {

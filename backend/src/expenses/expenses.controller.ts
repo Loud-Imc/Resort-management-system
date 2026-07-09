@@ -21,6 +21,13 @@ export class ExpensesController {
         return this.expensesService.create(createExpenseDto, req.user.id);
     }
 
+    @Post('bulk')
+    @Permissions(PERMISSIONS.EXPENSES.CREATE)
+    @ApiOperation({ summary: 'Create multiple expenses' })
+    createBulk(@Body() createExpenseDtos: CreateExpenseDto[], @Request() req) {
+        return this.expensesService.createBulk(createExpenseDtos, req.user.id);
+    }
+
     @Get()
     @Permissions(PERMISSIONS.EXPENSES.READ)
     @ApiOperation({ summary: 'Get all expenses with filters' })
