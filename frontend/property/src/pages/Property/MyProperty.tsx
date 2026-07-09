@@ -228,11 +228,25 @@ export default function MyProperty() {
         }
     };
 
-    const handleMapsLinkChange = (value: string) => {
+    const handleMapsLinkChange = async (value: string) => {
         setGoogleMapsLink(value);
+        if (!value) return;
+
+        let urlToMatch = value;
+        // If it's a shortened google maps link, resolve it via backend
+        if (value.includes('goo.gl') || value.includes('maps.app.goo.gl')) {
+            try {
+                const res = await propertiesService.expandUrl(value);
+                if (res?.url) {
+                    urlToMatch = res.url;
+                }
+            } catch (error) {
+                console.error('Failed to expand Maps URL', error);
+            }
+        }
         
         // Extract coordinates
-        const coordMatch = value.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        const coordMatch = urlToMatch.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (coordMatch) {
             setLatitude(parseFloat(coordMatch[1]));
             setLongitude(parseFloat(coordMatch[2]));
@@ -240,7 +254,7 @@ export default function MyProperty() {
             return;
         }
 
-        const llMatch = value.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        const llMatch = urlToMatch.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (llMatch) {
             setLatitude(parseFloat(llMatch[1]));
             setLongitude(parseFloat(llMatch[2]));
@@ -248,7 +262,7 @@ export default function MyProperty() {
             return;
         }
 
-        const qMatch = value.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        const qMatch = urlToMatch.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (qMatch) {
             setLatitude(parseFloat(qMatch[1]));
             setLongitude(parseFloat(qMatch[2]));

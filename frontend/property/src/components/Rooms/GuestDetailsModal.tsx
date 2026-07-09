@@ -35,10 +35,16 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
 
     if (!isOpen) return null;
 
-    // Find the active (usually CHECKED_IN or CONFIRMED) booking
-    const activeBookingRoom = room?.bookingRooms?.find((br: any) =>
-        ['CHECKED_IN', 'CONFIRMED'].includes(br.booking.status)
-    );
+    // Find the active booking for today
+    const activeBookingRoom = room?.bookingRooms?.find((br: any) => br.booking.status === 'CHECKED_IN')
+        || room?.bookingRooms?.find((br: any) => {
+            if (br.booking.status !== 'CONFIRMED') return false;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0,0,0,0);
+            const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
+            return today >= checkIn && today < checkOut;
+        });
     const activeBooking = activeBookingRoom?.booking;
 
     const handleViewBooking = () => {
@@ -174,10 +180,10 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
                                     </div>
                                 </div>
                                 <div className="p-3 bg-gray-100/50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 flex justify-center items-center gap-4">
-                                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">
+                                    {/* <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">
                                         <Users className="h-3.5 w-3.5" />
                                         {activeBooking.adultsCount} Adult(s), {activeBooking.childrenCount} Child(ren)
-                                    </div>
+                                    </div> */}
                                     <div className="w-1 h-1 rounded-full bg-gray-300" />
                                     <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">
                                         <Clock className="h-3.5 w-3.5" />

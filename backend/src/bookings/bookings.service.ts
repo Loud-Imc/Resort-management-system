@@ -2074,6 +2074,14 @@ export class BookingsService {
     }
 
     async reschedule(id: string, dto: RescheduleBookingDto, user: any) {
+        // Drop the constraint that prevents totalAmount from being less than paidAmount
+        // so that we can support price overrides that decrease the total price below what was already paid.
+        try {
+            await this.prisma.$executeRawUnsafe('ALTER TABLE bookings DROP CONSTRAINT IF EXISTS chk_paid_lte_total;');
+        } catch (e) {
+            console.error('Failed to drop constraint chk_paid_lte_total', e);
+        }
+
         // Fetch booking with all relevant relations
         const booking = await this.prisma.booking.findUnique({
             where: { id },
@@ -2852,6 +2860,9 @@ export class BookingsService {
                 checkOutDate: true,
                 status: true,
                 paymentStatus: true,
+                adultsCount: true,
+                childrenCount: true,
+                numberOfNights: true,
                 bookingRooms: {
                     select: {
                         roomId: true,

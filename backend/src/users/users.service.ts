@@ -357,21 +357,18 @@ export class UsersService {
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
         const isPropertyOwner = roles.includes('PropertyOwner');
 
-        const where: any = {};
-
-        if (params?.search) {
-            where.OR = [
+        const searchCondition = params?.search ? {
+            OR: [
                 { email: { contains: params.search, mode: 'insensitive' } },
                 { firstName: { contains: params.search, mode: 'insensitive' } },
                 { lastName: { contains: params.search, mode: 'insensitive' } },
                 { phone: { contains: params.search, mode: 'insensitive' } },
-            ];
-        }
+            ]
+        } : {};
+
+        let where: any = { ...searchCondition };
 
         if (params?.isStaffOnly === 'true') {
-            // For onboarding staff, we want to find users who are NOT yet admins
-            // (or maybe any user depending on business rules).
-            // Let's exclude users with SuperAdmin/Admin roles to prevent accidental onboarding of global admins
             where.roles = {
                 none: {
                     role: {
@@ -380,26 +377,24 @@ export class UsersService {
                 }
             };
 
-            // If it's a staff search, we relax the scope to allow finding users
-            // but we MUST isolate it to the current owner's properties to prevent seeing users from other orgs.
             if (isPropertyOwner || roles.includes('Manager')) {
                 const ownedPropertyIds = (user.ownedProperties || []).map((p: any) => p.id);
-                // Also get IDs from properties where user is staff
                 const staffPropertyIds = (user.propertyStaff || []).map((s: any) => s.propertyId);
                 const allManagedPropertyIds = [...new Set([...ownedPropertyIds, ...staffPropertyIds])];
 
-                // Add restriction: Only users who are ALREADY staff or owner of my properties
-                // OR users who I created myself.
-                where.OR = [
-                    ...(where.OR || []),
+                where.AND = [
                     {
-                        propertyStaff: {
-                            some: {
-                                propertyId: { in: allManagedPropertyIds }
-                            }
-                        }
-                    },
-                    { createdById: user.id }
+                        OR: [
+                            {
+                                propertyStaff: {
+                                    some: {
+                                        propertyId: { in: allManagedPropertyIds }
+                                    }
+                                }
+                            },
+                            { createdById: user.id }
+                        ]
+                    }
                 ];
 
                 return this.prisma.user.findMany({
@@ -420,16 +415,20 @@ export class UsersService {
             let adminWhere: any = { ...where };
 
             if (params?.propertyId) {
-                adminWhere.OR = [
+                adminWhere.AND = [
                     {
-                        propertyStaff: {
-                            some: { propertyId: params.propertyId }
-                        }
-                    },
-                    {
-                        bookings: {
-                            some: { propertyId: params.propertyId }
-                        }
+                        OR: [
+                            {
+                                propertyStaff: {
+                                    some: { propertyId: params.propertyId }
+                                }
+                            },
+                            {
+                                bookings: {
+                                    some: { propertyId: params.propertyId }
+                                }
+                            }
+                        ]
                     }
                 ];
             }
@@ -448,34 +447,38 @@ export class UsersService {
         }
 
         // For Property Owners or Managers
-        where.OR = [
+        where.AND = [
             {
-                propertyStaff: {
-                    some: {
-                        property: {
-                            OR: [
-                                { ownerId: user.id },
-                                { staff: { some: { userId: user.id } } }
-                            ],
-                            ...(params?.propertyId && { id: params.propertyId }),
+                OR: [
+                    {
+                        propertyStaff: {
+                            some: {
+                                property: {
+                                    OR: [
+                                        { ownerId: user.id },
+                                        { staff: { some: { userId: user.id } } }
+                                    ],
+                                    ...(params?.propertyId && { id: params.propertyId }),
+                                }
+                            }
                         }
-                    }
-                }
-            },
-            {
-                bookings: {
-                    some: {
-                        property: {
-                            OR: [
-                                { ownerId: user.id },
-                                { staff: { some: { userId: user.id } } }
-                            ],
-                            ...(params?.propertyId && { id: params.propertyId }),
+                    },
+                    {
+                        bookings: {
+                            some: {
+                                property: {
+                                    OR: [
+                                        { ownerId: user.id },
+                                        { staff: { some: { userId: user.id } } }
+                                    ],
+                                    ...(params?.propertyId && { id: params.propertyId }),
+                                }
+                            }
                         }
-                    }
-                }
-            },
-            { createdById: user.id }
+                    },
+                    { createdById: user.id }
+                ]
+            }
         ];
 
         return this.prisma.user.findMany({
@@ -517,6 +520,7 @@ export class UsersService {
                 bookings: {
                     include: {
                         roomType: true,
+                        guests: true,
                     },
                     orderBy: {
                         createdAt: 'desc',

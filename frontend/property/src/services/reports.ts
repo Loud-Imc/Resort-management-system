@@ -66,34 +66,42 @@ export const reportsService = {
         return data;
     },
 
-    exportExcel: async (startDate: string, endDate: string, propertyId?: string) => {
+    exportExcel: async (startDate: string, endDate: string, propertyId?: string, section?: string) => {
         const { data } = await api.get('/reports/export/excel', {
-            params: { startDate, endDate, propertyId },
+            params: { startDate, endDate, propertyId, section },
             responseType: 'blob',
         });
+
+        const filename = section 
+            ? `Report_${section}_${startDate}_${endDate}.xlsx` 
+            : `Report_${startDate}_${endDate}.xlsx`;
 
         const url = window.URL.createObjectURL(new Blob([data]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `Report_${startDate}_${endDate}.xlsx`);
+        link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
         link.remove();
     },
 
-    exportPdf: async (startDate: string, endDate: string, propertyId?: string) => {
-        console.log(`[reportsService] Exporting PDF for ${startDate} to ${endDate}`);
+    exportPdf: async (startDate: string, endDate: string, propertyId?: string, section?: string, search?: string) => {
+        console.log(`[reportsService] Exporting PDF for ${startDate} to ${endDate} (section: ${section}, search: ${search})`);
         try {
             const { data } = await api.get('/reports/export/pdf', {
-                params: { startDate, endDate, propertyId },
+                params: { startDate, endDate, propertyId, section, search },
                 responseType: 'blob',
             });
             console.log(`[reportsService] PDF blob received, size: ${data.size} bytes`);
 
+            const filename = section 
+                ? `Report_${section}_${startDate}_${endDate}.pdf` 
+                : `Report_${startDate}_${endDate}.pdf`;
+
             const url = window.URL.createObjectURL(new Blob([data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `Report_${startDate}_${endDate}.pdf`);
+            link.setAttribute('download', filename);
             document.body.appendChild(link);
             link.click();
             link.remove();

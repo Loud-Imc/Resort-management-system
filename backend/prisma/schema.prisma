@@ -185,6 +185,7 @@ model Room {
   bookings     Booking[]
   blocks       RoomBlock[]
   bookingRooms BookingRoom[]
+  assets       Asset[]
   property     Property    @relation(fields: [propertyId], references: [id])
   roomType     RoomType    @relation(fields: [roomTypeId], references: [id])
 
@@ -558,6 +559,7 @@ model Property {
   roles                       Role[]               @relation("PropertyRoles")
   roomTypes                   RoomType[]
   rooms                       Room[]
+  assets                      Asset[]
   promotionRequests           PromotionRequest[]
 
   @@map("properties")
@@ -1251,4 +1253,41 @@ model BookingRoom {
   @@index([bookingId])
   @@index([roomId])
   @@map("booking_rooms")
+}
+
+enum AssetOwnership {
+  LESSOR
+  LESSEE
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+model Asset {
+  id          String         @id @default(uuid())
+  propertyId  String
+  property    Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId      String?
+  room        Room?          @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  
+  name        String         
+  category    String         
+  ownership   AssetOwnership 
+  quantity    Int            @default(1)
+  condition   AssetCondition @default(GOOD)
+  
+  location    String?        
+  purchaseDate DateTime?
+  value       Decimal?       @db.Decimal(10, 2)
+  notes       String?        @db.Text
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("assets")
 }

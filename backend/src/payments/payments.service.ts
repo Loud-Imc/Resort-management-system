@@ -1007,7 +1007,7 @@ export class PaymentsService {
         }
     }
 
-    async findAll(user: any, propertyId?: string) {
+    async findAll(user: any, propertyId?: string, startDate?: string, endDate?: string) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
@@ -1021,15 +1021,26 @@ export class PaymentsService {
             ];
         }
 
-        const finalFilter = (propertyId || !isGlobalAdmin) ? {
-            OR: [
-                { booking: { property: propertyFilter } },
-                { eventBooking: { event: { property: propertyFilter } } }
-            ]
-        } : {};
+        const dateFilter: any = {};
+        if (startDate && endDate) {
+            dateFilter.createdAt = {
+                gte: new Date(`${startDate}T00:00:00.000Z`),
+                lte: new Date(`${endDate}T23:59:59.999Z`)
+            };
+        }
+
+        const finalFilter = {
+            ...((propertyId || !isGlobalAdmin) ? {
+                OR: [
+                    { booking: { property: propertyFilter } },
+                    { eventBooking: { event: { property: propertyFilter } } }
+                ]
+            } : {}),
+            ...dateFilter
+        };
 
         return this.prisma.payment.findMany({
-            where: finalFilter,
+            where: Object.keys(finalFilter).length > 0 ? finalFilter : undefined,
             include: {
                 booking: {
                     include: {
@@ -1053,7 +1064,7 @@ export class PaymentsService {
         });
     }
 
-    async getStats(user: any, propertyId?: string) {
+    async getStats(user: any, propertyId?: string, startDate?: string, endDate?: string) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
@@ -1067,13 +1078,24 @@ export class PaymentsService {
             ];
         }
 
-        const finalFilter = (propertyId || !isGlobalAdmin) ? {
+        const dateFilter: any = {};
+        if (startDate && endDate) {
+            dateFilter.createdAt = {
+                gte: new Date(`${startDate}T00:00:00.000Z`),
+                lte: new Date(`${endDate}T23:59:59.999Z`)
+            };
+        }
+
+        const finalFilter = {
             status: 'PAID' as any,
-            OR: [
-                { booking: { property: propertyFilter } },
-                { eventBooking: { event: { property: propertyFilter } } }
-            ]
-        } : { status: 'PAID' as any };
+            ...((propertyId || !isGlobalAdmin) ? {
+                OR: [
+                    { booking: { property: propertyFilter } },
+                    { eventBooking: { event: { property: propertyFilter } } }
+                ]
+            } : {}),
+            ...dateFilter
+        };
 
         const stats = await this.prisma.payment.aggregate({
             where: finalFilter,

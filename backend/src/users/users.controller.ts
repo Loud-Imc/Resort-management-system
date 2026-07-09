@@ -112,6 +112,12 @@ export class UsersController {
         return this.usersService.createWithRoles(req.user, createUserDto);
     }
 
+    @Get('by-phone/:phone')
+    @ApiOperation({ summary: 'Get user by phone number' })
+    findByPhone(@Param('phone') phone: string) {
+        return this.usersService.findByPhone(phone);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get user by ID' })
     findOne(@Request() req, @Param('id') id: string) {

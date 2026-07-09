@@ -26,4 +26,9 @@ export const propertiesService = {
         const { data } = await api.patch(`/properties/requests/${id}/my`, payload);
         return data;
     },
+
+    expandUrl: async (url: string): Promise<{ url: string }> => {
+        const { data } = await api.get(`/properties/expand-url`, { params: { url } });
+        return data;
+    },
 };

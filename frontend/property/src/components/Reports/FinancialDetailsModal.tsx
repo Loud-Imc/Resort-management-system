@@ -1,14 +1,18 @@
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsService } from '../../services/reports';
-import { Loader2, Calendar, User, X } from 'lucide-react';
+import { Loader2, Calendar, User, X, Info, Download } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface FinancialDetailsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    type: 'REVENUE' | 'BOOKINGS' | null;
+    type: 'REVENUE' | 'BOOKINGS' | 'PLATFORM_FEES' | 'OCCUPANCY' | 'NET_EARNINGS' | null;
     dateRange: { startDate: string; endDate: string };
     propertyId?: string;
+    financialReport?: any;
+    occupancyReport?: any;
+    totalExpenses?: number;
 }
 
 interface DetailBooking {
@@ -43,34 +47,91 @@ interface DetailIncome {
 interface DetailsResponse {
     bookings: DetailBooking[];
     incomes: DetailIncome[];
+    platformFeeDetails: any[];
 }
 
-export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange, propertyId }: FinancialDetailsModalProps) {
+export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange, propertyId, financialReport, occupancyReport, totalExpenses }: FinancialDetailsModalProps) {
+    const [isDownloading, setIsDownloading] = useState(false);
+
     const { data: details, isLoading } = useQuery<DetailsResponse>({
         queryKey: ['financialDetails', dateRange, propertyId],
         queryFn: () => reportsService.getFinancialDetails(dateRange.startDate, dateRange.endDate, propertyId),
         enabled: isOpen && !!dateRange.startDate && !!dateRange.endDate && !!propertyId,
     });
 
+    const filteredBookings = useMemo(() => {
+        return details?.bookings || [];
+    }, [details?.bookings]);
+
+    const filteredIncomes = useMemo(() => {
+        return details?.incomes || [];
+    }, [details?.incomes]);
+
+    const filteredPlatformFees = useMemo(() => {
+        return details?.platformFeeDetails || [];
+    }, [details?.platformFeeDetails]);
+
+    const handleDownloadPdf = async () => {
+        if (!type || !dateRange.startDate || !dateRange.endDate) return;
+        setIsDownloading(true);
+        try {
+            let sectionName = '';
+            if (type === 'BOOKINGS') sectionName = 'bookings_details';
+            else if (type === 'REVENUE') sectionName = 'revenue_details';
+            else if (type === 'PLATFORM_FEES') sectionName = 'platform_fees_details';
+            
+            if (sectionName) {
+                await reportsService.exportPdf(dateRange.startDate, dateRange.endDate, propertyId, sectionName);
+            }
+        } catch (error) {
+            console.error('Error downloading PDF:', error);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     if (!isOpen) return null;
 
-    const isBookings = type === 'BOOKINGS';
-    const title = isBookings ? `Bookings (${dateRange.startDate} to ${dateRange.endDate})` : `Revenue (${dateRange.startDate} to ${dateRange.endDate})`;
+    const getTitle = () => {
+        switch (type) {
+            case 'BOOKINGS': return `Bookings (${dateRange.startDate} to ${dateRange.endDate})`;
+            case 'REVENUE': return `Revenue (${dateRange.startDate} to ${dateRange.endDate})`;
+            case 'PLATFORM_FEES': return `Platform Fees (${dateRange.startDate} to ${dateRange.endDate})`;
+            case 'OCCUPANCY': return `Avg. Occupancy (${dateRange.startDate} to ${dateRange.endDate})`;
+            case 'NET_EARNINGS': return `Net Earnings (${dateRange.startDate} to ${dateRange.endDate})`;
+            default: return `Details`;
+        }
+    };
+    const title = getTitle();
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white dark:bg-gray-800 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
-                    <div>
+                <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50 dark:bg-gray-900/50">
+                    <div className="flex-1">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                             {title}
                         </h2>
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Detailed breakdown of records</p>
                     </div>
+
+                    {(type === 'BOOKINGS' || type === 'REVENUE' || type === 'PLATFORM_FEES') && (
+                        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                            <button
+                                onClick={handleDownloadPdf}
+                                disabled={isDownloading}
+                                className="flex items-center justify-center gap-2 w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                {isDownloading ? 'Exporting...' : 'Export PDF'}
+                            </button>
+                        </div>
+                    )}
+
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-auto md:ml-0"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -84,7 +145,7 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {isBookings ? (
+                            {type === 'BOOKINGS' ? (
                                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider hidden md:table-header-group">
@@ -98,7 +159,7 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                            {details?.bookings?.map((b: DetailBooking) => (
+                                            {filteredBookings?.map((b: DetailBooking) => (
                                                 <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
                                                     <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
                                                         #{b.bookingNumber}
@@ -132,7 +193,7 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {(!details?.bookings || details.bookings.length === 0) && (
+                                            {filteredBookings.length === 0 && (
                                                 <tr>
                                                     <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No bookings found for this period.</td>
                                                 </tr>
@@ -140,7 +201,7 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                         </tbody>
                                     </table>
                                 </div>
-                            ) : (
+                            ) : type === 'REVENUE' ? (
                                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider hidden md:table-header-group">
@@ -152,7 +213,7 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                            {details?.incomes?.map((i: DetailIncome) => (
+                                            {filteredIncomes?.map((i: DetailIncome) => (
                                                 <tr key={i.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
                                                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                                                         {format(new Date(i.date), 'MMM dd, yyyy HH:mm')}
@@ -176,13 +237,135 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {(!details?.incomes || details.incomes.length === 0) && (
+                                            {filteredIncomes.length === 0 && (
                                                 <tr>
                                                     <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No revenue found for this period.</td>
                                                 </tr>
                                             )}
                                         </tbody>
                                     </table>
+                                </div>
+                            ) : type === 'PLATFORM_FEES' ? (
+                                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider hidden md:table-header-group">
+                                            <tr>
+                                                <th className="px-4 py-3">Payment Date</th>
+                                                <th className="px-4 py-3">Booking # / Guest</th>
+                                                <th className="px-4 py-3 text-right">Paid Amount</th>
+                                                <th className="px-4 py-3 text-right">Platform Fee</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {filteredPlatformFees?.map((p: any) => (
+                                                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
+                                                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                                        {format(new Date(p.paymentDate), 'MMM dd, yyyy HH:mm')}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="font-bold text-gray-900 dark:text-white">#{p.booking?.bookingNumber}</div>
+                                                        <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                                                            <User className="h-3 w-3" />
+                                                            {p.booking?.user?.firstName} {p.booking?.user?.lastName}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-gray-900 dark:text-white md:text-right">
+                                                        ₹{Number(p.paidAmount).toLocaleString()}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-orange-600 dark:text-orange-400 md:text-right">
+                                                        ₹{Number(p.platformFee).toLocaleString()}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {filteredPlatformFees.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No platform fees found for this period.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                        {(details?.platformFeeDetails?.length ?? 0) > 0 && (
+                                            <tfoot className="bg-gray-50 dark:bg-gray-700/50">
+                                                <tr>
+                                                    <td colSpan={3} className="px-4 py-3 font-bold text-right text-gray-900 dark:text-white">Total Platform Fees:</td>
+                                                    <td className="px-4 py-3 font-bold text-orange-600 dark:text-orange-400 text-right">₹{financialReport?.summary?.totalPlatformFees?.toLocaleString() || 0}</td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                </div>
+                            ) : type === 'OCCUPANCY' ? (
+                                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider hidden md:table-header-group">
+                                            <tr>
+                                                <th className="px-4 py-3">Date</th>
+                                                <th className="px-4 py-3 text-center">Occupied Rooms</th>
+                                                <th className="px-4 py-3 text-center">Total Rooms</th>
+                                                <th className="px-4 py-3 text-right">Occupancy Rate</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {occupancyReport?.dailyStats?.map((stat: any, index: number) => (
+                                                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
+                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                        {format(new Date(stat.date), 'MMM dd, yyyy')}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 md:text-center">
+                                                        {stat.occupied}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 md:text-center">
+                                                        {stat.total}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-sky-600 dark:text-sky-400 md:text-right">
+                                                        {stat.occupancyRate}%
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {(!occupancyReport?.dailyStats || occupancyReport.dailyStats.length === 0) && (
+                                                <tr>
+                                                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No occupancy data found for this period.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                        {occupancyReport?.dailyStats?.length > 0 && (
+                                            <tfoot className="bg-gray-50 dark:bg-gray-700/50">
+                                                <tr>
+                                                    <td colSpan={3} className="px-4 py-3 font-bold text-right text-gray-900 dark:text-white">Average Occupancy:</td>
+                                                    <td className="px-4 py-3 font-bold text-sky-600 dark:text-sky-400 text-right">{occupancyReport.averageOccupancy}%</td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                </div>
+                            ) : type === 'NET_EARNINGS' ? (
+                                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden p-6 max-w-lg mx-auto mt-4">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 text-center">Net Earnings Breakdown</h3>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center pb-4 border-b border-gray-100 dark:border-gray-700">
+                                            <span className="text-gray-600 dark:text-gray-400 font-medium">Total Revenue</span>
+                                            <span className="font-bold text-emerald-600">₹{financialReport?.summary?.totalIncome?.toLocaleString() || 0}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pb-4 border-b border-gray-100 dark:border-gray-700">
+                                            <span className="text-gray-600 dark:text-gray-400 font-medium">Total Expenses</span>
+                                            <span className="font-bold text-red-500">- ₹{totalExpenses?.toLocaleString() || 0}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pb-4 border-b border-gray-100 dark:border-gray-700">
+                                            <span className="text-gray-600 dark:text-gray-400 font-medium">Platform Fees</span>
+                                            <span className="font-bold text-orange-500">- ₹{financialReport?.summary?.totalPlatformFees?.toLocaleString() || 0}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-2">
+                                            <span className="text-lg font-bold text-gray-900 dark:text-white">Net Earnings</span>
+                                            <span className="text-xl font-black text-amber-500">₹{financialReport?.summary?.netProfit?.toLocaleString() || 0}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                                    <div className="bg-gray-100 dark:bg-gray-700/50 rounded-full p-4 mb-4">
+                                        <Info className="h-8 w-8 text-gray-400" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Detailed View Coming Soon</h3>
+                                    <p className="text-gray-500 max-w-sm">The detailed breakdown for this metric is not yet available in the current version of the dashboard.</p>
                                 </div>
                             )}
                         </div>

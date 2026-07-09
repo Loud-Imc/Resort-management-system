@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { format, addDays } from 'date-fns';
 import { bookingsService } from '../../services/bookings';
+import { usersService } from '../../services/users';
 import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { uploadService } from '../../services/uploads';
@@ -158,6 +159,9 @@ export default function CreateBooking() {
         },
     });
 
+    const [phoneSearchResults, setPhoneSearchResults] = useState<any[]>([]);
+    const [showPhoneDropdown, setShowPhoneDropdown] = useState(false);
+
     // Auto-set property and detect historical entries
     useEffect(() => {
         if (selectedProperty?.id) setValue('propertyId', selectedProperty.id);
@@ -202,6 +206,37 @@ export default function CreateBooking() {
             setValue('guests.0.whatsappNumber', whatsappNumber || '');
         }
     }, [isBookerAlsoGuest, guestFirstName, guestLastName, guestEmail, guestPhone, whatsappNumber, setValue]);
+
+    useEffect(() => {
+        const fetchCustomers = async () => {
+            if (guestPhone && guestPhone.length >= 5) {
+                try {
+                    const results = await usersService.getAll({ search: guestPhone });
+                    setPhoneSearchResults(results);
+                    setShowPhoneDropdown(true);
+                } catch (error) {
+                    console.error('Failed to search customers', error);
+                }
+            } else {
+                setPhoneSearchResults([]);
+                setShowPhoneDropdown(false);
+            }
+        };
+
+        const timeoutId = setTimeout(fetchCustomers, 300);
+        return () => clearTimeout(timeoutId);
+    }, [guestPhone]);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (!(event.target as Element).closest('.phone-autocomplete-container')) {
+                setShowPhoneDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes', selectedProperty?.id],
@@ -941,11 +976,44 @@ export default function CreateBooking() {
                             availability?.available && (
                                 <>
                                     {/* Primary Contact Information */}
-                                    <div className="bg-card p-6 sm:p-8 rounded-2xl shadow-sm border border-border hover:shadow-md transition-all duration-300">
+                                    <div className="bg-card p-6 sm:p-8 rounded-2xl shadow-sm border border-border hover:shadow-md transition-all duration-300 relative">
                                         <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-foreground pb-3 border-b border-border">
                                             <Users className="h-5 w-5 text-primary" /> Primary Contact Information
                                         </h2>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <div className="relative phone-autocomplete-container">
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Primary Phone Number</label>
+                                                <input
+                                                    type="text"
+                                                    {...register('guestPhone')}
+                                                    onFocus={() => { if (phoneSearchResults.length > 0) setShowPhoneDropdown(true); }}
+                                                    placeholder="Enter primary contact number"
+                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
+                                                />
+                                                {showPhoneDropdown && phoneSearchResults.length > 0 && (
+                                                    <div className="absolute z-20 w-full mt-1 bg-background border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto overflow-x-hidden left-0">
+                                                        {phoneSearchResults.map((customer) => (
+                                                            <div 
+                                                                key={customer.id} 
+                                                                className="p-3 hover:bg-muted cursor-pointer border-b border-border last:border-0 transition-colors"
+                                                                onClick={() => {
+                                                                    setValue('guestPhone', customer.phone || '');
+                                                                    if (customer.firstName) setValue('guestFirstName', customer.firstName);
+                                                                    if (customer.lastName) setValue('guestLastName', customer.lastName);
+                                                                    if (customer.email) setValue('guestEmail', customer.email);
+                                                                    if (customer.whatsappNumber) setValue('whatsappNumber', customer.whatsappNumber);
+                                                                    setShowPhoneDropdown(false);
+                                                                    toast.success('Customer details loaded!');
+                                                                }}
+                                                            >
+                                                                <p className="text-sm font-bold text-foreground">{customer.firstName} {customer.lastName}</p>
+                                                                <p className="text-xs text-muted-foreground">{customer.phone} {customer.email ? `• ${customer.email}` : ''}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {errors.guestPhone && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestPhone.message}</p>}
+                                            </div>
                                             <div>
                                                 <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">First Name</label>
                                                 <input
@@ -975,16 +1043,6 @@ export default function CreateBooking() {
                                                     className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
                                                 />
                                                 {errors.guestEmail && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestEmail.message}</p>}
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Primary Phone Number</label>
-                                                <input
-                                                    type="text"
-                                                    {...register('guestPhone')}
-                                                    placeholder="Enter primary contact number"
-                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
-                                                />
-                                                {errors.guestPhone && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guestPhone.message}</p>}
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Primary WhatsApp Number (Optional)</label>

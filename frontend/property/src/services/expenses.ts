@@ -14,6 +14,10 @@ export const expensesService = {
         const { data } = await api.post<Expense>('/expenses', dto);
         return data;
     },
+    createBulk: async (dtos: any[]): Promise<Expense[]> => {
+        const { data } = await api.post<Expense[]>('/expenses/bulk', dtos);
+        return data;
+    },
     update: async (id: string, dto: any): Promise<Expense> => {
         const { data } = await api.patch<Expense>(`/expenses/${id}`, dto);
         return data;
@@ -28,6 +32,10 @@ export const expensesService = {
     },
     createCategory: async (dto: { name: string; description?: string; propertyId?: string }): Promise<ExpenseCategory> => {
         const { data } = await api.post<ExpenseCategory>('/expenses/categories', dto);
+        return data;
+    },
+    deleteCategory: async (id: string) => {
+        const { data } = await api.delete(`/expenses/categories/${id}`);
         return data;
     },
     downloadReport: async (filters: any) => {

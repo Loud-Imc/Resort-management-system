@@ -114,6 +114,10 @@ export class RoomsService {
                                 checkInDate: true, 
                                 checkOutDate: true, 
                                 paymentStatus: true,
+                                bookingNumber: true,
+                                adultsCount: true,
+                                childrenCount: true,
+                                numberOfNights: true,
                                 user: {
                                     select: {
                                         firstName: true,

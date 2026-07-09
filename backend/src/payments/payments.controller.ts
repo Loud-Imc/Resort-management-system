@@ -125,8 +125,8 @@ export class PaymentsController {
     @Permissions(PERMISSIONS.PAYMENTS.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get payment statistics' })
-    getStats(@Req() req, @Query('propertyId') propertyId?: string) {
-        return this.paymentsService.getStats(req.user, propertyId);
+    getStats(@Req() req, @Query('propertyId') propertyId?: string, @Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+        return this.paymentsService.getStats(req.user, propertyId, startDate, endDate);
     }
 
     @Get()
@@ -134,8 +134,8 @@ export class PaymentsController {
     @Permissions(PERMISSIONS.PAYMENTS.READ)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get all payments' })
-    findAll(@Req() req, @Query('propertyId') propertyId?: string) {
-        return this.paymentsService.findAll(req.user, propertyId);
+    findAll(@Req() req, @Query('propertyId') propertyId?: string, @Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+        return this.paymentsService.findAll(req.user, propertyId, startDate, endDate);
     }
 
     @Get('refund/requests')

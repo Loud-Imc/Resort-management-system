@@ -226,7 +226,18 @@ export default function RoomsList() {
                                 <p className="font-bold text-card-foreground">{room.roomType.name}</p>
                                 <p>Floor: {room.floor ?? '-'}</p>
                                 {(room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && room.bookingRooms && room.bookingRooms.length > 0 && (() => {
-                                    const activeBooking = room.bookingRooms.find((br: any) => ['CHECKED_IN', 'CONFIRMED'].includes(br.booking.status))?.booking;
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    
+                                    // Prioritize CHECKED_IN, then look for CONFIRMED bookings for today
+                                    const activeBooking = room.bookingRooms.find((br: any) => br.booking.status === 'CHECKED_IN')?.booking
+                                        || room.bookingRooms.find((br: any) => {
+                                            if (br.booking.status !== 'CONFIRMED') return false;
+                                            const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0,0,0,0);
+                                            const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
+                                            return today >= checkIn && today < checkOut;
+                                        })?.booking;
+
                                     if (!activeBooking) return null;
                                     
                                     const user = activeBooking.user;
