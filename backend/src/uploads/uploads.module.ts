@@ -26,6 +26,7 @@ import { extname } from 'path';
                     'image/png',
                     'image/webp',
                     'image/gif',
+                    'image/avif',
                     'application/pdf',
                 ];
                 if (allowedMimetypes.includes(file.mimetype)) {

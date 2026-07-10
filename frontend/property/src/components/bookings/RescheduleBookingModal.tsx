@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Loader2, Calendar, X, AlertCircle, User, House, Users } from 'lucide-react';
+import { Loader2, Calendar, X, AlertCircle, User, House, Users, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bookingsService } from '../../services/bookings';
 import type { Booking } from '../../types/booking';
@@ -206,7 +206,8 @@ export function RescheduleBookingModal({
             queryClient.invalidateQueries({ queryKey: ['bookings'] });
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to reschedule booking');
+            console.error('Update booking error:', error);
+            toast.error(error.response?.data?.message || 'Failed to update booking');
         },
     });
 
@@ -290,19 +291,12 @@ export function RescheduleBookingModal({
                 <div className="relative p-6 border-b border-border/50 bg-gradient-to-br from-primary/10 via-transparent to-transparent flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="p-4 bg-primary text-primary-foreground rounded-2xl shadow-lg rotate-3">
-                                <Calendar className="h-6 w-6" />
+                            <div className="bg-primary/10 p-2.5 rounded-xl">
+                                <Calendar className="h-6 w-6 text-primary" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-black tracking-tight text-foreground">Reschedule Booking</h2>
-                                <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                                    Booking: <span className="text-primary font-bold">{booking.bookingNumber}</span>
-                                    {booking.channelPartner && (
-                                        <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded text-xs font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 uppercase tracking-wider">
-                                            Channel Partner: {booking.channelPartner.name}
-                                        </span>
-                                    )}
-                                </p>
+                                <h2 className="text-2xl font-black tracking-tight text-foreground">Update Booking</h2>
+                                <p className="text-sm text-muted-foreground font-medium mt-0.5">Modify dates, rooms, and guests for {booking.bookingNumber}</p>
                             </div>
                         </div>
                         <button
@@ -723,13 +717,9 @@ export function RescheduleBookingModal({
 
                                     return (
                                         <div className="bg-muted/30 border border-border/50 rounded-2xl p-5 space-y-4">
-                                            <div className="flex items-center justify-between pl-1">
-                                                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Pricing Comparison</h3>
-                                                {booking.status === 'NO_SHOW' && (
-                                                     <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-rose-500/10 text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-                                                        Original No-Show
-                                                     </span>
-                                                )}
+                                            <div className="flex items-center gap-2 mb-4 text-primary">
+                                                <Info className="h-4 w-4" />
+                                                <span className="text-sm font-bold uppercase tracking-wider">Update Booking Details</span>
                                             </div>
                                             
                                             {/* Top Row: Totals Metrics Dashboard */}
@@ -885,7 +875,7 @@ export function RescheduleBookingModal({
                                 className="flex-1 bg-primary text-primary-foreground px-6 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 {rescheduleMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Calendar className="h-5 w-5" />}
-                                Confirm Reschedule
+                                Confirm Update
                             </button>
                         </div>
                     </div>

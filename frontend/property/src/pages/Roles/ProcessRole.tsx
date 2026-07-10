@@ -32,7 +32,7 @@ type RoleFormData = z.infer<typeof roleSchema>;
 // Functional Categories Mapping for better UI grouping
 const PROPERTY_TABS = [
     { id: 'dashboard-reports', label: 'Dashboard & Reports', prefix: ['reports.'] },
-    { id: 'property-rooms', label: 'Property & Rooms', prefix: ['properties.', 'rooms.', 'roomTypes.'] },
+    { id: 'property-rooms', label: 'Property & Rooms', prefix: ['properties.', 'rooms.', 'roomTypes.', 'assets.'] },
     { id: 'bookings-ops', label: 'Bookings & Operations', prefix: ['bookings.', 'bookingSources.'] },
     { id: 'financials', label: 'Financials', prefix: ['payments.', 'income.', 'expenses.'] },
     { id: 'marketing', label: 'Marketing & Offers', prefix: ['marketing.'] },

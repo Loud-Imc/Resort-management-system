@@ -13,6 +13,8 @@ export interface Asset {
   purchaseDate?: string | null;
   value?: number | null;
   notes?: string | null;
+  billUrl?: string | null;
+  images?: string[];
   createdAt: string;
   updatedAt: string;
   room?: {
@@ -36,6 +38,8 @@ export interface CreateAssetDto {
   purchaseDate?: string;
   value?: number;
   notes?: string;
+  billUrl?: string | null;
+  images?: string[];
 }
 
 export interface UpdateAssetDto extends Partial<CreateAssetDto> {}
@@ -65,4 +69,12 @@ export const assetsService = {
     const { data } = await api.delete(`/assets/${id}`);
     return data;
   },
+
+  downloadReport: async (filters: any) => {
+    const response = await api.get('/assets/report/pdf', {
+        params: filters,
+        responseType: 'blob'
+    });
+    return response.data;
+  }
 };

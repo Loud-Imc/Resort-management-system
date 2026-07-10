@@ -1283,6 +1283,9 @@ model Asset {
   
   location    String?        
   purchaseDate DateTime?
+
+  billUrl     String?
+  images      String[]       @default([])
   value       Decimal?       @db.Decimal(10, 2)
   notes       String?        @db.Text
   

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Loader2, Package, Tag, Hash, Box, MapPin, Calendar, DollarSign, AlignLeft, User } from 'lucide-react';
+import { X, Save, Loader2, Package, Tag, Hash, Box, MapPin, Calendar, DollarSign, AlignLeft, User, FileText, Image as ImageIcon, Plus } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { assetsService, type Asset, type CreateAssetDto, type UpdateAssetDto } from '../../services/assets';
@@ -41,6 +41,8 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
         value: undefined,
         notes: '',
         roomId: '',
+        billUrl: '',
+        images: [],
     });
 
     const [isCustomCategory, setIsCustomCategory] = useState(false);
@@ -78,6 +80,8 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
                 value: asset.value || undefined,
                 notes: asset.notes || '',
                 roomId: asset.roomId || '',
+                billUrl: asset.billUrl || '',
+                images: asset.images || [],
             });
         } else {
             setFormData({
@@ -91,6 +95,8 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
                 value: undefined,
                 notes: '',
                 roomId: '',
+                billUrl: '',
+                images: [],
             });
             setIsCustomCategory(false);
         }
@@ -139,6 +145,8 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
             value: formData.value ? Number(formData.value) : undefined,
             notes: formData.notes || undefined,
             roomId: formData.roomId || undefined,
+            billUrl: formData.billUrl || undefined,
+            images: formData.images || [],
         };
 
         if (asset) {
@@ -149,6 +157,39 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
     };
 
     const isPending = createMutation.isPending || updateMutation.isPending;
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'billUrl' | 'images') => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        const formDataPayload = new FormData();
+        
+        try {
+            if (field === 'images') {
+                const newUrls: string[] = [];
+                for (let i = 0; i < files.length; i++) {
+                    const singleFormData = new FormData();
+                    singleFormData.append('file', files[i]);
+                    const { data } = await import('../../services/api').then(m => m.default.post('/uploads', singleFormData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    }));
+                    newUrls.push(data.url);
+                }
+                setFormData(prev => ({ ...prev, images: [...(prev.images || []), ...newUrls] }));
+                toast.success('Images uploaded');
+            } else {
+                formDataPayload.append('file', files[0]);
+                const { data } = await import('../../services/api').then(m => m.default.post('/uploads', formDataPayload, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                }));
+                setFormData({ ...formData, billUrl: data.url });
+                toast.success('Bill uploaded');
+            }
+        } catch (err: any) {
+            console.error('Upload error', err);
+            toast.error('Failed to upload file');
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -356,6 +397,75 @@ export function AssetFormModal({ isOpen, onClose, asset }: AssetFormModalProps) 
                                     className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                                     placeholder="Any additional details..."
                                 />
+                            </div>
+                        </div>
+
+                        {/* File Uploads */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
+                                    <FileText className="h-3.5 w-3.5 text-primary" /> Asset Bill / Receipt
+                                </label>
+                                <div className={`relative border-2 border-dashed ${formData.billUrl ? 'border-primary/50 bg-primary/5' : 'border-border/50'} rounded-xl p-4 transition-all text-center`}>
+                                    <input
+                                        type="file"
+                                        id="bill-upload"
+                                        className="hidden"
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) => handleFileUpload(e, 'billUrl')}
+                                    />
+                                    <label htmlFor="bill-upload" className="cursor-pointer flex flex-col items-center">
+                                        {formData.billUrl ? (
+                                            <div className="w-full flex flex-col items-center">
+                                                {formData.billUrl.toLowerCase().match(/\.(pdf)$/) ? (
+                                                    <FileText className="w-8 h-8 text-primary mb-2" />
+                                                ) : (
+                                                    <img src={formData.billUrl} alt="Bill" className="h-20 object-contain mb-2 rounded" />
+                                                )}
+                                                <span className="text-xs text-primary font-medium hover:underline">Change Bill</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <FileText className="h-6 w-6 text-muted-foreground mb-2" />
+                                                <span className="text-xs text-muted-foreground font-medium">Upload Bill (PDF/Image)</span>
+                                            </>
+                                        )}
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
+                                    <ImageIcon className="h-3.5 w-3.5 text-primary" /> Asset Images
+                                </label>
+                                <div className="border-2 border-dashed border-border/50 rounded-xl p-4 transition-all">
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {formData.images?.map((url, i) => (
+                                            <div key={i} className="relative group w-16 h-16 rounded bg-black/5 flex-shrink-0">
+                                                <img src={url} alt={`Asset ${i}`} className="w-full h-full object-cover rounded" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, images: prev.images?.filter((_, idx) => idx !== i) }))}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <input
+                                            type="file"
+                                            id="images-upload"
+                                            className="hidden"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={(e) => handleFileUpload(e, 'images')}
+                                        />
+                                        <label htmlFor="images-upload" className="w-16 h-16 border-2 border-dashed border-border/50 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0">
+                                            <Plus className="h-5 w-5 text-muted-foreground" />
+                                        </label>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground text-center">Add multiple photos of the asset</p>
+                                </div>
                             </div>
                         </div>
                     </form>

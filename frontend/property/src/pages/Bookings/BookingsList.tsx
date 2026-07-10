@@ -755,7 +755,7 @@ export default function BookingsList() {
                                                                         className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
                                                                     >
                                                                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                                        Reschedule Booking
+                                                                        Update Booking
                                                                     </button>
                                                                 )}
                                                                 {booking.isManualBooking && (

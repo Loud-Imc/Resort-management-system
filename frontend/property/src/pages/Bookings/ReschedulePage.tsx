@@ -577,7 +577,7 @@ export default function ReschedulePage() {
                             <Calendar className="h-7 w-7" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-black tracking-tight text-foreground">Reschedule Booking</h1>
+                            <h1 className="text-2xl font-black tracking-tight text-foreground">Update Booking</h1>
                             <p className="text-sm text-muted-foreground font-medium mt-0.5 flex items-center gap-2 flex-wrap">
                                 <span>Booking: <span className="text-primary font-bold">{booking.bookingNumber}</span></span>
                                 {/* Booking type badge */}

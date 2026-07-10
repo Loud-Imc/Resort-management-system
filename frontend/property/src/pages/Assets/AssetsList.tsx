@@ -18,6 +18,8 @@ import toast from 'react-hot-toast';
 import { useProperty } from '../../context/PropertyContext';
 import { assetsService, type Asset } from '../../services/assets';
 import { AssetFormModal } from '../../components/Assets/AssetFormModal';
+import { AssetDetailsModal } from '../../components/Assets/AssetDetailsModal';
+import { Eye } from 'lucide-react';
 
 export default function AssetsList() {
     const { selectedProperty } = useProperty();
@@ -25,6 +27,9 @@ export default function AssetsList() {
 
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [selectedDetailsAsset, setSelectedDetailsAsset] = useState<Asset | null>(null);
 
     // Filters
     const [ownershipFilter, setOwnershipFilter] = useState<'ALL' | 'LESSOR' | 'LESSEE'>('ALL');
@@ -65,6 +70,11 @@ export default function AssetsList() {
     const openAddForm = () => {
         setSelectedAsset(null);
         setIsFormOpen(true);
+    };
+
+    const openDetails = (asset: Asset) => {
+        setSelectedDetailsAsset(asset);
+        setIsDetailsOpen(true);
     };
 
     // Derived stats
@@ -221,7 +231,11 @@ export default function AssetsList() {
                             </thead>
                             <tbody className="divide-y divide-border/30">
                                 {assets.map((asset) => (
-                                    <tr key={asset.id} className="hover:bg-muted/20 transition-colors group">
+                                    <tr 
+                                        key={asset.id} 
+                                        className="hover:bg-muted/20 transition-colors group cursor-pointer"
+                                        onClick={() => openDetails(asset)}
+                                    >
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-foreground text-sm">{asset.name}</span>
@@ -262,17 +276,24 @@ export default function AssetsList() {
                                                 <span className="text-muted-foreground text-xs italic">N/A</span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center justify-end gap-2">
                                                 <button
-                                                    onClick={() => openEditForm(asset)}
+                                                    onClick={(e) => { e.stopPropagation(); openDetails(asset); }}
+                                                    className="p-1.5 text-blue-600 hover:bg-blue-600/10 rounded-lg transition-colors"
+                                                    title="View Asset Details"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openEditForm(asset); }}
                                                     className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                                     title="Edit Asset"
                                                 >
                                                     <Edit2 className="h-4 w-4" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(asset.id, asset.name)}
+                                                    onClick={(e) => { e.stopPropagation(); handleDelete(asset.id, asset.name); }}
                                                     className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                                                     title="Delete Asset"
                                                 >
@@ -295,6 +316,12 @@ export default function AssetsList() {
                     asset={selectedAsset}
                 />
             )}
+
+            <AssetDetailsModal
+                isOpen={isDetailsOpen}
+                onClose={() => setIsDetailsOpen(false)}
+                asset={selectedDetailsAsset}
+            />
         </div>
     );
 }
