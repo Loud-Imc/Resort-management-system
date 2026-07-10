@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PdfService } from '../pdf/pdf.service';
 import { AssetOwnership, AssetCondition } from '@prisma/client';
 
 @Injectable()
 export class AssetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pdfService: PdfService
+  ) {}
 
   async create(data: any) {
     return this.prisma.asset.create({
@@ -20,6 +24,8 @@ export class AssetsService {
         purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : null,
         value: data.value ? Number(data.value) : null,
         notes: data.notes || null,
+        billUrl: data.billUrl || null,
+        images: data.images || [],
       },
     });
   }
@@ -98,6 +104,8 @@ export class AssetsService {
         purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : (data.purchaseDate === null ? null : undefined),
         value: data.value !== undefined ? (data.value === null ? null : Number(data.value)) : undefined,
         notes: data.notes,
+        billUrl: data.billUrl,
+        images: data.images,
       },
     });
   }
@@ -107,5 +115,10 @@ export class AssetsService {
     return this.prisma.asset.delete({
       where: { id },
     });
+  }
+
+  async generatePdfReport(filters: any): Promise<Buffer> {
+    const assets = await this.findAll(filters);
+    return this.pdfService.generateAssetsReport(assets, filters);
   }
 }

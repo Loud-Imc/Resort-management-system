@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import FinancialDetailsModal from '../../components/Reports/FinancialDetailsModal';
+import AssetReport from '../../components/Reports/AssetReport';
 
 const COLORS = ['#08474e', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -32,7 +33,7 @@ export default function Reports() {
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | 'PLATFORM_FEES' | 'OCCUPANCY' | 'NET_EARNINGS' | null>(null);
 
-    const [activeTab, setActiveTab] = useState<'PERFORMANCE' | 'GST'>('PERFORMANCE');
+    const [activeTab, setActiveTab] = useState<'PERFORMANCE' | 'GST' | 'ASSETS'>('PERFORMANCE');
     const [showSourceInfo, setShowSourceInfo] = useState(false);
 
     const [isFilterExpanded, setIsFilterExpanded] = useState(false);
@@ -157,6 +158,12 @@ export default function Reports() {
                             >
                                 GST Compliance
                             </button>
+                            <button
+                                onClick={() => setActiveTab('ASSETS')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'ASSETS' ? 'bg-white dark:bg-gray-600 shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Assets
+                            </button>
                         </div>
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
@@ -229,7 +236,9 @@ export default function Reports() {
             </div>
 
             {/* Conditional Views */}
-            {activeTab === 'PERFORMANCE' ? (
+            {activeTab === 'ASSETS' ? (
+                <AssetReport />
+            ) : activeTab === 'PERFORMANCE' ? (
                 <>
                     {/* Charts Row 1 */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

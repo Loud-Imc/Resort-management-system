@@ -473,6 +473,97 @@ export class PdfService {
     }
   }
 
+  async generateAssetsReport(assets: any[], filters: any): Promise<Buffer> {
+    const routeGuideLogoBase64 = this.getLogoBase64();
+    const totalValue = assets.reduce((sum, a) => sum + Number(a.value || 0), 0);
+    const totalAssets = assets.reduce((sum, a) => sum + Number(a.quantity || 1), 0);
+
+    const docDefinition: any = {
+      pageSize: 'A4',
+      pageMargins: [30, 40, 30, 40],
+      content: [
+        {
+          columns: [
+            routeGuideLogoBase64 
+              ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
+              : { text: 'Route Guide', style: 'brandLogo' },
+            {
+              stack: [
+                { text: 'ASSETS REPORT', style: 'docTitle', alignment: 'right' },
+                { text: `Generated: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate', alignment: 'right' }
+              ]
+            }
+          ],
+          margin: [0, 0, 0, 20]
+        },
+        {
+          columns: [
+             { text: `Total Assets: ${totalAssets}`, style: 'summaryHeader' },
+             { text: `Total Value: ₹${totalValue.toLocaleString('en-IN')}`, style: 'summaryHeader', alignment: 'right' }
+          ],
+          margin: [0, 0, 0, 15]
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
+            body: [
+              [
+                { text: 'Name', style: 'tableHeader' },
+                { text: 'Category', style: 'tableHeader' },
+                { text: 'Ownership', style: 'tableHeader' },
+                { text: 'Condition', style: 'tableHeader' },
+                { text: 'Qty', style: 'tableHeader', alignment: 'center' },
+                { text: 'Value', style: 'tableHeader', alignment: 'right' }
+              ],
+              ...assets.map(a => [
+                { text: a.name || '', style: 'tableCell' },
+                { text: a.category || '-', style: 'tableCell' },
+                { text: a.ownership || '-', style: 'tableCell' },
+                { text: a.condition || '-', style: 'tableCell' },
+                { text: (a.quantity || 1).toString(), style: 'tableCell', alignment: 'center' },
+                { text: a.value ? `₹${Number(a.value).toLocaleString('en-IN')}` : '-', style: 'tableCell', alignment: 'right' }
+              ])
+            ]
+          },
+          layout: {
+            hLineWidth: (i: number) => i === 0 || i === 1 || i === assets.length + 1 ? 1 : 0.5,
+            vLineWidth: () => 0,
+            hLineColor: () => '#e2e8f0',
+            paddingTop: () => 6,
+            paddingBottom: () => 6,
+          }
+        }
+      ],
+      styles: {
+        brandLogo: { fontSize: 20, bold: true, color: '#227c8a', letterSpacing: 1 },
+        docTitle: { fontSize: 16, bold: true, color: '#0f172a' },
+        docDate: { fontSize: 9, color: '#64748b', margin: [0, 2, 0, 0] },
+        summaryHeader: { fontSize: 12, bold: true, color: '#227c8a' },
+        tableHeader: { fontSize: 10, bold: true, color: '#475569', fillColor: '#f8fafc', margin: [0, 4, 0, 4] },
+        tableCell: { fontSize: 9, color: '#334155', margin: [0, 2, 0, 2] }
+      },
+      defaultStyle: {
+        font: 'Roboto'
+      }
+    };
+
+    try {
+      const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
+      
+      return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        pdfDoc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', (err: Error) => reject(err));
+        pdfDoc.end();
+      });
+    } catch (error) {
+      this.logger.error(`Error generating PDF: ${error.message}`);
+      throw error;
+    }
+  }
+
   async generateExpensesReport(expenses: any[], filters: any): Promise<Buffer> {
     const routeGuideLogoBase64 = this.getLogoBase64();
     const totalAmount = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);

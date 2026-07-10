@@ -157,7 +157,7 @@ export default function EditBooking() {
                 <div>
                     <p className="font-bold text-sm">Need to change dates, rooms, or price?</p>
                     <p className="text-xs mt-1">
-                        Use the <span className="font-black underline cursor-pointer hover:text-amber-800" onClick={() => navigate(`/reschedule/${id}`)}>Reschedule Booking</span> feature to modify stay configuration. This form is only for updating guest contact, special requests, and document information.
+                        Use the <span className="font-black underline cursor-pointer hover:text-amber-800" onClick={() => navigate(`/reschedule/${id}`)}>Update Booking</span> feature to modify stay configuration. This form is only for updating guest contact, special requests, and document information.
                     </p>
                 </div>
             </div>

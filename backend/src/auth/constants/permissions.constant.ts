@@ -61,6 +61,7 @@ export const PERMISSIONS = {
         APPROVE: 'properties.approve', // High-level status flow (PENDING -> VERIFIED)
     },
 
+
     // Property Staff Integration
     PROPERTY_STAFF: {
         MANAGE: 'propertyStaff.manage', // Add/remove staff from property
@@ -98,6 +99,14 @@ export const PERMISSIONS = {
         UPDATE: 'events.update',
         DELETE: 'events.delete',
         APPROVE: 'events.approve', // Admin approval for events
+    },
+
+    // Assets
+    ASSETS: {
+        CREATE: 'assets.create',
+        READ: 'assets.read',
+        UPDATE: 'assets.update',
+        DELETE: 'assets.delete',
     },
 
     // Event Bookings
@@ -175,6 +184,7 @@ export const PERMISSION_GROUPS = {
         ...Object.values(PERMISSIONS.EVENT_BOOKINGS),
         ...Object.values(PERMISSIONS.MARKETING),
         ...Object.values(PERMISSIONS.BOOKING_SOURCES),
+        ...Object.values(PERMISSIONS.ASSETS),
     ],
 
     MANAGER: [
@@ -188,6 +198,7 @@ export const PERMISSION_GROUPS = {
         PERMISSIONS.EVENTS.READ,
         PERMISSIONS.EVENT_BOOKINGS.READ, PERMISSIONS.EVENT_BOOKINGS.VERIFY,
         PERMISSIONS.BOOKING_SOURCES.READ,
+        ...Object.values(PERMISSIONS.ASSETS),
     ],
 
     STAFF: [
@@ -222,6 +233,9 @@ export const PERMISSION_GROUPS = {
         ...Object.values(PERMISSIONS.PAYMENTS),
         ...Object.values(PERMISSIONS.EXPENSES),
         ...Object.values(PERMISSIONS.INCOME),
+
+        // Assets
+        ...Object.values(PERMISSIONS.ASSETS),
 
         // Events: Full Control for own property
         PERMISSIONS.EVENTS.CREATE, PERMISSIONS.EVENTS.READ, PERMISSIONS.EVENTS.UPDATE,

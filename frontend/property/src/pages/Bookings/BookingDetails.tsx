@@ -198,7 +198,7 @@ const BookingDetails = () => {
                             className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white hover:shadow-xl hover:shadow-amber-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest"
                         >
                             <Calendar className="h-4 w-4" />
-                            Reschedule Booking
+                            Update Booking
                         </button>
                     )}
                     {booking.isManualBooking && (
