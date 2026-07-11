@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger, forwardRef, Inject, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
@@ -18,6 +18,7 @@ import { PdfService } from '../pdf/pdf.service';
 import { MailService } from '../mail/mail.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
+import { ChannelsService } from '../channels/channels.service';
 
 @Injectable()
 export class BookingsService {
@@ -33,7 +34,15 @@ export class BookingsService {
         private systemSettings: SystemSettingsService,
         private pdfService: PdfService,
         private mailService: MailService,
+        @Optional() @Inject(forwardRef(() => ChannelsService)) private channelsService?: ChannelsService,
     ) { }
+
+    private triggerChannexSync(propertyId?: string | null) {
+        if (!this.channelsService || !propertyId) return;
+        this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+            this.logger.error(`[Channex ARI Sync] Background push failed after internal booking action for property ${propertyId}: ${err.message}`);
+        });
+    }
 
     /**
      * Create a new booking (manual or online)
@@ -935,6 +944,7 @@ export class BookingsService {
         // 8. Broadcast notifications (Outside transaction)
         if (['CONFIRMED', 'RESERVED'].includes(booking.status)) {
             await this.notificationsService.broadcastNewBooking(booking);
+            this.triggerChannexSync(booking.propertyId);
         }
 
         return booking;
@@ -1880,6 +1890,7 @@ export class BookingsService {
             data: { status: 'CANCELLED' },
         });
 
+        this.triggerChannexSync(booking.propertyId);
         return updated;
     }
 
@@ -1910,6 +1921,7 @@ export class BookingsService {
             bookingId: id,
         });
 
+        this.triggerChannexSync(booking.propertyId);
         return updated;
     }
 
@@ -2426,6 +2438,7 @@ export class BookingsService {
             return updated;
         });
 
+        this.triggerChannexSync(updatedBooking.propertyId);
         return updatedBooking;
     }
 

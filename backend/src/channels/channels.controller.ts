@@ -1,0 +1,88 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Query,
+} from '@nestjs/common';
+import { ChannelsService } from './channels.service';
+
+@Controller('channels')
+export class ChannelsController {
+  constructor(private readonly channelsService: ChannelsService) {}
+
+  @Get('mappings/:propertyId')
+  async getMappings(@Param('propertyId') propertyId: string) {
+    return this.channelsService.getPropertyMappings(propertyId);
+  }
+
+  @Post('mappings/property')
+  async savePropertyMapping(
+    @Body() body: { propertyId: string; channelName: string; externalPropertyId: string; apiKey?: string },
+  ) {
+    return this.channelsService.savePropertyMapping(
+      body.propertyId,
+      body.channelName,
+      body.externalPropertyId,
+      body.apiKey,
+    );
+  }
+
+  @Post('mappings/room')
+  async saveRoomMapping(
+    @Body() body: { propertyMappingId: string; roomTypeId: string; externalRoomTypeId: string; externalRatePlanId?: string },
+  ) {
+    return this.channelsService.saveRoomMapping(
+      body.propertyMappingId,
+      body.roomTypeId,
+      body.externalRoomTypeId,
+      body.externalRatePlanId,
+    );
+  }
+
+  @Post('enable/:propertyId')
+  async enableChannelSync(
+    @Param('propertyId') propertyId: string,
+    @Query('channelName') channelName = 'CHANNEX',
+  ) {
+    return this.channelsService.enableChannelSyncForProperty(propertyId, channelName);
+  }
+
+  @Post('disable/:propertyId')
+  async disableChannelSync(
+    @Param('propertyId') propertyId: string,
+    @Query('channelName') channelName = 'CHANNEX',
+  ) {
+    return this.channelsService.disableChannelSyncForProperty(propertyId, channelName);
+  }
+
+  @Post('push/:propertyId')
+  @HttpCode(HttpStatus.OK)
+  async pushAri(@Param('propertyId') propertyId: string, @Query('days') days?: number) {
+    await this.channelsService.pushAriForProperty(propertyId, days ? Number(days) : 60);
+    return { success: true, message: `Successfully triggered ARI sync for property ${propertyId}` };
+  }
+
+  @Post('simulate-booking/:propertyId')
+  @HttpCode(HttpStatus.OK)
+  async simulateBooking(
+    @Param('propertyId') propertyId: string,
+    @Query('otaName') otaName = 'MakeMyTrip',
+  ) {
+    return this.channelsService.simulateIncomingOtaBooking(propertyId, otaName);
+  }
+
+  @Post('webhook/:channelName')
+  @HttpCode(HttpStatus.OK)
+  async receiveWebhook(
+    @Param('channelName') channelName: string,
+    @Body() payload: any,
+    @Headers() headers: Record<string, any>,
+  ) {
+    return this.channelsService.handleIncomingReservation(channelName, payload, headers);
+  }
+}
