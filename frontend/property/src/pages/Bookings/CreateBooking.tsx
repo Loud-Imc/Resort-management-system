@@ -981,7 +981,7 @@ export default function CreateBooking() {
                                             <Users className="h-5 w-5 text-primary" /> Primary Contact Information
                                         </h2>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                            <div className="relative phone-autocomplete-container">
+                                            <div className="relative phone-autocomplete-container md:col-span-2">
                                                 <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Primary Phone Number</label>
                                                 <input
                                                     type="text"
@@ -1112,66 +1112,76 @@ export default function CreateBooking() {
                                                          )}
                                                      </div>
 
-                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                                          <div>
+                                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">First Name</label>
                                                              <input
                                                                  {...register(`guests.${index}.firstName`)}
-                                                                 placeholder="First Name"
+                                                                 placeholder="Enter first name"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
+                                                                     "w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-muted cursor-not-allowed text-muted-foreground border-border"
                                                                  )}
                                                              />
                                                              {errors.guests?.[index]?.firstName && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guests[index]?.firstName?.message}</p>}
                                                          </div>
                                                          <div>
+                                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Last Name (Optional)</label>
                                                              <input
                                                                  {...register(`guests.${index}.lastName`)}
-                                                                 placeholder="Last Name (Optional)"
+                                                                 placeholder="Enter last name (Optional)"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
+                                                                     "w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-muted cursor-not-allowed text-muted-foreground border-border"
                                                                  )}
                                                              />
                                                              {errors.guests?.[index]?.lastName && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guests[index]?.lastName?.message}</p>}
                                                          </div>
-                                                         <input
-                                                             {...register(`guests.${index}.email`)}
-                                                             type="email"
-                                                             placeholder="Email (Optional)"
-                                                             readOnly={index === 0 && isBookerAlsoGuest}
-                                                             className={clsx(
-                                                                 "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
-                                                                 index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
-                                                             )}
-                                                         />
-                                                         <div className="grid grid-cols-2 gap-2.5">
+                                                         <div>
+                                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Email (Optional)</label>
                                                              <input
-                                                                 {...register(`guests.${index}.phone`)}
-                                                                 placeholder="Phone (Optional)"
+                                                                 {...register(`guests.${index}.email`)}
+                                                                 type="email"
+                                                                 placeholder="Enter email address"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
+                                                                     "w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-muted cursor-not-allowed text-muted-foreground border-border"
                                                                  )}
                                                              />
+                                                         </div>
+                                                         <div>
+                                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Phone Number (Optional)</label>
                                                              <input
-                                                                 {...register(`guests.${index}.whatsappNumber`)}
-                                                                 placeholder="WhatsApp (Optional)"
+                                                                 {...register(`guests.${index}.phone`)}
+                                                                 placeholder="Enter phone number"
                                                                  readOnly={index === 0 && isBookerAlsoGuest}
                                                                  className={clsx(
-                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
-                                                                     index === 0 && isBookerAlsoGuest && "bg-gray-100/80 dark:bg-gray-800/80 cursor-not-allowed text-gray-500 dark:text-gray-450 border-gray-200/50 dark:border-gray-700/50"
+                                                                     "w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-muted cursor-not-allowed text-muted-foreground border-border"
+                                                                 )}
+                                                             />
+                                                         </div>
+                                                         <div>
+                                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">WhatsApp Number (Optional)</label>
+                                                             <input
+                                                                 {...register(`guests.${index}.whatsappNumber`)}
+                                                                 placeholder="Enter WhatsApp number"
+                                                                 readOnly={index === 0 && isBookerAlsoGuest}
+                                                                 className={clsx(
+                                                                     "w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50",
+                                                                     index === 0 && isBookerAlsoGuest && "bg-muted cursor-not-allowed text-muted-foreground border-border"
                                                                  )}
                                                              />
                                                          </div>
                                                          <div className="relative">
+                                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">ID Document Type (Optional)</label>
                                                              <select 
                                                                  {...register(`guests.${index}.idType`)} 
                                                                  className={clsx(
-                                                                     "w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm h-11 px-4 font-semibold transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer", 
+                                                                     "w-full border border-input bg-background text-foreground rounded-xl shadow-sm text-sm h-11 px-4 font-semibold transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 cursor-pointer", 
                                                                      errors.guests?.[index]?.idType && "border-red-500 ring-1 ring-red-500"
                                                                  )}
                                                              >
@@ -1188,17 +1198,17 @@ export default function CreateBooking() {
                                                          {watch(`guests.${index}.idType`) && (
                                                              <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-3 duration-300">
                                                                  <div>
-                                                                     <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-550 mb-1.5">ID Number</label>
+                                                                     <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">ID Number</label>
                                                                      <input
                                                                          {...register(`guests.${index}.idNumber`)}
                                                                          placeholder="Enter ID number"
-                                                                         className={clsx("w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm text-sm px-4 py-2.5 font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500", errors.guests?.[index]?.idNumber && "border-red-500 ring-1 ring-red-500")}
+                                                                         className={clsx("w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50", errors.guests?.[index]?.idNumber && "border-red-500 ring-1 ring-red-500")}
                                                                      />
-                                                                     {errors.guests?.[index]?.idNumber && <p className="text-red-500 text-[10px] mt-1 font-bold">{errors.guests[index].idNumber?.message}</p>}
+                                                                     {errors.guests?.[index]?.idNumber && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.guests[index].idNumber?.message}</p>}
                                                                  </div>
 
                                                                  <div>
-                                                                      <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-555 mb-2">Upload Guest ID Photo (Front & Optional Back)</label>
+                                                                      <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Upload Guest ID Photo (Front & Optional Back)</label>
                                                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-gray-950 p-4 rounded-xl border border-gray-150 dark:border-gray-800/50 shadow-inner">
                                                                           {/* Front Side */}
                                                                           <div className="flex flex-col gap-2">

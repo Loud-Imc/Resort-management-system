@@ -150,6 +150,7 @@ model RoomType {
   allowPayAtProperty         Boolean             @default(false)
   property                   Property            @relation(fields: [propertyId], references: [id])
   rooms                      Room[]
+  channelMappings            ChannelRoomTypeMapping[]
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -280,6 +281,8 @@ model Booking {
   isHistoricalEntry       Boolean                @default(false)
   transactionDate         DateTime?
   createdBy               String?
+  externalBookingId       String?                @unique
+  channelName             String?
   auditLogs               AuditLog[]
   guests                  BookingGuest[]
   agent                   User?                  @relation("AgentBookings", fields: [agentId], references: [id])
@@ -561,6 +564,7 @@ model Property {
   rooms                       Room[]
   assets                      Asset[]
   promotionRequests           PromotionRequest[]
+  channelMappings             ChannelPropertyMapping[]
 
   @@map("properties")
 }
@@ -581,6 +585,37 @@ model PropertyIcal {
   roomType        RoomType?      @relation(fields: [roomTypeId], references: [id])
 
   @@map("property_icals")
+}
+
+model ChannelPropertyMapping {
+  id                 String                   @id @default(uuid())
+  propertyId         String
+  channelName        String                   @default("CHANNEX") // e.g., "CHANNEX", "STAAH", "MOCK"
+  externalPropertyId String                   // The property ID on Channex/STAAH
+  apiKey             String?                  // Optional per-property API key or webhook secret
+  isActive           Boolean                  @default(true)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  property           Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomMappings       ChannelRoomTypeMapping[]
+
+  @@unique([propertyId, channelName])
+  @@map("channel_property_mappings")
+}
+
+model ChannelRoomTypeMapping {
+  id                 String                 @id @default(uuid())
+  propertyMappingId  String
+  roomTypeId         String
+  externalRoomTypeId String                 // e.g., Booking.com / Channex room type ID
+  externalRatePlanId String?                // Optional rate plan ID
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  roomType           RoomType               @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  propertyMapping    ChannelPropertyMapping @relation(fields: [propertyMappingId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyMappingId, roomTypeId])
+  @@map("channel_room_type_mappings")
 }
 
 model CancellationPolicy {

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { BookingsController } from './bookings.controller';
 import { AvailabilityService } from './availability.service';
@@ -8,9 +8,10 @@ import { ChannelPartnersModule } from '../channel-partners/channel-partners.modu
 import { PaymentsModule } from '../payments/payments.module';
 import { SystemSettingsModule } from '../system-settings/system-settings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ChannelsModule } from '../channels/channels.module';
 
 @Module({
-    imports: [AuditModule, ChannelPartnersModule, PaymentsModule, SystemSettingsModule, NotificationsModule],
+    imports: [AuditModule, ChannelPartnersModule, PaymentsModule, SystemSettingsModule, NotificationsModule, forwardRef(() => ChannelsModule)],
     controllers: [BookingsController],
     providers: [BookingsService, AvailabilityService, PricingService],
     exports: [BookingsService, AvailabilityService],

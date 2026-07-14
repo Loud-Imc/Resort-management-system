@@ -120,6 +120,18 @@ export class PropertiesController {
     // PUBLIC ENDPOINTS
     // ============================================
 
+    @Get('public/lookup-owners')
+    @ApiOperation({ summary: 'Lookup existing property owners by email or phone during registration' })
+    lookupOwners(@Query('email') email?: string, @Query('phone') phone?: string) {
+        return this.propertiesService.lookupOwners(email, phone);
+    }
+
+    @Post('public/verify-owner-password')
+    @ApiOperation({ summary: 'Verify existing property owner password during registration Step 1' })
+    verifyOwnerPassword(@Body() body: { userId?: string; email?: string; phone?: string; password?: string }) {
+        return this.propertiesService.verifyOwnerPassword(body.password, body.userId, body.email, body.phone);
+    }
+
     @Post('public-register')
     @ApiOperation({ summary: 'Public registration for Property Owners' })
     publicRegister(@Body() dto: RegisterPropertyDto) {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger, forwardRef, Inject, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
@@ -18,6 +18,7 @@ import { PdfService } from '../pdf/pdf.service';
 import { MailService } from '../mail/mail.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
+import { ChannelsService } from '../channels/channels.service';
 
 @Injectable()
 export class BookingsService {
@@ -33,7 +34,15 @@ export class BookingsService {
         private systemSettings: SystemSettingsService,
         private pdfService: PdfService,
         private mailService: MailService,
+        @Optional() @Inject(forwardRef(() => ChannelsService)) private channelsService?: ChannelsService,
     ) { }
+
+    private triggerChannexSync(propertyId?: string | null) {
+        if (!this.channelsService || !propertyId) return;
+        this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+            this.logger.error(`[Channex ARI Sync] Background push failed after internal booking action for property ${propertyId}: ${err.message}`);
+        });
+    }
 
     /**
      * Create a new booking (manual or online)
@@ -935,6 +944,7 @@ export class BookingsService {
         // 8. Broadcast notifications (Outside transaction)
         if (['CONFIRMED', 'RESERVED'].includes(booking.status)) {
             await this.notificationsService.broadcastNewBooking(booking);
+            this.triggerChannexSync(booking.propertyId);
         }
 
         return booking;
@@ -1753,8 +1763,13 @@ export class BookingsService {
             }
 
             // Release ALL room blocks for this booking (including group booking extra rooms)
+            const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id },
+            });
+            await tx.room.updateMany({
+                where: { id: { in: roomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
             });
 
             await this.auditService.createLog({
@@ -1880,6 +1895,7 @@ export class BookingsService {
             data: { status: 'CANCELLED' },
         });
 
+        this.triggerChannexSync(booking.propertyId);
         return updated;
     }
 
@@ -1910,6 +1926,7 @@ export class BookingsService {
             bookingId: id,
         });
 
+        this.triggerChannexSync(booking.propertyId);
         return updated;
     }
 
@@ -1953,6 +1970,10 @@ export class BookingsService {
             // Delete old room blocks
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
+            });
+            await tx.room.updateMany({
+                where: { id: { in: currentRoomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
             });
 
             // Re-allocate blocks for any extra rooms
@@ -2317,6 +2338,8 @@ export class BookingsService {
                 }
             }
 
+            const currentRoomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+
             // Remove old room blocks and unified booking rooms
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
@@ -2326,6 +2349,10 @@ export class BookingsService {
                     where: { bookingId: id }
                 });
             }
+            await tx.room.updateMany({
+                where: { id: { in: currentRoomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
+            });
 
             // Re-allocate primary and blocks
             const primaryRoomId = roomsToAllocate[0].id;
@@ -2426,6 +2453,7 @@ export class BookingsService {
             return updated;
         });
 
+        this.triggerChannexSync(updatedBooking.propertyId);
         return updatedBooking;
     }
 
@@ -2468,6 +2496,7 @@ export class BookingsService {
             throw new ForbiddenException('Only manual bookings can be deleted');
         }
 
+        const roomIds = [booking.roomId, ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])];
         return this.prisma.$transaction(async (tx) => {
             // Delete related records in specific order to avoid constraint issues
             await tx.propertySettlement.deleteMany({ where: { bookingId: id } });
@@ -2481,6 +2510,10 @@ export class BookingsService {
             if ((tx as any).bookingRoom) {
                 await (tx as any).bookingRoom.deleteMany({ where: { bookingId: id } });
             }
+            await tx.room.updateMany({
+                where: { id: { in: roomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
+            });
             await tx.auditLog.deleteMany({ where: { bookingId: id } });
 
             // Finally delete the booking
@@ -2641,7 +2674,7 @@ export class BookingsService {
                 status: 'PENDING_PAYMENT',
                 createdAt: { lt: thirtyMinutesAgo },
             },
-            select: { id: true, bookingNumber: true, roomId: true, couponId: true },
+            select: { id: true, bookingNumber: true, roomId: true, couponId: true, roomBlocks: { select: { roomId: true } } },
         });
 
         if (staleBookings.length === 0) return;
@@ -2669,8 +2702,13 @@ export class BookingsService {
                     }
 
                     // 2. Release ALL room blocks for this booking (including group extras)
+                    const roomIds = [booking.roomId, ...((booking as any).roomBlocks?.map((rb: any) => rb.roomId) || [])];
                     await tx.roomBlock.deleteMany({
                         where: { bookingId: booking.id },
+                    });
+                    await tx.room.updateMany({
+                        where: { id: { in: roomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                        data: { status: 'AVAILABLE' },
                     });
 
                     // 3. Mark any PENDING payment records as EXPIRED

@@ -139,35 +139,38 @@ export class RoomsService {
 
         // Dynamic status adjustment for dashboard/listing consistency using Phase 6 BookingRoom logic
         let computedRooms = rooms.map((room: any) => {
-            if (room.status === 'AVAILABLE' && room.bookingRooms && room.bookingRooms.length > 0) {
-                // Find active booking for tonight
-                const activeBookingForTonight = room.bookingRooms.find((br: any) => {
-                    const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0,0,0,0);
-                    const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
-                    return today >= checkIn && today < checkOut;
-                })?.booking;
-
-                // Find checkout today
-                const checkoutBookingToday = room.bookingRooms.find((br: any) => {
-                    const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
-                    return today.getTime() === checkOut.getTime();
-                })?.booking;
-
-                let dynamicStatus = 'AVAILABLE';
-                
-                if (activeBookingForTonight) {
-                    if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTonight.status)) {
-                        dynamicStatus = 'OCCUPIED';
-                    } else {
-                        dynamicStatus = 'RESERVED';
-                    }
-                } else if (checkoutBookingToday) {
-                    dynamicStatus = 'OUT_TODAY';
-                }
-
-                return { ...room, status: dynamicStatus };
+            if (['MAINTENANCE', 'CLEANING', 'BLOCKED'].includes(room.status)) {
+                return room;
             }
-            return room;
+
+            const bookingRoomsList = room.bookingRooms || [];
+
+            // Find active booking for tonight
+            const activeBookingForTonight = bookingRoomsList.find((br: any) => {
+                const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return today >= checkIn && today < checkOut;
+            })?.booking;
+
+            // Find checkout today
+            const checkoutBookingToday = bookingRoomsList.find((br: any) => {
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return today.getTime() === checkOut.getTime();
+            })?.booking;
+
+            let dynamicStatus = 'AVAILABLE';
+
+            if (activeBookingForTonight) {
+                if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTonight.status)) {
+                    dynamicStatus = 'OCCUPIED';
+                } else {
+                    dynamicStatus = 'RESERVED';
+                }
+            } else if (checkoutBookingToday) {
+                dynamicStatus = 'OUT_TODAY';
+            }
+
+            return { ...room, status: dynamicStatus };
         });
 
         // Filter on backend after computing if a specific status was requested
@@ -236,6 +239,35 @@ export class RoomsService {
             if (!isOwner && !isStaff) {
                 throw new NotFoundException('Room not found'); // Hide existence for security
             }
+        }
+
+        if (room && !['MAINTENANCE', 'CLEANING', 'BLOCKED'].includes(room.status)) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const bookingRoomsList = (room as any).bookingRooms || [];
+
+            const activeBookingForTonight = bookingRoomsList.find((br: any) => {
+                const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return today >= checkIn && today < checkOut;
+            })?.booking;
+
+            const checkoutBookingToday = bookingRoomsList.find((br: any) => {
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return today.getTime() === checkOut.getTime();
+            })?.booking;
+
+            let dynamicStatus = 'AVAILABLE';
+            if (activeBookingForTonight) {
+                if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTonight.status)) {
+                    dynamicStatus = 'OCCUPIED';
+                } else {
+                    dynamicStatus = 'RESERVED';
+                }
+            } else if (checkoutBookingToday) {
+                dynamicStatus = 'OUT_TODAY';
+            }
+            (room as any).status = dynamicStatus;
         }
 
         return room;

@@ -8,9 +8,17 @@ export class RegisterPropertyDto {
     ownerEmail: string;
 
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
     @MinLength(8)
-    ownerPassword: string;
+    ownerPassword?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    isExistingOwner?: boolean;
+
+    @IsOptional()
+    @IsString()
+    existingOwnerId?: string;
 
     @IsString()
     @IsNotEmpty()

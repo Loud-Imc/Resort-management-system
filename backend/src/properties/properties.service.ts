@@ -451,6 +451,105 @@ export class PropertiesService {
         });
     }
 
+    async lookupOwners(email?: string, phone?: string) {
+        if ((!email || email.trim().length < 3) && (!phone || phone.trim().length < 5)) {
+            return [];
+        }
+
+        const conditions: any[] = [];
+        if (email && email.trim().length >= 3) {
+            conditions.push({ email: { contains: email.trim(), mode: 'insensitive' } });
+        }
+        if (phone && phone.trim().length >= 5) {
+            const normalized = phone.trim().replace(/\D/g, '');
+            if (normalized.length >= 5) {
+                conditions.push({ phone: { contains: normalized } });
+            } else {
+                conditions.push({ phone: { contains: phone.trim() } });
+            }
+        }
+
+        if (conditions.length === 0) return [];
+
+        const users = await this.prisma.user.findMany({
+            where: {
+                OR: conditions,
+                roles: { some: { role: { name: 'PropertyOwner' } } }
+            },
+            take: 5,
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                ownedProperties: {
+                    take: 1,
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        ownerAadhaarNumber: true,
+                        ownerAadhaarImage: true,
+                        ownerAadhaarImageBack: true,
+                        gstNumber: true,
+                        licenceImage: true,
+                    }
+                }
+            }
+        });
+
+        return users.map(u => {
+            const p = u.ownedProperties[0] || {};
+            return {
+                id: u.id,
+                firstName: u.firstName || '',
+                lastName: u.lastName || '',
+                email: u.email || '',
+                phone: u.phone || '',
+                ownerAadhaarNumber: p.ownerAadhaarNumber || '',
+                ownerAadhaarImage: p.ownerAadhaarImage || '',
+                ownerAadhaarImageBack: p.ownerAadhaarImageBack || '',
+                gstNumber: p.gstNumber || '',
+                licenceImage: p.licenceImage || '',
+            };
+        });
+    }
+
+    async verifyOwnerPassword(password?: string, userId?: string, email?: string, phone?: string) {
+        if (!password) {
+            throw new BadRequestException('Password is required for verification.');
+        }
+
+        const conditions: any[] = [];
+        if (userId) conditions.push({ id: userId });
+        if (email && email.trim()) conditions.push({ email: { contains: email.trim(), mode: 'insensitive' } });
+        if (phone && phone.trim()) {
+            const normalized = phone.trim().replace(/\D/g, '');
+            conditions.push({ phone: { contains: normalized.length >= 5 ? normalized : phone.trim() } });
+        }
+
+        if (conditions.length === 0) {
+            throw new BadRequestException('Owner identifier required.');
+        }
+
+        const existingUser = await this.prisma.user.findFirst({
+            where: {
+                OR: conditions,
+                roles: { some: { role: { name: 'PropertyOwner' } } }
+            }
+        });
+
+        if (!existingUser || !existingUser.password) {
+            throw new BadRequestException('Owner account not found or has no password set.');
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, existingUser.password);
+        if (!isPasswordValid) {
+            throw new BadRequestException('Incorrect password for existing account. Please enter your exact login password.');
+        }
+
+        return { valid: true, message: 'Password verified successfully.' };
+    }
+
     async publicRegister(dto: RegisterPropertyDto) {
         // 1. Check for duplicate PENDING requests for same property name
         const existingRequest = await this.prisma.propertyRequest.findFirst({
@@ -498,12 +597,18 @@ export class PropertiesService {
             const isGuestOnly = existingUser.roles.every((ur: any) => ur.role.name === 'Customer');
 
             if (!existingUser.password) {
-                // If user exists but has no password (OTP registered), we'll allow them to "claim" it if they only have Customer role
+                // If user exists but has no password (OTP registered), allow setting their chosen password
+                if (!dto.ownerPassword) {
+                    throw new BadRequestException('Password is required when linking this account.');
+                }
                 shouldUpdatePassword = true;
             } else {
+                if (!dto.ownerPassword) {
+                    throw new ConflictException('An account with this email or phone already exists. Please enter your existing account password to verify and link this property.');
+                }
                 const isPasswordValid = await bcrypt.compare(dto.ownerPassword, existingUser.password);
                 if (!isPasswordValid && !isGuestOnly) {
-                    throw new ConflictException('An account with this email or phone already exists. Please provide the correct password to link it.');
+                    throw new ConflictException('An account with this email or phone already exists. Please enter your existing account password correctly to verify and link this property.');
                 }
 
                 // If it was a guest-only account and password didn't match, we update to the new password provided
@@ -515,7 +620,7 @@ export class PropertiesService {
             const hasRole = existingUser.roles.some((ur: any) => ur.role.name === 'PropertyOwner');
             const dataToUpdate: any = {};
 
-            if (shouldUpdatePassword) {
+            if (shouldUpdatePassword && dto.ownerPassword) {
                 dataToUpdate.password = await bcrypt.hash(dto.ownerPassword, 10);
             }
 
@@ -537,6 +642,9 @@ export class PropertiesService {
                 });
             }
         } else {
+            if (!dto.ownerPassword) {
+                throw new BadRequestException('Password is required when registering a new account.');
+            }
             // Create new owner account with the password they chose
             const hashedPassword = await bcrypt.hash(dto.ownerPassword, 10);
             owner = await this.prisma.user.create({

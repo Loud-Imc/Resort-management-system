@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingSourcesService, type UpdateBookingSourceDto } from '../../services/bookingSources';
-import { Loader2, Plus, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Plus, Edit, Trash2, CheckCircle, XCircle, Globe, Zap, ShieldCheck, TrendingUp, Users, DollarSign } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 export default function BookingSourcesList() {
@@ -62,6 +62,76 @@ export default function BookingSourcesList() {
                 </button>
             </div>
 
+            {/* OTA 2-Way Channel Sync Info Banner */}
+            <div className="mb-6 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-primary/10 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                        <div className="p-3 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl shrink-0">
+                            <Globe className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-foreground text-base">Automated OTA Booking Source Tracking</h3>
+                                <span className="px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                    <ShieldCheck className="h-3 w-3" /> Live 2-Way Auto-Link Active
+                                </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed max-w-3xl">
+                                Whenever a guest books through your connected online travel portals (`MakeMyTrip, Booking.com, Agoda, Airbnb, Goibibo`), your system instantly imports the guest reservation, blocks the exact room on your calendar to prevent double-bookings, and automatically assigns the corresponding Booking Source below for accurate revenue & commission reports.
+                            </p>
+                            <div className="mt-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+                                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                    <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    Dynamic Auto-Creation Engine (`Zero-Code OTA Onboarding`)
+                                </p>
+                                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                                    If a hotel property connects a 9th regional or international travel channel (`e.g., Yatra, ClearTrip, TravelGuru`) via your channel manager in the future, <strong className="text-foreground">no code changes are needed</strong>! The exact second that portal sends its first reservation, our backend engine will dynamically identify, create, and track that new travel partner right here inside your Booking Sources automatically!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Why Hotel Owners & GMs Use Booking Sources (Business Benefit Breakdown) */}
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-card/90 border border-border/80 rounded-2xl p-5 flex items-start gap-3.5 shadow-xs">
+                    <div className="p-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 mt-0.5">
+                        <DollarSign className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-foreground text-sm">Automated Net Profit & Commission Auditing</h4>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                            Instantly compare high-margin direct & walk-in bookings (`0% commission`) against OTA portals (`18-22% commission`) so owners see exact net payout and commission owed at month-end.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="bg-card/90 border border-border/80 rounded-2xl p-5 flex items-start gap-3.5 shadow-xs">
+                    <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 mt-0.5">
+                        <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-foreground text-sm">Offline B2B Travel Agents & Corporate Ties</h4>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                            Use <strong className="text-foreground">"Add Source"</strong> to register local travel agencies, event planners, or corporate contracts (`e.g. Infosys Corporate @ 10%`) for clean monthly billing and partner tracking.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="bg-card/90 border border-border/80 rounded-2xl p-5 flex items-start gap-3.5 shadow-xs">
+                    <div className="p-2.5 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl shrink-0 mt-0.5">
+                        <TrendingUp className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-foreground text-sm">Measure Marketing Campaign ROI</h4>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                            Track guest acquisition from Instagram ads, Google promos, or seasonal holiday packages to see exactly which marketing campaigns convert into actual paying reservations.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-muted/50 border-b border-border">
@@ -76,7 +146,14 @@ export default function BookingSourcesList() {
                     <tbody className="divide-y divide-border">
                         {sources?.map((source) => (
                             <tr key={source.id} className="hover:bg-muted/30 transition-colors">
-                                <td className="px-6 py-4 font-medium text-foreground">{source.name}</td>
+                                <td className="px-6 py-4 font-medium text-foreground flex items-center">
+                                    <span>{source.name}</span>
+                                    {['makemytrip', 'booking.com', 'agoda', 'airbnb', 'expedia', 'goibibo', 'channex', 'ota'].some(ota => source.name.toLowerCase().includes(ota)) && (
+                                        <span className="inline-flex items-center gap-1 ml-2.5 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                            <Zap className="h-3 w-3" /> 2-Way OTA Sync
+                                        </span>
+                                    )}
+                                </td>
                                 <td className="px-6 py-4 text-muted-foreground">{source.description || '-'}</td>
                                 <td className="px-6 py-4 text-muted-foreground">
                                     {source.commission ? `${source.commission}%` : '0%'}
