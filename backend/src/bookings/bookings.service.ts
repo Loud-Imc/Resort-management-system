@@ -1763,8 +1763,13 @@ export class BookingsService {
             }
 
             // Release ALL room blocks for this booking (including group booking extra rooms)
+            const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id },
+            });
+            await tx.room.updateMany({
+                where: { id: { in: roomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
             });
 
             await this.auditService.createLog({
@@ -1965,6 +1970,10 @@ export class BookingsService {
             // Delete old room blocks
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
+            });
+            await tx.room.updateMany({
+                where: { id: { in: currentRoomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
             });
 
             // Re-allocate blocks for any extra rooms
@@ -2329,6 +2338,8 @@ export class BookingsService {
                 }
             }
 
+            const currentRoomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+
             // Remove old room blocks and unified booking rooms
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
@@ -2338,6 +2349,10 @@ export class BookingsService {
                     where: { bookingId: id }
                 });
             }
+            await tx.room.updateMany({
+                where: { id: { in: currentRoomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
+            });
 
             // Re-allocate primary and blocks
             const primaryRoomId = roomsToAllocate[0].id;
@@ -2481,6 +2496,7 @@ export class BookingsService {
             throw new ForbiddenException('Only manual bookings can be deleted');
         }
 
+        const roomIds = [booking.roomId, ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])];
         return this.prisma.$transaction(async (tx) => {
             // Delete related records in specific order to avoid constraint issues
             await tx.propertySettlement.deleteMany({ where: { bookingId: id } });
@@ -2494,6 +2510,10 @@ export class BookingsService {
             if ((tx as any).bookingRoom) {
                 await (tx as any).bookingRoom.deleteMany({ where: { bookingId: id } });
             }
+            await tx.room.updateMany({
+                where: { id: { in: roomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                data: { status: 'AVAILABLE' },
+            });
             await tx.auditLog.deleteMany({ where: { bookingId: id } });
 
             // Finally delete the booking
@@ -2654,7 +2674,7 @@ export class BookingsService {
                 status: 'PENDING_PAYMENT',
                 createdAt: { lt: thirtyMinutesAgo },
             },
-            select: { id: true, bookingNumber: true, roomId: true, couponId: true },
+            select: { id: true, bookingNumber: true, roomId: true, couponId: true, roomBlocks: { select: { roomId: true } } },
         });
 
         if (staleBookings.length === 0) return;
@@ -2682,8 +2702,13 @@ export class BookingsService {
                     }
 
                     // 2. Release ALL room blocks for this booking (including group extras)
+                    const roomIds = [booking.roomId, ...((booking as any).roomBlocks?.map((rb: any) => rb.roomId) || [])];
                     await tx.roomBlock.deleteMany({
                         where: { bookingId: booking.id },
+                    });
+                    await tx.room.updateMany({
+                        where: { id: { in: roomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
+                        data: { status: 'AVAILABLE' },
                     });
 
                     // 3. Mark any PENDING payment records as EXPIRED

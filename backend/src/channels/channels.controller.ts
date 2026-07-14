@@ -15,6 +15,11 @@ import { ChannelsService } from './channels.service';
 export class ChannelsController {
   constructor(private readonly channelsService: ChannelsService) {}
 
+  @Get('catalog')
+  async getChannexCatalog() {
+    return this.channelsService.getAvailableChannelsCatalog();
+  }
+
   @Get('mappings/:propertyId')
   async getMappings(@Param('propertyId') propertyId: string) {
     return this.channelsService.getPropertyMappings(propertyId);
@@ -65,6 +70,16 @@ export class ChannelsController {
   async pushAri(@Param('propertyId') propertyId: string, @Query('days') days?: number) {
     await this.channelsService.pushAriForProperty(propertyId, days ? Number(days) : 60);
     return { success: true, message: `Successfully triggered ARI sync for property ${propertyId}` };
+  }
+
+  @Post('push-delta/:propertyId')
+  @HttpCode(HttpStatus.OK)
+  async pushDeltaAri(
+    @Param('propertyId') propertyId: string,
+    @Body() body: { inventoryUpdates?: any[]; rateUpdates?: any[] },
+  ) {
+    const success = await this.channelsService.pushDeltaAri(propertyId, body?.inventoryUpdates || [], body?.rateUpdates || []);
+    return { success, message: `Successfully triggered delta ARI push for property ${propertyId}` };
   }
 
   @Post('simulate-booking/:propertyId')

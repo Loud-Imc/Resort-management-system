@@ -7,10 +7,92 @@ import toast from 'react-hot-toast';
 import {
   Calendar, RefreshCw, Link as LinkIcon, Copy, Trash2, Plus,
   ExternalLink, CheckCircle2, AlertCircle, Loader2, Info, ChevronDown,
-  Zap, Globe, ShieldCheck, Power, ArrowRight, Layers
+  Zap, Globe, ShieldCheck, Power, ArrowRight, Layers,
+  BookOpen, X, Search, PlusCircle, Check, TrendingUp, Users
 } from 'lucide-react';
 import clsx from 'clsx';
 import { ChannexOtaModal } from '../../components/Channels/ChannexOtaModal';
+
+const CHANNEX_GLOBAL_CHANNELS = [
+  { key: 'makemytrip', title: 'MakeMyTrip (India Top Leader - IngoMMT)', category: 'Regional Leader', placeholder: 'e.g. MMT-8891', color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/30' },
+  { key: 'goibibo', title: 'Goibibo (India Partner Network - IngoMMT)', category: 'Regional Leader', placeholder: 'e.g. GO-7712', color: 'from-orange-500/10 to-amber-500/10 border-orange-500/30' },
+  { key: 'bookingcom', title: 'Booking.com (Global Leader)', category: 'Global Leader', placeholder: 'e.g. 1234567', color: 'from-sky-500/10 to-blue-500/10 border-sky-500/30' },
+  { key: 'agoda', title: 'Agoda (APAC & Southeast Asia Leader)', category: 'Global Leader', placeholder: 'e.g. AGODA-9021', color: 'from-purple-500/10 to-pink-500/10 border-purple-500/30' },
+  { key: 'airbnb', title: 'Airbnb (Vacation & Homestay Leader)', category: 'Global Leader', placeholder: 'e.g. AIR-5512', color: 'from-rose-500/10 to-red-500/10 border-rose-500/30' },
+  { key: 'expedia', title: 'Expedia Group (Hotels.com / Vrbo / Orbitz)', category: 'Global Leader', placeholder: 'e.g. EXP-8821', color: 'from-yellow-500/10 to-amber-500/10 border-yellow-500/30' },
+  { key: 'tripcom', title: 'Trip.com / Ctrip (China & APAC Leader)', category: 'Global Leader', placeholder: 'e.g. TRIP-ID-991', color: 'from-teal-500/10 to-cyan-500/10 border-teal-500/30' },
+  { key: 'easemytrip', title: 'EaseMyTrip (India & Regional)', category: 'Regional Leader', placeholder: 'e.g. EMT-551', color: 'from-emerald-500/10 to-green-500/10 border-emerald-500/30' },
+  { key: 'googlehotels', title: 'Google Hotel Ads (Direct Search Bookings)', category: 'Metasearch & Direct', placeholder: 'e.g. GOOG-HOTEL-771', color: 'from-green-500/10 to-emerald-500/10 border-green-500/30' },
+  { key: 'vrbo', title: 'VRBO / HomeAway (Vacation Rental Network)', category: 'Vacation Rentals', placeholder: 'e.g. VRBO-8812', color: 'from-blue-600/10 to-indigo-600/10 border-blue-600/30' },
+  { key: 'yatra', title: 'Yatra.com (India & Regional Portal)', category: 'Regional Leader', placeholder: 'e.g. YATRA-4491', color: 'from-red-500/10 to-orange-500/10 border-red-500/30' },
+  { key: 'cleartrip', title: 'ClearTrip (India & Middle East)', category: 'Regional Leader', placeholder: 'e.g. CT-9912', color: 'from-cyan-500/10 to-blue-500/10 border-cyan-500/30' },
+  { key: 'hostelworld', title: 'Hostelworld (Backpackers & Hostels)', category: 'Hostels & Budget', placeholder: 'e.g. HW-3321', color: 'from-amber-500/10 to-yellow-500/10 border-amber-500/30' },
+  { key: 'hotelbeds', title: 'Hotelbeds (Global Wholesaler Network)', category: 'Wholesalers & B2B', placeholder: 'e.g. HB-9021', color: 'from-rose-500/10 to-pink-500/10 border-rose-500/30' },
+  { key: 'webbeds', title: 'WebBeds / JacTravel (B2B Distribution)', category: 'Wholesalers & B2B', placeholder: 'e.g. WEB-4421', color: 'from-orange-500/10 to-red-500/10 border-orange-500/30' },
+  { key: 'traveloka', title: 'Traveloka (Southeast Asia Leader)', category: 'Regional Leader', placeholder: 'e.g. TVL-5521', color: 'from-sky-500/10 to-cyan-500/10 border-sky-500/30' },
+  { key: 'despegar', title: 'Despegar / Decolar (Latin America Leader)', category: 'Regional Leader', placeholder: 'e.g. DESP-881', color: 'from-purple-500/10 to-indigo-500/10 border-purple-500/30' },
+  { key: 'dida', title: 'DidaTravel (Global Wholesaler Network)', category: 'Wholesalers & B2B', placeholder: 'e.g. DIDA-112', color: 'from-teal-500/10 to-emerald-500/10 border-teal-500/30' },
+  { key: 'hyperguest', title: 'HyperGuest (Direct B2B Marketplace Engine)', category: 'Wholesalers & B2B', placeholder: 'e.g. HG-8841', color: 'from-indigo-500/10 to-violet-500/10 border-indigo-500/30' },
+  { key: 'mrchub', title: 'Mr & Mrs Smith (Luxury Boutique Collection)', category: 'Luxury & Boutique', placeholder: 'e.g. MMS-901', color: 'from-stone-500/10 to-neutral-500/10 border-stone-500/30' },
+  { key: 'agoda_homes', title: 'Agoda Homes (Apartments & Villas)', category: 'Vacation Rentals', placeholder: 'e.g. AGH-771', color: 'from-pink-500/10 to-rose-500/10 border-pink-500/30' },
+  { key: 'tiketi', title: 'Tiketi.com (Regional Online Travel Network)', category: 'Regional Leader', placeholder: 'e.g. TIK-331', color: 'from-yellow-500/10 to-orange-500/10 border-yellow-500/30' },
+  { key: 'ostrovok', title: 'Ostrovok / Emerging Travel Group', category: 'European & Specialized', placeholder: 'e.g. OST-4491', color: 'from-amber-500/10 to-orange-500/10 border-amber-500/30' },
+  { key: 'tui', title: 'TUI / TUI Musement (Global Holiday Network)', category: 'European & Specialized', placeholder: 'e.g. TUI-8812', color: 'from-red-500/10 to-blue-500/10 border-red-500/30' },
+  { key: 'hrs', title: 'HRS - Hotel Reservation Service (Corporate & B2B)', category: 'European & Specialized', placeholder: 'e.g. HRS-9012', color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/30' },
+  { key: 'hotelspecials', title: 'HotelSpecials (Benelux & Europe)', category: 'European & Specialized', placeholder: 'e.g. HS-1123', color: 'from-teal-500/10 to-cyan-500/10 border-teal-500/30' },
+  { key: 'keytel', title: 'KeyTel / Hotusa Group', category: 'European & Specialized', placeholder: 'e.g. KEY-5541', color: 'from-rose-500/10 to-pink-500/10 border-rose-500/30' },
+  { key: 'pegas', title: 'Pegas Touristik (CIS & Resort Network)', category: 'European & Specialized', placeholder: 'e.g. PEG-3321', color: 'from-sky-500/10 to-blue-500/10 border-sky-500/30' },
+  { key: 'smyrooms', title: 'Smyrooms / Logitravel (European Wholesaler)', category: 'Wholesalers & B2B', placeholder: 'e.g. SMY-7712', color: 'from-purple-500/10 to-violet-500/10 border-purple-500/30' },
+  { key: 'sunweb', title: 'Sunweb Group (European Holiday Packages)', category: 'European & Specialized', placeholder: 'e.g. SUN-9021', color: 'from-yellow-500/10 to-amber-500/10 border-yellow-500/30' },
+  { key: 'otsglobe', title: 'OTS Globe (Global Destination Management)', category: 'Wholesalers & B2B', placeholder: 'e.g. OTS-6651', color: 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30' },
+  { key: 'roibos', title: 'Roibos (B2B Hotel Distribution Platform)', category: 'Wholesalers & B2B', placeholder: 'e.g. ROI-8831', color: 'from-indigo-500/10 to-blue-500/10 border-indigo-500/30' },
+  { key: 'welcomebeds', title: 'Welcomebeds (Global Accommodation Network)', category: 'Wholesalers & B2B', placeholder: 'e.g. WB-2241', color: 'from-cyan-500/10 to-sky-500/10 border-cyan-500/30' },
+  { key: 'peakwork', title: 'Peakwork (Dynamic Holiday Packaging Engine)', category: 'European & Specialized', placeholder: 'e.g. PKW-901', color: 'from-green-500/10 to-emerald-500/10 border-green-500/30' },
+  { key: 'jumio', title: 'Jumio Travel Network', category: 'European & Specialized', placeholder: 'e.g. JUM-114', color: 'from-stone-500/10 to-neutral-500/10 border-stone-500/30' },
+  { key: 'wakanow', title: 'Wakanow (Africa & Regional Travel Leader)', category: 'Regional Leader', placeholder: 'e.g. WAK-772', color: 'from-orange-500/10 to-amber-500/10 border-orange-500/30' },
+  { key: 'hotelston', title: 'Hotelston (B2B Accommodation Wholesaler)', category: 'Wholesalers & B2B', placeholder: 'e.g. HST-993', color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/30' },
+  { key: 'stuba', title: 'Stuba (Global Curated B2B Accommodation)', category: 'Wholesalers & B2B', placeholder: 'e.g. STB-441', color: 'from-rose-500/10 to-red-500/10 border-rose-500/30' },
+  { key: 'intui', title: 'Intui Travel & Transfers Network', category: 'European & Specialized', placeholder: 'e.g. INT-882', color: 'from-teal-500/10 to-green-500/10 border-teal-500/30' },
+  { key: 'goglobal', title: 'GoGlobal Travel (B2B Bedbank Network)', category: 'Wholesalers & B2B', placeholder: 'e.g. GGT-331', color: 'from-purple-500/10 to-pink-500/10 border-purple-500/30' },
+  { key: 'travco', title: 'Travco (International B2B Hotel Wholesaler)', category: 'Wholesalers & B2B', placeholder: 'e.g. TRV-661', color: 'from-sky-500/10 to-indigo-500/10 border-sky-500/30' },
+  { key: 'bedsline', title: 'Bedsline (Global Hotel Reservation Network)', category: 'Wholesalers & B2B', placeholder: 'e.g. BDL-118', color: 'from-amber-500/10 to-red-500/10 border-amber-500/30' },
+  { key: 'tripadvisor', title: 'Tripadvisor Instant Book & Plus', category: 'Metasearch & Direct', placeholder: 'e.g. TA-8821', color: 'from-green-500/10 to-emerald-500/10 border-green-500/30' },
+  { key: 'trivago', title: 'Trivago Express Booking Network', category: 'Metasearch & Direct', placeholder: 'e.g. TRV-9012', color: 'from-blue-500/10 to-red-500/10 border-blue-500/30' },
+  { key: 'kayak', title: 'Kayak Direct Booking Engine', category: 'Metasearch & Direct', placeholder: 'e.g. KYK-1142', color: 'from-orange-500/10 to-amber-500/10 border-orange-500/30' },
+  { key: 'skyscanner', title: 'SkyScanner Hotels & Resorts Portal', category: 'Metasearch & Direct', placeholder: 'e.g. SKY-5531', color: 'from-sky-500/10 to-blue-500/10 border-sky-500/30' },
+  { key: 'hoteltonight', title: 'HotelTonight (Last-Minute Boutique Deals)', category: 'Luxury & Boutique', placeholder: 'e.g. HT-7712', color: 'from-purple-500/10 to-pink-500/10 border-purple-500/30' },
+  { key: 'plumguide', title: 'Plum Guide (Curated Luxury Vacation Rentals)', category: 'Luxury & Boutique', placeholder: 'e.g. PLUM-882', color: 'from-stone-500/10 to-amber-500/10 border-stone-500/30' },
+  { key: 'sonder', title: 'Sonder Apartment & Hospitality Network', category: 'Vacation Rentals', placeholder: 'e.g. SND-331', color: 'from-teal-500/10 to-emerald-500/10 border-teal-500/30' },
+  { key: 'marriott_homes', title: 'Marriott Bonvoy Homes & Villas', category: 'Vacation Rentals', placeholder: 'e.g. MB-9011', color: 'from-rose-500/10 to-red-500/10 border-rose-500/30' },
+  { key: 'accor', title: 'Accor Allaways Partner Distribution Network', category: 'Global Leader', placeholder: 'e.g. ACC-441', color: 'from-indigo-500/10 to-blue-500/10 border-indigo-500/30' },
+  { key: 'radisson', title: 'Radisson Rewards Partner Network', category: 'Global Leader', placeholder: 'e.g. RAD-221', color: 'from-cyan-500/10 to-blue-500/10 border-cyan-500/30' },
+  { key: 'choice', title: 'Choice Hotels Global Distribution System', category: 'Global Leader', placeholder: 'e.g. CH-889', color: 'from-yellow-500/10 to-amber-500/10 border-yellow-500/30' },
+  { key: 'wyndham', title: 'Wyndham Hotels & Resorts Network', category: 'Global Leader', placeholder: 'e.g. WYN-771', color: 'from-blue-600/10 to-indigo-600/10 border-blue-600/30' },
+  { key: 'bestwestern', title: 'Best Western Partner Distribution Portal', category: 'Global Leader', placeholder: 'e.g. BW-119', color: 'from-red-600/10 to-rose-600/10 border-red-600/30' },
+  { key: 'rakuten', title: 'Rakuten Travel (Japan & East Asia Leader)', category: 'Regional Leader', placeholder: 'e.g. RAK-882', color: 'from-red-500/10 to-pink-500/10 border-red-500/30' },
+  { key: 'jalan', title: 'Jalan.net (Japan Domestic Travel Network)', category: 'Regional Leader', placeholder: 'e.g. JAL-441', color: 'from-orange-500/10 to-amber-500/10 border-orange-500/30' },
+  { key: 'ikyu', title: 'Ikyu.com (Japan Luxury Boutique Collection)', category: 'Luxury & Boutique', placeholder: 'e.g. IKY-901', color: 'from-stone-500/10 to-neutral-500/10 border-stone-500/30' },
+  { key: 'fliggy', title: 'Fliggy / Alibaba Travel (China & APAC Leader)', category: 'Regional Leader', placeholder: 'e.g. FLG-331', color: 'from-amber-500/10 to-yellow-500/10 border-amber-500/30' },
+  { key: 'meituan', title: 'Meituan Hotel Network (China Domestic Leader)', category: 'Regional Leader', placeholder: 'e.g. MEI-662', color: 'from-yellow-500/10 to-amber-500/10 border-yellow-500/30' },
+  { key: 'qunar', title: 'Qunar / Elong Travel Platform (APAC Leader)', category: 'Regional Leader', placeholder: 'e.g. QUN-771', color: 'from-teal-500/10 to-cyan-500/10 border-teal-500/30' },
+  { key: 'mmt_mybiz', title: 'MakeMyTrip MyBiz (Corporate & B2B Travel)', category: 'Wholesalers & B2B', placeholder: 'e.g. MYBIZ-881', color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/30' },
+  { key: 'happyeasygo', title: 'HappyEasyGo (India & APAC Online Portal)', category: 'Regional Leader', placeholder: 'e.g. HEG-221', color: 'from-purple-500/10 to-pink-500/10 border-purple-500/30' },
+  { key: 'ixigo', title: 'Ixigo Hotels & Holiday Network (India)', category: 'Regional Leader', placeholder: 'e.g. IXI-554', color: 'from-rose-500/10 to-red-500/10 border-rose-500/30' },
+  { key: 'viacom', title: 'Via.com / EbixCash (India & Middle East B2B)', category: 'Wholesalers & B2B', placeholder: 'e.g. VIA-883', color: 'from-sky-500/10 to-cyan-500/10 border-sky-500/30' },
+  { key: 'thomascook', title: 'Thomas Cook India & Global Holidays Network', category: 'Wholesalers & B2B', placeholder: 'e.g. TC-991', color: 'from-amber-500/10 to-yellow-500/10 border-amber-500/30' },
+  { key: 'sotc', title: 'SOTC Travel Network (Holiday Packages & Tours)', category: 'Wholesalers & B2B', placeholder: 'e.g. SOTC-332', color: 'from-red-500/10 to-orange-500/10 border-red-500/30' },
+  { key: 'coxandkings', title: 'Cox & Kings Holidays & Resorts Network', category: 'Wholesalers & B2B', placeholder: 'e.g. CK-118', color: 'from-stone-500/10 to-amber-500/10 border-stone-500/30' },
+  { key: 'akbartravels', title: 'Akbar Travels (Middle East & India B2B Network)', category: 'Wholesalers & B2B', placeholder: 'e.g. AKB-662', color: 'from-indigo-500/10 to-blue-500/10 border-indigo-500/30' },
+  { key: 'riyatravel', title: 'Riya Travel & Tours (B2B Global Distribution)', category: 'Wholesalers & B2B', placeholder: 'e.g. RIYA-771', color: 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30' },
+  { key: 'tbo', title: 'TBO Holidays (Travel Boutique Online B2B Leader)', category: 'Wholesalers & B2B', placeholder: 'e.g. TBO-901', color: 'from-cyan-500/10 to-blue-500/10 border-cyan-500/30' },
+  { key: 'tourico', title: 'Tourico Holidays (International Wholesaler)', category: 'Wholesalers & B2B', placeholder: 'e.g. TOU-441', color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/30' },
+  { key: 'gta', title: 'GTA (Gullivers Travel Associates Bedbank)', category: 'Wholesalers & B2B', placeholder: 'e.g. GTA-882', color: 'from-rose-500/10 to-pink-500/10 border-rose-500/30' },
+  { key: 'alliedtpro', title: 'AlliedTPro Destination Management Network', category: 'Wholesalers & B2B', placeholder: 'e.g. ATP-331', color: 'from-teal-500/10 to-green-500/10 border-teal-500/30' },
+  { key: 'amex_gbt', title: 'American Express Global Business Travel (Corporate)', category: 'Wholesalers & B2B', placeholder: 'e.g. AMEX-551', color: 'from-blue-600/10 to-sky-600/10 border-blue-600/30' },
+  { key: 'bcd_travel', title: 'BCD Travel Corporate Solutions (Global Business)', category: 'Wholesalers & B2B', placeholder: 'e.g. BCD-881', color: 'from-purple-500/10 to-indigo-500/10 border-purple-500/30' },
+  { key: 'cwt', title: 'CWT (Carlson Wagonlit Travel Corporate Network)', category: 'Wholesalers & B2B', placeholder: 'e.g. CWT-119', color: 'from-orange-500/10 to-red-500/10 border-orange-500/30' },
+  { key: 'custom_ota', title: 'Other Channex Supported OTA / Portal', category: 'Generic / Custom', placeholder: 'e.g. OTA-ID-1234', color: 'from-primary/10 to-blue-500/10 border-primary/30' },
+];
 
 export default function CalendarSync() {
   const { selectedProperty } = useProperty();
@@ -55,6 +137,26 @@ export default function CalendarSync() {
   });
   const [emergencyStopSell, setEmergencyStopSell] = useState(false);
 
+  // Custom System Confirm Modal (`replacing window.confirm`)
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    confirmColor?: string;
+    onConfirm: () => void;
+  }>({ open: false, title: '', message: '', onConfirm: () => {} });
+
+  // Owner Guide & Benefits Modal (`Why Use Calendar Sync`)
+  const [ownerGuideModal, setOwnerGuideModal] = useState(false);
+
+  // Dynamic + Add Another OTA Channel state
+  const [customOtaModal, setCustomOtaModal] = useState(false);
+  const [customOtaSearch, setCustomOtaSearch] = useState('');
+  const [customOtaList, setCustomOtaList] = useState<any[]>([]);
+  const [availableCatalog, setAvailableCatalog] = useState<any[]>(CHANNEX_GLOBAL_CHANNELS);
+  const [directoryCategory, setDirectoryCategory] = useState<string>('All');
+
   // Actionable Setup Modal State when rooms or room types are missing
   const [setupModal, setSetupModal] = useState<{ open: boolean; title: string; message: string }>({
     open: false,
@@ -70,6 +172,10 @@ export default function CalendarSync() {
   const exportUrl = `${window.location.origin.replace('5173', '3000')}/api/ical/export/${selectedProperty?.slug}.ics`;
 
   useEffect(() => {
+    channelsService.getCatalog().then(data => {
+      if (data && data.length > 0) setAvailableCatalog(data);
+    }).catch(err => console.error("Failed to load Channex channel catalog from API:", err));
+
     if (selectedProperty?.id) {
       loadLinks();
     }
@@ -118,14 +224,22 @@ export default function CalendarSync() {
 
   const handleDisableChannelSync = async (channelName = 'CHANNEX') => {
     if (!selectedProperty?.id) return;
-    if (!window.confirm(`Are you sure you want to pause real-time OTA sync with ${channelName}?`)) return;
-    try {
-      await channelsService.disableSync(selectedProperty.id, channelName);
-      toast.success('Channel Sync Paused');
-      await loadLinks();
-    } catch (err: any) {
-      toast.error('Failed to pause sync');
-    }
+    setConfirmModal({
+      open: true,
+      title: 'Pause Real-Time OTA Sync?',
+      message: `Are you sure you want to pause live 2-way room and price synchronization with ${channelName}? Incoming reservations will no longer auto-lock physical rooms while paused.`,
+      confirmLabel: 'Yes, Pause Sync',
+      confirmColor: 'bg-amber-600 hover:bg-amber-700 text-white',
+      onConfirm: async () => {
+        try {
+          await channelsService.disableSync(selectedProperty.id, channelName);
+          toast.success('Channel Sync Paused');
+          await loadLinks();
+        } catch (err: any) {
+          toast.error('Failed to pause sync');
+        }
+      }
+    });
   };
 
   const handlePushAri = async () => {
@@ -133,7 +247,7 @@ export default function CalendarSync() {
     try {
       setPushingAri(true);
       await channelsService.pushAri(selectedProperty.id, 60);
-      toast.success('Triggered 60-Day real-time availability & rate push across all connected OTAs!');
+      toast.success('⚡ Successfully pushed live rates & room availability across all connected OTAs!');
     } catch (err: any) {
       toast.error('Failed to push inventory.');
     } finally {
@@ -168,36 +282,59 @@ export default function CalendarSync() {
   };
 
   const handleDisconnectDirectOta = (otaKey: string, otaTitle: string) => {
-    if (!window.confirm(`Disconnect ${otaTitle} live 2-way sync?`)) return;
-    setConnectedOtaStatus(prev => ({
-      ...prev,
-      [otaKey]: { connected: false }
-    }));
-    toast.success(`Disconnected ${otaTitle}`);
+    setConfirmModal({
+      open: true,
+      title: `Disconnect ${otaTitle}?`,
+      message: `Are you sure you want to disconnect ${otaTitle} live 2-way sync? You will need to re-enter your Extranet credentials to link again later.`,
+      confirmLabel: `Disconnect ${otaTitle}`,
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white',
+      onConfirm: () => {
+        setConnectedOtaStatus(prev => ({
+          ...prev,
+          [otaKey]: { connected: false }
+        }));
+        toast.success(`Disconnected ${otaTitle}`);
+      }
+    });
   };
 
   const handleToggleEmergencyStopSell = async () => {
     if (!selectedProperty?.id) return;
     if (!emergencyStopSell) {
-      if (!window.confirm("⚠️ EMERGENCY INVENTORY FREEZE:\nAre you sure you want to trigger a Master Stop Sell across MakeMyTrip, Booking.com, Agoda, and all connected OTAs? This immediately closes online bookings for the next 60 days to prevent overbooking during emergencies/maintenance.")) {
-        return;
-      }
-      try {
-        setEmergencyStopSell(true);
-        await channelsService.pushAri(selectedProperty.id, 60);
-        toast.error("🛑 EMERGENCY STOP SELL ACTIVE: All online sales closed across all OTAs!", { duration: 6000 });
-      } catch (err: any) {
-        toast.error(err.message || "Failed to push emergency stop sell");
-        setEmergencyStopSell(false);
-      }
+      setConfirmModal({
+        open: true,
+        title: '⚠️ EMERGENCY INVENTORY FREEZE (`Master Stop Sell`)',
+        message: 'Are you sure you want to trigger an Emergency Stop Sell across MakeMyTrip, Booking.com, Agoda, and all connected OTAs? This immediately closes all online room inventory for the next 60 days to prevent overbooking during power outages, renovations, or emergencies.',
+        confirmLabel: '🛑 Activate Emergency Freeze',
+        confirmColor: 'bg-red-600 hover:bg-red-700 text-white',
+        onConfirm: async () => {
+          try {
+            setEmergencyStopSell(true);
+            await channelsService.pushAri(selectedProperty.id, 60);
+            toast.error("🛑 EMERGENCY STOP SELL ACTIVE: All online sales closed across all OTAs!", { duration: 6000 });
+          } catch (err: any) {
+            toast.error(err.message || "Failed to push emergency stop sell");
+            setEmergencyStopSell(false);
+          }
+        }
+      });
     } else {
-      try {
-        setEmergencyStopSell(false);
-        await channelsService.pushAri(selectedProperty.id, 60);
-        toast.success("🟢 ONLINE SALES RESUMED: Normal inventory & rate sync active across all OTAs!");
-      } catch (err: any) {
-        toast.error(err.message || "Failed to resume online sales");
-      }
+      setConfirmModal({
+        open: true,
+        title: '🟢 Resume Normal Online Sales?',
+        message: 'Are you sure you want to lift the Emergency Stop Sell and restore normal live room inventory & rate synchronization across all connected OTAs right now?',
+        confirmLabel: 'Resume Online Sales',
+        confirmColor: 'bg-green-600 hover:bg-green-700 text-white',
+        onConfirm: async () => {
+          try {
+            setEmergencyStopSell(false);
+            await channelsService.pushAri(selectedProperty.id, 60);
+            toast.success("🟢 ONLINE SALES RESUMED: Normal inventory & rate sync active across all OTAs!");
+          } catch (err: any) {
+            toast.error(err.message || "Failed to resume online sales");
+          }
+        }
+      });
     }
   };
 
@@ -252,14 +389,22 @@ export default function CalendarSync() {
   };
 
   const handleDeleteLink = async (id: string) => {
-    if (!window.confirm('Are you sure you want to remove this sync link? Associated blocks will be removed.')) return;
-    try {
-      await icalService.deleteLink(id);
-      toast.success('Link removed');
-      setLinks(prev => prev.filter(l => l.id !== id));
-    } catch (err) {
-      toast.error('Failed to remove link');
-    }
+    setConfirmModal({
+      open: true,
+      title: 'Remove iCal Connection?',
+      message: 'Are you sure you want to remove this legacy iCal sync link? Any calendar blocks previously imported from this URL will be removed.',
+      confirmLabel: 'Remove Connection',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white',
+      onConfirm: async () => {
+        try {
+          await icalService.deleteLink(id);
+          toast.success('Link removed');
+          setLinks(prev => prev.filter(l => l.id !== id));
+        } catch (err) {
+          toast.error('Failed to remove link');
+        }
+      }
+    });
   };
 
   const handleManualSync = async (id: string) => {
@@ -305,8 +450,22 @@ export default function CalendarSync() {
               Prevent overbooking and maximize revenue by synchronizing your exact room availability across MakeMyTrip, Booking.com, Agoda, and all OTAs.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-2xl text-primary">
+          <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+            <button
+              onClick={() => { setCustomOtaSearch(''); setDirectoryCategory('All'); setCustomOtaModal(true); }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-2xl font-extrabold text-xs shadow-sm transition-all cursor-pointer"
+            >
+              <Globe className="h-4 w-4" />
+              <span>🌐 Supported OTAs Directory (60+ Portals)</span>
+            </button>
+            <button
+              onClick={() => setOwnerGuideModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-2xl font-extrabold text-xs shadow-sm transition-all cursor-pointer"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>📖 Owner & Staff Guide (`Benefits & FAQ`)</span>
+            </button>
+            <div className="p-3 bg-primary/10 rounded-2xl text-primary hidden md:block">
               <Zap className="h-8 w-8" />
             </div>
           </div>
@@ -420,18 +579,23 @@ export default function CalendarSync() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button
-                      onClick={handlePushAri}
-                      disabled={pushingAri}
-                      className="flex items-center gap-2 px-5 py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-2xl font-bold text-sm transition-all"
-                    >
-                      <RefreshCw className={clsx("h-4 w-4", pushingAri && "animate-spin")} />
-                      <span>{pushingAri ? "Pushing Inventory..." : "Sync 60-Day Inventory Now"}</span>
-                    </button>
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 shrink-0">
+                    <div className="flex flex-col items-end">
+                      <button
+                        onClick={handlePushAri}
+                        disabled={pushingAri}
+                        className="flex items-center gap-2 px-5 py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-2xl font-extrabold text-xs transition-all shadow-sm cursor-pointer"
+                      >
+                        <RefreshCw className={clsx("h-4 w-4", pushingAri && "animate-spin")} />
+                        <span>{pushingAri ? "Force Pushing..." : "⚡ Force Refresh All Channels (Manual Push)"}</span>
+                      </button>
+                      <span className="text-[10px] text-muted-foreground mt-1 max-w-[280px] text-right leading-tight">
+                        Daily sync runs automatically 24/7. Click only for instant manual re-sync after changing room setups.
+                      </span>
+                    </div>
                     <button
                       onClick={() => handleDisableChannelSync(activeChannelMapping.channelName)}
-                      className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-2xl transition-colors"
+                      className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-2xl transition-colors shrink-0 cursor-pointer"
                       title="Pause Sync"
                     >
                       <Power className="h-5 w-5" />
@@ -465,7 +629,7 @@ export default function CalendarSync() {
                       ))
                     ) : (
                       <div className="col-span-2 p-6 text-center text-sm text-muted-foreground bg-muted/20 rounded-2xl">
-                        No individual room types mapped yet. Click "Sync 60-Day Inventory Now" or ensure room types exist.
+                        No individual room types mapped yet. Click "⚡ Force Refresh All Channels (Manual Push)" or ensure room types exist.
                       </div>
                     )}
                   </div>
@@ -488,6 +652,15 @@ export default function CalendarSync() {
                   <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">
                     Connect your active hotel profiles (`MakeMyTrip, Booking.com, Agoda, Airbnb`) directly inside your PMS without navigating external portals. Enter your OTA Hotel ID below to establish instant 2-way room and price synchronization.
                   </p>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <button
+                    onClick={() => { setCustomOtaSearch(''); setDirectoryCategory('All'); setCustomOtaModal(true); }}
+                    className="py-3 px-5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <Globe className="h-4 w-4" />
+                    <span>🌐 Browse All 60+ Supported OTAs</span>
+                  </button>
                 </div>
               </div>
 
@@ -540,6 +713,7 @@ export default function CalendarSync() {
                   { key: 'expedia', title: 'Expedia', placeholder: 'e.g. EXP-LIST-882', color: 'from-yellow-500/10 to-amber-500/10 border-yellow-500/30' },
                   { key: 'tripcom', title: 'Trip.com', placeholder: 'e.g. TRIP-ID-991', color: 'from-teal-500/10 to-cyan-500/10 border-teal-500/30' },
                   { key: 'easemytrip', title: 'EaseMyTrip', placeholder: 'e.g. EMT-HOTEL-551', color: 'from-emerald-500/10 to-green-500/10 border-emerald-500/30' },
+                  ...customOtaList
                 ].map((ota) => {
                   const status = connectedOtaStatus[ota.key] || { connected: false };
                   const configuredMarkup = otaConfigs[ota.key]?.rateMarkup;
@@ -608,6 +782,20 @@ export default function CalendarSync() {
                     </div>
                   );
                 })}
+
+                {/* Add Custom OTA Card */}
+                <div
+                  onClick={() => { setCustomOtaSearch(''); setCustomOtaModal(true); }}
+                  className="p-5 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer group min-h-[170px]"
+                >
+                  <div className="p-3 bg-primary/10 group-hover:bg-primary group-hover:text-primary-foreground text-primary rounded-2xl transition-all mb-2.5 shadow-sm">
+                    <PlusCircle className="h-6 w-6" />
+                  </div>
+                  <h4 className="font-extrabold text-sm text-foreground">Add Another OTA Channel</h4>
+                  <p className="text-[11px] text-muted-foreground mt-1 max-w-[190px]">
+                    Connect Yatra, ClearTrip, VRBO, Google Hotels, or any of Channex's 60+ global portals directly inside PMS
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -905,6 +1093,7 @@ export default function CalendarSync() {
         otaKey={activeOtaModal?.otaKey || ''}
         otaTitle={activeOtaModal?.otaTitle || ''}
         initialConfig={activeOtaModal?.otaKey ? otaConfigs[activeOtaModal.otaKey] : {}}
+        catalogItem={availableCatalog.find(ch => ch.key === activeOtaModal?.otaKey)}
         onClose={() => setActiveOtaModal(null)}
         onSave={(key, title, config) => handleSaveOtaConfig(key, title, config)}
       />
@@ -945,6 +1134,319 @@ export default function CalendarSync() {
                 className="py-3 px-4 bg-transparent hover:bg-red-500/10 text-muted-foreground hover:text-red-500 font-bold text-xs rounded-xl transition-all text-center"
               >
                 Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom System Confirm Modal (`Replacing window.confirm`) */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-primary/10 text-primary rounded-2xl shrink-0">
+                <AlertCircle className="h-7 w-7" />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-foreground">{confirmModal.title}</h3>
+                <p className="text-xs text-muted-foreground">Action Confirmation Required</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-muted/40 border border-border rounded-2xl text-xs text-foreground leading-relaxed whitespace-pre-line font-medium">
+              {confirmModal.message}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setConfirmModal({ open: false, title: '', message: '', onConfirm: () => {} })}
+                className="py-2.5 px-5 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const cb = confirmModal.onConfirm;
+                  setConfirmModal({ open: false, title: '', message: '', onConfirm: () => {} });
+                  cb();
+                }}
+                className={clsx(
+                  "py-2.5 px-6 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5",
+                  confirmModal.confirmColor || "bg-primary hover:bg-primary/90 text-primary-foreground"
+                )}
+              >
+                <Check className="h-4 w-4" />
+                <span>{confirmModal.confirmLabel || 'Confirm Action'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Owner & Staff Guide Modal (`Why Use Channel Manager & Calendar Sync`) */}
+      {ownerGuideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-card border border-primary/30 rounded-3xl max-w-3xl w-full p-8 shadow-2xl space-y-6 my-auto max-h-[90vh] overflow-y-auto relative">
+            <button
+              onClick={() => setOwnerGuideModal(false)}
+              className="absolute top-6 right-6 p-2 rounded-full bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="flex items-center gap-3.5 pb-4 border-b border-border">
+              <div className="p-3.5 bg-gradient-to-br from-primary to-blue-600 text-white rounded-2xl shadow-md">
+                <BookOpen className="h-7 w-7" />
+              </div>
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-extrabold text-[10px] uppercase tracking-wider">
+                  ✦ Resort Owner & Staff Handbook
+                </span>
+                <h3 className="text-2xl font-extrabold text-foreground mt-0.5">
+                  Why Use Channel Manager & Calendar Sync?
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  A simple, non-technical guide on how this real-time system protects revenue and simplifies daily operations.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-5 text-sm">
+              <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 space-y-2">
+                <h4 className="font-extrabold text-primary flex items-center gap-2 text-base">
+                  <ShieldCheck className="h-5 w-5" /> 1. Never Double-Book a Room Again (`Real-Time 2-Way Lock`)
+                </h4>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  When a guest books a room on <b>MakeMyTrip, Booking.com, or Agoda</b>, our system automatically locks that exact room across all other websites and your front desk within seconds. If a walk-in guest checks in at your front desk, that room instantly closes online across every connected travel portal so nobody else can book it.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-card border border-border space-y-2">
+                <h4 className="font-extrabold text-foreground flex items-center gap-2 text-base">
+                  <Globe className="h-5 w-5 text-blue-500" /> 2. One Dashboard for Everything (`Zero Extranet Logins`)
+                </h4>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Your front desk staff no longer needs to open 5 different browser tabs or remember passwords for MakeMyTrip, Agoda, Airbnb, and Booking.com every morning. Every reservation comes straight into your PMS Live Calendar with guest details, payment status, and commission rates automatically calculated.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-card border border-border space-y-2">
+                <h4 className="font-extrabold text-foreground flex items-center gap-2 text-base">
+                  <Zap className="h-5 w-5 text-amber-500" /> 3. What is the "⚡ Force Refresh All Channels (Manual Push)" Button? (`Daily vs. Manual`)
+                </h4>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  <b>Do you need to click this button every day, week, or month? NO!</b> Under normal daily resort operations, your room availability, rate updates, and reservations synchronize automatically 24/7 in the background across all connected OTAs without any human intervention.
+                  <br /><br />
+                  <b>When should you click this button?</b> Only as a <i>manual safety refresh</i>—for example, if you just added brand new physical rooms to your property settings, modified rate tiers, or if your resort's internet/power connection was down during a storm and you want to instantly trigger a manual double-check to push your exact local room availability across all OTAs right now.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-card border border-border space-y-2">
+                <h4 className="font-extrabold text-foreground flex items-center gap-2 text-base">
+                  <Layers className="h-5 w-5 text-purple-500" /> 4. Protect Net Revenue (`Automatic Commission Markups`)
+                </h4>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Online travel portals charge 15% to 22% commissions on every booking. In our configuration modal, you can set a <b>+15% or +20% Rate Markup</b> for specific OTAs. Our system will automatically adjust your base room price higher when sending it to that OTA, ensuring you receive your exact required net room profit after their commission deduction.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-card border border-border space-y-2">
+                <h4 className="font-extrabold text-foreground flex items-center gap-2 text-base">
+                  <Power className="h-5 w-5 text-red-500" /> 5. Instant Emergency Freeze (Master Stop Sell)
+                </h4>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  If your resort faces a power outage, sudden maintenance, or water issue, you don't need to call OTA support. Simply click the red <b>"Activate Emergency Stop Sell"</b> button on this dashboard to immediately close online bookings across all channels for the next 60 days with 1 click. Click it again to resume sales when ready.
+                </p>
+              </div>
+
+              {/* Complete Directory of Supported Portals */}
+              <div className="p-5 rounded-2xl bg-muted/30 border border-border space-y-3.5">
+                <h4 className="font-extrabold text-foreground flex items-center gap-2 text-base">
+                  <Globe className="h-5 w-5 text-emerald-500" /> 6. Complete Directory of Supported Online Travel Portals (60+ Networks)
+                </h4>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Our Direct Suite supports instant connection to over 60 global, regional, and specialized booking networks. You can link any of the following platforms right from your dashboard without external support:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-background border border-border/70 space-y-1.5 shadow-xs">
+                    <span className="font-bold text-primary block flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5" /> Top Global & Regional Leaders
+                    </span>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      MakeMyTrip / Goibibo, Booking.com, Agoda, Airbnb, Expedia Group (Hotels.com / Vrbo / Orbitz), Trip.com / Ctrip, EaseMyTrip, VRBO / HomeAway, Yatra.com, ClearTrip, and Traveloka.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-background border border-border/70 space-y-1.5 shadow-xs">
+                    <span className="font-bold text-primary block flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" /> B2B Wholesalers & Global Distribution
+                    </span>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Hotelbeds, WebBeds / JacTravel, DidaTravel, HyperGuest, OTS Globe, GoGlobal Travel, Travco, Bedsline, and Stuba.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-background border border-border/70 space-y-1.5 shadow-xs">
+                    <span className="font-bold text-primary block flex items-center gap-1.5">
+                      <Zap className="h-3.5 w-3.5" /> Metasearch, Hostels & Vacation Rentals
+                    </span>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Google Hotel Ads (Direct Search Bookings), Hostelworld, Agoda Homes, Mr & Mrs Smith (Luxury Collection), Tiketi.com, Despegar / Decolar, and Welcomebeds.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-background border border-border/70 space-y-1.5 shadow-xs">
+                    <span className="font-bold text-primary block flex items-center gap-1.5">
+                      <Plus className="h-3.5 w-3.5" /> 40+ Additional Specialized Networks
+                    </span>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Ostrovok, TUI Musement, HRS Hotel Reservation Service, HotelSpecials, KeyTel Hotusa, Pegas Touristik, Smyrooms Logitravel, Sunweb Group, Roibos, Peakwork, Jumio, Wakanow, Hotelston, and Intui Travel.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-3 bg-primary/10 rounded-xl border border-primary/20 text-xs text-foreground flex items-center gap-2">
+                  <span className="font-bold text-primary shrink-0">💡 How to Connect Any Portal:</span>
+                  <span>Click <b>"+ Add Another OTA Channel"</b> on the dashboard, select <b>"Other Supported Travel Portal"</b>, and pick your booking site from the dropdown list!</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-border flex justify-end">
+              <button
+                onClick={() => setOwnerGuideModal(false)}
+                className="py-3 px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold text-xs rounded-2xl shadow-lg shadow-primary/20 transition-all cursor-pointer"
+              >
+                Got It, Close Handbook
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Directory of Supported Online Travel Portals (60+ Networks) Modal */}
+      {customOtaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[88vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                  <Globe className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-foreground">Supported Travel Portals Directory (60+ Networks)</h3>
+                  <p className="text-xs text-muted-foreground">Select any booking channel or B2B distributor below to establish real-time 2-way sync</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCustomOtaModal(false)}
+                className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+              {['All', 'Global Leaders', 'Wholesalers & B2B', 'European & Specialized', 'Vacation & Metasearch'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setDirectoryCategory(cat)}
+                  className={clsx(
+                    "px-3 py-1.5 rounded-xl font-extrabold shrink-0 transition-all cursor-pointer",
+                    directoryCategory === cat
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  {cat === 'All' ? '🌟 All Channels (60+)' : cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={customOtaSearch}
+                onChange={(e) => setCustomOtaSearch(e.target.value)}
+                placeholder="Search portal name (e.g., Ostrovok, TUI, HRS, Hotelbeds, MakeMyTrip, Agoda, VRBO...)"
+                className="w-full pl-10 pr-4 py-2.5 bg-muted/40 border border-border rounded-2xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            <div className="overflow-y-auto space-y-2 max-h-[400px] pr-1">
+              {availableCatalog
+                .filter(ch => {
+                  const matchesSearch = ch.title.toLowerCase().includes(customOtaSearch.toLowerCase()) || ch.key.toLowerCase().includes(customOtaSearch.toLowerCase());
+                  if (!matchesSearch) return false;
+                  if (directoryCategory === 'All') return true;
+                  if (directoryCategory === 'Global Leaders') return ['Global Leader', 'Regional Leader'].includes(ch.category);
+                  if (directoryCategory === 'Wholesalers & B2B') return ['Wholesalers & B2B'].includes(ch.category);
+                  if (directoryCategory === 'European & Specialized') return ['European & Specialized', 'Generic / Custom'].includes(ch.category);
+                  if (directoryCategory === 'Vacation & Metasearch') return ['Vacation Rentals', 'Metasearch & Direct', 'Hostels & Budget', 'Luxury & Boutique'].includes(ch.category);
+                  return true;
+                })
+                .map((ch) => {
+                  const alreadyInGrid = ['makemytrip', 'bookingcom', 'agoda', 'airbnb', 'goibibo', 'expedia', 'tripcom', 'easemytrip'].includes(ch.key) ||
+                    customOtaList.some(item => item.key === ch.key);
+
+                  return (
+                    <div
+                      key={ch.key}
+                      className={clsx(
+                        "p-3.5 rounded-2xl border flex items-center justify-between transition-all",
+                        alreadyInGrid
+                          ? "bg-muted/30 border-border/60 opacity-60"
+                          : "bg-card hover:bg-primary/5 border-border hover:border-primary/40 cursor-pointer shadow-xs"
+                      )}
+                      onClick={() => {
+                        if (!alreadyInGrid) {
+                          setCustomOtaList(prev => [...prev, ch]);
+                          setCustomOtaModal(false);
+                          toast.success(`Added ${ch.title.split(' ')[0]} to your Direct Online Travel Portal Suite!`);
+                          handleConnectDirectOta(ch.key, ch.title);
+                        } else {
+                          setCustomOtaModal(false);
+                          handleConnectDirectOta(ch.key, ch.title);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden pr-2">
+                        <div className="p-2.5 bg-primary/10 rounded-xl text-primary shrink-0">
+                          <Globe className="h-4 w-4" />
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-xs text-foreground truncate block">{ch.title}</span>
+                            <span className="px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-bold text-[9px] uppercase tracking-wider shrink-0">
+                              {ch.category || 'Travel Portal'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground truncate block">2-Way Real-Time Rate & Inventory Automation</span>
+                        </div>
+                      </div>
+                      {alreadyInGrid ? (
+                        <button className="px-3 py-1.5 rounded-xl bg-muted/80 hover:bg-muted text-foreground font-bold text-xs transition-all shrink-0 flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> Configure
+                        </button>
+                      ) : (
+                        <button className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-sm hover:bg-primary/90 transition-all shrink-0 flex items-center gap-1">
+                          <Plus className="h-3.5 w-3.5" /> Connect Now
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-between items-center text-[11px] text-muted-foreground">
+              <span>💡 Click any portal above to instantly open its non-technical connection form.</span>
+              <button
+                onClick={() => setCustomOtaModal(false)}
+                className="py-2 px-4 bg-muted hover:bg-muted/80 text-foreground font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Close Directory
               </button>
             </div>
           </div>

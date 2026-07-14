@@ -10,6 +10,7 @@ interface ChannexOtaModalProps {
   onClose: () => void;
   onSave: (otaKey: string, otaTitle: string, config: any) => void;
   initialConfig?: any;
+  catalogItem?: any;
 }
 
 export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
@@ -19,6 +20,7 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
   onClose,
   onSave,
   initialConfig = {},
+  catalogItem,
 }) => {
   const [config, setConfig] = useState<any>({
     hotelId: '',
@@ -55,7 +57,7 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
       toast.error(`Please enter the ${otaTitle} Hotel Property ID.`);
       return;
     }
-    if ((otaKey === 'makemytrip' || otaKey === 'agoda' || otaKey === 'goibibo') && !config.accessToken?.trim()) {
+    if (otaKey !== 'bookingcom' && otaKey !== 'airbnb' && !config.accessToken?.trim()) {
       toast.error(`Please enter your ${otaTitle} Extranet Access Token / Secret API Key.`);
       return;
     }
@@ -80,12 +82,12 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-extrabold text-foreground">Configure {otaTitle}</h3>
-                <span className="px-2 py-0.5 rounded-md bg-muted text-[10px] font-mono font-bold text-muted-foreground uppercase">
-                  v1.0 API Schema
+                <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase border border-emerald-500/20">
+                  Live 2-Way Sync
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                2-Way Live Sync parameters exactly matching Channex connection specifications
+                Enter your official portal account credentials below for automatic rate and reservation synchronization.
               </p>
             </div>
           </div>
@@ -97,11 +99,11 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
           </button>
         </div>
 
-        {/* Channex Schema Documentation Notice */}
+        {/* User-Friendly Direct Sync Notice */}
         <div className="bg-primary/5 border border-primary/20 rounded-2xl p-3.5 flex items-start gap-2.5 text-xs text-foreground">
           <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <span className="font-bold">Channex API Connection Verification:</span> Parameters saved here directly map to the <code className="bg-muted px-1 py-0.5 rounded text-[10px] font-mono">POST /api/v1/channels</code> endpoint for live inventory & rate synchronization.
+            <span className="font-bold">Verified Direct Connection:</span> Credentials saved here securely link your resort directly to this travel portal for automatic 24/7 calendar and price synchronization.
           </div>
         </div>
 
@@ -109,34 +111,34 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
         <div className="space-y-4">
           {otaKey !== 'airbnb' ? (
             <>
-              {/* Hotel Property ID */}
+              {/* Property / Hotel Account ID */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                   <Hash className="h-3.5 w-3.5 text-primary" />
-                  {otaTitle} Hotel Property ID <span className="text-red-500">*</span>
+                  {otaTitle} Property / Account ID <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={config.hotelId || ''}
                   onChange={(e) => setConfig({ ...config, hotelId: e.target.value })}
                   placeholder={
-                    otaKey === 'bookingcom' ? 'e.g. 5868189, 6519420 (from Booking.com Extranet)' :
-                    otaKey === 'makemytrip' ? 'e.g. MMT-109283 (from MakeMyTrip Extranet)' :
-                    `e.g. ${otaTitle.toUpperCase()}-10029`
+                    otaKey === 'bookingcom' ? 'e.g. 5868189, 6519420 (from Booking.com Account)' :
+                    otaKey === 'makemytrip' ? 'e.g. MMT-109283 (from MakeMyTrip Dashboard)' :
+                    `e.g. ${otaTitle.split(' ')[0].toUpperCase()}-10029`
                   }
                   className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary font-mono shadow-inner"
                 />
                 <p className="text-[10px] text-muted-foreground italic">
-                  Find this inside your {otaTitle} Extranet under Property Settings or Account ID.
+                  Find this inside your official {otaTitle} portal dashboard under Property Settings or Account ID.
                 </p>
               </div>
 
-              {/* Extranet Access Token / Secret Key (Required by MMT, Agoda, Goibibo, EaseMyTrip, Expedia, Trip.com) */}
-              {(otaKey === 'makemytrip' || otaKey === 'agoda' || otaKey === 'goibibo' || otaKey === 'easemytrip' || otaKey === 'tripcom' || otaKey === 'expedia') && (
+              {/* Connection Security Token / Key */}
+              {otaKey !== 'bookingcom' && otaKey !== 'airbnb' && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                     <Key className="h-3.5 w-3.5 text-primary" />
-                    Extranet Access Token / Secret Key <span className="text-red-500">*</span>
+                    Security / Connection Key <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="password"
@@ -146,10 +148,43 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
                     className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary font-mono shadow-inner"
                   />
                   <p className="text-[10px] text-muted-foreground italic">
-                    Generate this token from your {otaTitle} Channel Manager API authorization dashboard.
+                    Generate this security token from your {otaTitle} portal connectivity settings.
                   </p>
                 </div>
               )}
+
+              {/* Dynamic Catalog Fields (e.g. Travel Portal selection dropdown for Custom Connect, Currency for Google Hotels, etc.) */}
+              {catalogItem?.fields?.filter((f: any) => f.key !== 'hotelId' && f.key !== 'accessToken' && f.key !== 'pricingType' && f.key !== 'syncB2B' && f.key !== 'totalType' && f.key !== 'sendEmail').map((field: any) => (
+                <div key={field.key} className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Sliders className="h-3.5 w-3.5 text-primary" />
+                    {field.label} {field.required && <span className="text-red-500">*</span>}
+                  </label>
+                  {field.type === 'select' ? (
+                    <select
+                      value={config[field.key] || field.default || field.options?.[0] || ''}
+                      onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+                      className="w-full px-3 py-2.5 text-xs rounded-xl border border-border bg-background font-medium focus:ring-2 focus:ring-primary/40"
+                    >
+                      {field.options?.map((opt: string) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : field.type === 'info' ? (
+                    <div className="p-3 bg-muted/40 rounded-xl text-[11px] text-muted-foreground border border-border/60">
+                      {field.description}
+                    </div>
+                  ) : (
+                    <input
+                      type={field.type === 'password' ? 'password' : 'text'}
+                      value={config[field.key] || ''}
+                      onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+                      placeholder={field.placeholder || `Enter ${field.label}`}
+                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary shadow-inner"
+                    />
+                  )}
+                </div>
+              ))}
 
               {/* Booking.com Specific Settings */}
               {otaKey === 'bookingcom' && (
@@ -200,8 +235,8 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
                 </div>
               )}
 
-              {/* MakeMyTrip / Goibibo / EaseMyTrip Specific Rate Toggles & Total Type */}
-              {(otaKey === 'makemytrip' || otaKey === 'goibibo' || otaKey === 'easemytrip' || otaKey === 'agoda') && (
+              {/* Rate Toggles & Total Type Calculation for direct Channex channels */}
+              {otaKey !== 'bookingcom' && otaKey !== 'airbnb' && (
                 <div className="space-y-3.5 bg-muted/30 p-4 rounded-2xl border border-border/80 text-xs">
                   <div className="space-y-2">
                     <span className="font-bold text-foreground flex items-center gap-1.5 block">

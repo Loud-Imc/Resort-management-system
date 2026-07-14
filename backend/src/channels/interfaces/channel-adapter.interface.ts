@@ -2,6 +2,7 @@ import { ChannelPropertyMapping, ChannelRoomTypeMapping, Property, RoomType } fr
 
 export interface InventoryUpdateDto {
   date: string; // YYYY-MM-DD
+  dateTo?: string; // Optional end date (YYYY-MM-DD) for multi-date / range batch updates
   roomTypeId: string;
   externalRoomTypeId: string;
   availableRooms: number;
@@ -9,10 +10,17 @@ export interface InventoryUpdateDto {
 
 export interface RateUpdateDto {
   date: string; // YYYY-MM-DD
+  dateTo?: string; // Optional end date (YYYY-MM-DD) for multi-date / half-year updates
   roomTypeId: string;
   externalRoomTypeId: string;
   externalRatePlanId?: string;
-  price: number;
+  price?: number;
+  minStayArrival?: number;
+  minStayThrough?: number;
+  maxStay?: number;
+  stopSell?: boolean;
+  closedToArrival?: boolean;
+  closedToDeparture?: boolean;
 }
 
 export interface ChannelReservationGuestDto {

@@ -196,6 +196,25 @@ export class ChannexAdapter implements IChannelAdapter {
     return { externalRoomTypeId, externalRatePlanId };
   }
 
+  /**
+   * Helper with retry and exponential backoff for Channex rate limits (20 ARI/minute) & 429/5xx responses
+   */
+  private async fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const response = await fetch(url, options);
+      if (response.status === 429 || response.status >= 500) {
+        if (attempt === maxRetries) return response;
+        const retryAfterHeader = response.headers.get('retry-after');
+        const delayMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : Math.pow(2, attempt) * 1000;
+        this.logger.warn(`[Channex Rate Limit/Error] HTTP ${response.status} from ${url}. Retrying attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      return response;
+    }
+    throw new Error(`Max retries exceeded for ${url}`);
+  }
+
   async pushInventory(
     propertyMapping: ChannelPropertyMapping & { roomMappings: ChannelRoomTypeMapping[] },
     updates: InventoryUpdateDto[],
@@ -211,14 +230,14 @@ export class ChannexAdapter implements IChannelAdapter {
         property_id: propertyMapping.externalPropertyId,
         room_type_id: u.externalRoomTypeId,
         date_from: u.date,
-        date_to: u.date,
+        date_to: u.dateTo || u.date,
         availability: Math.max(0, u.availableRooms),
       })),
     };
 
     try {
-      this.logger.log(`[Channex] Pushing inventory for property ${propertyMapping.externalPropertyId}: ${updates.length} updates`);
-      const response = await fetch(`${this.baseUrl}/availability`, {
+      this.logger.log(`[Channex] Pushing inventory for property ${propertyMapping.externalPropertyId}: ${updates.length} batched items`);
+      const response = await this.fetchWithRetry(`${this.baseUrl}/availability`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -248,19 +267,28 @@ export class ChannexAdapter implements IChannelAdapter {
     if (!propertyMapping.apiKey) return false;
 
     const restrictionsPayload = {
-      values: updates.map((u) => ({
-        property_id: propertyMapping.externalPropertyId,
-        room_type_id: u.externalRoomTypeId,
-        rate_plan_id: u.externalRatePlanId,
-        date_from: u.date,
-        date_to: u.date,
-        rate: Math.round(Number(u.price) * 100),
-      })),
+      values: updates.map((u) => {
+        const item: any = {
+          property_id: propertyMapping.externalPropertyId,
+          room_type_id: u.externalRoomTypeId,
+          date_from: u.date,
+          date_to: u.dateTo || u.date,
+        };
+        if (u.externalRatePlanId) item.rate_plan_id = u.externalRatePlanId;
+        if (u.price !== undefined && u.price !== null) item.rate = Math.round(Number(u.price) * 100);
+        if (u.minStayArrival !== undefined && u.minStayArrival !== null) item.min_stay_arrival = Number(u.minStayArrival);
+        if (u.minStayThrough !== undefined && u.minStayThrough !== null) item.min_stay_through = Number(u.minStayThrough);
+        if (u.maxStay !== undefined && u.maxStay !== null) item.max_stay = Number(u.maxStay);
+        if (u.stopSell !== undefined && u.stopSell !== null) item.stop_sell = Boolean(u.stopSell);
+        if (u.closedToArrival !== undefined && u.closedToArrival !== null) item.closed_to_arrival = Boolean(u.closedToArrival);
+        if (u.closedToDeparture !== undefined && u.closedToDeparture !== null) item.closed_to_departure = Boolean(u.closedToDeparture);
+        return item;
+      }),
     };
 
     try {
-      this.logger.log(`[Channex] Pushing rates for property ${propertyMapping.externalPropertyId}: ${updates.length} updates`);
-      const response = await fetch(`${this.baseUrl}/restrictions`, {
+      this.logger.log(`[Channex] Pushing rates/restrictions for property ${propertyMapping.externalPropertyId}: ${updates.length} batched items`);
+      const response = await this.fetchWithRetry(`${this.baseUrl}/restrictions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,13 +299,13 @@ export class ChannexAdapter implements IChannelAdapter {
 
       if (!response.ok) {
         const errText = await response.text();
-        this.logger.error(`[Channex] Failed to push rates: ${response.status} ${errText}`);
+        this.logger.error(`[Channex] Failed to push restrictions: ${response.status} ${errText}`);
         return false;
       }
 
       return true;
     } catch (error: any) {
-      this.logger.error(`[Channex] Network error pushing rates: ${error.message}`);
+      this.logger.error(`[Channex] Network error pushing restrictions: ${error.message}`);
       return false;
     }
   }
@@ -300,33 +328,25 @@ export class ChannexAdapter implements IChannelAdapter {
       status = 'MODIFIED';
     }
 
-    const checkInDate = new Date(firstRoom?.check_in || booking?.arrival_date);
-    const checkOutDate = new Date(firstRoom?.check_out || booking?.departure_date);
-    const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime());
-    const numberOfNights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-
-    let totalAdults = 0;
-    let totalChildren = 0;
-    rooms.forEach((r: any) => {
-      totalAdults += Number(r.occupancy?.adults || r.adults || 1);
-      totalChildren += Number(r.occupancy?.children || r.children || 0);
-    });
+    const checkInDate = firstRoom.checkin_date || booking.arrival_date || new Date().toISOString().split('T')[0];
+    const checkOutDate = firstRoom.checkout_date || booking.departure_date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const numberOfNights = Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86400000));
 
     return {
-      externalBookingId: String(booking?.id || booking?.booking_id || payload?.id),
+      externalBookingId: String(booking.id || payload.id || `ch-${Date.now()}`),
       channelName: 'CHANNEX',
       sourceName: String(booking?.channel_name || booking?.source || booking?.ota_name || booking?.channel?.title || booking?.channel?.name || 'Channex OTA').trim(),
-      externalPropertyId: String(booking?.property_id),
-      externalRoomTypeId: String(firstRoom?.room_type_id),
-      checkInDate,
-      checkOutDate,
+      externalPropertyId: String(booking.property_id || payload.property_id || ''),
+      externalRoomTypeId: String(firstRoom.room_type_id || firstRoom.id || ''),
+      checkInDate: new Date(checkInDate),
+      checkOutDate: new Date(checkOutDate),
       numberOfNights,
-      adultsCount: totalAdults,
-      childrenCount: totalChildren,
-      totalAmount: Number(booking?.total_amount || firstRoom?.amount || 0),
-      currency: booking?.currency || 'INR',
+      adultsCount: Number(firstRoom.occupancy?.adults || booking.adults || 2),
+      childrenCount: Number(firstRoom.occupancy?.children || booking.children || 0),
+      totalAmount: Number(booking.total_amount || booking.amount || 0),
+      currency: booking.currency || 'INR',
       guest: {
-        firstName: customer.name || 'Channel',
+        firstName: customer.name || 'OTA Guest',
         lastName: customer.surname || 'Guest',
         email: customer.mail || customer.email,
         phone: customer.phone,
@@ -344,8 +364,10 @@ export class ChannexAdapter implements IChannelAdapter {
     if (!propertyMapping.apiKey) return false;
 
     try {
-      this.logger.log(`[Channex] Acknowledging booking ${externalBookingId} -> internal #${internalBookingNumber}`);
-      const response = await fetch(`${this.baseUrl}/bookings/${externalBookingId}/ack`, {
+      this.logger.log(`[Channex] Acknowledging booking revision ${externalBookingId} -> internal #${internalBookingNumber}`);
+      // Channex certification requires acknowledging via /booking_revisions/:id/ack for revisions or /bookings/:id/ack for base bookings
+      let endpoint = `${this.baseUrl}/booking_revisions/${externalBookingId}/ack`;
+      let response = await this.fetchWithRetry(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -354,8 +376,20 @@ export class ChannexAdapter implements IChannelAdapter {
         body: JSON.stringify({ reference_id: internalBookingNumber }),
       });
 
+      if (response.status === 404) {
+        endpoint = `${this.baseUrl}/bookings/${externalBookingId}/ack`;
+        response = await this.fetchWithRetry(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'user-api-key': propertyMapping.apiKey,
+          },
+          body: JSON.stringify({ reference_id: internalBookingNumber }),
+        });
+      }
+
       if (!response.ok) {
-        this.logger.warn(`[Channex] Failed ack for ${externalBookingId}: ${response.status}`);
+        this.logger.warn(`[Channex] Failed ack for ${externalBookingId} via ${endpoint}: ${response.status}`);
         return false;
       }
 

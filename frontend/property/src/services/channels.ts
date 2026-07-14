@@ -22,7 +22,31 @@ export interface ChannelRoomTypeMapping {
   };
 }
 
+export interface ChannelCatalogField {
+  key: string;
+  label: string;
+  type: 'text' | 'password' | 'select' | 'boolean' | 'info';
+  required?: boolean;
+  placeholder?: string;
+  options?: string[];
+  default?: any;
+  description?: string;
+}
+
+export interface ChannelCatalogItem {
+  key: string;
+  title: string;
+  category: string;
+  color: string;
+  fields: ChannelCatalogField[];
+}
+
 export const channelsService = {
+  getCatalog: async (): Promise<ChannelCatalogItem[]> => {
+    const response = await api.get('/channels/catalog');
+    return response.data;
+  },
+
   getMappings: async (propertyId: string): Promise<ChannelPropertyMapping[]> => {
     const response = await api.get(`/channels/mappings/${propertyId}`);
     return response.data;
