@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { offlineCpsService, type OfflineCP } from '../../services/offlineCps';
 import { uploadService } from '../../services/uploads';
-import { Loader2, Calendar, Users, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, X, Info } from 'lucide-react';
+import { Loader2, Calendar, Users, UserPlus, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, X, Info, BedDouble } from 'lucide-react';
 import clsx from 'clsx';
 import SearchableSelect from '../../components/SearchableSelect';
 import BookingAvailabilityCalendar from '../../components/bookings/BookingAvailabilityCalendar';
@@ -731,129 +731,220 @@ export default function CreateBooking() {
                                         {errors.roomTypeId && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.roomTypeId.message}</p>}
                                     </div>
                                 )}
-                                <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                        <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
-                                    </label>
-                                    <div 
-                                        onClick={() => {
-                                            if (window.innerWidth < 1280) setShowMobileCalendar(true);
-                                        }}
-                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary hover:border-primary/50 transition-all flex items-center justify-between xl:hidden"
-                                    >
-                                        <span>{watch('checkInDate') ? format(new Date(watch('checkInDate')), 'yyyy-MM-dd') : 'Select Date'}</span>
-                                        <Calendar className="h-4 w-4 text-muted-foreground" />
+
+                                {!watch('roomTypeId') && !isGroupMode ? (
+                                    <div className="md:col-span-2 py-8 px-6 text-center bg-muted/10 border border-dashed border-border rounded-2xl animate-in fade-in zoom-in-95 duration-200 my-2">
+                                        <BedDouble className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+                                        <p className="text-sm font-bold text-foreground">Select a Room Type to proceed</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Choose a room type above to configure stay dates, guest capacity, and check room availability.</p>
                                     </div>
-                                    <input 
-                                        type="date" 
-                                        {...register('checkInDate')} 
-                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all hidden xl:block" 
-                                    />
-                                    {errors.checkInDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkInDate.message}</p>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                        <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
-                                    </label>
-                                    <div 
-                                        onClick={() => {
-                                            if (window.innerWidth < 1280) setShowMobileCalendar(true);
-                                        }}
-                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary hover:border-primary/50 transition-all flex items-center justify-between xl:hidden"
-                                    >
-                                        <span>{watch('checkOutDate') ? format(new Date(watch('checkOutDate')), 'yyyy-MM-dd') : 'Select Date'}</span>
-                                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                    <input 
-                                        type="date" 
-                                        {...register('checkOutDate')} 
-                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all hidden xl:block" 
-                                    />
-                                    {errors.checkOutDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkOutDate.message}</p>}
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Guests & Capacity</label>
-                                    <div className={clsx("grid gap-4", isGroupMode ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
+                                ) : (
+                                    <Fragment>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Adults (Standard)</label>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                {...register('adultsCount', {
-                                                    valueAsNumber: true,
-                                                    onChange: (e) => {
-                                                        if (isGroupMode) setValue('groupSize', (parseInt(e.target.value) || 1) + watch('childrenCount'));
-                                                    }
-                                                })}
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                                <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
+                                            </label>
+                                            <div 
+                                                onClick={() => {
+                                                    if (window.innerWidth < 1280) setShowMobileCalendar(true);
+                                                }}
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary hover:border-primary/50 transition-all flex items-center justify-between xl:hidden"
+                                            >
+                                                <span>{watch('checkInDate') ? format(new Date(watch('checkInDate')), 'yyyy-MM-dd') : 'Select Date'}</span>
+                                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                            </div>
+                                            <input 
+                                                type="date" 
+                                                {...register('checkInDate')} 
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all hidden xl:block" 
                                             />
+                                            {errors.checkInDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkInDate.message}</p>}
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Children (Standard)</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                {...register('childrenCount', {
-                                                    valueAsNumber: true,
-                                                    onChange: (e) => {
-                                                        if (isGroupMode) setValue('groupSize', watch('adultsCount') + (parseInt(e.target.value) || 0));
-                                                    }
-                                                })}
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                                <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
+                                            </label>
+                                            <div 
+                                                onClick={() => {
+                                                    if (window.innerWidth < 1280) setShowMobileCalendar(true);
+                                                }}
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary hover:border-primary/50 transition-all flex items-center justify-between xl:hidden"
+                                            >
+                                                <span>{watch('checkOutDate') ? format(new Date(watch('checkOutDate')), 'yyyy-MM-dd') : 'Select Date'}</span>
+                                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                            </div>
+                                            <input 
+                                                type="date" 
+                                                {...register('checkOutDate')} 
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all hidden xl:block" 
                                             />
+                                            {errors.checkOutDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkOutDate.message}</p>}
                                         </div>
+                                <div className="md:col-span-2 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Guests & Capacity</label>
+                                        {selectedRoomType && !isGroupMode && (
+                                            <span className="text-[10px] font-extrabold text-primary/80 bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+                                                Base Rate Covers: {selectedRoomType.baseAdults ?? 2} Adults, {selectedRoomType.baseChildren ?? 1} Children
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Standard Base Included Guests Card */}
+                                        <div className="p-4 bg-muted/20 border border-border/60 rounded-2xl space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-foreground">
+                                                    <Users className="h-4 w-4 text-primary" />
+                                                    <span>Standard Included Guests</span>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Adults</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        {...register('adultsCount', {
+                                                            valueAsNumber: true,
+                                                            onChange: (e) => {
+                                                                if (isGroupMode) setValue('groupSize', (parseInt(e.target.value) || 1) + watch('childrenCount'));
+                                                            }
+                                                        })}
+                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Children</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        {...register('childrenCount', {
+                                                            valueAsNumber: true,
+                                                            onChange: (e) => {
+                                                                if (isGroupMode) setValue('groupSize', watch('adultsCount') + (parseInt(e.target.value) || 0));
+                                                            }
+                                                        })}
+                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Extra Guests Card (Optional Paid Bedding) */}
                                         {!isGroupMode && (() => {
-                                             const allowsExtraAdults = !selectedRoomType || Number(selectedRoomType.extraAdultPrice || 0) > 0;
-                                             const allowsExtraChildren = !selectedRoomType || Number(selectedRoomType.extraChildPrice || 0) > 0;
+                                            const allowsExtraAdults = !selectedRoomType || Number(selectedRoomType.extraAdultPrice || 0) > 0;
+                                            const allowsExtraChildren = !selectedRoomType || Number(selectedRoomType.extraChildPrice || 0) > 0;
 
-                                             if (!allowsExtraAdults && !allowsExtraChildren && selectedRoomType) {
-                                                 return (
-                                                     <div className="col-span-2 flex items-center gap-2 py-2.5 px-4 bg-muted/40 rounded-xl border border-border/50">
-                                                         <Info className="h-4 w-4 text-muted-foreground shrink-0" />
-                                                         <span className="text-xs font-semibold text-muted-foreground">Extra adults and children are not allowed for this room type.</span>
-                                                     </div>
-                                                 );
-                                             }
+                                            const roomCount = Math.max((watch('selectedRoomIds') || []).length, 1);
+                                            const baseAdultsCap = (selectedRoomType?.baseAdults ?? selectedRoomType?.maxAdults ?? 2) * roomCount;
+                                            const baseChildrenCap = (selectedRoomType?.baseChildren ?? selectedRoomType?.maxChildren ?? 1) * roomCount;
+                                            const maxPhysAdultsCap = (selectedRoomType?.maxPhysicalAdults ?? selectedRoomType?.maxAdults ?? 4) * roomCount;
+                                            const maxPhysChildrenCap = (selectedRoomType?.maxPhysicalChildren ?? selectedRoomType?.maxChildren ?? 2) * roomCount;
 
-                                             return (
-                                                 <>
-                                                     {allowsExtraAdults && (
-                                                         <div>
-                                                             <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1.5">Extra Adults (Optional)</label>
-                                                             <input
-                                                                 type="number"
-                                                                 min="0"
-                                                                 placeholder="0"
-                                                                 {...register('extraAdultsCount', {
-                                                                     setValueAs: (v) => v === '' || v === null || isNaN(v) ? 0 : Number(v),
-                                                                     onChange: () => {
-                                                                         if (availability?.available) handleCheckAvailability();
-                                                                     }
-                                                                 })}
-                                                                 className="w-full border border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-                                                             />
-                                                         </div>
-                                                     )}
-                                                     {allowsExtraChildren && (
-                                                         <div>
-                                                             <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1.5">Extra Children (Optional)</label>
-                                                             <input
-                                                                 type="number"
-                                                                 min="0"
-                                                                 placeholder="0"
-                                                                 {...register('extraChildrenCount', {
-                                                                     setValueAs: (v) => v === '' || v === null || isNaN(v) ? 0 : Number(v),
-                                                                     onChange: () => {
-                                                                         if (availability?.available) handleCheckAvailability();
-                                                                     }
-                                                                 })}
-                                                                 className="w-full border border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-                                                             />
-                                                         </div>
-                                                     )}
-                                                 </>
-                                             );
-                                         })()}
+                                            const curAdults = Number(watch('adultsCount')) || 0;
+                                            const curChildren = Number(watch('childrenCount')) || 0;
+
+                                            const isBaseAdultsFilled = curAdults >= baseAdultsCap;
+                                            const isBaseChildrenFilled = curChildren >= baseChildrenCap;
+
+                                            const maxExtraAdultsAllowed = selectedRoomType ? Math.max(0, maxPhysAdultsCap - curAdults) : undefined;
+                                            const maxExtraChildrenAllowed = selectedRoomType ? Math.max(0, maxPhysChildrenCap - curChildren) : undefined;
+
+                                            if (!allowsExtraAdults && !allowsExtraChildren && selectedRoomType) {
+                                                return (
+                                                    <div className="flex items-center gap-2 py-3 px-4 bg-muted/30 rounded-2xl border border-border/50 self-center">
+                                                        <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                        <span className="text-xs font-semibold text-muted-foreground">Extra guests are not allowed for this room type.</span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
+                                                    <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <UserPlus className="h-4 w-4 text-amber-500" />
+                                                            <span>Extra Guests (Optional)</span>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 lowercase">Extra charge applies</span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {allowsExtraAdults && (
+                                                            <div>
+                                                                <div className="flex items-center justify-between mb-1.5">
+                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Adults</label>
+                                                                    {maxExtraAdultsAllowed !== undefined && (
+                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraAdultsAllowed}</span>
+                                                                    )}
+                                                                </div>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={maxExtraAdultsAllowed}
+                                                                    disabled={!isBaseAdultsFilled}
+                                                                    placeholder="0"
+                                                                    {...register('extraAdultsCount', {
+                                                                        setValueAs: (v) => v === '' || v === null || isNaN(v) ? 0 : Number(v),
+                                                                        onChange: (e) => {
+                                                                            let val = parseInt(e.target.value) || 0;
+                                                                            if (maxExtraAdultsAllowed !== undefined && val > maxExtraAdultsAllowed) {
+                                                                                val = maxExtraAdultsAllowed;
+                                                                                setValue('extraAdultsCount', val);
+                                                                                toast.error(`Maximum extra adults allowed for this room capacity is ${maxExtraAdultsAllowed}`);
+                                                                            }
+                                                                            if (availability?.available) handleCheckAvailability();
+                                                                        }
+                                                                    })}
+                                                                    className={clsx(
+                                                                        "w-full border rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm transition-all",
+                                                                        !isBaseAdultsFilled
+                                                                            ? "bg-muted/40 text-muted-foreground border-border cursor-not-allowed opacity-60"
+                                                                            : "border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                                                    )}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                        {allowsExtraChildren && (
+                                                            <div>
+                                                                <div className="flex items-center justify-between mb-1.5">
+                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Children</label>
+                                                                    {maxExtraChildrenAllowed !== undefined && (
+                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraChildrenAllowed}</span>
+                                                                    )}
+                                                                </div>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={maxExtraChildrenAllowed}
+                                                                    disabled={!isBaseChildrenFilled}
+                                                                    placeholder="0"
+                                                                    {...register('extraChildrenCount', {
+                                                                        setValueAs: (v) => v === '' || v === null || isNaN(v) ? 0 : Number(v),
+                                                                        onChange: (e) => {
+                                                                            let val = parseInt(e.target.value) || 0;
+                                                                            if (maxExtraChildrenAllowed !== undefined && val > maxExtraChildrenAllowed) {
+                                                                                val = maxExtraChildrenAllowed;
+                                                                                setValue('extraChildrenCount', val);
+                                                                                toast.error(`Maximum extra children allowed for this room capacity is ${maxExtraChildrenAllowed}`);
+                                                                            }
+                                                                            if (availability?.available) handleCheckAvailability();
+                                                                        }
+                                                                    })}
+                                                                    className={clsx(
+                                                                        "w-full border rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm transition-all",
+                                                                        !isBaseChildrenFilled
+                                                                            ? "bg-muted/40 text-muted-foreground border-border cursor-not-allowed opacity-60"
+                                                                            : "border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                                                    )}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                     {/* Smart Allocation Assistant Banner (Standard Bookings Only) */}
                                     {(() => {
@@ -862,16 +953,21 @@ export default function CreateBooking() {
                                         const roomCount = (watch('selectedRoomIds') || []).length || 1;
                                         const baseA = (selectedRoomType.baseAdults ?? selectedRoomType.maxAdults ?? 2) * roomCount;
                                         const baseC = (selectedRoomType.baseChildren ?? selectedRoomType.maxChildren ?? 1) * roomCount;
-                                        const maxPhysA = (selectedRoomType.maxPhysicalAdults ?? 4) * roomCount;
-                                        const maxPhysC = (selectedRoomType.maxPhysicalChildren ?? 2) * roomCount;
+                                        const maxPhysA = (selectedRoomType.maxPhysicalAdults ?? selectedRoomType.maxAdults ?? 4) * roomCount;
+                                        const maxPhysC = (selectedRoomType.maxPhysicalChildren ?? selectedRoomType.maxChildren ?? 2) * roomCount;
 
-                                        const curAdults = watch('adultsCount') || 1;
-                                        const curChildren = watch('childrenCount') || 0;
+                                        const stdAdults = Number(watch('adultsCount')) || 0;
+                                        const extraAdults = Number(watch('extraAdultsCount')) || 0;
+                                        const totalAdults = stdAdults + extraAdults;
 
-                                        const excessA = Math.max(0, curAdults - baseA);
-                                        const excessC = Math.max(0, curChildren - baseC);
+                                        const stdChildren = Number(watch('childrenCount')) || 0;
+                                        const extraChildren = Number(watch('extraChildrenCount')) || 0;
+                                        const totalChildren = stdChildren + extraChildren;
 
-                                        const isOverPhysicalLimit = curAdults > maxPhysA || curChildren > maxPhysC;
+                                        const excessA = Math.max(0, stdAdults - baseA);
+                                        const excessC = Math.max(0, stdChildren - baseC);
+
+                                        const isOverPhysicalLimit = totalAdults > maxPhysA || totalChildren > maxPhysC;
 
                                         if (isOverPhysicalLimit) {
                                             return (
@@ -880,7 +976,7 @@ export default function CreateBooking() {
                                                         <AlertCircle className="h-4 w-4 text-red-500" /> Physical Room Capacity Limit Exceeded
                                                     </div>
                                                     <p className="text-xs">
-                                                        The entered guest count ({curAdults} Adults, {curChildren} Children) exceeds the physical capacity limit for {roomCount} room ({maxPhysA} Adults, {maxPhysC} Children max). Please select additional rooms.
+                                                        The total guest count ({totalAdults} Adults, {totalChildren} Children) exceeds the physical capacity limit for {roomCount} room ({maxPhysA} Adults, {maxPhysC} Children max). Please reduce extra guests or select additional rooms.
                                                     </p>
                                                 </div>
                                             );
@@ -898,16 +994,18 @@ export default function CreateBooking() {
                                                         </span>
                                                     </div>
                                                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                                                        {selectedRoomType.name}'s base rate covers <strong>{baseA} Adults & {baseC} Children</strong>. You entered <strong>{curAdults} Adults & {curChildren} Children</strong>.
+                                                        {selectedRoomType.name}'s base rate covers <strong>{baseA} Adults & {baseC} Children</strong>. You entered <strong>{stdAdults} Adults & {stdChildren} Children</strong>.
                                                     </p>
                                                     <div className="flex flex-wrap gap-2 pt-1">
                                                         <button
                                                             type="button"
                                                             onClick={() => {
-                                                                setValue('extraAdultsCount', excessA);
-                                                                setValue('extraChildrenCount', excessC);
-                                                                setValue('adultsCount', Math.min(curAdults, baseA));
-                                                                setValue('childrenCount', Math.min(curChildren, baseC));
+                                                                const currentExtraA = Number(getValues('extraAdultsCount') || 0);
+                                                                const currentExtraC = Number(getValues('extraChildrenCount') || 0);
+                                                                setValue('extraAdultsCount', currentExtraA + excessA);
+                                                                setValue('extraChildrenCount', currentExtraC + excessC);
+                                                                setValue('adultsCount', Math.min(stdAdults, baseA));
+                                                                setValue('childrenCount', Math.min(stdChildren, baseC));
                                                                 if (availability?.available) handleCheckAvailability();
                                                             }}
                                                             className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
@@ -1153,6 +1251,8 @@ export default function CreateBooking() {
                                         </div>
                                     )}
                                 </div>
+                            </Fragment>
+                        )}
                             </div>
                         </div>
 
@@ -1767,18 +1867,29 @@ export default function CreateBooking() {
                                 {(() => {
                                     const details = originalPriceDetails || priceDetails;
                                     const isInclusive = details.isGstInclusive;
-                                    const taxFactor = 1 + ((details.taxRate || 5) / 100);
+
                                     const roomChargesDisplay = isInclusive
-                                        ? (details.originalTotal || (details.baseAmount + details.taxAmount))
+                                        ? (details.grossBaseAmount ?? (details.baseAmount + details.taxAmount))
                                         : details.baseAmount;
+
+                                    const extraAdultDisplay = isInclusive
+                                        ? (details.grossExtraAdultAmount ?? details.extraAdultAmount)
+                                        : details.extraAdultAmount;
+
+                                    const extraChildDisplay = isInclusive
+                                        ? (details.grossExtraChildAmount ?? details.extraChildAmount)
+                                        : details.extraChildAmount;
+
                                     const offerDiscountDisplay = isInclusive && details.offerDiscountAmount > 0
-                                        ? (details.offerDiscountAmount * taxFactor)
+                                        ? (details.grossOfferDiscountAmount ?? details.offerDiscountAmount)
                                         : details.offerDiscountAmount;
+
                                     const couponDiscountDisplay = isInclusive && details.couponDiscountAmount > 0
-                                        ? (details.couponDiscountAmount * taxFactor)
+                                        ? (details.grossCouponDiscountAmount ?? details.couponDiscountAmount)
                                         : details.couponDiscountAmount;
+
                                     const referralDiscountDisplay = isInclusive && details.referralDiscountAmount > 0
-                                        ? (details.referralDiscountAmount * taxFactor)
+                                        ? (details.grossReferralDiscountAmount ?? details.referralDiscountAmount)
                                         : details.referralDiscountAmount;
 
                                     return (
@@ -1811,7 +1922,7 @@ export default function CreateBooking() {
                                                                 : <span className="text-[10px] font-bold text-muted-foreground opacity-60">(charged)</span>;
                                                         })()}
                                                     </span>
-                                                    <span className="font-semibold text-foreground">₹{details.extraAdultAmount.toFixed(2)}</span>
+                                                    <span className="font-semibold text-foreground">₹{extraAdultDisplay.toFixed(2)}</span>
                                                 </div>
                                             )}
                                             {details.extraChildAmount > 0 && (
@@ -1829,7 +1940,7 @@ export default function CreateBooking() {
                                                                 : <span className="text-[10px] font-bold text-muted-foreground opacity-60">(charged)</span>;
                                                         })()}
                                                     </span>
-                                                    <span className="font-semibold text-foreground">₹{details.extraChildAmount.toFixed(2)}</span>
+                                                    <span className="font-semibold text-foreground">₹{extraChildDisplay.toFixed(2)}</span>
                                                 </div>
                                             )}
                                             {offerDiscountDisplay > 0 && (

@@ -220,12 +220,18 @@ export interface PriceCalculationDto {
 
 export interface PriceCalculationResult {
     baseAmount: number;
+    grossBaseAmount?: number;
     extraAdultAmount: number;
+    grossExtraAdultAmount?: number;
     extraChildAmount: number;
+    grossExtraChildAmount?: number;
     taxAmount: number;
     offerDiscountAmount: number;
+    grossOfferDiscountAmount?: number;
     couponDiscountAmount: number;
+    grossCouponDiscountAmount?: number;
     referralDiscountAmount: number;
+    grossReferralDiscountAmount?: number;
     discountAmount: number;
     totalAmount: number;
     originalTotal?: number;

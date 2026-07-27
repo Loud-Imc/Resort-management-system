@@ -5,12 +5,18 @@ import { DateUtils } from '../common/utils/date.utils';
 
 export interface PricingBreakdown {
     baseAmount: number;
+    grossBaseAmount: number;
     extraAdultAmount: number;
+    grossExtraAdultAmount: number;
     extraChildAmount: number;
+    grossExtraChildAmount: number;
     taxAmount: number;
     offerDiscountAmount: number;
+    grossOfferDiscountAmount: number;
     couponDiscountAmount: number;
+    grossCouponDiscountAmount: number;
     referralDiscountAmount: number;
+    grossReferralDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
     originalTotal: number;
@@ -200,6 +206,8 @@ export class PricingService {
         let baseAmount = 0;
         let extraAdultAmount = 0;
         let extraChildAmount = 0;
+        let extraAdults = 0;
+        let extraChildren = 0;
         let basePricePerNight = 0;
         let isGroupInclusive = false;
         
@@ -282,14 +290,14 @@ export class PricingService {
             // 4. Calculate extra adult charges
             // Use explicit extraAdultsCount if provided, else fallback to total guest count minus base capacity
             const effectiveBaseAdults = Number(roomType.baseAdults ?? roomType.maxAdults ?? 2) * rooms;
-            const extraAdults = extraAdultsCount !== undefined && extraAdultsCount !== null
+            extraAdults = extraAdultsCount !== undefined && extraAdultsCount !== null
                 ? Math.max(0, Number(extraAdultsCount))
                 : Math.max(0, adultsCount - effectiveBaseAdults);
             extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
 
             // 5. Calculate extra child charges
             const effectiveBaseChildren = Number(roomType.baseChildren ?? roomType.maxChildren ?? 1) * rooms;
-            const extraChildren = extraChildrenCount !== undefined && extraChildrenCount !== null
+            extraChildren = extraChildrenCount !== undefined && extraChildrenCount !== null
                 ? Math.max(0, Number(extraChildrenCount))
                 : Math.max(0, childrenCount - effectiveBaseChildren);
             extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
@@ -469,14 +477,47 @@ export class PricingService {
             return Number(val.toFixed(2));
         };
 
+        const isGstInc = isGroupBooking ? !!isGroupInclusive : !!roomType.isGstInclusive;
+        const taxMultiplier = 1 + (taxRate / 100);
+
+        const grossBaseAmount = isGstInc
+            ? cleanFloat((Number(roomType.basePrice) || 0) * roomCount * Math.max(1, numberOfNights))
+            : cleanFloat(baseAmount);
+
+        const grossExtraAdultAmount = isGstInc
+            ? cleanFloat((Number(roomType.extraAdultPrice) || 0) * (extraAdults || 0) * Math.max(1, numberOfNights))
+            : cleanFloat(extraAdultAmount);
+
+        const grossExtraChildAmount = isGstInc
+            ? cleanFloat((Number(roomType.extraChildPrice) || 0) * (extraChildren || 0) * Math.max(1, numberOfNights))
+            : cleanFloat(extraChildAmount);
+
+        const grossOfferDiscountAmount = isGstInc
+            ? cleanFloat(offerDiscountAmount * taxMultiplier)
+            : cleanFloat(offerDiscountAmount);
+
+        const grossCouponDiscountAmount = isGstInc
+            ? cleanFloat(couponDiscountAmount * taxMultiplier)
+            : cleanFloat(couponDiscountAmount);
+
+        const grossReferralDiscountAmount = isGstInc
+            ? cleanFloat(referralDiscountAmount * taxMultiplier)
+            : cleanFloat(referralDiscountAmount);
+
         const result = {
             baseAmount: cleanFloat(baseAmount),
+            grossBaseAmount,
             extraAdultAmount: cleanFloat(extraAdultAmount),
+            grossExtraAdultAmount,
             extraChildAmount: cleanFloat(extraChildAmount),
+            grossExtraChildAmount,
             taxAmount: cleanFloat(totalTaxAmount),
             offerDiscountAmount: cleanFloat(offerDiscountAmount),
+            grossOfferDiscountAmount,
             couponDiscountAmount: cleanFloat(couponDiscountAmount),
+            grossCouponDiscountAmount,
             referralDiscountAmount: cleanFloat(referralDiscountAmount),
+            grossReferralDiscountAmount,
             discountAmount: cleanFloat(offerDiscountAmount + couponDiscountAmount + referralDiscountAmount),
             totalAmount: cleanFloat(totalAmount),
             originalTotal: cleanFloat(originalTotal),
@@ -498,7 +539,7 @@ export class PricingService {
             appliedCodeType: referralCode ? 'REFERRAL' : (couponCode ? 'COUPON' : 'NONE') as 'REFERRAL' | 'COUPON' | 'NONE',
             referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode } }))?.id : undefined,
             partialPaymentPct: Number(await this.systemSettingsService.getSetting('PARTIAL_PAYMENT_PCT') || 33.33),
-            isGstInclusive: isGroupBooking ? !!isGroupInclusive : !!roomType.isGstInclusive,
+            isGstInclusive: isGstInc,
             offerName: (offerDiscountAmount > 0 && activeOffer) ? activeOffer.name : undefined,
             offerDescription: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.description ?? undefined) : undefined,
             offerStartDate: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.startDate ? activeOffer.startDate.toISOString() : undefined) : undefined,
@@ -529,16 +570,22 @@ export class PricingService {
             }
 
             result.baseAmount = finalOverrideBreakdown.baseAmount;
+            result.grossBaseAmount = isOverrideInclusive ? overrideTotal : finalOverrideBreakdown.baseAmount;
             result.taxAmount = finalOverrideBreakdown.taxAmount;
             result.totalAmount = result.baseAmount + result.taxAmount;
             result.convertedTotal = Number((result.totalAmount * exchangeRate).toFixed(2));
 
             // Zero out other components to keep breakdown clean for overrides
             result.extraAdultAmount = 0;
+            result.grossExtraAdultAmount = 0;
             result.extraChildAmount = 0;
+            result.grossExtraChildAmount = 0;
             result.offerDiscountAmount = 0;
+            result.grossOfferDiscountAmount = 0;
             result.couponDiscountAmount = 0;
+            result.grossCouponDiscountAmount = 0;
             result.referralDiscountAmount = 0;
+            result.grossReferralDiscountAmount = 0;
             result.discountAmount = 0;
         }
 
