@@ -1,5 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RoomsService } from '../rooms/rooms.service';
+import { format } from 'date-fns';
+import { DateUtils } from '../common/utils/date.utils';
 import * as ExcelJS from 'exceljs';
 import * as path from 'path';
 const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
@@ -32,7 +35,10 @@ const SettlementStatus = { PAID: 'PAID' } as any;
 @Injectable()
 export class ReportsService {
     private readonly logger = new Logger(ReportsService.name);
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private roomsService: RoomsService
+    ) { }
 
     private setEndOfDay(date: Date): Date {
         const d = new Date(date);
@@ -51,6 +57,215 @@ export class ReportsService {
         const prevEnd = new Date(start.getTime() - 1);
         const prevStart = new Date(prevEnd.getTime() - duration);
         return { start: prevStart, end: prevEnd };
+    }
+
+    /**
+     * Get unified dashboard statistics with date-aware room status, block details, and calendar metrics
+     */
+    async getDashboardUnified(user: any, propertyId?: string, dateStr?: string, monthStr?: string) {
+        const targetDate = DateUtils.parseCalendarDate(dateStr || new Date());
+        const today = DateUtils.parseCalendarDate(new Date());
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        // Define property scoping
+        const propertyFilter: any = {};
+        if (isGlobalAdmin) {
+            if (propertyId) {
+                propertyFilter.id = propertyId;
+            }
+        } else {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+            if (propertyId) {
+                propertyFilter.id = propertyId;
+            }
+        }
+
+        // 1. Today's check-ins
+        const checkIns = await (this.prisma as any).bookingRoom.count({
+            where: {
+                booking: {
+                    checkInDate: { gte: today, lt: tomorrow },
+                    status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+                },
+                room: { property: propertyFilter }
+            },
+        });
+
+        // 2. Today's check-outs
+        const checkOuts = await (this.prisma as any).bookingRoom.count({
+            where: {
+                booking: {
+                    checkOutDate: { gte: today, lt: tomorrow },
+                    status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+                },
+                room: { property: propertyFilter }
+            },
+        });
+
+        // 3. Current Occupancy
+        const totalRooms = await this.prisma.room.count({
+            where: { isEnabled: true, property: propertyFilter },
+        });
+
+        const occupiedRooms = await (this.prisma as any).bookingRoom.count({
+            where: {
+                booking: {
+                    status: 'CHECKED_IN',
+                    checkInDate: { lte: new Date() },
+                    checkOutDate: { gt: new Date() },
+                },
+                room: { property: propertyFilter }
+            }
+        });
+
+        const bookedToday = await this.prisma.booking.count({
+            where: {
+                checkInDate: { gte: today, lt: tomorrow },
+                room: { property: propertyFilter }
+            }
+        });
+
+        // 4. Fetch dynamic rooms with block & booking details for targetDate
+        const allRooms = await this.roomsService.findAll(user, { propertyId, date: format(targetDate, 'yyyy-MM-dd') });
+
+        let availableCount = 0;
+        let occupiedCount = 0;
+        let maintenanceCount = 0;
+        let blockedCount = 0;
+        let reservedCount = 0;
+        let outTodayCount = 0;
+
+        const roomsList = allRooms.map((room: any) => {
+            switch (room.status) {
+                case 'AVAILABLE': availableCount++; break;
+                case 'OCCUPIED': occupiedCount++; break;
+                case 'OUT_TODAY': outTodayCount++; break;
+                case 'MAINTENANCE': maintenanceCount++; break;
+                case 'BLOCKED': blockedCount++; break;
+                case 'RESERVED': reservedCount++; break;
+            }
+
+            // Find block details for targetDate if blocked
+            let activeBlockDetails: any = null;
+            if (room.blocks && room.blocks.length > 0) {
+                const b = room.blocks.find((blk: any) => {
+                    const blkStart = new Date(blk.startDate); blkStart.setHours(0, 0, 0, 0);
+                    const blkEnd = new Date(blk.endDate); blkEnd.setHours(0, 0, 0, 0);
+                    return targetDate >= blkStart && targetDate < blkEnd;
+                });
+                if (b) {
+                    activeBlockDetails = {
+                        id: b.id,
+                        reason: b.reason,
+                        notes: b.notes,
+                        startDate: b.startDate,
+                        endDate: b.endDate,
+                    };
+                }
+            }
+
+            // Find active booking for targetDate
+            const bookingRoomsList = room.bookingRooms || [];
+            const activeBookingForTarget = bookingRoomsList.find((br: any) => {
+                const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return targetDate >= checkIn && targetDate < checkOut;
+            })?.booking;
+
+            const checkoutBookingTarget = bookingRoomsList.find((br: any) => {
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return targetDate.getTime() === checkOut.getTime();
+            })?.booking;
+
+            let guestName = '';
+            if (activeBookingForTarget) {
+                const g = activeBookingForTarget.guests?.[0] || activeBookingForTarget.user;
+                if (g?.firstName) guestName = `${g.firstName} ${g.lastName || ''}`.trim();
+            } else if (checkoutBookingTarget) {
+                const g = checkoutBookingTarget.guests?.[0] || checkoutBookingTarget.user;
+                if (g?.firstName) guestName = `${g.firstName} ${g.lastName || ''}`.trim();
+            }
+
+            return {
+                id: room.id,
+                roomNumber: room.roomNumber,
+                floor: room.floor,
+                roomTypeId: room.roomTypeId,
+                status: room.status,
+                guestName: guestName || null,
+                blockDetails: activeBlockDetails,
+                _activeBooking: activeBookingForTarget || null,
+                _checkoutBooking: checkoutBookingTarget || null,
+            };
+        }).sort((a: any, b: any) => {
+            if (a.floor === b.floor) {
+                return a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true });
+            }
+            return (a.floor || 0) - (b.floor || 0);
+        });
+
+        // 5. Financial Overview
+        const incomeToday = await this.prisma.income.aggregate({
+            where: {
+                OR: [
+                    {
+                        bookingId: { not: null },
+                        booking: { checkInDate: { gte: today, lt: tomorrow }, property: propertyFilter }
+                    },
+                    {
+                        eventBookingId: { not: null },
+                        eventBooking: { event: { date: { gte: today, lt: tomorrow }, property: propertyFilter } }
+                    },
+                    {
+                        bookingId: null,
+                        eventBookingId: null,
+                        date: { gte: today, lt: tomorrow },
+                        ...(isGlobalAdmin ? {} : { property: propertyFilter })
+                    }
+                ]
+            },
+            _sum: { amount: true },
+        });
+
+        const feesToday = await this.prisma.payment.aggregate({
+            where: {
+                paymentDate: { gte: today, lt: tomorrow },
+                status: 'PAID',
+                booking: { property: propertyFilter }
+            },
+            _sum: { platformFee: true },
+        });
+
+        return {
+            date: targetDate,
+            checkIns,
+            checkOuts,
+            occupancy: {
+                total: totalRooms,
+                occupied: occupiedRooms,
+                percentage: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
+            },
+            revenue: Number(incomeToday._sum.amount || 0),
+            todayFees: Number(feesToday._sum.platformFee || 0),
+            bookingsCreated: bookedToday,
+            statusSummary: {
+                AVAILABLE: availableCount,
+                OUT_TODAY: outTodayCount,
+                RESERVED: reservedCount,
+                OCCUPIED: occupiedCount,
+                MAINTENANCE: maintenanceCount,
+                BLOCKED: blockedCount,
+                TOTAL: roomsList.length,
+            },
+            roomsList,
+        };
     }
 
     /**
@@ -136,70 +351,35 @@ export class ReportsService {
             }
         })
 
-        // 3.5 Room Status Summary
-        const rawAvailableCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'AVAILABLE', property: propertyFilter }
-        });
+        // 3.5 Room Status Summary (Dynamic logic via RoomsService)
+        let availableCount = 0;
+        let occupiedCount = 0;
+        let maintenanceCount = 0;
+        let blockedCount = 0;
+        let reservedCount = 0;
 
-        const reservedCount = await this.prisma.room.count({
-            where: {
-                isEnabled: true,
-                status: 'AVAILABLE',
-                property: propertyFilter,
-                OR: [
-                    {
-                        bookings: {
-                            some: {
-                                status: 'CONFIRMED',
-                                checkInDate: { lte: today },
-                                checkOutDate: { gt: today }
-                            }
-                        }
-                    },
-                    {
-                        blocks: {
-                            some: {
-                                booking: {
-                                    status: 'CONFIRMED',
-                                    checkInDate: { lte: today },
-                                    checkOutDate: { gt: today }
-                                }
-                            }
-                        }
-                    }
-                ]
+        const allRooms = await this.roomsService.findAll(user, { propertyId });
+        
+        for (const room of allRooms) {
+            switch (room.status) {
+                case 'AVAILABLE':
+                    availableCount++;
+                    break;
+                case 'OCCUPIED':
+                case 'OUT_TODAY':
+                    occupiedCount++;
+                    break;
+                case 'MAINTENANCE':
+                    maintenanceCount++;
+                    break;
+                case 'BLOCKED':
+                    blockedCount++;
+                    break;
+                case 'RESERVED':
+                    reservedCount++;
+                    break;
             }
-        });
-
-        const occupiedFromBlocksCount = await this.prisma.room.count({
-            where: {
-                isEnabled: true,
-                status: 'AVAILABLE',
-                property: propertyFilter,
-                blocks: {
-                    some: {
-                        booking: {
-                            status: 'CHECKED_IN',
-                            checkInDate: { lte: today },
-                            checkOutDate: { gt: today }
-                        }
-                    }
-                }
-            }
-        });
-
-        const availableCount = rawAvailableCount - reservedCount - occupiedFromBlocksCount;
-
-        const dbOccupiedCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'OCCUPIED', property: propertyFilter }
-        });
-        const occupiedCount = dbOccupiedCount + occupiedFromBlocksCount;
-        const maintenanceCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'MAINTENANCE', property: propertyFilter }
-        });
-        const blockedCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'BLOCKED', property: propertyFilter }
-        });
+        }
 
         // 4. Today's Revenue (Income created today)
         const incomeToday = await this.prisma.income.aggregate({
@@ -249,11 +429,18 @@ export class ReportsService {
             },
         });
 
-        // 5. Rooms list for dashboard grid (Lite version)
-        const roomsList = await this.prisma.room.findMany({
-            where: { isEnabled: true, property: propertyFilter },
-            select: { id: true, roomNumber: true, status: true, roomTypeId: true },
-            orderBy: { roomNumber: 'asc' }
+        // 5. Rooms list for dashboard grid (Lite version) - using dynamic statuses from allRooms!
+        const roomsList = allRooms.map((room: any) => ({
+            id: room.id,
+            roomNumber: room.roomNumber,
+            status: room.status,
+            roomTypeId: room.roomTypeId,
+            floor: room.floor,
+        })).sort((a: any, b: any) => {
+            if (a.floor === b.floor) {
+                return a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true });
+            }
+            return (a.floor || 0) - (b.floor || 0);
         });
 
         return {

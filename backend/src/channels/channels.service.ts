@@ -1,10 +1,12 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../bookings/availability.service';
+import { PricingService } from '../bookings/pricing.service';
 import { IChannelAdapter, InventoryUpdateDto, RateUpdateDto } from './interfaces/channel-adapter.interface';
 import { ChannexAdapter } from './adapters/channex.adapter';
 import { MockAdapter } from './adapters/mock.adapter';
 import { format, addDays } from 'date-fns';
+import { DateUtils } from '../common/utils/date.utils';
 
 @Injectable()
 export class ChannelsService {
@@ -14,6 +16,7 @@ export class ChannelsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
+    private readonly pricingService: PricingService,
     private readonly channexAdapter: ChannexAdapter,
     private readonly mockAdapter: MockAdapter,
   ) {
@@ -1007,8 +1010,7 @@ export class ChannelsService {
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = DateUtils.parseCalendarDate(new Date());
 
     for (const mapping of mappings) {
       const adapter = this.getAdapter(mapping.channelName);
@@ -1047,6 +1049,17 @@ export class ChannelsService {
       }
 
       for (const roomMapping of currentRoomMappings) {
+        // Fetch published daily rates for the full sync window from the Pricing SSOT
+        const checkInStart = today;
+        const checkOutEnd = addDays(today, daysToSync);
+        const dailyRates = await this.pricingService.getPublishedDailyRates(
+          roomMapping.roomTypeId,
+          checkInStart,
+          checkOutEnd
+        );
+        this.logger.debug(`[Channex Sync] Fetched ${dailyRates.length} daily rates for RoomType [${roomMapping.roomTypeId}]`);
+        const ratesMap = new Map(dailyRates.map(r => [r.date, r.publishedPrice]));
+
         // Calculate daily inventory for each date
         for (let i = 0; i < daysToSync; i++) {
           const checkIn = addDays(today, i);
@@ -1067,14 +1080,15 @@ export class ChannelsService {
             availableRooms: availableRoomsList.length,
           });
 
-          // Push rate if base price is available
-          if (roomMapping.roomType?.basePrice) {
+          // Push rate from SSOT
+          const dailyPrice = ratesMap.get(dateStr);
+          if (dailyPrice !== undefined) {
             rateUpdates.push({
               date: dateStr,
               roomTypeId: roomMapping.roomTypeId,
               externalRoomTypeId: roomMapping.externalRoomTypeId,
               externalRatePlanId: roomMapping.externalRatePlanId || undefined,
-              price: Number(roomMapping.roomType.basePrice),
+              price: dailyPrice,
             });
           }
         }
@@ -1083,6 +1097,7 @@ export class ChannelsService {
       // Push to adapter
       await adapter.pushInventory(mapping, inventoryUpdates);
       if (rateUpdates.length > 0) {
+        this.logger.debug(`[Channex Sync] Pushing ${rateUpdates.length} rate updates to adapter`);
         await adapter.pushRates(mapping, rateUpdates);
       }
     }
@@ -1117,6 +1132,37 @@ export class ChannelsService {
         if (!invOk) success = false;
       }
       if (rateUpdates && rateUpdates.length > 0) {
+        // Enforce Pricing SSOT on Delta Updates
+        const roomTypeGroups = new Map<string, RateUpdateDto[]>();
+        for (const update of rateUpdates) {
+          if (!roomTypeGroups.has(update.roomTypeId)) {
+            roomTypeGroups.set(update.roomTypeId, []);
+          }
+          roomTypeGroups.get(update.roomTypeId)!.push(update);
+        }
+
+        for (const [roomTypeId, updates] of roomTypeGroups.entries()) {
+          const dates = updates.map(u => new Date(u.date).getTime());
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          
+          const dailyRates = await this.pricingService.getPublishedDailyRates(
+            roomTypeId,
+            minDate,
+            addDays(maxDate, 1)
+          );
+          this.logger.debug(`[Channex Delta Sync] Fetched ${dailyRates.length} daily rates for RoomType [${roomTypeId}]`);
+          const ratesMap = new Map(dailyRates.map(r => [r.date, r.publishedPrice]));
+
+          for (const update of updates) {
+            const price = ratesMap.get(update.date);
+            if (price !== undefined) {
+              update.price = price;
+            }
+          }
+        }
+
+        this.logger.debug(`[Channex Delta Sync] Pushing ${rateUpdates.length} rate updates to adapter`);
         const rateOk = await adapter.pushRates(mapping, rateUpdates);
         if (!rateOk) success = false;
       }

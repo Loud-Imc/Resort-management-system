@@ -25,6 +25,21 @@ export class ReportsController {
         return this.reportsService.getDashboardStats(req.user, propertyId);
     }
 
+    @Get('dashboard-unified')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_DASHBOARD)
+    @ApiOperation({ summary: "Get unified dashboard data with date-aware room statuses and calendar metrics" })
+    @ApiQuery({ name: 'propertyId', required: false })
+    @ApiQuery({ name: 'date', required: false })
+    @ApiQuery({ name: 'month', required: false })
+    getDashboardUnified(
+        @Request() req,
+        @Query('propertyId') propertyId?: string,
+        @Query('date') date?: string,
+        @Query('month') month?: string,
+    ) {
+        return this.reportsService.getDashboardUnified(req.user, propertyId, date, month);
+    }
+
     @Get('financial')
     @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
     @ApiOperation({ summary: 'Get financial report' })

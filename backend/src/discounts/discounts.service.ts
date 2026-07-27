@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ChannelsService } from '../channels/channels.service';
 import { CreateCouponDto, UpdateCouponDto, CreateOfferDto, UpdateOfferDto } from './dto/discounts.dto';
+import { DateUtils } from '../common/utils/date.utils';
 
 @Injectable()
 export class DiscountsService {
-    constructor(private prisma: PrismaService) { }
+    private readonly logger = new Logger(DiscountsService.name);
+
+    constructor(
+        private prisma: PrismaService,
+        @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
+    ) { }
 
     // ============================================
     // COUPON MANAGEMENT (Admin Only)
@@ -111,16 +118,26 @@ export class DiscountsService {
             }
         }
 
-        return this.prisma.offer.create({
+        const offer = await this.prisma.offer.create({
             data: {
                 ...offerData,
-                startDate: new Date(offerData.startDate),
-                endDate: new Date(offerData.endDate),
+                startDate: DateUtils.parseCalendarDate(offerData.startDate),
+                endDate: DateUtils.parseCalendarDate(offerData.endDate),
                 roomTypes: {
                     connect: roomTypeIds.map(id => ({ id }))
                 }
             }
         });
+
+        // [PRC-01] Auto-sync properties affected by this offer
+        const propertyIds = [...new Set(roomTypes.map(rt => rt.propertyId))];
+        propertyIds.forEach(propertyId => {
+            this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${propertyId} after offer creation: ${err.message}`, err.stack);
+            });
+        });
+
+        return offer;
     }
 
     async findAllOffers(user: any) {
@@ -166,9 +183,10 @@ export class DiscountsService {
 
     async updateOffer(id: string, user: any, data: UpdateOfferDto) {
         const { roomTypeIds, ...offerData } = data;
-        await this.findOneOffer(id, user);
+        const oldOffer = await this.findOneOffer(id, user);
+        const oldPropertyIds = oldOffer.roomTypes.map(rt => rt.propertyId);
 
-        return this.prisma.offer.update({
+        const updatedOffer = await this.prisma.offer.update({
             where: { id },
             data: {
                 ...offerData,
@@ -179,10 +197,39 @@ export class DiscountsService {
                 } : undefined
             }
         });
+
+        let newPropertyIds: string[] = [];
+        if (roomTypeIds && roomTypeIds.length > 0) {
+            const newRoomTypes = await this.prisma.roomType.findMany({
+                where: { id: { in: roomTypeIds } },
+                select: { propertyId: true }
+            });
+            newPropertyIds = newRoomTypes.map(rt => rt.propertyId);
+        }
+
+        // [PRC-01] Auto-sync properties affected by this offer (both old and new)
+        const allPropertyIds = [...new Set([...oldPropertyIds, ...newPropertyIds])];
+        allPropertyIds.forEach(propertyId => {
+            this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${propertyId} after offer update: ${err.message}`, err.stack);
+            });
+        });
+
+        return updatedOffer;
     }
 
     async removeOffer(id: string, user: any) {
-        await this.findOneOffer(id, user);
-        return this.prisma.offer.delete({ where: { id } });
+        const offer = await this.findOneOffer(id, user);
+        const deleted = await this.prisma.offer.delete({ where: { id } });
+
+        // [PRC-01] Auto-sync properties affected by this offer
+        const propertyIds = [...new Set(offer.roomTypes.map(rt => rt.propertyId))];
+        propertyIds.forEach(propertyId => {
+            this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${propertyId} after offer deletion: ${err.message}`, err.stack);
+            });
+        });
+
+        return deleted;
     }
 }

@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ChannelsService } from '../channels/channels.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 
@@ -7,7 +8,11 @@ import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 export class RoomTypesService {
     private readonly logger = new Logger(RoomTypesService.name);
 
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
+    ) { }
+
 
     /**
      * Recompute and persist property.maxGroupCapacity as the SUM of
@@ -67,6 +72,11 @@ export class RoomTypesService {
             if (roomType.isAvailableForGroupBooking) {
                 await this.syncPropertyGroupCapacity(roomType.propertyId);
             }
+
+            // [PRC-01] Auto-sync with Channex in background
+            this.channelsService.pushAriForProperty(roomType.propertyId, 60).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${roomType.propertyId} after room type creation: ${err.message}`, err.stack);
+            });
 
             return roomType;
         } catch (error) {
@@ -191,6 +201,11 @@ export class RoomTypesService {
                 await this.syncPropertyGroupCapacity(updated.propertyId);
             }
 
+            // [PRC-01] Auto-sync with Channex in background
+            this.channelsService.pushAriForProperty(updated.propertyId, 60).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${updated.propertyId} after room type update: ${err.message}`, err.stack);
+            });
+
             return updated;
         } catch (error) {
             this.logger.error(`Error updating room type ${id}: ${error.message}`, error.stack);
@@ -214,6 +229,11 @@ export class RoomTypesService {
             if (existing.isAvailableForGroupBooking) {
                 await this.syncPropertyGroupCapacity(existing.propertyId);
             }
+
+            // [PRC-01] Auto-sync with Channex in background
+            this.channelsService.pushAriForProperty(existing.propertyId, 60).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${existing.propertyId} after room type deletion: ${err.message}`, err.stack);
+            });
 
             return deleted;
         } catch (error) {

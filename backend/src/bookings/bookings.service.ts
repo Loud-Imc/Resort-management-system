@@ -164,11 +164,12 @@ export class BookingsService {
             if (!roomType) {
                 throw new NotFoundException('Room type not found');
             }
-            const maxAdults = roomType.maxAdults || 2;
-            const maxChildren = roomType.maxChildren || 2;
-            const requiredRoomsByAdults = Math.ceil(adultsCount / (maxAdults + 1));
-            const requiredRoomsByChildren = maxChildren > 0 ? Math.ceil(childrenCount / (maxChildren + 1)) : (childrenCount > 0 ? childrenCount : 1);
-            requiredRooms = Math.max(requiredRoomsByAdults, requiredRoomsByChildren, 1);
+            const maxAdults = Math.max(1, roomType.maxAdults || 2);
+            const maxChildren = Math.max(1, roomType.maxChildren || 2);
+            const requiredRoomsByAdults = Math.ceil(adultsCount / maxAdults);
+            const requiredRoomsByChildren = childrenCount > 0 ? Math.ceil(childrenCount / maxChildren) : 0;
+            const calculatedRooms = Math.max(requiredRoomsByAdults, requiredRoomsByChildren, 1);
+            requiredRooms = Math.max(createBookingDto.roomsCount || 0, calculatedRooms);
         }
 
         // 2. Check availability (standard booking only — group bookings validate via allocateRoomsForGroup below)
@@ -219,6 +220,8 @@ export class BookingsService {
                 generalCode,
                 overrideTotal,
                 createBookingDto.isOverrideInclusive ?? true,
+                createBookingDto.extraAdultsCount,
+                createBookingDto.extraChildrenCount,
             );
         }
 
@@ -679,6 +682,51 @@ export class BookingsService {
             }
 
 
+            // Resolve Offline CP & Automatic Source Name
+            let resolvedOfflineCpId = createBookingDto.offlineCpId;
+            let resolvedOfflineCpCommission = createBookingDto.offlineCpCommission || 0;
+            let offlineCpNameForChannel: string | null = null;
+
+            if (createBookingDto.newOfflineCpName && createBookingDto.newOfflineCpName.trim()) {
+                const trimmedName = createBookingDto.newOfflineCpName.trim();
+                const existingCp = await tx.offlineCP.findUnique({
+                    where: {
+                        propertyId_name: {
+                            propertyId: selectedRoom.propertyId,
+                            name: trimmedName,
+                        },
+                    },
+                });
+
+                if (existingCp) {
+                    resolvedOfflineCpId = existingCp.id;
+                    offlineCpNameForChannel = existingCp.name;
+                } else {
+                    const createdCp = await tx.offlineCP.create({
+                        data: {
+                            name: trimmedName,
+                            phone: createBookingDto.newOfflineCpPhone || null,
+                            defaultCommission: resolvedOfflineCpCommission,
+                            propertyId: selectedRoom.propertyId,
+                        },
+                    });
+                    resolvedOfflineCpId = createdCp.id;
+                    offlineCpNameForChannel = createdCp.name;
+                }
+            } else if (resolvedOfflineCpId) {
+                const cp = await tx.offlineCP.findUnique({ where: { id: resolvedOfflineCpId } });
+                if (cp) offlineCpNameForChannel = cp.name;
+            }
+
+            let computedChannelName = 'RouteGuide OTA';
+            if (offlineCpNameForChannel) {
+                computedChannelName = `Offline CP: ${offlineCpNameForChannel}`;
+            } else if (channelPartnerId) {
+                computedChannelName = 'RouteGuide CP';
+            } else if (isAuthorizedStaff || isManualBooking) {
+                computedChannelName = 'RouteGuide PMS';
+            }
+
             const newBooking = await tx.booking.create({
                 data: {
                     createdAt: effectiveCreatedAt,
@@ -689,6 +737,8 @@ export class BookingsService {
                     numberOfNights: pricing.numberOfNights,
                     adultsCount,
                     childrenCount,
+                    extraAdultsCount: createBookingDto.extraAdultsCount || 0,
+                    extraChildrenCount: createBookingDto.extraChildrenCount || 0,
                     baseAmount: pricing.baseAmount,
                     extraAdultAmount: pricing.extraAdultAmount,
                     extraChildAmount: pricing.extraChildAmount,
@@ -716,6 +766,9 @@ export class BookingsService {
                     propertyId: selectedRoom.propertyId,
                     userId: finalBookingUserId,
                     bookingSourceId,
+                    offlineCpId: resolvedOfflineCpId || null,
+                    offlineCpCommission: resolvedOfflineCpCommission || 0,
+                    channelName: computedChannelName,
                     agentId,
                     commissionAmount,
                     channelPartnerId,
@@ -920,32 +973,16 @@ export class BookingsService {
                 }
             }
 
-            // 7.7 If Group Booking OR Multiple selected rooms, block extra rooms
-            const roomsToBlock = isGroupBooking ? allocatedRooms.slice(1) : selectedRooms.slice(1);
-            if (roomsToBlock.length > 0) {
-                for (const room of roomsToBlock) {
-                    await tx.roomBlock.create({
-                        data: {
-                            roomId: room.id,
-                            startDate: checkIn,
-                            endDate: checkOut,
-                            reason: isGroupBooking ? `Group Booking ${bookingNumber}` : `Multi-Room Booking ${bookingNumber}`,
-                            notes: `Automatically blocked for booking ${newBooking.id}`,
-                            createdById: finalBookingUserId,
-                            bookingId: newBooking.id,
-                        }
-                    });
-                }
-            }
-
             return newBooking;
         });
 
         // 8. Broadcast notifications (Outside transaction)
         if (['CONFIRMED', 'RESERVED'].includes(booking.status)) {
             await this.notificationsService.broadcastNewBooking(booking);
-            this.triggerChannexSync(booking.propertyId);
         }
+
+        // Always trigger Channex ARI push whenever any booking is created across any channel (OTA, PMS, CP)
+        this.triggerChannexSync(booking.propertyId);
 
         return booking;
     }
@@ -1284,6 +1321,7 @@ export class BookingsService {
                 bookingSource: true,
                 payments: true,
                 channelPartner: true,
+                offlineCp: true,
                 roomBlocks: {
                     include: {
                         room: {
@@ -1298,6 +1336,18 @@ export class BookingsService {
                         room: {
                             include: {
                                 roomType: true
+                            }
+                        }
+                    }
+                },
+                auditLogs: {
+                    where: { action: 'RESCHEDULE' },
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        user: {
+                            select: {
+                                firstName: true,
+                                lastName: true
                             }
                         }
                     }
@@ -2095,6 +2145,7 @@ export class BookingsService {
     }
 
     async reschedule(id: string, dto: RescheduleBookingDto, user: any) {
+        console.log('RESCHEDULE DTO RECEIVED:', JSON.stringify(dto, null, 2));
         // Drop the constraint that prevents totalAmount from being less than paidAmount
         // so that we can support price overrides that decrease the total price below what was already paid.
         try {
@@ -2113,6 +2164,7 @@ export class BookingsService {
                 coupon: true,
                 channelPartner: true,
                 guests: true,
+                user: true,
                 bookingRooms: {
                     include: {
                         room: {
@@ -2285,6 +2337,8 @@ export class BookingsService {
             booking.couponCode || undefined,
             dto.overrideTotal !== undefined && dto.overrideTotal !== null ? Number(dto.overrideTotal) : undefined,
             true,
+            dto.extraAdultsCount !== undefined ? Number(dto.extraAdultsCount) : (booking as any).extraAdultsCount,
+            dto.extraChildrenCount !== undefined ? Number(dto.extraChildrenCount) : (booking as any).extraChildrenCount,
         );
 
         // Update in a transaction
@@ -2398,6 +2452,8 @@ export class BookingsService {
                     roomTypeId: targetRoomTypeId,
                     adultsCount: dto.adultsCount !== undefined ? Number(dto.adultsCount) : undefined,
                     childrenCount: dto.childrenCount !== undefined ? Number(dto.childrenCount) : undefined,
+                    extraAdultsCount: dto.extraAdultsCount !== undefined ? Number(dto.extraAdultsCount) : undefined,
+                    extraChildrenCount: dto.extraChildrenCount !== undefined ? Number(dto.extraChildrenCount) : undefined,
                     groupSize: booking.isGroupBooking
                         ? (Number(dto.adultsCount !== undefined ? dto.adultsCount : booking.adultsCount) +
                            Number(dto.childrenCount !== undefined ? dto.childrenCount : booking.childrenCount))
@@ -2413,6 +2469,7 @@ export class BookingsService {
                     status: newStatus,
                     paymentStatus,
                     cancelledAt: null, // Reset no-show cancellation date
+                    specialRequests: dto.specialRequests !== undefined ? dto.specialRequests : undefined,
                     isPriceOverridden: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? true : booking.isPriceOverridden,
                     overrideReason: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? (dto.overrideReason || 'Rescheduled Price Override') : booking.overrideReason,
                     rescheduleCount: { increment: 1 },
@@ -2429,6 +2486,9 @@ export class BookingsService {
                 }
             });
 
+            const primaryNewGuest = dto.guests?.[0];
+            const oldGuest = booking.guests?.[0];
+
             // Log the action
             await this.auditService.createLog({
                 action: 'RESCHEDULE',
@@ -2439,13 +2499,31 @@ export class BookingsService {
                     checkInDate: booking.checkInDate,
                     checkOutDate: booking.checkOutDate,
                     totalAmount: booking.totalAmount,
-                    status: booking.status
+                    status: booking.status,
+                    bookerName: booking.user ? `${booking.user.firstName || ''} ${booking.user.lastName || ''}`.trim() : '',
+                    bookerEmail: booking.user?.email || '',
+                    bookerPhone: booking.user?.phone || '',
+                    bookerWhatsapp: booking.whatsappNumber || booking.user?.whatsappNumber || '',
+                    guestName: oldGuest ? `${oldGuest.firstName || ''} ${oldGuest.lastName || ''}`.trim() : '',
+                    guestEmail: oldGuest?.email || '',
+                    guestPhone: oldGuest?.phone || '',
+                    guestWhatsapp: oldGuest?.whatsappNumber || '',
+                    specialRequests: booking.specialRequests || ''
                 },
                 newValue: {
                     checkInDate: updated.checkInDate,
                     checkOutDate: updated.checkOutDate,
                     totalAmount: updated.totalAmount,
-                    status: updated.status
+                    status: updated.status,
+                    bookerName: dto.guestName || '',
+                    bookerEmail: dto.guestEmail || '',
+                    bookerPhone: dto.guestPhone || '',
+                    bookerWhatsapp: dto.whatsappNumber || '',
+                    guestName: primaryNewGuest ? `${primaryNewGuest.firstName || ''} ${primaryNewGuest.lastName || ''}`.trim() : (dto.guestName || ''),
+                    guestEmail: primaryNewGuest?.email || dto.guestEmail || '',
+                    guestPhone: primaryNewGuest?.phone || dto.guestPhone || '',
+                    guestWhatsapp: primaryNewGuest?.whatsappNumber || dto.whatsappNumber || '',
+                    specialRequests: dto.specialRequests || ''
                 },
                 bookingId: id
             }, tx);

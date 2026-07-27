@@ -4,6 +4,7 @@ import { PropertyStatus } from '@prisma/client';
 import { PricingService } from './pricing.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { format, eachDayOfInterval } from 'date-fns';
+import { DateUtils } from '../common/utils/date.utils';
 @Injectable()
 export class AvailabilityService {
     constructor(
@@ -216,8 +217,10 @@ export class AvailabilityService {
 
         if (!room || !room.isEnabled) return false;
 
-        // Strict Status Blocks: If room is Maintenance or Blocked, it cannot be booked at all.
-        if (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') {
+        // Strict Status Blocks: If room is Maintenance, it cannot be booked at all.
+        // We do NOT check for 'BLOCKED' here because blocks have specific start/end dates.
+        // The RoomBlock overlap query below will accurately determine if it is blocked for the requested dates.
+        if (room.status === 'MAINTENANCE') {
             return false;
         }
 
@@ -231,8 +234,8 @@ export class AvailabilityService {
         }
 
         // Time-aware Smart Today check
-        const todayStr = new Date().toISOString().split('T')[0];
-        const checkInStr = checkInDate.toISOString().split('T')[0];
+        const todayStr = DateUtils.getTodayStr();
+        const checkInStr = DateUtils.toCalendarDateStr(checkInDate);
         
         if (checkInStr <= todayStr && room.status === 'OCCUPIED') {
             const checkOutTimeStr = room.property?.defaultCheckOutTime || '11:00';
@@ -284,7 +287,10 @@ export class AvailabilityService {
 
         const overlappingBookings = await db.booking.findMany({
             where: {
-                roomId,
+                OR: [
+                    { roomId },
+                    { bookingRooms: { some: { roomId } } }
+                ],
                 AND: [
                     {
                         OR: [
@@ -389,7 +395,10 @@ export class AvailabilityService {
 
         if (!room || !room.isEnabled) return false;
 
-        if (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') {
+        // Strict Status Blocks: If room is Maintenance, it cannot be booked at all.
+        // We do NOT check for 'BLOCKED' here because blocks have specific start/end dates.
+        // The RoomBlock overlap query below will accurately determine if it is blocked for the requested dates.
+        if (room.status === 'MAINTENANCE') {
             return false;
         }
 
@@ -403,8 +412,8 @@ export class AvailabilityService {
         }
 
         // Time-aware Smart Today check
-        const todayStr = new Date().toISOString().split('T')[0];
-        const checkInStr = checkInDate.toISOString().split('T')[0];
+        const todayStr = DateUtils.getTodayStr();
+        const checkInStr = DateUtils.toCalendarDateStr(checkInDate);
         
         if (checkInStr <= todayStr && room.status === 'OCCUPIED') {
             const checkOutTimeStr = room.property?.defaultCheckOutTime || '11:00';
@@ -914,6 +923,12 @@ export class AvailabilityService {
                     numberOfNights: pricing.numberOfNights,
                     isSoldOut: availableCount < rooms,
                     isGstInclusive: pricing.isGstInclusive,
+                    offerName: pricing.offerName,
+                    offerDescription: pricing.offerDescription,
+                    offerStartDate: pricing.offerStartDate,
+                    offerEndDate: pricing.offerEndDate,
+                    offerDiscountType: pricing.offerDiscountType,
+                    offerDiscountValue: pricing.offerDiscountValue,
                 });
             }
         }

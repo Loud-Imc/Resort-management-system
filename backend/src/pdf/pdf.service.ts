@@ -305,9 +305,10 @@ export class PdfService {
                     ...(booking.isGroupBooking ? [
                       { text: `Group Booking of ${booking.groupSize || 0} People`, style: 'groupBookingInfo', margin: [0, 0, 0, 4] }
                     ] : []),
+                    { text: `${booking.roomsCount || booking.bookingRooms?.length || 1} ${(booking.roomsCount || booking.bookingRooms?.length || 1) === 1 ? 'Room' : 'Rooms'}`, style: 'guestCount' },
                     { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },
                     ...(booking.bookingRooms && booking.bookingRooms.length > 0 ? [
-                      { text: `Room(s): ${booking.bookingRooms.map((br: any) => br.room?.roomNumber).filter(Boolean).join(', ')}`, style: 'guestCount' }
+                      { text: `Assigned Room(s): ${booking.bookingRooms.map((br: any) => br.room?.roomNumber).filter(Boolean).join(', ')}`, style: 'guestCount' }
                     ] : []),
                     { text: `${booking.numberOfNights || 0} Night(s)`, style: 'guestCount' },
                   ],

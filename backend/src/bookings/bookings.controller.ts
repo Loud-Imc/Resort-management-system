@@ -106,7 +106,13 @@ export class BookingsController {
                     name: r.name,
                     roomNumber: r.roomNumber,
                     roomType: type.name,
-                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))
+                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0)),
+                    maxAdults: type.maxAdults,
+                    maxChildren: type.maxChildren || 0,
+                    baseAdults: type.baseAdults ?? type.maxAdults ?? 2,
+                    baseChildren: type.baseChildren ?? type.maxChildren ?? 1,
+                    maxPhysicalAdults: type.maxPhysicalAdults ?? 4,
+                    maxPhysicalChildren: type.maxPhysicalChildren ?? 2,
                 })));
             }
 
@@ -131,7 +137,13 @@ export class BookingsController {
                 name: r.name,
                 roomNumber: r.roomNumber,
                 roomType: roomType?.name || 'N/A',
-                capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0
+                capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0,
+                maxAdults: roomType?.maxAdults || 0,
+                maxChildren: roomType?.maxChildren || 0,
+                baseAdults: roomType?.baseAdults ?? roomType?.maxAdults ?? 2,
+                baseChildren: roomType?.baseChildren ?? roomType?.maxChildren ?? 1,
+                maxPhysicalAdults: roomType?.maxPhysicalAdults ?? 4,
+                maxPhysicalChildren: roomType?.maxPhysicalChildren ?? 2,
             }));
         }
 
@@ -195,10 +207,12 @@ export class BookingsController {
             dto.currency,
             dto.isGroupBooking,
             dto.groupSize,
-            dto.roomCount,
+            dto.roomCount || dto.roomsCount,
             dto.generalCode,
             dto.overrideTotal,
             dto.isOverrideInclusive ?? true,
+            dto.extraAdultsCount,
+            dto.extraChildrenCount,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {
@@ -432,6 +446,10 @@ export class BookingsController {
         @Body() dto: RescheduleBookingDto,
         @Request() req
     ) {
+        const body = req.body || {};
+        if (body.specialRequests !== undefined && dto.specialRequests === undefined) {
+            dto.specialRequests = body.specialRequests;
+        }
         return this.bookingsService.reschedule(id, dto, req.user);
     }
 

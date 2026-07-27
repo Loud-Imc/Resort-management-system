@@ -48,6 +48,20 @@ export class RescheduleBookingDto {
     @Type(() => Number)
     childrenCount?: number;
 
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraAdultsCount?: number;
+
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraChildrenCount?: number;
+
     @ApiProperty({ example: 'John Doe', required: false })
     @IsString()
     @IsOptional()
@@ -74,4 +88,9 @@ export class RescheduleBookingDto {
     @Type(() => GuestInfoDto)
     @IsOptional()
     guests?: GuestInfoDto[];
+
+    @ApiProperty({ example: 'Vegetarian meals only', required: false })
+    @IsString()
+    @IsOptional()
+    specialRequests?: string;
 }

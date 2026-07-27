@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
@@ -10,6 +10,7 @@ import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 import { RequestStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
+import { ChannelsService } from '../channels/channels.service';
 
 @Injectable()
 export class PaymentsService {
@@ -23,6 +24,7 @@ export class PaymentsService {
         private notificationsService: NotificationsService,
         private audit: AuditService,
         private systemSettings: SystemSettingsService,
+        @Optional() @Inject(forwardRef(() => ChannelsService)) private channelsService?: ChannelsService,
     ) {
         const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -32,6 +34,13 @@ export class PaymentsService {
         this.razorpay = new Razorpay({
             key_id: keyId,
             key_secret: keySecret,
+        });
+    }
+
+    private triggerChannexSync(propertyId?: string | null) {
+        if (!this.channelsService || !propertyId) return;
+        this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+            console.error(`[Channex ARI Sync] Payment confirmation push failed for property ${propertyId}:`, err);
         });
     }
 
@@ -462,6 +471,7 @@ export class PaymentsService {
 
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
+                this.triggerChannexSync(refreshedBooking.propertyId);
 
                 // Delayed Commission Trigger
                 // If already checked in and now fully paid, trigger payout

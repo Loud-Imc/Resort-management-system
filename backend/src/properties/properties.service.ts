@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 import { RegisterPropertyDto } from './dto/register-property.dto';
@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { normalizePhone } from '../common/utils/phone';
 import { AuditService } from '../audit/audit.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
+import { PricingService } from '../bookings/pricing.service';
 
 @Injectable()
 export class PropertiesService {
@@ -17,6 +18,8 @@ export class PropertiesService {
         private readonly notificationsService: NotificationsService,
         private readonly audit: AuditService,
         private readonly systemSettings: SystemSettingsService,
+        @Inject(forwardRef(() => PricingService))
+        private readonly pricingService: PricingService,
     ) { }
 
     /**
@@ -1024,36 +1027,41 @@ export class PropertiesService {
             throw new NotFoundException('Property not found');
         }
 
-        // Map offers to virtual fields for frontend strikethrough
+        // Map room pricing via Published Pricing API (Single Source of Truth)
         const propertyWithOffers = {
             ...property,
-            roomTypes: property.roomTypes.map(rt => {
-                const activeOffer = rt.offers?.[0];
-                let offerDiscountAmount = 0;
-                let discountedPricePerNight = Number(rt.basePrice);
+            roomTypes: await Promise.all(
+                property.roomTypes.map(async (rt) => {
+                    const quoteArray = await this.pricingService.getPublishedDailyRate(
+                        rt.id,
+                        new Date(),
+                        property.baseCurrency || 'INR',
+                    );
+                    const quote = Array.isArray(quoteArray) ? quoteArray[0] : quoteArray;
 
-                if (activeOffer) {
-                    if (activeOffer.discountType === 'PERCENTAGE') {
-                        offerDiscountAmount = (Number(rt.basePrice) * Number(activeOffer.discountValue)) / 100;
-                    } else {
-                        offerDiscountAmount = Number(activeOffer.discountValue);
+                    let offerDiscountAmount = 0;
+                    if (quote?.breakdown?.appliedOffer) {
+                        const preTaxDiscount = quote.breakdown.basePrice - quote.breakdown.effectivePriceBeforeTax;
+                        if (!rt.isGstInclusive && quote.breakdown.taxRate > 0) {
+                            offerDiscountAmount = preTaxDiscount * (1 + quote.breakdown.taxRate / 100);
+                        } else {
+                            offerDiscountAmount = preTaxDiscount;
+                        }
                     }
-                    discountedPricePerNight = Number(rt.basePrice) - offerDiscountAmount;
-                }
 
-                // Sync with public portal tax logic (12% GST fallback if not inclusive)
-                if (!rt.isGstInclusive) {
-                    const taxRate = 0.12; // Standard 12% GST
-                    discountedPricePerNight = discountedPricePerNight * (1 + taxRate);
-                    offerDiscountAmount = offerDiscountAmount * (1 + taxRate);
-                }
-
-                return {
-                    ...rt,
-                    offerDiscountAmount,
-                    discountedPricePerNight: Number(discountedPricePerNight.toFixed(2)),
-                };
-            }),
+                    return {
+                        ...rt,
+                        offerDiscountAmount: Number(offerDiscountAmount.toFixed(2)),
+                        offerName: quote?.breakdown?.appliedOffer?.name,
+                        offerDescription: (quote?.breakdown?.appliedOffer as any)?.description,
+                        offerStartDate: (quote?.breakdown?.appliedOffer as any)?.startDate,
+                        offerEndDate: (quote?.breakdown?.appliedOffer as any)?.endDate,
+                        offerDiscountType: quote?.breakdown?.appliedOffer?.discountType,
+                        offerDiscountValue: quote?.breakdown?.appliedOffer?.discountValue,
+                        discountedPricePerNight: quote?.publishedPrice || Number(rt.basePrice),
+                    };
+                }),
+            ),
         };
 
         return propertyWithOffers;
