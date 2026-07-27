@@ -20,6 +20,14 @@ export const formatPrice = (amount: number | undefined | null, currencyCode: str
             }
         }
 
+        // Clean floating point precision noise (e.g. 8999.99 -> 9000 or 8999.999999 -> 9000)
+        const roundedInt = Math.round(displayAmount);
+        if (Math.abs(displayAmount - roundedInt) < 0.05 || currencyCode === 'INR') {
+            displayAmount = roundedInt;
+        } else {
+            displayAmount = Math.round(displayAmount * 100) / 100;
+        }
+
         // Use locale based on currency for better formatting
         const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US';
 
@@ -28,7 +36,7 @@ export const formatPrice = (amount: number | undefined | null, currencyCode: str
             currency: currencyCode,
             currencyDisplay: 'symbol',
             minimumFractionDigits: displayAmount % 1 === 0 ? 0 : 2,
-            maximumFractionDigits: 2,
+            maximumFractionDigits: displayAmount % 1 === 0 ? 0 : 2,
         });
 
         return formatter.format(displayAmount);

@@ -6,7 +6,7 @@ import {
     Wifi, Car, Coffee, Dumbbell, Waves, Loader2,
     Building2, Users, Maximize, ChevronRight, ChevronLeft, Clock, Utensils,
     Tv, Trees, Sparkles, Lock, ConciergeBell, Ticket, Snowflake, Sunset, Mountain,
-    Calendar, Wallet,
+    Calendar, Wallet, X, Info,
     Bath, Bed, Monitor, Sofa, Lamp, DoorOpen, Wind
 } from 'lucide-react';
 import { propertyApi } from '../services/properties';
@@ -149,7 +149,7 @@ export default function PropertyDetail() {
         checkOut, setCheckOut,
         adults, setAdults,
         children, setChildren,
-        rooms,
+        rooms, setRooms,
         isGroupBooking, setIsGroupBooking,
         groupSize, setGroupSize
     } = useSearch();
@@ -173,6 +173,7 @@ export default function PropertyDetail() {
     const [loadingNearby, setLoadingNearby] = useState(false);
     const [flexiRates, setFlexiRates] = useState<any[]>([]);
     const [loadingFlexi, setLoadingFlexi] = useState(false);
+    const [selectedOfferDetails, setSelectedOfferDetails] = useState<any | null>(null);
 
     useEffect(() => {
         if (slug) {
@@ -752,19 +753,32 @@ export default function PropertyDetail() {
                                                                                 <PriceDisplay
                                                                                     amount={property.groupPriceChild}
                                                                                     className="text-lg font-black text-primary-600"
-                                                                                />
+                                                 />
                                                                                 <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Per Child / Night</div>
                                                                             </div>
                                                                         )}
                                                                     </div>
                                                                 )}
-                                                                {(groupStay as any).offerName && (
-                                                                    <div className="mt-4 bg-orange-50 text-orange-600 p-3 rounded-lg border border-orange-100 text-center">
-                                                                        <div className="flex items-center justify-center gap-2 mb-1">
-                                                                            <Sparkles className="h-3.5 w-3.5" />
-                                                                            <span className="text-[10px] font-black uppercase tracking-wider">Special Offer</span>
+                                                                {((groupStay as any)?.offerName && Number((groupStay as any)?.offerDiscountAmount) > 0) && (
+                                                                    <div
+                                                                        onClick={() => setSelectedOfferDetails({
+                                                                            name: (groupStay as any)?.offerName || "Group Special Offer",
+                                                                            discountType: (groupStay as any)?.offerDiscountType || "PERCENTAGE",
+                                                                            discountValue: (groupStay as any)?.offerDiscountValue || 15,
+                                                                            description: (groupStay as any)?.offerDescription || "Special group discount applied for your selected stay dates!",
+                                                                            startDate: (groupStay as any)?.offerStartDate,
+                                                                            endDate: (groupStay as any)?.offerEndDate,
+                                                                        })}
+                                                                        className="mt-4 bg-orange-50 hover:bg-orange-100/80 text-orange-700 p-3 rounded-xl border border-orange-200 text-center cursor-pointer transition-all hover:shadow-md group"
+                                                                    >
+                                                                        <div className="flex items-center justify-center gap-1.5 mb-1">
+                                                                            <Sparkles className="h-3.5 w-3.5 text-orange-500 animate-pulse" />
+                                                                            <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">Special Offer</span>
                                                                         </div>
-                                                                        <p className="text-[11px] font-bold leading-tight">{(groupStay as any).offerName} Active!</p>
+                                                                        <p className="text-[11px] font-bold leading-tight text-orange-800">{(groupStay as any).offerName} Active!</p>
+                                                                        <span className="text-[10px] text-orange-600 font-bold underline mt-1.5 block group-hover:text-orange-900 transition-colors">
+                                                                            Click to view offer details →
+                                                                        </span>
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -975,15 +989,40 @@ export default function PropertyDetail() {
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                {(availabilityInfo?.offerName || Number(roomType.offerDiscountAmount) > 0) && (
-                                                                    <div className="bg-orange-50 text-orange-600 p-3 rounded-lg border border-orange-100 text-center">
-                                                                        <div className="flex items-center justify-center gap-2 mb-1">
-                                                                            <Sparkles className="h-3.5 w-3.5" />
-                                                                            <span className="text-[10px] font-black uppercase tracking-wider">Special Offer</span>
+                                                                {(availabilityInfo ? (Number(availabilityInfo.offerDiscountAmount) > 0) : (Number(roomType.offerDiscountAmount) > 0 || (roomType.offers && roomType.offers.length > 0))) && (() => {
+                                                                    const activeOffer = availabilityInfo?.offers?.[0] || roomType.offers?.[0];
+                                                                    const offerName = availabilityInfo?.offerName || roomType.offerName || activeOffer?.name || activeOffer?.title || "Special Offer";
+                                                                    const discountType = availabilityInfo?.offerDiscountType || roomType.offerDiscountType || activeOffer?.discountType || "PERCENTAGE";
+                                                                    const discountValue = availabilityInfo?.offerDiscountValue || roomType.offerDiscountValue || activeOffer?.discountValue || 15;
+                                                                    const description = availabilityInfo?.offerDescription || roomType.offerDescription || activeOffer?.description || "Special discount applied to your selected stay dates!";
+                                                                    const startDate = availabilityInfo?.offerStartDate || roomType.offerStartDate || activeOffer?.startDate;
+                                                                    const endDate = availabilityInfo?.offerEndDate || roomType.offerEndDate || activeOffer?.endDate;
+
+                                                                    return (
+                                                                        <div
+                                                                            onClick={() => setSelectedOfferDetails({
+                                                                                name: offerName,
+                                                                                discountType,
+                                                                                discountValue,
+                                                                                description,
+                                                                                startDate,
+                                                                                endDate,
+                                                                            })}
+                                                                            className="mt-3 bg-orange-50 hover:bg-orange-100/80 text-orange-700 p-3 rounded-xl border border-orange-200 text-center cursor-pointer transition-all hover:shadow-md group"
+                                                                        >
+                                                                            <div className="flex items-center justify-center gap-1.5 mb-1">
+                                                                                <Sparkles className="h-3.5 w-3.5 text-orange-500 animate-pulse" />
+                                                                                <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">Special Offer</span>
+                                                                            </div>
+                                                                            <p className="text-[11px] font-bold leading-tight text-orange-800">
+                                                                                {offerName} Active!
+                                                                            </p>
+                                                                            <span className="text-[10px] text-orange-600 font-bold underline mt-1.5 block group-hover:text-orange-900 transition-colors">
+                                                                                Click to view offer details →
+                                                                            </span>
                                                                         </div>
-                                                                        <p className="text-[11px] font-bold leading-tight">{availabilityInfo?.offerName || "Inaugural Discount"} Active!</p>
-                                                                    </div>
-                                                                )}
+                                                                    );
+                                                                })()}
                                                             </div>
                                                             <div className="mt-6">
                                                                 {isSoldOut ? (
@@ -991,7 +1030,7 @@ export default function PropertyDetail() {
                                                                 ) : (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
-                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=false` : '#'}
+                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&roomsCount=${rooms}&isGroupBooking=false` : '#'}
                                                                         className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-lg shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
                                                                         {(!checkIn || !checkOut) ? 'See Availability' : 'Book Now'}
@@ -1311,7 +1350,7 @@ export default function PropertyDetail() {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className={clsx("grid gap-3", !isGroupBooking ? "grid-cols-3" : "grid-cols-2")}>
                                         <div className="space-y-1.5">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (13+)</label>
                                             <div className="relative">
@@ -1344,6 +1383,23 @@ export default function PropertyDetail() {
                                                 />
                                             </div>
                                         </div>
+                                        {!isGroupBooking && (
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Rooms</label>
+                                                <div className="relative">
+                                                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                                                    <input
+                                                        type="number"
+                                                        value={rooms}
+                                                        onChange={(e) => {
+                                                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                            setRooms(val);
+                                                        }}
+                                                        className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     {isGroupBooking && (
                                         <div className="flex items-center justify-center gap-2 py-2 bg-primary-50 rounded-lg border border-primary-100 animate-in fade-in zoom-in-95 duration-300">
@@ -1458,6 +1514,102 @@ export default function PropertyDetail() {
                     </div>
                 )}
             </div>
+
+            {/* Offer Details Modal */}
+            {selectedOfferDetails && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-orange-50/80 dark:bg-orange-950/30">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-orange-500 text-white rounded-xl shadow-md shadow-orange-500/20">
+                                    <Sparkles className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-gray-900 dark:text-white leading-tight">
+                                        {selectedOfferDetails.name}
+                                    </h3>
+                                    <p className="text-[11px] text-orange-600 font-bold tracking-wide uppercase">Special Promotional Offer</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedOfferDetails(null)}
+                                className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-4 text-sm">
+                            {/* Discount Value Badge Card */}
+                            <div className="p-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl shadow-md flex justify-between items-center">
+                                <div>
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-orange-100 block">Applied Benefit</span>
+                                    <span className="text-xl font-black">
+                                        {selectedOfferDetails.discountType === 'PERCENTAGE' 
+                                            ? `${selectedOfferDetails.discountValue}% Flat Discount` 
+                                            : `₹${selectedOfferDetails.discountValue} Flat Discount`}
+                                    </span>
+                                </div>
+                                <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white font-black text-xs rounded-full border border-white/30">
+                                    Active
+                                </span>
+                            </div>
+
+                            {/* Offer Description */}
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800 rounded-xl space-y-1">
+                                <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider block">Offer Description</span>
+                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 leading-relaxed">
+                                    {selectedOfferDetails.description || "Special promotional discount applied to your selected stay dates!"}
+                                </p>
+                            </div>
+
+                            {/* Start Date & End Date Schedule */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/30 rounded-xl flex items-center gap-2.5">
+                                    <Calendar className="h-4 w-4 text-blue-600 shrink-0" />
+                                    <div>
+                                        <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider block">Start Date</span>
+                                        <span className="text-xs font-bold text-gray-900 dark:text-white">
+                                            {selectedOfferDetails.startDate 
+                                                ? format(new Date(selectedOfferDetails.startDate), 'MMM d, yyyy')
+                                                : 'Available Now'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/30 rounded-xl flex items-center gap-2.5">
+                                    <Calendar className="h-4 w-4 text-indigo-600 shrink-0" />
+                                    <div>
+                                        <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">End Date</span>
+                                        <span className="text-xs font-bold text-gray-900 dark:text-white">
+                                            {selectedOfferDetails.endDate 
+                                                ? format(new Date(selectedOfferDetails.endDate), 'MMM d, yyyy')
+                                                : 'Limited Time'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Information Box */}
+                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2">
+                                <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span>This offer is automatically applied to your selected room rate during the promotional validity window.</span>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800 text-right">
+                            <button
+                                onClick={() => setSelectedOfferDetails(null)}
+                                className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-md shadow-primary-600/20 transition-all active:scale-95"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

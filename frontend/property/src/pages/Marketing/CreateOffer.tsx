@@ -291,6 +291,11 @@ export default function CreateOffer() {
                                 />
                                 {errors.endDate && <p className="text-xs font-bold text-destructive ml-1">{errors.endDate.message}</p>}
                             </div>
+
+                            <div className="col-span-full bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-200/50 dark:border-blue-900/30 text-[11px] font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                                <Info className="h-4 w-4 shrink-0 text-blue-600" />
+                                <span>Note: Offers apply per night. An offer from July 23 to July 28 covers stay nights of July 23, 24, 25, 26, and 27 (checking out on July 28 morning).</span>
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-6 pt-6 border-t border-border">

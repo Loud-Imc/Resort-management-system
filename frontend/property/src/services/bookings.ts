@@ -92,7 +92,7 @@ export const bookingsService = {
         return data;
     },
 
-    reschedule: async ({ id, data }: { id: string; data: { checkInDate: string; checkOutDate: string; selectedRoomIds?: string[]; overrideTotal?: number; overrideReason?: string; roomTypeId?: string; adultsCount?: number; childrenCount?: number; guestName?: string; guestEmail?: string; guestPhone?: string; whatsappNumber?: string; guests?: any[] } }) => {
+    reschedule: async ({ id, data }: { id: string; data: { checkInDate: string; checkOutDate: string; selectedRoomIds?: string[]; overrideTotal?: number; overrideReason?: string; roomTypeId?: string; adultsCount?: number; childrenCount?: number; extraAdultsCount?: number; extraChildrenCount?: number; guestName?: string; guestEmail?: string; guestPhone?: string; whatsappNumber?: string; guests?: any[]; specialRequests?: string } }) => {
         const response = await api.post<Booking>(`/bookings/${id}/reschedule`, data);
         return response.data;
     },

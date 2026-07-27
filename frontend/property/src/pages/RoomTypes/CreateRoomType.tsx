@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useForm, useFieldArray, type SubmitHandler } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -36,17 +36,32 @@ const COMMON_AMENITIES = [
     'Plush Towels', 'Laundry Service'
 ];
 
+const optionalNumPreprocess = (fallback?: number) => z.preprocess(
+    (val) => {
+        if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+            return fallback;
+        }
+        const parsed = Number(val);
+        return isNaN(parsed) ? fallback : parsed;
+    },
+    z.number().optional().nullable()
+);
+
 const roomTypeSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().min(1, 'Description is required'),
-    basePrice: z.number({ message: 'Price is required' }).min(1, 'Price must be at least 1'),
-    originalPrice: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform(v => (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v))) ? null : Number(v)).nullable().optional(),
-    maxAdults: z.number({ message: 'Max adults is required' }).min(1, 'At least 1 adult required'),
-    maxChildren: z.number({ message: 'Max children is required' }).min(0),
+    basePrice: z.preprocess((v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v))) ? 0 : Number(v), z.number().min(1, 'Price must be at least 1')),
+    originalPrice: optionalNumPreprocess(),
+    maxAdults: optionalNumPreprocess(2),
+    maxChildren: optionalNumPreprocess(0),
+    baseAdults: optionalNumPreprocess(2),
+    baseChildren: optionalNumPreprocess(0),
+    maxPhysicalAdults: optionalNumPreprocess(),
+    maxPhysicalChildren: optionalNumPreprocess(),
     isPubliclyVisible: z.boolean(),
-    extraAdultPrice: z.number().min(0),
-    extraChildPrice: z.number().min(0),
-    freeChildrenCount: z.number().min(0),
+    extraAdultPrice: optionalNumPreprocess(0),
+    extraChildPrice: optionalNumPreprocess(0),
+    freeChildrenCount: optionalNumPreprocess(0),
     propertyId: z.string().min(1, 'Property is required'),
     amenities: z.array(z.object({ value: z.string() })),
     highlights: z.array(z.object({ value: z.string() })),
@@ -76,33 +91,7 @@ const roomTypeSchema = z.object({
     path: ["cancellationPolicyId"]
 });
 
-interface RoomTypeFormData {
-    name: string;
-    description: string;
-    basePrice: number;
-    originalPrice?: number | string | null;
-    maxAdults: number;
-    maxChildren: number;
-    isPubliclyVisible: boolean;
-    extraAdultPrice: number;
-    extraChildPrice: number;
-    freeChildrenCount: number;
-    propertyId: string;
-    amenities: { value: string }[];
-    highlights: { value: string }[];
-    inclusions: { value: string }[];
-    images: string[];
-    marketingBadgeText?: string;
-    marketingBadgeType?: string;
-    marketingBadgeColor?: string;
-    cancellationPolicyId?: string;
-    cancellationPolicy?: string;
-    size: number;
-    groupMaxOccupancy?: number;
-    isAvailableForGroupBooking: boolean;
-    isGstInclusive: boolean;
-    allowPayAtProperty: boolean;
-}
+type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
 
 export default function CreateRoomType() {
     const navigate = useNavigate();
@@ -121,13 +110,15 @@ export default function CreateRoomType() {
     const {
         register, handleSubmit, control, setValue, watch,
         formState: { errors, isSubmitting }, reset,
-    } = useForm<RoomTypeFormData>({
+    } = useForm<any>({
         resolver: zodResolver(roomTypeSchema),
         defaultValues: {
             isPubliclyVisible: true,
             basePrice: 0,
             originalPrice: null,
             maxAdults: 2, maxChildren: 0,
+            baseAdults: 2, baseChildren: 1,
+            maxPhysicalAdults: 4, maxPhysicalChildren: 2,
             extraAdultPrice: 0, extraChildPrice: 0, freeChildrenCount: 0,
             amenities: [], highlights: [], inclusions: [],
             cancellationPolicy: '',
@@ -155,6 +146,10 @@ export default function CreateRoomType() {
                 originalPrice: existingRoomType.originalPrice ? Number(existingRoomType.originalPrice) : null,
                 maxAdults: existingRoomType.maxAdults,
                 maxChildren: existingRoomType.maxChildren,
+                baseAdults: existingRoomType.baseAdults ?? existingRoomType.maxAdults ?? 2,
+                baseChildren: existingRoomType.baseChildren ?? existingRoomType.maxChildren ?? 1,
+                maxPhysicalAdults: existingRoomType.maxPhysicalAdults ?? 4,
+                maxPhysicalChildren: existingRoomType.maxPhysicalChildren ?? 2,
                 isPubliclyVisible: existingRoomType.isPubliclyVisible,
                 extraAdultPrice: Number(existingRoomType.extraAdultPrice) || 0,
                 extraChildPrice: Number(existingRoomType.extraChildPrice) || 0,
@@ -194,9 +189,20 @@ export default function CreateRoomType() {
 
     const saveMutation = useMutation({
         mutationFn: (data: RoomTypeFormData) => {
+            const resolvedBaseAdults = data.baseAdults ?? 2;
+            const resolvedBaseChildren = data.baseChildren ?? 0;
             const payload = {
                 ...data,
-                originalPrice: (data.originalPrice === '' || data.originalPrice === null || data.originalPrice === undefined) ? null : Number(data.originalPrice),
+                baseAdults: resolvedBaseAdults,
+                baseChildren: resolvedBaseChildren,
+                maxPhysicalAdults: data.maxPhysicalAdults ?? resolvedBaseAdults,
+                maxPhysicalChildren: data.maxPhysicalChildren ?? resolvedBaseChildren,
+                extraAdultPrice: data.extraAdultPrice ?? 0,
+                extraChildPrice: data.extraChildPrice ?? 0,
+                maxAdults: resolvedBaseAdults,
+                maxChildren: resolvedBaseChildren,
+                freeChildrenCount: resolvedBaseChildren,
+                originalPrice: (data.originalPrice === null || data.originalPrice === undefined) ? null : Number(data.originalPrice),
                 amenities: data.amenities.map(a => a.value).filter(v => v),
                 highlights: data.highlights.map(h => h.value).filter(v => v),
                 inclusions: data.inclusions.map(i => i.value).filter(v => v),
@@ -213,7 +219,7 @@ export default function CreateRoomType() {
         },
     });
 
-    const onSubmit: SubmitHandler<RoomTypeFormData> = (data) => saveMutation.mutate(data);
+    const onSubmit = (data: any) => saveMutation.mutate(data);
 
     const { data: policies = [] } = useQuery<CancellationPolicy[]>({
         queryKey: ['cancellationPolicies', selectedProperty?.id],
@@ -258,7 +264,7 @@ export default function CreateRoomType() {
                                 placeholder="e.g. Deluxe Suite"
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.name ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all font-bold placeholder:text-gray-400`}
                             />
-                            {errors.name && <p className="text-red-500 text-xs mt-1 font-bold">{errors.name.message}</p>}
+                            {errors.name?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.name.message)}</p>}
                         </div>
 
                         <div>
@@ -270,7 +276,7 @@ export default function CreateRoomType() {
                                 {...register('basePrice', { valueAsNumber: true })}
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
                             />
-                            {errors.basePrice && <p className="text-red-500 text-xs mt-1 font-bold">{errors.basePrice.message}</p>}
+                            {errors.basePrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.basePrice.message)}</p>}
                             <div className="mt-2 pl-1">
                                 <label className="inline-flex items-center cursor-pointer group">
                                     <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
@@ -302,7 +308,7 @@ export default function CreateRoomType() {
                                 className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black placeholder:font-bold"
                                 placeholder="e.g. 6000"
                             />
-                            {errors.originalPrice && <p className="text-red-500 text-xs mt-1 font-bold">{errors.originalPrice.message}</p>}
+                            {errors.originalPrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.originalPrice.message)}</p>}
                         </div>
 
                         {/* Offers & Marketing Section */}
@@ -335,7 +341,7 @@ export default function CreateRoomType() {
                                 placeholder="Describe the room experience..."
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.description ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all min-h-[100px]`}
                             />
-                            {errors.description && <p className="text-red-500 text-xs mt-1 font-bold">{errors.description.message}</p>}
+                            {errors.description?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.description.message)}</p>}
                         </div>
 
                         <div>
@@ -349,64 +355,105 @@ export default function CreateRoomType() {
                                 placeholder="e.g. 280"
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.size ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400`}
                             />
-                            {errors.size && <p className="text-red-500 text-xs mt-1 font-bold">{errors.size.message}</p>}
+                            {errors.size?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.size.message)}</p>}
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                                Max Adults <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                {...register('maxAdults', { valueAsNumber: true })}
-                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.maxAdults ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all`}
-                            />
-                            {errors.maxAdults && <p className="text-red-500 text-xs mt-1 font-bold">{errors.maxAdults.message}</p>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Max Children <span className="text-red-500">*</span>
-                                <div className="group/info relative">
-                                    <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 font-medium shadow-xl">
-                                        Total limit on children allowed in the room.
-                                    </div>
+                        {/* Base Included Occupancy */}
+                        <div className="md:col-span-2 p-5 bg-blue-50/70 dark:bg-slate-800/80 rounded-2xl border border-blue-200 dark:border-slate-700 space-y-3.5 shadow-sm">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <Users className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400" />
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-blue-900 dark:text-blue-300">Base Included Occupancy (Covered in Base Price)</h4>
                                 </div>
-                            </label>
-                            <input
-                                type="number"
-                                {...register('maxChildren', { valueAsNumber: true })}
-                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.maxChildren ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold`}
-                            />
-                            {errors.maxChildren && <p className="text-red-500 text-xs mt-1 font-bold">{errors.maxChildren.message}</p>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Extra Adult Price (₹)
-                            </label>
-                            <input type="number" {...register('extraAdultPrice', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Extra Child Price (₹)
-                            </label>
-                            <input type="number" {...register('extraChildPrice', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Free Children Count
-                                <div className="group/info relative">
-                                    <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 font-medium shadow-xl">
-                                        Number of children that stay for free. Extra children (up to Max Children) will be charged the "Extra Child Price".
-                                    </div>
+                                <p className="text-[11px] text-blue-700/90 dark:text-blue-300/80 font-medium mt-1">
+                                    The number of guests included in the standard room price. Any guest above this count will be charged an extra guest fee per night.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
+                                        Base Included Adults <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        {...register('baseAdults', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    {errors.baseAdults?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.baseAdults.message)}</p>}
                                 </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
+                                        Base Included Children <span className="text-gray-400 font-normal">(Optional)</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        {...register('baseChildren', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    {errors.baseChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.baseChildren.message)}</p>}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Maximum Physical Capacity */}
+                        <div className="md:col-span-2 p-5 bg-gray-50/80 dark:bg-slate-800/50 rounded-2xl border border-gray-200 dark:border-slate-700/80 space-y-3.5 shadow-sm">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <Info className="h-4.5 w-4.5 text-gray-500 dark:text-gray-400" />
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-slate-200">Maximum Physical Room Capacity (Hard Limit with Extra Beds)</h4>
+                                </div>
+                                <p className="text-[11px] text-gray-600 dark:text-slate-400 font-medium mt-1">
+                                    The absolute maximum number of people allowed in this room (including extra beds/extra mattresses). Bookings above this limit require booking an additional room.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
+                                        Max Physical Adults Allowed <span className="text-gray-400 font-normal">(Optional)</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        {...register('maxPhysicalAdults', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    {errors.maxPhysicalAdults?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalAdults.message)}</p>}
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
+                                        Max Physical Children Allowed <span className="text-gray-400 font-normal">(Optional)</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        {...register('maxPhysicalChildren', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    {errors.maxPhysicalChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalChildren.message)}</p>}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                Extra Adult Price (₹) <span className="text-gray-400 font-normal text-xs">(Optional)</span>
                             </label>
-                            <input type="number" {...register('freeChildrenCount', { valueAsNumber: true })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1.5">
+                                Set a price to enable the "Extra Adults" field when creating bookings. Leave empty/0 if extra adults are not allowed.
+                            </p>
+                            <input type="number" min="0" {...register('extraAdultPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                Extra Child Price (₹) <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                            </label>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1.5">
+                                Set a price to enable the "Extra Children" field when creating bookings. Leave empty/0 if extra children are not allowed.
+                            </p>
+                            <input type="number" min="0" {...register('extraChildPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
                         </div>
 
                         <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">
@@ -529,7 +576,7 @@ export default function CreateRoomType() {
                                     <option value="">No Policies Defined - Use Text Override</option>
                                 )}
                             </select>
-                            {errors.cancellationPolicyId && <p className="text-red-500 text-xs mt-1 font-bold">{errors.cancellationPolicyId.message}</p>}
+                            {errors.cancellationPolicyId?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.cancellationPolicyId.message)}</p>}
                         </div>
 
                         {/* Marketing Badge Section */}
@@ -574,7 +621,7 @@ export default function CreateRoomType() {
                         {/* Predefined Chips */}
                         <div className="flex flex-wrap gap-2">
                             {section.common.map(item => {
-                                const isSelected = section.fields.some(f => f.value === item);
+                                const isSelected = section.fields.some(f => (f as any).value === item);
                                 return (
                                     <button
                                         key={item}
@@ -604,7 +651,7 @@ export default function CreateRoomType() {
                                 </button>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {section.fields.filter(f => !section.common.includes(f.value)).map((field) => {
+                                {section.fields.filter(f => !section.common.includes((f as any).value)).map((field) => {
                                     const realIndex = section.fields.findIndex(f => f.id === field.id);
                                     return (
                                         <div key={field.id} className="flex gap-2 group">
@@ -637,7 +684,7 @@ export default function CreateRoomType() {
                         </h2>
                     </div>
                     <ImageUpload images={images || []} onChange={(imgs) => setValue('images', imgs)} maxImages={10} />
-                    {errors.images && <p className="text-red-500 text-xs font-bold">{errors.images.message}</p>}
+                    {errors.images?.message && <p className="text-red-500 text-xs font-bold">{String(errors.images.message)}</p>}
                 </div>
 
                 {/* Submit */}

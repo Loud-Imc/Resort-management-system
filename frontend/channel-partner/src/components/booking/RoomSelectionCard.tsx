@@ -111,8 +111,9 @@ const RoomSelectionCard: React.FC<{
     nights: number,
     guests: number,
     isGroupBooking?: boolean,
-    currency?: string
-}> = ({ room, onSelect, onShowDetails, isSelected, nights, guests, isGroupBooking, currency = 'INR' }) => {
+    currency?: string,
+    roomsCount?: number
+}> = ({ room, onSelect, onShowDetails, isSelected, nights, guests, isGroupBooking, currency = 'INR', roomsCount = 1 }) => {
     const isSoldOut = room.isSoldOut || (room.availableCount !== undefined && room.availableCount === 0);
 
     return (
@@ -214,7 +215,7 @@ const RoomSelectionCard: React.FC<{
                     <div className="room-card-pricing" style={{ width: '260px', padding: '2rem', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'right' }}>
                         <div style={{ marginBottom: '2.5rem' }}>
                             <p style={{ fontSize: '11px', fontWeight: 900, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
-                                {nights} Night{nights > 1 ? 's' : ''} • {guests} Guest{guests > 1 ? 's' : ''}
+                                {nights} Night{nights > 1 ? 's' : ''} • {!isGroupBooking && `${roomsCount} Room${roomsCount > 1 ? 's' : ''} • `}{guests} Guest{guests > 1 ? 's' : ''}
                             </p>
 
                             <div style={{ marginBottom: '0.25rem' }}>

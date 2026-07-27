@@ -19,6 +19,7 @@ export function RescheduleCalendarModal({
     roomTypeId,
     roomTypeName,
     propertyId,
+    roomTypes: _roomTypes,
     onClose,
     onSelectDates
 }: RescheduleCalendarModalProps) {

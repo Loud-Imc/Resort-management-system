@@ -5,7 +5,7 @@ import { bookingSourcesService } from '../../services/bookingSources';
 import { channelsService, type ChannelPropertyMapping } from '../../services/channels';
 import toast from 'react-hot-toast';
 import {
-  Calendar, RefreshCw, Link as LinkIcon, Copy, Trash2, Plus,
+  RefreshCw, Link as LinkIcon, Copy, Trash2, Plus,
   ExternalLink, CheckCircle2, AlertCircle, Loader2, Info, ChevronDown,
   Zap, Globe, ShieldCheck, Power, ArrowRight, Layers,
   BookOpen, X, Search, PlusCircle, Check, TrendingUp, Users
@@ -96,7 +96,7 @@ const CHANNEX_GLOBAL_CHANNELS = [
 
 export default function CalendarSync() {
   const { selectedProperty } = useProperty();
-  const [activeTab, setActiveTab] = useState<'channels' | 'ical'>('channels');
+  const [activeTab, _] = useState<'channels' | 'ical'>('channels');
   
   // iCal State
   const [links, setLinks] = useState<PropertyIcal[]>([]);
@@ -441,16 +441,16 @@ export default function CalendarSync() {
       {/* Header */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-background to-background border border-primary/20 p-8 shadow-xl">
         <div className="absolute top-0 right-0 -m-8 p-16 bg-primary/5 rounded-full blur-3xl" />
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative flex flex-col gap-6">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600">
               Channel Manager & Calendar Sync
             </h1>
-            <p className="text-muted-foreground max-w-xl">
-              Prevent overbooking and maximize revenue by synchronizing your exact room availability across MakeMyTrip, Booking.com, Agoda, and all OTAs.
+            <p className="text-muted-foreground text-sm leading-relaxed max-w-3xl">
+              Prevent overbooking and maximize revenue by synchronizing your exact room availability across MakeMyTrip, Booking.com, Agoda etc.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => { setCustomOtaSearch(''); setDirectoryCategory('All'); setCustomOtaModal(true); }}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-2xl font-extrabold text-xs shadow-sm transition-all cursor-pointer"
@@ -465,15 +465,12 @@ export default function CalendarSync() {
               <BookOpen className="h-4 w-4" />
               <span>📖 Owner & Staff Guide (`Benefits & FAQ`)</span>
             </button>
-            <div className="p-3 bg-primary/10 rounded-2xl text-primary hidden md:block">
-              <Zap className="h-8 w-8" />
-            </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border bg-card rounded-2xl p-1.5 shadow-sm">
+      {/* <div className="flex border-b border-border bg-card rounded-2xl p-1.5 shadow-sm">
         <button
           onClick={() => setActiveTab('channels')}
           className={clsx(
@@ -501,7 +498,7 @@ export default function CalendarSync() {
           <Calendar className="h-4 w-4" />
           <span>Legacy iCal Calendar Feeds</span>
         </button>
-      </div>
+      </div> */}
 
       {/* Tab Content: Real-Time Channels */}
       {activeTab === 'channels' ? (

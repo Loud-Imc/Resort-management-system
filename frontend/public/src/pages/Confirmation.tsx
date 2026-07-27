@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link, Navigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User, CreditCard, Info, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Download, Loader2, MapPin, Package, Calendar, User, CreditCard, Info, ShieldCheck, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
@@ -366,13 +366,22 @@ export default function Confirmation() {
                                             </div>
                                         </div>
                                         <div className="space-y-1">
+                                            <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Rooms Reserved</span>
+                                            <div className="flex items-center gap-2 text-gray-800">
+                                                <Building2 className="h-4 w-4 text-primary-500" />
+                                                <span className="font-bold">
+                                                    {booking.bookingRooms?.length || booking.roomsCount || 1} {(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
                                             <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Guests</span>
                                             <div className="flex items-center gap-2 text-gray-800">
                                                 <User className="h-4 w-4 text-primary-500" />
                                                 <span className="font-bold">
                                                     {booking.isGroupBooking
                                                         ? `${booking.groupSize} Guests`
-                                                        : `${booking.adultsCount} Adults, ${booking.childrenCount} Child`
+                                                        : `${booking.adultsCount} Adults${booking.childrenCount > 0 ? `, ${booking.childrenCount} Child${booking.childrenCount > 1 ? 'ren' : ''}` : ''}`
                                                     }
                                                 </span>
                                             </div>
@@ -404,8 +413,13 @@ export default function Confirmation() {
 
                                 <div className="space-y-4 print:space-y-2 [.pdf-capture-mode_&]:space-y-2">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500">{roomType?.isGstInclusive ? 'Room Charges (GST Inc.)' : `Nightly Rate x ${booking.numberOfNights}`}</span>
-                                        <span className="font-medium text-gray-900">{formatPrice(roomType?.isGstInclusive ? (Number(booking.baseAmount) + Number(booking.taxAmount)) : (booking.baseAmount || 0), booking.bookingCurrency || 'INR')}</span>
+                                        <span className="text-gray-500">
+                                            {roomType?.isGstInclusive
+                                                ? `Room Charges (${booking.numberOfNights || 1} ${booking.numberOfNights === 1 ? 'Night' : 'Nights'}, ${booking.bookingRooms?.length || booking.roomsCount || 1} ${(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'} - GST Inc.)`
+                                                : `Accommodation Charges (${booking.numberOfNights || 1} ${booking.numberOfNights === 1 ? 'Night' : 'Nights'}, ${booking.bookingRooms?.length || booking.roomsCount || 1} ${(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'})`
+                                            }
+                                        </span>
+                                        <span className="font-medium text-gray-900">{formatPrice(roomType?.isGstInclusive ? (Number(booking.originalTotal) || (Number(booking.baseAmount) + Number(booking.taxAmount))) : (booking.baseAmount || 0), booking.bookingCurrency || 'INR')}</span>
                                     </div>
                                     {!roomType?.isGstInclusive && (
                                         <div className="flex justify-between text-sm">

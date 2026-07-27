@@ -39,6 +39,11 @@ export interface RoomType {
     isGstInclusive?: boolean;
     allowPayAtProperty?: boolean;
     offerName?: string;
+    offerDiscountType?: string;
+    offerDiscountValue?: number;
+    offerDescription?: string;
+    offerStartDate?: string;
+    offerEndDate?: string;
 }
 
 export interface BookingSearchParams {

@@ -18,36 +18,38 @@ import {
     Trash2,
     Calendar,
     X,
-    Globe,
-    CalendarDays,
-    User
+    CalendarDays
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { format, isAfter, differenceInDays } from 'date-fns';
 import GuestDetailsModal from '../../components/Rooms/GuestDetailsModal';
+import RoomScheduleModal from '../../components/Rooms/RoomScheduleModal';
 
 export default function RoomsList() {
     const { selectedProperty } = useProperty();
     const propertyId = selectedProperty?.id;
 
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [blockingRoom, setBlockingRoom] = useState<Room | null>(null);
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
     const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     // const [viewingBlocksRoom, setViewingBlocksRoom] = useState<Room | null>(null);
 
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
     const { data: rooms, isLoading, error } = useQuery<Room[]>({
-        queryKey: ['rooms', statusFilter, propertyId],
+        queryKey: ['rooms', statusFilter, propertyId, format(selectedDate, 'yyyy-MM-dd')],
         queryFn: () => roomsService.getAll({
             status: statusFilter || undefined,
-            propertyId: propertyId || undefined
+            propertyId: propertyId || undefined,
+            date: format(selectedDate, 'yyyy-MM-dd')
         }),
         enabled: !!propertyId,
     });
@@ -69,17 +71,6 @@ export default function RoomsList() {
             deleteMutation.mutate(id);
         }
     };
-
-    const unblockMutation = useMutation({
-        mutationFn: roomsService.unblock,
-        onSuccess: () => {
-            toast.success('Room unblocked successfully');
-            queryClient.invalidateQueries({ queryKey: ['rooms'] });
-        },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to unblock room');
-        },
-    });
 
     const getStatusColor = (status: RoomStatus) => {
         switch (status) {
@@ -166,7 +157,7 @@ export default function RoomsList() {
             <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 {/* Filters */}
                 <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
-                    <div className="relative flex-1">
+                    <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <input
                             type="text"
@@ -174,8 +165,17 @@ export default function RoomsList() {
                             className="w-full pl-10 pr-4 py-2 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         />
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
+                            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                            <input
+                                type="date"
+                                value={format(selectedDate, 'yyyy-MM-dd')}
+                                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                                className="bg-transparent text-sm text-foreground focus:outline-none focus:ring-0 border-none p-0 cursor-pointer"
+                            />
+                        </div>
+                        <Filter className="h-4 w-4 text-muted-foreground ml-2" />
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
@@ -194,23 +194,37 @@ export default function RoomsList() {
 
                 {/* Grid View for Rooms */}
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {rooms?.map((room) => (
+                    {rooms?.map((room) => {
+                        const dateToCompare = new Date(selectedDate);
+                        dateToCompare.setHours(0, 0, 0, 0);
+
+                        // Calculate upcoming counts (after selected date)
+                        const upcomingBookings = room.bookingRooms?.filter((br: any) => {
+                            const checkIn = new Date(br.booking.checkInDate);
+                            return isAfter(checkIn, dateToCompare);
+                        }) || [];
+
+                        const upcomingBlocks = room.blocks?.filter((b: any) => {
+                            if (b.bookingId) return false;
+                            if (b.reason?.startsWith('Group Booking') || b.reason?.startsWith('Multi-Room Booking')) return false;
+                            const startDate = new Date(b.startDate);
+                            return isAfter(startDate, dateToCompare);
+                        }) || [];
+
+                        return (
                         <div
                             key={room.id}
                             onClick={() => {
-                                if (room.status === RoomStatus.OCCUPIED) {
-                                    setSelectedRoomId(room.id);
-                                    setIsGuestModalOpen(true);
-                                }
+                                setSelectedRoomId(room.id);
+                                setIsScheduleModalOpen(true);
                             }}
                             className={clsx(
-                                "border rounded-xl p-4 transition-all hover:shadow-md group",
-                                (room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && "cursor-pointer hover:border-blue-500/50",
+                                "border rounded-xl p-4 transition-all hover:shadow-md group cursor-pointer hover:border-primary/30",
                                 getCardStyle(room.status)
                             )}
                         >
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-xl font-bold text-card-foreground">
+                                <span className="text-xl font-bold text-card-foreground group-hover:text-primary transition-colors">
                                     {room.roomNumber}
                                 </span>
                                 <span className={clsx(
@@ -223,96 +237,23 @@ export default function RoomsList() {
                             </div>
 
                             <div className="text-sm text-muted-foreground mb-4">
-                                <p className="font-bold text-card-foreground">{room.roomType.name}</p>
-                                <p>Floor: {room.floor ?? '-'}</p>
-                                {(room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && room.bookingRooms && room.bookingRooms.length > 0 && (() => {
-                                    const today = new Date();
-                                    today.setHours(0, 0, 0, 0);
-                                    
-                                    // Prioritize CHECKED_IN, then look for CONFIRMED bookings for today
-                                    const activeBooking = room.bookingRooms.find((br: any) => br.booking.status === 'CHECKED_IN')?.booking
-                                        || room.bookingRooms.find((br: any) => {
-                                            if (br.booking.status !== 'CONFIRMED') return false;
-                                            const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0,0,0,0);
-                                            const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
-                                            return today >= checkIn && today < checkOut;
-                                        })?.booking;
-
-                                    if (!activeBooking) return null;
-                                    
-                                    const user = activeBooking.user;
-                                    const primaryGuest = activeBooking.guests?.[0];
-                                    let guestName = 'Guest';
-                                    
-                                    if (user?.firstName || user?.lastName) {
-                                        guestName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-                                    } else if (primaryGuest?.firstName || primaryGuest?.lastName) {
-                                        guestName = `${primaryGuest.firstName || ''} ${primaryGuest.lastName || ''}`.trim();
-                                    }
-                                    return (
-                                        <div className="mt-2 text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 p-2 rounded-lg flex items-center gap-2 border border-blue-500/20">
-                                            <User className="h-3 w-3 shrink-0" />
-                                            <span className="truncate">{guestName}</span>
+                                <p className="font-bold text-card-foreground mb-3">{room.roomType.name}</p>
+                                <p className="mb-2">Floor: {room.floor ?? '-'}</p>
+                                
+                                <div className="flex gap-2 mt-3">
+                                    {upcomingBookings.length > 0 && (
+                                        <div className="text-[10px] font-bold px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1">
+                                            <Calendar className="h-3 w-3" />
+                                            {upcomingBookings.length} Upcoming {upcomingBookings.length === 1 ? 'Booking' : 'Bookings'}
                                         </div>
-                                    );
-                                })()}
-                                {room.blocks && room.blocks.length > 0 && (() => {
-                                    const block = room.blocks[0];
-                                    const isExternal = block.reason.startsWith('External Booking');
-
-                                    return (
-                                        <div className={clsx(
-                                            "mt-3 text-[11px] p-3 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-300",
-                                            isExternal
-                                                ? "bg-indigo-500/5 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
-                                                : "bg-amber-500/5 border-amber-500/20 text-amber-700 dark:text-amber-400"
-                                        )}>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-                                                    {isExternal ? (
-                                                        <Globe className="h-3 w-3" />
-                                                    ) : (
-                                                        <Lock className="h-3 w-3" />
-                                                    )}
-                                                    {isExternal ? 'Cloud Sync' : 'Manual Block'}
-                                                </div>
-                                                <span className={clsx(
-                                                    "px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase",
-                                                    isExternal ? "bg-indigo-500/10" : "bg-amber-500/10"
-                                                )}>
-                                                    Active
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center gap-1.5 mb-1.5 opacity-80 text-foreground">
-                                                <CalendarDays className="h-3 w-3 shrink-0" />
-                                                <span className="font-medium">
-                                                    {format(new Date(block.startDate), 'MMM d')} — {format(new Date(block.endDate), 'MMM d')}
-                                                </span>
-                                            </div>
-
-                                            <p className="line-clamp-2 italic mb-3 leading-relaxed opacity-90 text-muted-foreground">
-                                                "{block.reason}"
-                                            </p>
-
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    unblockMutation.mutate(block.id);
-                                                }}
-                                                className={clsx(
-                                                    "w-full py-1.5 rounded-lg text-[10px] font-bold transition-all border flex items-center justify-center gap-1.5",
-                                                    isExternal
-                                                        ? "bg-indigo-500/10 border-indigo-500/10 hover:bg-indigo-500 text-indigo-700 dark:text-indigo-400 hover:text-white"
-                                                        : "bg-amber-500/10 border-amber-500/10 hover:bg-amber-500 text-amber-700 dark:text-amber-400 hover:text-white"
-                                                )}
-                                            >
-                                                <X className="h-3 w-3" />
-                                                Unblock Room
-                                            </button>
+                                    )}
+                                    {upcomingBlocks.length > 0 && (
+                                        <div className="text-[10px] font-bold px-2 py-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                                            <Lock className="h-3 w-3" />
+                                            {upcomingBlocks.length} Upcoming {upcomingBlocks.length === 1 ? 'Block' : 'Blocks'}
                                         </div>
-                                    );
-                                })()}
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">
@@ -362,7 +303,7 @@ export default function RoomsList() {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </div>
 
                 {/* Block Room Modal */}
@@ -397,6 +338,14 @@ export default function RoomsList() {
                 )}
             </div>
 
+            {/* Schedule Modal */}
+            <RoomScheduleModal
+                roomId={selectedRoomId || ''}
+                selectedDate={selectedDate}
+                isOpen={isScheduleModalOpen}
+                onClose={() => setIsScheduleModalOpen(false)}
+            />
+
             {/* Guest Details Modal */}
             <GuestDetailsModal
                 roomId={selectedRoomId || ''}
@@ -413,13 +362,34 @@ interface BlockRoomModalProps {
     onSuccess: () => void;
 }
 
+function formatTime12Hour(time24?: string | null): string {
+    if (!time24) return '';
+    const parts = time24.split(':');
+    if (parts.length < 2) return time24;
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return time24;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    const minuteStr = m.toString().padStart(2, '0');
+    return `${hour12}:${minuteStr} ${period}`;
+}
+
 function BlockRoomModal({ room, onClose, onSuccess }: BlockRoomModalProps) {
+    const { selectedProperty } = useProperty();
+    const checkInTime = formatTime12Hour(selectedProperty?.defaultCheckInTime || '14:00');
+    const checkOutTime = formatTime12Hour(selectedProperty?.defaultCheckOutTime || '11:00');
+
     const [formData, setFormData] = useState({
         startDate: format(new Date(), 'yyyy-MM-dd'),
         endDate: format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'), // Tomorrow
         reason: 'Maintenance',
         notes: ''
     });
+
+    const start = new Date(formData.startDate);
+    const end = new Date(formData.endDate);
+    const nights = differenceInDays(end, start);
 
     const mutation = useMutation({
         mutationFn: (data: any) => roomsService.block(room.id, data),
@@ -434,6 +404,10 @@ function BlockRoomModal({ room, onClose, onSuccess }: BlockRoomModalProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (nights <= 0) {
+            toast.error('End date must be after start date');
+            return;
+        }
         mutation.mutate(formData);
     };
 
@@ -477,6 +451,25 @@ function BlockRoomModal({ room, onClose, onSuccess }: BlockRoomModalProps) {
                             />
                         </div>
                     </div>
+
+                    {/* Helpful Date & Night Description Card */}
+                    {nights > 0 ? (
+                        <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-xs space-y-1 text-foreground">
+                            <div className="font-bold flex items-center gap-1.5 text-primary">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {nights} {nights === 1 ? 'Night' : 'Nights'} Block ({format(start, 'MMM d')} – {format(end, 'MMM d, yyyy')})
+                            </div>
+                            <p className="text-muted-foreground leading-relaxed">
+                                Room {room.roomNumber} will be blocked from <strong>{format(start, 'MMM d')} at {checkInTime}</strong> until <strong>{format(end, 'MMM d')} at {checkOutTime}</strong>.
+                                It will automatically become available for check-in on <strong>{format(end, 'MMM d')}</strong> after {checkOutTime}.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs font-semibold text-destructive flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                            End Date must be after Start Date.
+                        </div>
+                    )}
 
                     <div className="space-y-2">
                         <label className="text-sm font-bold text-foreground">Reason</label>

@@ -18,6 +18,10 @@ export interface RoomType {
     originalPrice?: number | null;
     maxAdults: number;
     maxChildren: number;
+    baseAdults?: number;
+    baseChildren?: number;
+    maxPhysicalAdults?: number;
+    maxPhysicalChildren?: number;
     amenities: string[];
     highlights: string[];
     inclusions: string[];
@@ -55,6 +59,10 @@ export interface CreateRoomTypeDto {
     originalPrice?: number | null;
     maxAdults: number;
     maxChildren: number;
+    baseAdults?: number;
+    baseChildren?: number;
+    maxPhysicalAdults?: number;
+    maxPhysicalChildren?: number;
     amenities: string[];
     highlights: string[];
     inclusions: string[];

@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
-import { reportsService, type DashboardStats } from '../services/reports';
+import { reportsService } from '../services/reports';
 import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
@@ -14,9 +14,21 @@ import { useNavigation } from '../hooks/useNavigation';
 import PropertyReadiness from '../components/PropertyReadiness';
 import BookingsCalendarWidget from '../components/Dashboard/BookingsCalendarWidget';
 import HistoricalGuestDetailsModal from '../components/Rooms/HistoricalGuestDetailsModal';
-import { startOfMonth, endOfMonth, subMonths, addMonths, addDays } from 'date-fns';
-import { bookingsService } from '../services/bookings';
+import { addDays } from 'date-fns';
 import type { Booking } from '../types/booking';
+function formatTime12Hour(time24?: string | null): string {
+    if (!time24) return '';
+    const parts = time24.split(':');
+    if (parts.length < 2) return time24;
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return time24;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    const minuteStr = m.toString().padStart(2, '0');
+    return `${hour12}:${minuteStr} ${period}`;
+}
+
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
     const navigate = useNavigate();
@@ -47,103 +59,27 @@ export default function DashboardHome() {
     const [calendarMonth, setCalendarMonth] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-    const monthStart = startOfMonth(calendarMonth);
-    const monthEnd = endOfMonth(monthStart);
-
-    // Fetch bookings to share with Calendar and calculate daily room status
-    const { data: monthBookings = [] } = useQuery<Booking[]>({
-        queryKey: ['dashboard-calendar-bookings', selectedProperty?.id, format(monthStart, 'yyyy-MM')],
-        queryFn: () => bookingsService.getDashboardCalendar({
+    // Fetch unified dashboard statistics (single API call with server-calculated date-aware room statuses)
+    const { data: stats, isLoading: statsLoading, isFetching } = useQuery<any>({
+        queryKey: ['dashboard-unified', selectedProperty?.id, selectedDate ? format(selectedDate, 'yyyy-MM-dd') : 'today'],
+        queryFn: () => reportsService.getDashboardUnified({
             propertyId: selectedProperty?.id,
-            startDate: format(subMonths(monthStart, 1), 'yyyy-MM-dd'),
-            endDate: format(addMonths(monthEnd, 1), 'yyyy-MM-dd')
+            date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
         }),
-        enabled: !!selectedProperty?.id,
-    });
-
-    const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
-        queryKey: ['dashboard-stats', selectedProperty?.id],
-        queryFn: () => reportsService.getDashboardStats(selectedProperty?.id),
         enabled: !!selectedProperty?.id && hasPermission('reports.viewDashboard'),
+        placeholderData: (previousData: any) => previousData,
     });
 
-    const roomsList = stats?.roomsList || [];
-
-    // Compute displayRooms based on selectedDate
-    const displayRooms = useMemo(() => {
-        const targetDate = selectedDate || new Date();
-        const target = new Date(targetDate);
-        target.setHours(0, 0, 0, 0);
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const isPastTarget = target.getTime() < today.getTime();
-
-        return roomsList.map(room => {
-            const roomBookings = monthBookings.filter((b: any) => {
-                if (b.status === 'CANCELLED' || b.status === 'PENDING_PAYMENT') return false;
-                return b.bookingRooms?.some((br: any) => br.roomId === room.id);
-            });
-
-            // Find booking covering the night of targetDate
-            let activeBookingForTonight = roomBookings.find((b: any) => {
-                const checkIn = new Date(b.checkInDate); checkIn.setHours(0,0,0,0);
-                const checkOut = new Date(b.checkOutDate); checkOut.setHours(0,0,0,0);
-                return target >= checkIn && target < checkOut;
-            });
-
-            // Find booking checking out on targetDate (ignore if already CHECKED_OUT)
-            let checkoutBookingToday = roomBookings.find((b: any) => {
-                if (b.status === 'CHECKED_OUT') return false;
-                const checkOut = new Date(b.checkOutDate); checkOut.setHours(0,0,0,0);
-                return target.getTime() === checkOut.getTime();
-            });
-
-            // Do not show 'OUT TODAY' logic for past dates
-            if (isPastTarget) {
-                checkoutBookingToday = undefined;
-            }
-
-            let status = room.status as string; // e.g. MAINTENANCE
-            let _activeBooking = null;
-            let _checkoutBooking = null;
-            let _guestName = '';
-
-            if (activeBookingForTonight) {
-                _activeBooking = activeBookingForTonight;
-                _guestName = activeBookingForTonight.guests?.[0]?.firstName 
-                    ? `${activeBookingForTonight.guests[0].firstName} ${activeBookingForTonight.guests[0].lastName || ''}`.trim()
-                    : 'Guest';
-                
-                if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTonight.status)) {
-                    status = 'OCCUPIED';
-                } else {
-                    status = 'RESERVED';
-                }
-                
-                // Keep reference to checkout booking if exists, for UI badge
-                if (checkoutBookingToday) {
-                    _checkoutBooking = checkoutBookingToday;
-                }
-            } else if (checkoutBookingToday) {
-                _checkoutBooking = checkoutBookingToday;
-                _guestName = checkoutBookingToday.guests?.[0]?.firstName 
-                    ? `${checkoutBookingToday.guests[0].firstName} ${checkoutBookingToday.guests[0].lastName || ''}`.trim()
-                    : 'Guest';
-                status = 'OUT_TODAY';
-            } else {
-                status = (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') ? room.status : 'AVAILABLE';
-            }
-
-            return {
-                ...room,
-                status,
-                _activeBooking,
-                _checkoutBooking,
-                _guestName
-            } as Room & { _activeBooking?: Booking, _checkoutBooking?: Booking, _guestName?: string };
-        });
-    }, [roomsList, monthBookings, selectedDate]);
+    const displayRooms = stats?.roomsList || [];
+    const statusSummary = stats?.statusSummary || {
+        AVAILABLE: 0,
+        OUT_TODAY: 0,
+        RESERVED: 0,
+        OCCUPIED: 0,
+        MAINTENANCE: 0,
+        BLOCKED: 0,
+        TOTAL: 0,
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -158,7 +94,7 @@ export default function DashboardHome() {
         }
     };
 
-    const handleRoomClick = (room: Room & { _activeBooking?: Booking | null, _checkoutBooking?: Booking | null }) => {
+    const handleRoomClick = (room: any) => {
         if (room.status === 'AVAILABLE') {
             handleBookClick(room);
         } else if (room._activeBooking) {
@@ -167,7 +103,6 @@ export default function DashboardHome() {
             setHistoricalRoomNumber(room.roomNumber);
             setIsHistoricalModalOpen(true);
         } else if (room.status === 'OUT_TODAY' && room._checkoutBooking) {
-            // Main card click on OUT TODAY opens the guest who is leaving
             setSelectedBooking(room._checkoutBooking);
             setHistoricalRoomId(room.id);
             setHistoricalRoomNumber(room.roomNumber);
@@ -178,7 +113,7 @@ export default function DashboardHome() {
         }
     };
 
-    const handleBookClick = (room: Room) => {
+    const handleBookClick = (room: any) => {
         const targetDate = selectedDate || new Date();
         const dateStr = format(targetDate, 'yyyy-MM-dd');
         navigate('/bookings/create', { 
@@ -192,16 +127,8 @@ export default function DashboardHome() {
         });
     };
 
-    const statusSummary = useMemo(() => ({
-        AVAILABLE: displayRooms.filter(r => r.status === 'AVAILABLE').length,
-        OUT_TODAY: displayRooms.filter(r => r.status === 'OUT_TODAY').length,
-        RESERVED: displayRooms.filter(r => r.status === 'RESERVED').length,
-        OCCUPIED: displayRooms.filter(r => r.status === 'OCCUPIED').length,
-        MAINTENANCE: displayRooms.filter(r => r.status === 'MAINTENANCE').length,
-        BLOCKED: displayRooms.filter(r => r.status === 'BLOCKED').length,
-    }), [displayRooms]);
-
-    if (statsLoading) {
+    // Full-screen spinner only on initial load when no data exists yet
+    if (!stats && statsLoading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -360,7 +287,7 @@ export default function DashboardHome() {
                         </div>
                     ))}
                     <div className="ml-auto text-gray-500 dark:text-gray-400 font-medium">
-                        Total: <span className="text-gray-900 dark:text-white font-bold">{stats?.occupancy?.total || roomsList.length}</span>
+                        Total: <span className="text-gray-900 dark:text-white font-bold">{stats?.occupancy?.total || displayRooms.length}</span>
                     </div>
                 </div>
             </div>
@@ -375,13 +302,14 @@ export default function DashboardHome() {
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                     <BedDouble className="h-5 w-5 text-primary" />
                                     {selectedDate ? `Room Status for ${format(selectedDate, 'MMM d, yyyy')}` : 'Room Status'}
+                                    {isFetching && <Loader2 className="h-4 w-4 animate-spin text-primary ml-1" />}
                                 </h2>
                                 {selectedProperty && (
                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
                                         <Clock className="h-3.5 w-3.5" />
-                                        <span>Check-in: <strong>{selectedProperty.defaultCheckInTime || '14:00'}</strong></span>
+                                        <span>Check-in: <strong>{formatTime12Hour(selectedProperty.defaultCheckInTime || '14:00')}</strong></span>
                                         <span className="text-gray-300 dark:text-gray-600">|</span>
-                                        <span>Check-out: <strong>{selectedProperty.defaultCheckOutTime || '11:00'}</strong></span>
+                                        <span>Check-out: <strong>{formatTime12Hour(selectedProperty.defaultCheckOutTime || '11:00')}</strong></span>
                                     </p>
                                 )}
                             </div>
@@ -414,7 +342,7 @@ export default function DashboardHome() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                                {displayRooms.map((room) => (
+                                {displayRooms.map((room: any) => (
                                     <button
                                         key={room.id}
                                         onClick={() => handleRoomClick(room as Room & { _activeBooking?: Booking | null, _checkoutBooking?: Booking | null })}
@@ -466,7 +394,7 @@ export default function DashboardHome() {
                                 ))}
                             </div>
                         )}
-                        {roomsList.some(r => r.status === 'AVAILABLE') && (
+                        {displayRooms.some((r: any) => r.status === 'AVAILABLE') && (
                             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 italic">
                                 💡 Click an available room to create a walk-in booking
                             </p>
@@ -475,7 +403,7 @@ export default function DashboardHome() {
                 </div>
                 <div className="lg:col-span-1">
                     <BookingsCalendarWidget 
-                        totalRooms={roomsList.length}
+                        totalRooms={displayRooms.length}
                         selectedDate={selectedDate || undefined}
                         onDateSelect={setSelectedDate}
                         currentMonth={calendarMonth}
