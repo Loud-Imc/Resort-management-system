@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 type TabType = 'profile' | 'payout' | 'security' | 'notifications';
 
 const Settings: React.FC = () => {
-    const { } = useAuth(); // Profile data is fetched from the API hook below
+    const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState<TabType>('profile');
 
@@ -22,10 +22,10 @@ const Settings: React.FC = () => {
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
+        firstName: user?.firstName || '',
+        lastName: user?.lastName || '',
+        email: user?.email || '',
+        phone: (user as any)?.phone || '',
         password: '',
         confirmPassword: '',
         bankName: '',
@@ -44,31 +44,45 @@ const Settings: React.FC = () => {
     });
 
     useEffect(() => {
+        if (user) {
+            setFormData(prev => ({
+                ...prev,
+                firstName: prev.firstName || user.firstName || '',
+                lastName: prev.lastName || user.lastName || '',
+                email: prev.email || user.email || '',
+                phone: prev.phone || (user as any)?.phone || '',
+            }));
+        }
+    }, [user]);
+
+    useEffect(() => {
         const fetchProfile = async () => {
             setIsLoading(true);
             try {
                 const data: any = await api.get('/channel-partners/me');
-                setFormData({
-                    firstName: data.user.firstName || '',
-                    lastName: data.user.lastName || '',
-                    email: data.user.email || '',
-                    phone: data.user.phone || '',
-                    password: '',
-                    confirmPassword: '',
-                    bankName: data.bankName || '',
-                    accountHolderName: data.accountHolderName || '',
-                    accountNumber: data.accountNumber || '',
-                    ifscCode: data.ifscCode || '',
-                    upiId: data.upiId || '',
-                    notificationPrefs: data.notificationPrefs || {
-                        emailReferrals: true,
-                        emailRewards: true,
-                        pushBookings: true
-                    },
-                    referralCode: data.referralCode || '',
-                    registrationFeePaid: data.registrationFeePaid || false,
-                    logo: data.logo || ''
-                });
+                if (data) {
+                    setFormData({
+                        firstName: data.user?.firstName || user?.firstName || '',
+                        lastName: data.user?.lastName || user?.lastName || '',
+                        email: data.user?.email || user?.email || '',
+                        phone: data.user?.phone || (user as any)?.phone || '',
+                        password: '',
+                        confirmPassword: '',
+                        bankName: data.bankName || '',
+                        accountHolderName: data.accountHolderName || '',
+                        accountNumber: data.accountNumber || '',
+                        ifscCode: data.ifscCode || '',
+                        upiId: data.upiId || '',
+                        notificationPrefs: data.notificationPrefs || {
+                            emailReferrals: true,
+                            emailRewards: true,
+                            pushBookings: true
+                        },
+                        referralCode: data.referralCode || '',
+                        registrationFeePaid: data.registrationFeePaid || false,
+                        logo: data.logo || ''
+                    });
+                }
             } catch (error) {
                 console.error('Error fetching CP profile:', error);
             } finally {
