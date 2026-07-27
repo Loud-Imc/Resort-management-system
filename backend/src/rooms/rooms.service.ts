@@ -118,6 +118,7 @@ export class RoomsService {
                     include: {
                         booking: {
                             select: { 
+                                id: true,
                                 status: true, 
                                 checkInDate: true, 
                                 checkOutDate: true, 

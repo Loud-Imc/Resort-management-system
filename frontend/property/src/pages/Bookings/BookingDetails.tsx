@@ -434,20 +434,32 @@ const BookingDetails = () => {
                                     <span className="text-muted-foreground font-bold">Base Rate</span>
                                     <span className="font-black text-foreground">₹{Number(booking.baseAmount).toLocaleString()}</span>
                                 </div>
+                                {Number(booking.offerDiscountAmount) > 0 && (
+                                    <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
+                                        <span className="font-bold">Offer Discount</span>
+                                        <span className="font-black">-₹{Number(booking.offerDiscountAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-sm items-center">
                                     <span className="text-muted-foreground font-bold">Extra Charges</span>
-                                    <span className="font-black text-foreground">₹{(Number(booking.extraAdultAmount) + Number(booking.extraChildAmount)).toLocaleString()}</span>
+                                    <span className="font-black text-foreground">₹{(Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)).toLocaleString()}</span>
                                 </div>
+                                {Number(booking.couponDiscountAmount) > 0 && (
+                                    <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
+                                        <span className="font-bold">Coupon Discount</span>
+                                        <span className="font-black">-₹{Number(booking.couponDiscountAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {Number(booking.discountAmount) > 0 && Number(booking.offerDiscountAmount || 0) === 0 && Number(booking.couponDiscountAmount || 0) === 0 && (
+                                    <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
+                                        <span className="font-bold">Special Discount</span>
+                                        <span className="font-black">-₹{Number(booking.discountAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-sm items-center">
                                     <span className="text-muted-foreground font-bold">Taxes & Fees</span>
                                     <span className="font-black text-foreground">₹{Number(booking.taxAmount).toLocaleString()}</span>
                                 </div>
-                                {Number(booking.couponDiscountAmount) > 0 && (
-                                    <div className="flex justify-between text-sm items-center text-emerald-600">
-                                        <span className="font-bold">Discount</span>
-                                        <span className="font-black">-₹{Number(booking.couponDiscountAmount).toLocaleString()}</span>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="pt-6 border-t border-border/50 space-y-6">
