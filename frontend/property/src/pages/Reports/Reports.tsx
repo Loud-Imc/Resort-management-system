@@ -31,7 +31,7 @@ export default function Reports() {
     const [rangeType, setRangeType] = useState('month');
 
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
-    const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | 'PLATFORM_FEES' | 'OCCUPANCY' | 'NET_EARNINGS' | null>(null);
+    const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | 'PLATFORM_FEES' | 'OCCUPANCY' | 'NET_EARNINGS' | 'GST' | null>(null);
 
     const [activeTab, setActiveTab] = useState<'PERFORMANCE' | 'GST' | 'ASSETS'>('PERFORMANCE');
     const [showSourceInfo, setShowSourceInfo] = useState(false);
@@ -104,12 +104,7 @@ export default function Reports() {
 
     const isLoading = loadingFinancial || loadingOccupancy || loadingRooms || loadingExpenses || (activeTab === 'GST' && loadingGst);
 
-    if (isLoading) return (
-        <div className="flex flex-col items-center justify-center p-24 space-y-4">
-            <Loader2 className="animate-spin h-12 w-12 text-primary" />
-            <p className="text-gray-500 dark:text-gray-400 font-medium animate-pulse">Generating your reports...</p>
-        </div>
-    );
+
 
     const filteredExpenses = expenses?.filter((expense: any) => {
         if (filters.search && !expense.description?.toLowerCase().includes(filters.search.toLowerCase())) return false;
@@ -145,6 +140,7 @@ export default function Reports() {
                     <div className="flex items-center gap-4 mb-1">
                         <TrendingUp className="h-5 w-5 text-primary" />
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedProperty?.name} Reports</h1>
+                        {isLoading && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
                         <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
                             <button
                                 onClick={() => setActiveTab('PERFORMANCE')}
@@ -216,7 +212,9 @@ export default function Reports() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            {/* Main KPI/Graphs/Tables Content Wrapper */}
+            <div className={`space-y-8 transition-all duration-200 ${isLoading ? 'opacity-55 pointer-events-none select-none' : ''}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <KPICard title="Total Revenue" value={`₹${financialReport?.summary?.totalIncome?.toLocaleString() || '0'}`}
                     icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />} color="text-emerald-500"
                     onClick={() => { setDetailsType('REVENUE'); setDetailsModalOpen(true); }} isClickable
@@ -232,7 +230,17 @@ export default function Reports() {
                     icon={<Users className="h-4 w-4 text-primary" />} color="text-primary" onClick={() => { setDetailsType('BOOKINGS'); setDetailsModalOpen(true); }} isClickable />
                 <KPICard title={activeTab === 'GST' ? "GST Collected" : "Net Earnings"}
                     value={`₹${(activeTab === 'GST' ? gstReport?.summary?.totalTax : financialReport?.summary?.netProfit)?.toLocaleString() || '0'}`}
-                    icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />} color="text-amber-500" onClick={() => { if (activeTab !== 'GST') { setDetailsType('NET_EARNINGS'); setDetailsModalOpen(true); } }} isClickable={activeTab !== 'GST'} />
+                    icon={<ArrowUpRight className="h-4 w-4 text-amber-500" />} color="text-amber-500" 
+                    onClick={() => {
+                        if (activeTab === 'GST') {
+                            setDetailsType('GST');
+                        } else {
+                            setDetailsType('NET_EARNINGS');
+                        }
+                        setDetailsModalOpen(true);
+                    }}
+                    isClickable={true}
+                />
             </div>
 
             {/* Conditional Views */}
@@ -612,6 +620,7 @@ export default function Reports() {
                     </div>
                 </div>
             )}
+            </div>
 
             <FinancialDetailsModal
                 isOpen={detailsModalOpen}
@@ -622,6 +631,7 @@ export default function Reports() {
                 financialReport={financialReport}
                 occupancyReport={occupancyReport}
                 totalExpenses={totalExpenses}
+                gstReport={gstReport}
             />
         </div>
     );

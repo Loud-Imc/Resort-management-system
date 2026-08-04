@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, XCircle, CheckCircle2, ShieldCheck, Copy, Info, Key, Hash, DollarSign, Sliders, Mail } from 'lucide-react';
+import { Globe, XCircle, CheckCircle2, ShieldCheck, Copy, Info, Key, Hash, DollarSign, Sliders } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'react-hot-toast';
 
@@ -22,45 +22,45 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
   initialConfig = {},
   catalogItem,
 }) => {
-  const [config, setConfig] = useState<any>({
-    hotelId: '',
-    accessToken: '',
-    pricingType: 'Standard',
-    sendEmail: true,
-    syncB2B: true,
-    syncMyBiz: false,
-    minStayType: 'Arrival',
-    totalType: 'Payout Amount',
-    ...initialConfig,
-  });
+  const [config, setConfig] = useState<any>({});
 
   useEffect(() => {
-    if (open && initialConfig) {
-      setConfig({
-        hotelId: '',
-        accessToken: '',
-        pricingType: 'Standard',
-        sendEmail: true,
-        syncB2B: true,
-        syncMyBiz: false,
-        minStayType: 'Arrival',
-        totalType: 'Payout Amount',
-        ...initialConfig,
+    if (open && catalogItem) {
+      const initial: any = { rateMarkup: '0%', ...initialConfig };
+      catalogItem.fields?.forEach((field: any) => {
+        if (initial[field.key] === undefined) {
+          initial[field.key] = field.default !== undefined ? field.default : '';
+        }
       });
+      setConfig(initial);
     }
-  }, [open, initialConfig, otaKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, otaKey]);
 
   if (!open) return null;
 
+  const isOAuth = !!catalogItem?.payload;
+
   const handleSave = () => {
-    if (otaKey !== 'airbnb' && !config.hotelId?.trim()) {
-      toast.error(`Please enter the ${otaTitle} Hotel Property ID.`);
+    if (config.isManualImport) {
+      if (!config.manualChannelId || config.manualChannelId.trim() === '') {
+        toast.error('Please enter the Channex Channel ID');
+        return;
+      }
+      onSave(otaKey, otaTitle, { manualChannelId: config.manualChannelId.trim() });
       return;
     }
-    if (otaKey !== 'bookingcom' && otaKey !== 'airbnb' && !config.accessToken?.trim()) {
-      toast.error(`Please enter your ${otaTitle} Extranet Access Token / Secret API Key.`);
+
+    // Validate required fields
+    const missingField = catalogItem?.fields?.find(
+      (f: any) => f.required && (config[f.key] === undefined || config[f.key] === null || config[f.key].toString().trim() === '')
+    );
+
+    if (missingField) {
+      toast.error(`Please enter the required field: ${missingField.label}`);
       return;
     }
+
     onSave(otaKey, otaTitle, config);
   };
 
@@ -72,7 +72,7 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="bg-card border border-border rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-card border border-border rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[95vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border/60 pb-4">
           <div className="flex items-center gap-3.5">
@@ -109,180 +109,41 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
 
         {/* Form Fields by Channel Type */}
         <div className="space-y-4">
-          {otaKey !== 'airbnb' ? (
-            <>
-              {/* Property / Hotel Account ID */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Hash className="h-3.5 w-3.5 text-primary" />
-                  {otaTitle} Property / Account ID <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={config.hotelId || ''}
-                  onChange={(e) => setConfig({ ...config, hotelId: e.target.value })}
-                  placeholder={
-                    otaKey === 'bookingcom' ? 'e.g. 5868189, 6519420 (from Booking.com Account)' :
-                    otaKey === 'makemytrip' ? 'e.g. MMT-109283 (from MakeMyTrip Dashboard)' :
-                    `e.g. ${otaTitle.split(' ')[0].toUpperCase()}-10029`
-                  }
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary font-mono shadow-inner"
-                />
-                <p className="text-[10px] text-muted-foreground italic">
-                  Find this inside your official {otaTitle} portal dashboard under Property Settings or Account ID.
-                </p>
-              </div>
+          {/* Manual ID Import Toggle */}
+          <div className="p-3.5 bg-muted/30 border border-border/80 rounded-2xl flex items-center justify-between">
+            <div className="space-y-0.5 pr-3">
+              <span className="text-xs font-bold text-foreground block">Manual Channex Channel ID Import</span>
+              <span className="text-[10px] text-muted-foreground block leading-relaxed">
+                Enable this if you have already connected this channel inside your staging.channex.io dashboard.
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={!!config.isManualImport}
+              onChange={(e) => setConfig({ ...config, isManualImport: e.target.checked })}
+              className="rounded text-primary focus:ring-primary h-4.5 w-4.5 cursor-pointer shrink-0"
+            />
+          </div>
 
-              {/* Connection Security Token / Key */}
-              {otaKey !== 'bookingcom' && otaKey !== 'airbnb' && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <Key className="h-3.5 w-3.5 text-primary" />
-                    Security / Connection Key <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={config.accessToken || ''}
-                    onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
-                    placeholder="••••••••••••••••••••••••••••••••••••••••"
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary font-mono shadow-inner"
-                  />
-                  <p className="text-[10px] text-muted-foreground italic">
-                    Generate this security token from your {otaTitle} portal connectivity settings.
-                  </p>
-                </div>
-              )}
-
-              {/* Dynamic Catalog Fields (e.g. Travel Portal selection dropdown for Custom Connect, Currency for Google Hotels, etc.) */}
-              {catalogItem?.fields?.filter((f: any) => f.key !== 'hotelId' && f.key !== 'accessToken' && f.key !== 'pricingType' && f.key !== 'syncB2B' && f.key !== 'totalType' && f.key !== 'sendEmail').map((field: any) => (
-                <div key={field.key} className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <Sliders className="h-3.5 w-3.5 text-primary" />
-                    {field.label} {field.required && <span className="text-red-500">*</span>}
-                  </label>
-                  {field.type === 'select' ? (
-                    <select
-                      value={config[field.key] || field.default || field.options?.[0] || ''}
-                      onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
-                      className="w-full px-3 py-2.5 text-xs rounded-xl border border-border bg-background font-medium focus:ring-2 focus:ring-primary/40"
-                    >
-                      {field.options?.map((opt: string) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  ) : field.type === 'info' ? (
-                    <div className="p-3 bg-muted/40 rounded-xl text-[11px] text-muted-foreground border border-border/60">
-                      {field.description}
-                    </div>
-                  ) : (
-                    <input
-                      type={field.type === 'password' ? 'password' : 'text'}
-                      value={config[field.key] || ''}
-                      onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
-                      placeholder={field.placeholder || `Enter ${field.label}`}
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary shadow-inner"
-                    />
-                  )}
-                </div>
-              ))}
-
-              {/* Booking.com Specific Settings */}
-              {otaKey === 'bookingcom' && (
-                <div className="space-y-3.5 bg-muted/30 p-4 rounded-2xl border border-border/80">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <Sliders className="h-3.5 w-3.5 text-primary" />
-                      Channex Pricing Type
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {['Standard', 'OBP (Occupancy Based)'].map(type => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setConfig({ ...config, pricingType: type })}
-                          className={clsx(
-                            "py-2.5 px-3 rounded-xl font-bold text-xs border transition-all flex items-center justify-center gap-1.5",
-                            config.pricingType === type
-                              ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/10"
-                              : "bg-background text-foreground border-border hover:bg-muted"
-                          )}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      {config.pricingType === 'Standard'
-                        ? 'Standard rates send single room type prices per date.'
-                        : 'OBP automatically calculates price tiers per adult/child occupancy limit.'}
-                    </p>
-                  </div>
-
-                  <div className="pt-2 border-t border-border/60">
-                    <label className="flex items-center gap-2.5 text-xs font-medium text-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={config.sendEmail !== false}
-                        onChange={(e) => setConfig({ ...config, sendEmail: e.target.checked })}
-                        className="rounded text-primary focus:ring-primary h-4 w-4"
-                      />
-                      <span className="flex items-center gap-1.5">
-                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                        Send Booking Notification Email to Property
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* Rate Toggles & Total Type Calculation for direct Channex channels */}
-              {otaKey !== 'bookingcom' && otaKey !== 'airbnb' && (
-                <div className="space-y-3.5 bg-muted/30 p-4 rounded-2xl border border-border/80 text-xs">
-                  <div className="space-y-2">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 block">
-                      <Sliders className="h-3.5 w-3.5 text-primary" /> Rate & Channel Options
-                    </span>
-                    <label className="flex items-center gap-2.5 font-medium text-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={config.syncB2B !== false}
-                        onChange={(e) => setConfig({ ...config, syncB2B: e.target.checked })}
-                        className="rounded text-primary focus:ring-primary h-4 w-4"
-                      />
-                      Sync B2B Corporate Rate Type
-                    </label>
-
-                    {otaKey === 'makemytrip' && (
-                      <label className="flex items-center gap-2.5 font-medium text-foreground cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={config.syncMyBiz === true}
-                          onChange={(e) => setConfig({ ...config, syncMyBiz: e.target.checked })}
-                          className="rounded text-primary focus:ring-primary h-4 w-4"
-                        />
-                        Sync MyBiz Rate Type (Corporate Travel Suite)
-                      </label>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-border/60 space-y-1.5">
-                    <label className="font-bold text-foreground flex items-center gap-1.5">
-                      <DollarSign className="h-3.5 w-3.5 text-primary" /> Booking Total Type Calculation
-                    </label>
-                    <select
-                      value={config.totalType || 'Payout Amount'}
-                      onChange={(e) => setConfig({ ...config, totalType: e.target.value })}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background font-medium"
-                    >
-                      <option value="Payout Amount">Payout Amount (Net after OTA commission)</option>
-                      <option value="Gross Amount">Gross Amount (Total guest paid price)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            /* Airbnb OAuth 2.0 Flow & Specific Configuration */
+          {config.isManualImport ? (
+            <div className="space-y-1.5 p-4 bg-primary/5 border border-primary/20 rounded-2xl animate-in fade-in duration-200">
+              <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Hash className="h-3.5 w-3.5 text-primary" />
+                Channex Channel ID (UUID) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={config.manualChannelId || ''}
+                onChange={(e) => setConfig({ ...config, manualChannelId: e.target.value })}
+                placeholder="e.g. 12345678-abcd-ef01-2345-6789abcdef01"
+                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary font-mono shadow-inner animate-in fade-in"
+              />
+              <p className="text-[10px] text-muted-foreground leading-normal">
+                💡 <strong className="text-foreground">Where to find this:</strong> In your Channex Dashboard &rarr; select Serene Lake Homestay &rarr; go to Channels &rarr; click on the connected Booking.com channel. Copy the Channel ID from the URL or settings.
+              </p>
+            </div>
+          ) : isOAuth ? (
+            /* OAuth Authorization Flow */
             <div className="space-y-4">
               <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl space-y-2">
                 <div className="flex items-center gap-2 font-extrabold text-rose-600 dark:text-rose-400 text-sm">
@@ -290,34 +151,51 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
                   OAuth 2.0 Secure Token Exchange
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Unlike traditional OTAs, Airbnb connects securely via live OAuth authorization. No manual hotel ID or extranet password required. Authorize directly below or copy the client onboarding link.
+                  Unlike traditional OTAs, {otaTitle} connects securely via live OAuth authorization. No manual hotel ID or password required. Authorize directly below or copy the client onboarding link.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 bg-muted/30 p-3.5 rounded-2xl border border-border/80">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">Min Stay Restriction Type</label>
-                  <select
-                    value={config.minStayType || 'Arrival'}
-                    onChange={(e) => setConfig({ ...config, minStayType: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background font-medium"
-                  >
-                    <option value="Arrival">Arrival (Check-in date only)</option>
-                    <option value="Through">Through (Every date in stay)</option>
-                  </select>
+              {/* Render OAuth parameters dynamically */}
+              {catalogItem?.fields?.length > 0 && (
+                <div className="bg-muted/30 p-4 rounded-2xl border border-border/85 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                  {catalogItem.fields.map((field: any) => (
+                    <div key={field.key} className="space-y-1">
+                      <label className="text-xs font-bold text-foreground block">
+                        {field.label} {field.required ? <span className="text-red-500">*</span> : <span className="text-[10px] text-muted-foreground font-normal ml-1">(Optional)</span>}
+                      </label>
+                      {field.type === 'select' ? (
+                        <select
+                          value={config[field.key] !== undefined ? config[field.key] : (field.default || '')}
+                          onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background font-medium focus:ring-2 focus:ring-primary/40"
+                        >
+                          {field.options?.map((opt: string) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      ) : field.type === 'boolean' ? (
+                        <label className="flex items-center gap-2.5 font-medium text-foreground cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={!!config[field.key]}
+                            onChange={(e) => setConfig({ ...config, [field.key]: e.target.checked })}
+                            className="rounded text-primary focus:ring-primary h-4 w-4"
+                          />
+                          {field.label}
+                        </label>
+                      ) : (
+                        <input
+                          type={field.type === 'password' ? 'password' : 'text'}
+                          value={config[field.key] || ''}
+                          onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+                          placeholder={field.placeholder || `Enter ${field.label}`}
+                          className="w-full px-3.5 py-2 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary font-mono shadow-inner"
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">Booking Total Calculation</label>
-                  <select
-                    value={config.totalType || 'Payout Amount'}
-                    onChange={(e) => setConfig({ ...config, totalType: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background font-medium"
-                  >
-                    <option value="Payout Amount">Net Host Payout</option>
-                    <option value="Gross Amount">Gross Guest Paid</option>
-                  </select>
-                </div>
-              </div>
+              )}
 
               <div className="space-y-2.5 pt-2">
                 <button
@@ -325,7 +203,7 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
                   onClick={handleSave}
                   className="w-full py-3.5 bg-[#FF385C] hover:bg-[#E00B41] text-white font-extrabold text-xs rounded-2xl shadow-lg shadow-[#FF385C]/20 flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
                 >
-                  <Globe className="h-4 w-4" /> Connect with Airbnb (Live OAuth)
+                  <Globe className="h-4 w-4" /> Connect with {otaTitle} (OAuth Flow)
                 </button>
                 <button
                   type="button"
@@ -336,9 +214,68 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
                 </button>
               </div>
             </div>
+          ) : (
+            /* Traditional Parameters Input Flow */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+              {catalogItem?.fields?.map((field: any) => {
+                const isCredentialField = ['hotel_id', 'hotel_code', 'access_token', 'api_key', 'station_code', 'agent_id'].includes(field.key);
+
+                return (
+                  <div key={field.key} className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      {isCredentialField ? (
+                        field.key.includes('token') || field.key.includes('key') ? (
+                          <Key className="h-3.5 w-3.5 text-primary" />
+                        ) : (
+                          <Hash className="h-3.5 w-3.5 text-primary" />
+                        )
+                      ) : (
+                        <Sliders className="h-3.5 w-3.5 text-primary" />
+                      )}
+                      {field.label} {field.required ? <span className="text-red-500">*</span> : <span className="text-[10px] text-muted-foreground font-normal ml-1">(Optional)</span>}
+                    </label>
+
+                    {field.type === 'select' ? (
+                      <select
+                        value={config[field.key] !== undefined ? config[field.key] : (field.default || '')}
+                        onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+                        className="w-full px-3 py-2.5 text-xs rounded-xl border border-border bg-background font-medium focus:ring-2 focus:ring-primary/40 focus:outline-hidden"
+                      >
+                        {field.options?.map((opt: string) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    ) : field.type === 'boolean' ? (
+                      <label className="flex items-center gap-2.5 text-xs font-medium text-foreground cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={!!config[field.key]}
+                          onChange={(e) => setConfig({ ...config, [field.key]: e.target.checked })}
+                          className="rounded text-primary focus:ring-primary h-4 w-4"
+                        />
+                        <span>{field.label}</span>
+                      </label>
+                    ) : field.type === 'hidden' ? (
+                      <input
+                        type="hidden"
+                        value={config[field.key] || ''}
+                      />
+                    ) : (
+                      <input
+                        type={field.type === 'password' ? 'password' : 'text'}
+                        value={config[field.key] || ''}
+                        onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+                        placeholder={field.placeholder || `Enter ${field.label}`}
+                        className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary font-mono shadow-inner"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
 
-          {/* Rate Markup & Commission Revenue Protection (Works across all channels) */}
+          {/* Rate Markup & Commission Revenue Protection */}
           <div className="space-y-2.5 bg-gradient-to-br from-amber-500/5 via-orange-500/5 to-transparent p-4 rounded-2xl border border-amber-500/30">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -367,13 +304,13 @@ export const ChannexOtaModal: React.FC<ChannexOtaModalProps> = ({
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed pt-0.5">
-              💡 <strong className="text-foreground">Why set a Rate Markup?</strong> Every OTA charges different commission rates (`e.g. {otaTitle} ~{otaKey === 'makemytrip' ? '18%' : otaKey === 'bookingcom' ? '15%' : otaKey === 'agoda' ? '20%' : '12%'}`). Setting a markup automatically raises pushed rates higher (`e.g. $100 &rarr; $115 with +15%`) so your hotel net revenue stays 100% protected!
+              💡 <strong className="text-foreground">Why set a Rate Markup?</strong> Every OTA charges different commission rates. Setting a markup automatically raises pushed rates higher (`e.g. $100 &rarr; $115 with +15%`) so your hotel net revenue stays 100% protected!
             </p>
           </div>
         </div>
 
         {/* Footer Actions */}
-        {otaKey !== 'airbnb' && (
+        {(!isOAuth || config.isManualImport) && (
           <div className="flex gap-3 pt-3 border-t border-border/60">
             <button
               type="button"

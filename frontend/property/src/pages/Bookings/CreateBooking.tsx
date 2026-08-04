@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment, useRef } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -121,6 +121,11 @@ export default function CreateBooking() {
     const [checkingAvailability, setCheckingAvailability] = useState(false);
     const [showInsufficientModal, setShowInsufficientModal] = useState(false);
     const [showMobileCalendar, setShowMobileCalendar] = useState(false);
+    const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; errors: string[] | React.ReactNode }>({
+        isOpen: false,
+        title: '',
+        errors: [],
+    });
 
     const preSelectedRoomId = state?.roomId || searchParams.get('roomId');
     const preSelectedRoomTypeId = state?.roomTypeId || searchParams.get('roomTypeId');
@@ -165,6 +170,7 @@ export default function CreateBooking() {
 
     const [phoneSearchResults, setPhoneSearchResults] = useState<any[]>([]);
     const [showPhoneDropdown, setShowPhoneDropdown] = useState(false);
+    const isFirstRender = useRef(true);
 
     // Auto-set property and detect historical entries
     useEffect(() => {
@@ -194,6 +200,24 @@ export default function CreateBooking() {
         }
     }, [watchedCheckInDate, setValue]);
 
+    // Automatically set checkOutDate to checkInDate + 1 when checkInDate is changed by the user
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+        if (!watchedCheckInDate) return;
+        const checkIn = new Date(watchedCheckInDate);
+        if (!isNaN(checkIn.getTime())) {
+            const nextDay = addDays(checkIn, 1);
+            setValue('checkOutDate', format(nextDay, 'yyyy-MM-dd'));
+            // Trigger availability recheck if needed
+            if (availability?.available) {
+                handleCheckAvailability();
+            }
+        }
+    }, [watchedCheckInDate, setValue]);
+
     const isBookerAlsoGuest = watch('isBookerAlsoGuest');
     const guestFirstName = watch('guestFirstName');
     const guestLastName = watch('guestLastName');
@@ -215,7 +239,7 @@ export default function CreateBooking() {
         const fetchCustomers = async () => {
             if (guestPhone && guestPhone.length >= 5) {
                 try {
-                    const results = await usersService.getAll({ search: guestPhone });
+                    const results = await usersService.getAll({ search: guestPhone, propertyId: selectedProperty?.id });
                     setPhoneSearchResults(results);
                     setShowPhoneDropdown(true);
                 } catch (error) {
@@ -229,7 +253,7 @@ export default function CreateBooking() {
 
         const timeoutId = setTimeout(fetchCustomers, 300);
         return () => clearTimeout(timeoutId);
-    }, [guestPhone]);
+    }, [guestPhone, selectedProperty?.id]);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -333,15 +357,11 @@ export default function CreateBooking() {
         if (!values.adultsCount || Number(values.adultsCount) < 1) errors.push('At least 1 adult is required');
 
         if (errors.length > 0) {
-            toast.error(
-                <div>
-                    <p className="font-bold mb-1">Please fix the following to check availability:</p>
-                    <ul className="list-disc pl-4 text-xs space-y-0.5 font-semibold">
-                        {errors.map((e, i) => <li key={i}>{e}</li>)}
-                    </ul>
-                </div>,
-                { duration: 5000 }
-            );
+            setErrorModal({
+                isOpen: true,
+                title: 'Validation Errors',
+                errors: errors
+            });
             return;
         }
 
@@ -447,7 +467,11 @@ export default function CreateBooking() {
         } catch (error: any) {
             console.error('Error checking availability:', error);
             const message = error.response?.data?.message || 'Failed to check availability';
-            toast.error(message);
+            setErrorModal({
+                isOpen: true,
+                title: 'Availability Check Failed',
+                errors: [typeof message === 'string' ? message : JSON.stringify(message)]
+            });
         } finally {
             setCheckingAvailability(false);
         }
@@ -460,12 +484,23 @@ export default function CreateBooking() {
             navigate('/bookings');
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to create booking');
+            setErrorModal({
+                isOpen: true,
+                title: 'Booking Creation Failed',
+                errors: [error.response?.data?.message || 'Failed to create booking']
+            });
         },
     });
 
     const onSubmit = (data: BookingFormData) => {
-        if (!availability?.available) { toast.error('Please check availability first'); return; }
+        if (!availability?.available) {
+            setErrorModal({
+                isOpen: true,
+                title: 'Action Required',
+                errors: ['Please check room availability first before submitting the booking.']
+            });
+            return;
+        }
 
         if (!data.isGroupBooking) {
             const selectedCount = (data.selectedRoomIds || []).length;
@@ -525,7 +560,13 @@ export default function CreateBooking() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-border">
                 <div className="flex items-center gap-4">
                     <button 
-                        onClick={() => navigate('/bookings')} 
+                        onClick={() => {
+                            if (window.history.length > 1) {
+                                navigate(-1);
+                            } else {
+                                navigate('/bookings');
+                            }
+                        }}
                         className="p-2.5 hover:bg-muted rounded-full border border-border shadow-sm transition-all hover:scale-105 active:scale-95 bg-card"
                     >
                         <ArrowLeft className="h-5 w-5 text-muted-foreground" />
@@ -570,15 +611,11 @@ export default function CreateBooking() {
                             return key.replace(/([A-Z])/g, ' $1').toLowerCase();
                         });
 
-                        toast.error(
-                            <div>
-                                <p className="font-bold mb-1 underline">Please fix the following:</p>
-                                <ul className="list-disc pl-4 text-xs font-semibold">
-                                    {fieldNames.map((name, i) => <li key={i} className="capitalize">{name}</li>)}
-                                </ul>
-                            </div>,
-                            { duration: 6000 }
-                        );
+                        setErrorModal({
+                            isOpen: true,
+                            title: 'Validation Errors',
+                            errors: fieldNames.map(name => name.charAt(0).toUpperCase() + name.slice(1))
+                        });
                     })} className="space-y-6">
 
                         {/* ── Mobile Price Summary Bar (hidden on lg+) ── */}
@@ -791,65 +828,78 @@ export default function CreateBooking() {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Standard Base Included Guests Card */}
-                                        <div className="p-4 bg-muted/20 border border-border/60 rounded-2xl space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-foreground">
-                                                    <Users className="h-4 w-4 text-primary" />
-                                                    <span>Standard Included Guests</span>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Adults</label>
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        {...register('adultsCount', {
-                                                            valueAsNumber: true,
-                                                            onChange: (e) => {
-                                                                if (isGroupMode) setValue('groupSize', (parseInt(e.target.value) || 1) + watch('childrenCount'));
-                                                            }
-                                                        })}
-                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Children</label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        {...register('childrenCount', {
-                                                            valueAsNumber: true,
-                                                            onChange: (e) => {
-                                                                if (isGroupMode) setValue('groupSize', watch('adultsCount') + (parseInt(e.target.value) || 0));
-                                                            }
-                                                        })}
-                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Extra Guests Card (Optional Paid Bedding) */}
-                                        {!isGroupMode && (() => {
-                                            const allowsExtraAdults = !selectedRoomType || Number(selectedRoomType.extraAdultPrice || 0) > 0;
-                                            const allowsExtraChildren = !selectedRoomType || Number(selectedRoomType.extraChildPrice || 0) > 0;
-
+                                        {(() => {
                                             const roomCount = Math.max((watch('selectedRoomIds') || []).length, 1);
                                             const baseAdultsCap = (selectedRoomType?.baseAdults ?? selectedRoomType?.maxAdults ?? 2) * roomCount;
                                             const baseChildrenCap = (selectedRoomType?.baseChildren ?? selectedRoomType?.maxChildren ?? 1) * roomCount;
-                                            const maxPhysAdultsCap = (selectedRoomType?.maxPhysicalAdults ?? selectedRoomType?.maxAdults ?? 4) * roomCount;
-                                            const maxPhysChildrenCap = (selectedRoomType?.maxPhysicalChildren ?? selectedRoomType?.maxChildren ?? 2) * roomCount;
 
-                                            const curAdults = Number(watch('adultsCount')) || 0;
-                                            const curChildren = Number(watch('childrenCount')) || 0;
+                                            return (
+                                                <Fragment>
+                                                    {/* Standard Base Included Guests Card */}
+                                                    <div className="p-4 bg-muted/20 border border-border/60 rounded-2xl space-y-3">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-foreground">
+                                                                <Users className="h-4 w-4 text-primary" />
+                                                                <span>Standard Included Guests</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">
+                                                                    Adults {selectedRoomType ? `(Max ${baseAdultsCap})` : ''}
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max={baseAdultsCap}
+                                                                    {...register('adultsCount', {
+                                                                        valueAsNumber: true,
+                                                                        onChange: (e) => {
+                                                                            if (isGroupMode) setValue('groupSize', (parseInt(e.target.value) || 1) + watch('childrenCount'));
+                                                                        }
+                                                                    })}
+                                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">
+                                                                    Children {selectedRoomType ? `(Max ${baseChildrenCap})` : ''}
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={baseChildrenCap}
+                                                                    {...register('childrenCount', {
+                                                                        valueAsNumber: true,
+                                                                        onChange: (e) => {
+                                                                            if (isGroupMode) setValue('groupSize', watch('adultsCount') + (parseInt(e.target.value) || 0));
+                                                                        }
+                                                                    })}
+                                                                    className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                                            const isBaseAdultsFilled = curAdults >= baseAdultsCap;
-                                            const isBaseChildrenFilled = curChildren >= baseChildrenCap;
+                                                    {/* Extra Guests Card (Optional Paid Bedding) */}
+                                                    {!isGroupMode && (() => {
+                                                        const allowsExtraAdults = !selectedRoomType || Number(selectedRoomType.extraAdultPrice || 0) > 0;
+                                                        const allowsExtraChildren = !selectedRoomType || Number(selectedRoomType.extraChildPrice || 0) > 0;
 
-                                            const maxExtraAdultsAllowed = selectedRoomType ? Math.max(0, maxPhysAdultsCap - curAdults) : undefined;
-                                            const maxExtraChildrenAllowed = selectedRoomType ? Math.max(0, maxPhysChildrenCap - curChildren) : undefined;
+                                                        const maxPhysAdultsCap = (selectedRoomType?.maxPhysicalAdults ?? selectedRoomType?.maxAdults ?? 4) * roomCount;
+                                                        const maxPhysChildrenCap = (selectedRoomType?.maxPhysicalChildren ?? selectedRoomType?.maxChildren ?? 2) * roomCount;
+
+                                                        const maxExtraAdultsCap = Math.max(0, maxPhysAdultsCap - baseAdultsCap);
+                                                        const maxExtraChildrenCap = Math.max(0, maxPhysChildrenCap - baseChildrenCap);
+
+                                                        const curAdults = Number(watch('adultsCount')) || 0;
+                                                        const curChildren = Number(watch('childrenCount')) || 0;
+
+                                                        const isBaseAdultsFilled = curAdults >= baseAdultsCap;
+                                                        const isBaseChildrenFilled = curChildren >= baseChildrenCap;
+
+                                                        const maxExtraAdultsAllowed = selectedRoomType ? Math.min(maxExtraAdultsCap, Math.max(0, maxPhysAdultsCap - curAdults)) : undefined;
+                                                        const maxExtraChildrenAllowed = selectedRoomType ? Math.min(maxExtraChildrenCap, Math.max(0, maxPhysChildrenCap - curChildren)) : undefined;
 
                                             if (!allowsExtraAdults && !allowsExtraChildren && selectedRoomType) {
                                                 return (
@@ -873,12 +923,9 @@ export default function CreateBooking() {
                                                     <div className="grid grid-cols-2 gap-3">
                                                         {allowsExtraAdults && (
                                                             <div>
-                                                                <div className="flex items-center justify-between mb-1.5">
-                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Adults</label>
-                                                                    {maxExtraAdultsAllowed !== undefined && (
-                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraAdultsAllowed}</span>
-                                                                    )}
-                                                                </div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1.5">
+                                                                    Extra Adults {selectedRoomType ? `(Max ${maxExtraAdultsCap})` : ''}
+                                                                </label>
                                                                 <input
                                                                     type="number"
                                                                     min="0"
@@ -908,12 +955,9 @@ export default function CreateBooking() {
                                                         )}
                                                         {allowsExtraChildren && (
                                                             <div>
-                                                                <div className="flex items-center justify-between mb-1.5">
-                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Children</label>
-                                                                    {maxExtraChildrenAllowed !== undefined && (
-                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraChildrenAllowed}</span>
-                                                                    )}
-                                                                </div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1.5">
+                                                                    Extra Children {selectedRoomType ? `(Max ${maxExtraChildrenCap})` : ''}
+                                                                </label>
                                                                 <input
                                                                     type="number"
                                                                     min="0"
@@ -945,7 +989,10 @@ export default function CreateBooking() {
                                                 </div>
                                             );
                                         })()}
-                                    </div>
+                                    </Fragment>
+                                );
+                            })()}
+                        </div>
                                     {/* Smart Allocation Assistant Banner (Standard Bookings Only) */}
                                     {(() => {
                                         if (isGroupMode || !selectedRoomType) return null;
@@ -1150,7 +1197,9 @@ export default function CreateBooking() {
                                                                         "relative overflow-hidden group p-3.5 rounded-xl border-2 transition-all duration-300 text-left flex flex-col justify-between",
                                                                         isSelected
                                                                             ? "bg-blue-600 border-blue-600 text-white shadow-md hover:bg-blue-700"
-                                                                            : "bg-white dark:bg-gray-950 border-gray-150 dark:border-gray-800 hover:border-blue-400/50 dark:hover:border-blue-700/50 text-gray-700 dark:text-gray-300"
+                                                                            : room.isRecommended
+                                                                                ? "bg-emerald-50/60 dark:bg-emerald-950/10 border-emerald-400 dark:border-emerald-700 hover:border-emerald-500 text-gray-700 dark:text-gray-300"
+                                                                                : "bg-white dark:bg-gray-950 border-gray-150 dark:border-gray-800 hover:border-blue-400/50 dark:hover:border-blue-700/50 text-gray-700 dark:text-gray-300"
                                                                     )}
                                                                 >
                                                                     {isSelected && (
@@ -1158,6 +1207,14 @@ export default function CreateBooking() {
                                                                             <div className="bg-white/20 p-0.5 rounded-full">
                                                                                 <CheckCircle className="h-3.5 w-3.5 text-white" />
                                                                             </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {/* RECOMMENDED badge — shown when not selected */}
+                                                                    {room.isRecommended && !isSelected && (
+                                                                        <div className="absolute top-2 right-2 z-20">
+                                                                            <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-500 text-white px-1.5 py-0.5 rounded-md shadow-sm">
+                                                                                ✦ Best
+                                                                            </span>
                                                                         </div>
                                                                     )}
                                                                     <div className="flex flex-col relative z-10 space-y-1.5">
@@ -1178,6 +1235,33 @@ export default function CreateBooking() {
                                                             );
                                                         })}
                                                     </div>
+
+                                                    {/* Fragmentation Warning — shown when staff picks a non-recommended room */}
+                                                    {!isGroupMode && availability.roomList.length > 1 && (() => {
+                                                        const selectedIds = watch('selectedRoomIds') || [];
+                                                        const recommendedRoom = availability.roomList.find((r: any) => r.isRecommended);
+                                                        const hasNonRecommendedSelected = selectedIds.length > 0 &&
+                                                            recommendedRoom &&
+                                                            !selectedIds.includes(recommendedRoom.id);
+                                                        if (!hasNonRecommendedSelected) return null;
+                                                        return (
+                                                            <div className="mt-4 p-4 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/60 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                                                                <div>
+                                                                    <p className="font-extrabold text-sm uppercase tracking-wider text-amber-800 dark:text-amber-300">⚠ Fragmentation Risk</p>
+                                                                    <p className="text-xs mt-1 text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
+                                                                        The selected room differs from the optimal assignment. This may prevent future guests from
+                                                                        booking longer date ranges, as no single room will remain free for the full span.
+                                                                        {recommendedRoom && (
+                                                                            <span className="block mt-1 font-bold">
+                                                                                Recommended: <span className="text-amber-900 dark:text-amber-200 font-black">{recommendedRoom.roomNumber || recommendedRoom.name}</span> — keeps other rooms free for longer stays.
+                                                                            </span>
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
 
                                                     {isGroupMode && (
                                                         <div className="mt-5 p-4 bg-white dark:bg-gray-950 rounded-xl border border-blue-100 dark:border-blue-900/30 shadow-inner">
@@ -2094,6 +2178,62 @@ export default function CreateBooking() {
                                     {(availability?.roomList || []).length < requiredRooms ? 'Modify Search' : 'Select More Rooms'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {errorModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-red-50/50 dark:bg-red-950/20">
+                            <div>
+                                <h2 className="text-lg font-bold text-red-800 dark:text-red-400 flex items-center gap-2">
+                                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                    {errorModal.title}
+                                </h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-4">
+                            <div className="flex flex-col items-center text-center space-y-3">
+                                <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
+                                    <AlertCircle className="h-10 w-10" />
+                                </div>
+                                <div className="w-full text-left">
+                                    {Array.isArray(errorModal.errors) ? (
+                                        <ul className="list-disc pl-5 text-sm text-gray-600 dark:text-gray-300 space-y-1.5 font-medium">
+                                            {errorModal.errors.map((err, i) => (
+                                                <li key={i}>{err}</li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <div className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+                                            {errorModal.errors}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
+                                className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md transition-all text-xs font-black uppercase tracking-widest"
+                            >
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>

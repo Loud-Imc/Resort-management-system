@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PropertyStatus } from '@prisma/client';
 import { PricingService } from './pricing.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
-import { format, eachDayOfInterval } from 'date-fns';
+import { format, eachDayOfInterval, differenceInDays } from 'date-fns';
 import { DateUtils } from '../common/utils/date.utils';
 @Injectable()
 export class AvailabilityService {
@@ -164,6 +164,86 @@ export class AvailabilityService {
                 availableRooms.push(room);
             }
         }
+
+        // ─── SOLUTION A: Consolidation Sorting ──────────────────────────────────
+        // Sort available rooms by "booking density" (most booked first) so that
+        // the system fills up heavily-used rooms before touching clean ones.
+        // This prevents room fragmentation and preserves long availability windows
+        // on underused rooms for future long-stay bookings.
+        //
+        // Window is self-adaptive per property:
+        //   - Query the farthest confirmed booking on this property to understand
+        //     how far ahead this property actually takes bookings.
+        //   - Floor: 90 days  (ensures even quiet properties score correctly)
+        //   - Cap:   730 days (2 years, prevents unbounded queries)
+        if (availableRooms.length > 1) {
+            try {
+                // Look up the property via the room type (zero schema change)
+                const roomType = await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId },
+                    select: { propertyId: true },
+                });
+                const propertyId = roomType?.propertyId;
+
+                // Determine adaptive scoring window
+                let windowDays = 90; // floor
+                if (propertyId) {
+                    const farthestBooking = await this.prisma.booking.findFirst({
+                        where: {
+                            propertyId,
+                            status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
+                            checkOutDate: { gte: checkIn },
+                        },
+                        orderBy: { checkOutDate: 'desc' },
+                        select: { checkOutDate: true },
+                    });
+
+                    if (farthestBooking) {
+                        const daysToFarthest = differenceInDays(
+                            new Date(farthestBooking.checkOutDate),
+                            checkIn,
+                        );
+                        // max(farthestDays, 90) ensures floor, min(..., 730) ensures cap
+                        windowDays = Math.min(Math.max(daysToFarthest, 90), 730);
+                    }
+                }
+
+                const windowEnd = new Date(checkIn);
+                windowEnd.setDate(windowEnd.getDate() + windowDays);
+
+                // Score each available room: count booking-nights within this adaptive window
+                for (const room of availableRooms) {
+                    const upcomingBookings = await this.prisma.booking.findMany({
+                        where: {
+                            OR: [
+                                { roomId: room.id },
+                                { bookingRooms: { some: { roomId: room.id } } },
+                            ],
+                            status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
+                            checkInDate: { lte: windowEnd },
+                            checkOutDate: { gte: checkIn },
+                        },
+                        select: { checkInDate: true, checkOutDate: true },
+                    });
+
+                    let bookedNights = 0;
+                    for (const b of upcomingBookings) {
+                        // Clamp each booking to the scoring window before counting nights
+                        const bIn = new Date(b.checkInDate) < checkIn ? checkIn : new Date(b.checkInDate);
+                        const bOut = new Date(b.checkOutDate) > windowEnd ? windowEnd : new Date(b.checkOutDate);
+                        bookedNights += Math.max(0, differenceInDays(bOut, bIn));
+                    }
+                    room.consolidationScore = bookedNights;
+                }
+
+                // Sort descending: most booked room first (fill it up before using cleaner rooms)
+                availableRooms.sort((a, b) => (b.consolidationScore ?? 0) - (a.consolidationScore ?? 0));
+            } catch (err) {
+                // Non-critical: if scoring fails for any reason, fall through with original order
+                console.warn('[ConsolidationSort] Scoring failed, using default order:', err?.message);
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────────
 
         return availableRooms;
     }

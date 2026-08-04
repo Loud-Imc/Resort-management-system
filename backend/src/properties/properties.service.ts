@@ -9,6 +9,7 @@ import { normalizePhone } from '../common/utils/phone';
 import { AuditService } from '../audit/audit.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { PricingService } from '../bookings/pricing.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class PropertiesService {
@@ -20,6 +21,7 @@ export class PropertiesService {
         private readonly systemSettings: SystemSettingsService,
         @Inject(forwardRef(() => PricingService))
         private readonly pricingService: PricingService,
+        private readonly mailService: MailService,
     ) { }
 
     /**
@@ -628,7 +630,15 @@ export class PropertiesService {
             }
 
             // Sync email and names from the new registration
-            if (dto.ownerEmail && existingUser.email !== dto.ownerEmail) dataToUpdate.email = dto.ownerEmail;
+            if (dto.ownerEmail && existingUser.email !== dto.ownerEmail) {
+                const userWithEmail = await this.prisma.user.findFirst({
+                    where: { email: dto.ownerEmail }
+                });
+                if (userWithEmail && userWithEmail.id !== existingUser.id) {
+                    throw new ConflictException('This owner email address is already linked to another account.');
+                }
+                dataToUpdate.email = dto.ownerEmail;
+            }
             if (dto.ownerFirstName && existingUser.firstName !== dto.ownerFirstName) dataToUpdate.firstName = dto.ownerFirstName;
             if (dto.ownerLastName && existingUser.lastName !== dto.ownerLastName) dataToUpdate.lastName = dto.ownerLastName;
 
@@ -682,6 +692,13 @@ export class PropertiesService {
 
         // Notify admins of new registration request
         await this.notificationsService.notifyPropertyRequest(request);
+
+        // Send registration confirmation email to propertyEmail (CC ownerEmail)
+        await this.mailService.sendPropertyRegistrationConfirmation(
+            dto.propertyEmail,
+            dto.ownerEmail,
+            request
+        );
 
         return {
             id: request.id,

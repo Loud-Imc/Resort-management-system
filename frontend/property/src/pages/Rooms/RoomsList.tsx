@@ -122,13 +122,7 @@ export default function RoomsList() {
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+
 
     if (error) {
         return (
@@ -142,7 +136,10 @@ export default function RoomsList() {
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Rooms</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-foreground">Rooms</h1>
+                        {isLoading && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                    </div>
                     <p className="text-sm text-muted-foreground mt-1">Manage rooms for your property</p>
                 </div>
                 <Link
@@ -194,7 +191,17 @@ export default function RoomsList() {
 
                 {/* Grid View for Rooms */}
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {rooms?.map((room) => {
+                    {isLoading ? (
+                        <div className="col-span-full flex flex-col items-center justify-center py-16 space-y-3">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="text-sm font-semibold text-muted-foreground">Loading rooms...</p>
+                        </div>
+                    ) : rooms?.length === 0 ? (
+                        <div className="col-span-full text-center py-12 text-muted-foreground border-2 border-dashed border-border rounded-xl font-medium">
+                            No rooms found.
+                        </div>
+                    ) : (
+                        rooms?.map((room) => {
                         const dateToCompare = new Date(selectedDate);
                         dateToCompare.setHours(0, 0, 0, 0);
 
@@ -303,7 +310,8 @@ export default function RoomsList() {
                                 </div>
                             </div>
                         </div>
-                    )})}
+                    )})
+                    )}
                 </div>
 
                 {/* Block Room Modal */}

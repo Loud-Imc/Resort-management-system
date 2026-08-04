@@ -356,6 +356,13 @@ export default function Checkout() {
 
     return (
         <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-8">
+            {isProcessing && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary-600 mb-4" />
+                    <h2 className="text-xl font-black text-gray-900 uppercase tracking-widest">Processing Booking...</h2>
+                    <p className="text-sm font-bold text-gray-500 mt-2">Please wait, do not close or refresh this page.</p>
+                </div>
+            )}
             <div className="mb-6 flex items-center justify-between">
                 <button
                     onClick={() => navigate(-1)}
@@ -799,7 +806,7 @@ export default function Checkout() {
                                     {effectivePricing?.offerDiscountAmount > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-medium">
                                             <span>Offer Discount</span>
-                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.offerDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)).toFixed(2)) : effectivePricing.offerDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.grossOfferDiscountAmount ?? (effectivePricing?.isGstInclusive ? Math.round(effectivePricing.offerDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)) : Math.round(effectivePricing.offerDiscountAmount)), selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 

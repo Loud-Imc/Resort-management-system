@@ -38,8 +38,15 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const [location, setLocation] = useState('');
     const [categoryId, setCategoryId] = useState('');
-    const [checkIn, setCheckIn] = useState<Date | null>(new Date());
+    const [checkIn, setCheckInState] = useState<Date | null>(new Date());
     const [checkOut, setCheckOut] = useState<Date | null>(addDays(new Date(), 1));
+
+    const setCheckIn = useCallback((v: Date | null) => {
+        setCheckInState(v);
+        if (v && !isNaN(v.getTime())) {
+            setCheckOut(addDays(v, 1));
+        }
+    }, []);
     const [adults, setAdults] = useState(2);
     const [childrenCount, setChildrenCount] = useState(0);
     const [rooms, setRooms] = useState(1);

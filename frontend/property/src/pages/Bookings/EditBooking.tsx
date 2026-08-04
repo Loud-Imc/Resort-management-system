@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { bookingsService } from '../../services/bookings';
 import { uploadService } from '../../services/uploads';
 import { Loader2, ArrowLeft, Users, Save, Camera, Eye, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import type { Booking } from '../../types/booking';
 
 const editBookingSchema = z.object({
@@ -64,11 +64,38 @@ export default function EditBooking() {
 
     const { fields, append, remove } = useFieldArray({ control, name: 'guests' });
 
+    const originalCheckInRef = useRef<string | null>(null);
+    const watchedCheckInDate = watch('checkInDate');
+
+    useEffect(() => {
+        if (booking && booking.checkInDate) {
+            originalCheckInRef.current = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
+        }
+    }, [booking]);
+
+    useEffect(() => {
+        if (!watchedCheckInDate) return;
+        // Don't auto-set checkout if it matches the originally loaded check-in date
+        if (originalCheckInRef.current === watchedCheckInDate) return;
+
+        const checkIn = new Date(watchedCheckInDate);
+        if (!isNaN(checkIn.getTime())) {
+            const nextDay = addDays(checkIn, 1);
+            setValue('checkOutDate', format(nextDay, 'yyyy-MM-dd'));
+        }
+    }, [watchedCheckInDate, setValue]);
+
     useEffect(() => {
         if (booking) {
             if (!booking.isManualBooking) {
                 toast.error('Only manual bookings can be edited');
                 navigate('/bookings');
+                return;
+            }
+
+            if (['CHECKED_IN', 'CHECKED_OUT'].includes(booking.status)) {
+                toast.error('Checked-in bookings cannot be edited');
+                navigate(`/bookings/${id}`);
                 return;
             }
 

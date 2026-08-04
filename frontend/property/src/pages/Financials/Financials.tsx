@@ -7,7 +7,7 @@ import { expensesService } from '../../services/expenses';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import {
     Loader2, IndianRupee, TrendingUp, TrendingDown, Info,
-    PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight, Search, Filter, Download
+    PieChart as PieChartIcon, Calendar, Plus, Tag, FileText, ChevronRight, Search, Filter, Download, History, Trash2, Edit2, Wallet
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -79,6 +79,12 @@ export default function Financials() {
     const uniqueCategories = expenseCategories?.map((c: any) => c.name) || [];
     const uniquePaymentMethods = Array.from(new Set(recentExpenses?.map(e => e.paymentMethod))).filter(Boolean) as string[];
 
+    const { data: alterationLogs, isLoading: loadingLogs } = useQuery({
+        queryKey: ['expenseAlterationLogs', selectedProperty?.id],
+        queryFn: () => expensesService.getAlterationLogs(selectedProperty?.id),
+        enabled: !!selectedProperty?.id,
+    });
+
     const handleDownloadReport = async () => {
         try {
             const blob = await expensesService.downloadReport({
@@ -109,11 +115,7 @@ export default function Financials() {
         return true;
     });
 
-    if (isLoading) return (
-        <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-    );
+
 
     const incomeData = report?.incomeBySource?.map((item: any) => ({
         name: item.source.replace(/_/g, ' '),
@@ -130,7 +132,10 @@ export default function Financials() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Reports</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Reports</h1>
+                        {isLoading && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                    </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Income, expenses, and profit analysis</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -151,9 +156,11 @@ export default function Financials() {
                 </div>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            {/* Summary Cards & Main Content Wrapper */}
+            <div className={`space-y-6 transition-all duration-200 ${isLoading ? 'opacity-55 pointer-events-none select-none' : ''}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                 <SummaryCard title="Total Income" value={`₹${report?.summary?.totalIncome?.toLocaleString() || '0'}`} icon={<TrendingUp className="h-6 w-6 text-emerald-500" />} color="emerald" infoNote="Revenue is calculated based on the check-in month of the booking, not when the booking was made." onClick={() => { setDetailsType('REVENUE'); setIsDetailsModalOpen(true); }} isClickable />
+                <SummaryCard title="Cash Inflow" value={`₹${report?.summary?.totalCashInflow?.toLocaleString() || '0'}`} icon={<Wallet className="h-6 w-6 text-indigo-500" />} color="indigo" infoNote="Cash Inflow represents all actual cash/bank receipts received during the period (payment date basis), regardless of check-in date." onClick={() => { document.getElementById('reconciliation-section')?.scrollIntoView({ behavior: 'smooth' }); }} isClickable />
                 <SummaryCard title="Total Expenses" value={`₹${report?.summary?.totalExpenses?.toLocaleString() || '0'}`} icon={<TrendingDown className="h-6 w-6 text-rose-500" />} color="rose" onClick={() => { document.getElementById('expenses-section')?.scrollIntoView({ behavior: 'smooth' }); }} isClickable />
                 <SummaryCard title="Platform Fees" value={`₹${report?.summary?.totalPlatformFees?.toLocaleString() || '0'}`} icon={<Tag className="h-6 w-6 text-orange-500" />} color="orange" onClick={() => { setDetailsType('PLATFORM_FEES'); setIsDetailsModalOpen(true); }} isClickable />
                 <SummaryCard title="Net Profit" value={`₹${report?.summary?.netProfit?.toLocaleString() || '0'}`} icon={<IndianRupee className="h-6 w-6 text-primary" />} color="primary" isNegative={report?.summary?.netProfit < 0} onClick={() => { setDetailsType('NET_EARNINGS'); setIsDetailsModalOpen(true); }} isClickable />
@@ -194,6 +201,96 @@ export default function Financials() {
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : <p className="text-gray-400 italic text-center pt-20">No expense data for this period</p>}
+                    </div>
+                </div>
+            </div>
+
+            {/* Cash Flow Reconciliation Section */}
+            <div id="reconciliation-section" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left card: Explanation and Accrual vs Cash Summary */}
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl">
+                                <Wallet className="h-5 w-5 text-indigo-500" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Cash vs Accrual</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+                            Your property earns revenue when guests check in (<strong>Earned Revenue</strong>), but actual cash deposits in your bank or drawer occur when payments are received (<strong>Cash Inflow</strong>).
+                        </p>
+                        <div className="space-y-3 mt-4">
+                            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
+                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Earned Revenue (Check-ins)</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-white">₹{report?.summary?.totalIncome?.toLocaleString() || '0'}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl">
+                                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Cash Inflow (Payments)</span>
+                                <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">₹{report?.summary?.totalCashInflow?.toLocaleString() || '0'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+                        Use the Cash Inflow details on the right to reconcile your daily bank deposits, UPI logs, and physical cash counts.
+                    </div>
+                </div>
+
+                {/* Right card: Method-wise Cash Inflow Breakdown */}
+                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Cash Receipts by Payment Method</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Progress bars list */}
+                        <div className="space-y-4">
+                            {['UPI', 'CASH', 'BANK_TRANSFER', 'CREDIT_CARD', 'DEBIT_CARD'].map(method => {
+                                const amount = Number(report?.summary?.cashInflowByMethod?.[method] || 0);
+                                const total = Number(report?.summary?.totalCashInflow || 1); // avoid division by zero
+                                const percentage = Math.round((amount / total) * 100);
+                                
+                                return (
+                                    <div key={method} className="space-y-1.5">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="font-semibold text-gray-700 dark:text-gray-300 capitalize">{method.replace(/_/g, ' ').toLowerCase()}</span>
+                                            <span className="font-bold text-gray-900 dark:text-white">₹{amount.toLocaleString()} ({percentage}%)</span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full rounded-full ${
+                                                    method === 'UPI' ? 'bg-indigo-500' :
+                                                    method === 'CASH' ? 'bg-emerald-500' :
+                                                    method === 'BANK_TRANSFER' ? 'bg-amber-500' : 'bg-primary'
+                                                }`} 
+                                                style={{ width: `${percentage}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* Summary visual helper */}
+                        <div className="bg-gray-50 dark:bg-gray-700/20 p-5 rounded-2xl border border-gray-100 dark:border-gray-700/50 flex flex-col justify-between">
+                            <div>
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">Reconciliation Summary</h4>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600 dark:text-gray-400">Total Digital Inflow (UPI, Transfer, Cards)</span>
+                                        <span className="font-semibold text-gray-950 dark:text-white">
+                                            ₹{((Number(report?.summary?.totalCashInflow || 0)) - (Number(report?.summary?.cashInflowByMethod?.['CASH'] || 0))).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600 dark:text-gray-400">Total Handheld Till Inflow (Cash)</span>
+                                        <span className="font-semibold text-gray-950 dark:text-white">
+                                            ₹{(Number(report?.summary?.cashInflowByMethod?.['CASH'] || 0)).toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-4 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex items-start gap-2">
+                                <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <span>Note: Manual revenue bookings entered directly in the system without channel tracking are automatically categorized under "Cash".</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -391,7 +488,70 @@ export default function Financials() {
                 </div>
             </div>
 
-            <ExpenseModal isOpen={isExpenseModalOpen} onClose={() => setIsExpenseModalOpen(false)} expense={selectedExpense} />
+            {isExpenseModalOpen && (
+                <ExpenseModal isOpen={isExpenseModalOpen} onClose={() => setIsExpenseModalOpen(false)} expense={selectedExpense} />
+            )}
+
+            {/* Alteration Logs */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
+                            <History className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Expense Alteration Logs</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Audit trail of all expense edits and deletions</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="bg-gray-50 dark:bg-gray-700/50">
+                                <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Date & Time</th>
+                                <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Action</th>
+                                <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Description</th>
+                                <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Amount</th>
+                                <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Reason</th>
+                                <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Changed By</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                            {loadingLogs ? (
+                                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></td></tr>
+                            ) : !alterationLogs?.length ? (
+                                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500 italic">No alterations recorded yet</td></tr>
+                            ) : (
+                                alterationLogs.map((log: any) => (
+                                    <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                            {format(new Date(log.changedAt), 'dd MMM yyyy, hh:mm a')}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${
+                                                log.action === 'DELETE'
+                                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                            }`}>
+                                                {log.action === 'DELETE' ? <Trash2 className="h-3 w-3" /> : <Edit2 className="h-3 w-3" />}
+                                                {log.action}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white max-w-[200px] truncate">{log.description}</td>
+                                        <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white text-right">₹{Number(log.amount).toLocaleString()}</td>
+                                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-[250px]">
+                                            <span className="line-clamp-2">{log.reason}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{log.changedBy || '—'}</td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            </div>
             <FinancialDetailsModal 
                 isOpen={isDetailsModalOpen} 
                 onClose={() => setIsDetailsModalOpen(false)} 

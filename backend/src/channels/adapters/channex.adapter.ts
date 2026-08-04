@@ -437,4 +437,135 @@ export class ChannexAdapter implements IChannelAdapter {
       return false;
     }
   }
+
+  async createChannel(
+    externalPropertyId: string,
+    otaId: string,
+    title: string,
+    settings?: any,
+  ): Promise<string> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) {
+      throw new Error('CHANNEX_USER_API_KEY is missing in backend environment (.env).');
+    }
+
+    const payload = {
+      channel: {
+        property_id: externalPropertyId,
+        ota_id: otaId,
+        title: title,
+        is_active: true,
+        settings: settings || {},
+      },
+    };
+
+    this.logger.log(`[Channex] Creating channel '${title}' (${otaId}) for property ${externalPropertyId}`);
+    const response = await this.fetchWithRetry(`${this.baseUrl}/channels`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'user-api-key': userApiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      this.logger.error(`[Channex] Failed to create channel: ${response.status} ${errText}`);
+      
+      let friendlyMessage = 'Failed to link channel.';
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.errors) {
+          if (typeof parsed.errors === 'string') {
+            friendlyMessage = parsed.errors;
+          } else if (parsed.errors.details) {
+            friendlyMessage = parsed.errors.details;
+          } else if (parsed.errors.title) {
+            friendlyMessage = parsed.errors.title;
+          } else if (typeof parsed.errors === 'object') {
+            const errorList: string[] = [];
+            for (const [key, val] of Object.entries(parsed.errors)) {
+              if (Array.isArray(val)) {
+                errorList.push(`${key}: ${val.join(', ')}`);
+              } else if (typeof val === 'string') {
+                errorList.push(`${key}: ${val}`);
+              }
+            }
+            if (errorList.length > 0) {
+              friendlyMessage = errorList.join('; ');
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (friendlyMessage.toLowerCase().includes('you not have access to requested group')) {
+        friendlyMessage = 'Your Channex account does not have access to this property group. Please verify your property credentials and settings.';
+      }
+
+      throw new Error(friendlyMessage);
+    }
+
+    const resData = await response.json();
+    return resData.data.id;
+  }
+
+  async deleteChannel(externalChannelId: string): Promise<boolean> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return false;
+
+    try {
+      this.logger.log(`[Channex] Deleting channel connection ${externalChannelId}`);
+      const response = await this.fetchWithRetry(`${this.baseUrl}/channels/${externalChannelId}`, {
+        method: 'DELETE',
+        headers: {
+          'user-api-key': userApiKey,
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        this.logger.error(`[Channex] Failed to delete channel ${externalChannelId}: ${response.status} ${errText}`);
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error deleting channel: ${error.message}`);
+      return false;
+    }
+  }
+
+  async getIframeSessionToken(externalPropertyId: string): Promise<string> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) {
+      throw new Error('CHANNEX_USER_API_KEY is missing in backend environment (.env).');
+    }
+
+    const payload = {
+      one_time_token: {
+        property_id: externalPropertyId,
+        username: 'ResortAdmin',
+      },
+    };
+
+    this.logger.log(`[Channex] Generating one-time session token for property ${externalPropertyId}`);
+    const response = await this.fetchWithRetry(`${this.baseUrl}/auth/one_time_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'user-api-key': userApiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      this.logger.error(`[Channex] Failed to generate one-time token: ${response.status} ${errText}`);
+      throw new Error(`Channex one-time token generation failed: ${errText}`);
+    }
+
+    const resData = await response.json();
+    return resData.data.token;
+  }
 }

@@ -121,6 +121,9 @@ export default function BookingAvailabilityCalendar({
         const availableCount = dayData ? dayData.available : 0;
         const isFull = dayData ? dayData.isFull : false;
 
+        const checkInKey = tempCheckIn ? format(tempCheckIn, 'yyyy-MM-dd') : null;
+        const isCheckInFull = checkInKey && calendarData[checkInKey] ? calendarData[checkInKey].isFull : false;
+
         const isSelectedCheckIn = tempCheckIn ? isSameDay(day, tempCheckIn) : false;
         const isSelectedCheckOut = tempCheckOut ? isSameDay(day, tempCheckOut) : false;
         const isInRange = isDateInRange(day);
@@ -141,14 +144,38 @@ export default function BookingAvailabilityCalendar({
             cellClass = "opacity-35 hover:opacity-80";
             textClass = "text-muted-foreground";
             badgeClass = "text-muted-foreground/60";
-        } else if (isSelectedCheckIn || isSelectedCheckOut) {
-            cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
-            textClass = "text-white font-bold";
-            badgeClass = "text-white/80 font-bold";
+        } else if (isSelectedCheckIn) {
+            if (isFull) {
+                cellClass = "bg-red-500/15 dark:bg-red-950/40 border-2 border-red-500 ring-2 ring-red-500/30 scale-[0.98] shadow-md shadow-red-500/20";
+                textClass = "text-red-600 dark:text-red-400 font-black";
+                badgeClass = "bg-red-500 text-white font-black";
+            } else {
+                cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
+                textClass = "text-white font-bold";
+                badgeClass = "text-white/80 font-bold";
+            }
+        } else if (isSelectedCheckOut) {
+            if (isCheckInFull) {
+                // If Check-In date was FULL, the entire selection is invalid: render Check-Out in red warning
+                cellClass = "bg-red-500/15 dark:bg-red-950/40 border-2 border-red-500 ring-2 ring-red-500/30 scale-[0.98] shadow-md shadow-red-500/20";
+                textClass = "text-red-600 dark:text-red-400 font-black";
+                badgeClass = "bg-red-500 text-white font-black";
+            } else {
+                // Check-out morning is valid for departure when check-in date WAS available
+                cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
+                textClass = "text-white font-bold";
+                badgeClass = "bg-white/20 text-white font-black uppercase tracking-wider";
+            }
         } else if (isInRange) {
-            cellClass = "bg-primary/15 border-primary/30 text-primary";
-            textClass = "text-primary font-bold";
-            badgeClass = "text-primary/80 font-bold";
+            if (isCheckInFull || isFull) {
+                cellClass = "bg-red-500/10 dark:bg-red-950/30 border-2 border-red-500/70 text-red-600 dark:text-red-400";
+                textClass = "text-red-600 dark:text-red-400 font-black";
+                badgeClass = "bg-red-500/20 text-red-600 dark:text-red-400 font-black border border-red-500/40";
+            } else {
+                cellClass = "bg-primary/15 border-primary/30 text-primary";
+                textClass = "text-primary font-bold";
+                badgeClass = "text-primary/80 font-bold";
+            }
         } else if (isFull) {
             cellClass = "bg-red-500/5 dark:bg-red-950/20 border-red-500/20 hover:border-red-500/40";
             textClass = "text-red-700 dark:text-red-400";
@@ -177,7 +204,7 @@ export default function BookingAvailabilityCalendar({
                 {shouldFetch ? (
                     totalRoomsOfType > 0 ? (
                         <span className={clsx("text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.5 rounded-md self-center font-black tracking-tight", badgeClass)}>
-                            {isFull ? 'FULL' : `${availableCount}/${totalRoomsOfType}`}
+                            {isSelectedCheckOut && !isCheckInFull ? 'OUT' : isFull ? 'FULL' : `${availableCount}/${totalRoomsOfType}`}
                         </span>
                     ) : (
                         <span className="text-[8px] text-muted-foreground self-center">No inv.</span>

@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Loader2, IndianRupee, Plus, Search, Trash2 } from 'lucide-react';
+import { X, Loader2, IndianRupee, Plus, Search, Trash2, AlertTriangle } from 'lucide-react';
 import { expensesService } from '../../services/expenses';
 import type { Expense, ExpenseCategory } from '../../types/expense';
 import { useProperty } from '../../context/PropertyContext';
@@ -21,6 +21,7 @@ const singleExpenseSchema = z.object({
     isPaid: z.boolean().optional(),
     paymentMethod: z.string().optional(),
     bookingIds: z.array(z.string()).optional(),
+    reason: z.string().optional(),
 });
 
 const expensesSchema = z.object({
@@ -47,6 +48,8 @@ function ExpenseRow({ index, register, errors, watch, setValue, categories, book
     const [isBookingDropdownOpen, setIsBookingDropdownOpen] = useState(false);
     const bookingSearchRef = useRef<HTMLDivElement>(null);
     const [localSelectedBookings, setLocalSelectedBookings] = useState<{id: string, bookingNumber: string, guestName: string}[]>([]);
+    const isInitializedRef = useRef(false);
+
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -58,29 +61,36 @@ function ExpenseRow({ index, register, errors, watch, setValue, categories, book
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Sync selected bookings with form state
-    useEffect(() => {
-        setValue(`expenses.${index}.bookingIds`, localSelectedBookings.map(b => b.id));
-    }, [localSelectedBookings, index, setValue]);
-
     // Initialize localSelectedBookings from existing form values if present
     useEffect(() => {
-        const existingIds = watch(`expenses.${index}.bookingIds`) || [];
-        if (existingIds.length > 0 && localSelectedBookings.length === 0 && bookingsData) {
-            const initialBookings = existingIds.map((id: string) => {
-                const b = bookingsData.find((booking: any) => booking.id === id);
-                if (b) {
-                    return {
-                        id: b.id,
-                        bookingNumber: b.bookingNumber,
-                        guestName: b.guests?.[0] ? `${b.guests[0].firstName} ${b.guests[0].lastName}`.trim() : 'Guest'
-                    };
+        if (!isInitializedRef.current && bookingsData) {
+            const existingIds = watch(`expenses.${index}.bookingIds`) || [];
+            if (existingIds.length > 0) {
+                const initialBookings = existingIds.map((id: string) => {
+                    const b = bookingsData.find((booking: any) => booking.id === id);
+                    if (b) {
+                        return {
+                            id: b.id,
+                            bookingNumber: b.bookingNumber,
+                            guestName: b.guests?.[0] ? `${b.guests[0].firstName} ${b.guests[0].lastName}`.trim() : 'Guest'
+                        };
+                    }
+                    return null;
+                }).filter(Boolean);
+                if (initialBookings.length > 0) {
+                    setLocalSelectedBookings(initialBookings);
                 }
-                return null;
-            }).filter(Boolean);
-            setLocalSelectedBookings(initialBookings);
+            }
+            isInitializedRef.current = true;
         }
-    }, [bookingsData]);
+    }, [bookingsData, index, watch]);
+
+    // Sync selected bookings with form state (only after initial loading is done)
+    useEffect(() => {
+        if (isInitializedRef.current) {
+            setValue(`expenses.${index}.bookingIds`, localSelectedBookings.map(b => b.id));
+        }
+    }, [localSelectedBookings, index, setValue]);
 
 
     const createCategoryMutation = async () => {
@@ -282,6 +292,9 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
         queryFn: () => expensesService.getCategories(selectedProperty?.id),
     });
 
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [deleteReason, setDeleteReason] = useState('');
+
     const { data: bookingsData } = useQuery({
         queryKey: ['bookings', selectedProperty?.id],
         queryFn: () => bookingsService.getAll({ propertyId: selectedProperty?.id }),
@@ -293,7 +306,30 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
         formState: { errors },
     } = useForm<ExpensesFormData>({
         resolver: zodResolver(expensesSchema) as any,
-        defaultValues: { expenses: [] }
+        defaultValues: {
+            expenses: expense ? [{
+                id: expense.id,
+                amount: expense.amount as any,
+                description: expense.description,
+                categoryId: expense.categoryId,
+                date: expense.date ? format(new Date(expense.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+                propertyId: expense.propertyId || selectedProperty?.id || '',
+                isPaid: expense.isPaid ?? true,
+                paymentMethod: expense.paymentMethod || '',
+                bookingIds: expense.bookings?.map(b => b.id) || [],
+                reason: '',
+            }] : [{
+                amount: '' as any,
+                description: '',
+                categoryId: '',
+                date: format(new Date(), 'yyyy-MM-dd'),
+                propertyId: selectedProperty?.id || '',
+                isPaid: true,
+                paymentMethod: '',
+                bookingIds: [],
+                reason: '',
+            }]
+        }
     });
 
     const { fields, append, remove } = useFieldArray({ control, name: 'expenses' });
@@ -350,6 +386,7 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['expenses'] });
             queryClient.invalidateQueries({ queryKey: ['financialReport'] });
+            queryClient.invalidateQueries({ queryKey: ['expenseAlterationLogs'] });
             toast.success(expense ? 'Expense updated successfully' : 'Expenses added successfully');
             reset();
             onClose();
@@ -359,9 +396,28 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
         },
     });
 
+    const deleteMutation = useMutation({
+        mutationFn: async () => {
+            if (!expense) return;
+            return expensesService.delete(expense.id, deleteReason);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['expenses'] });
+            queryClient.invalidateQueries({ queryKey: ['financialReport'] });
+            queryClient.invalidateQueries({ queryKey: ['expenseAlterationLogs'] });
+            toast.success('Expense deleted successfully');
+            setIsDeleteConfirmOpen(false);
+            onClose();
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to delete expense');
+        },
+    });
+
     if (!isOpen) return null;
 
     return (
+        <>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white dark:bg-gray-800 w-full max-w-[95vw] xl:max-w-7xl my-auto rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col max-h-[90vh]">
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
@@ -409,6 +465,27 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
                             ))}
                         </div>
 
+                        {expense && (
+                            <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-2xl max-w-xl shrink-0">
+                                <label className="block text-sm font-bold text-amber-800 dark:text-amber-400 mb-1">
+                                    Reason for Alteration *
+                                </label>
+                                <p className="text-xs text-amber-600 dark:text-amber-500 mb-3">
+                                    Please provide a clear reason for modifying this expense. Alterations are monitored to prevent discrepancies.
+                                </p>
+                                <textarea
+                                    {...register('expenses.0.reason')}
+                                    required
+                                    rows={3}
+                                    placeholder="e.g., corrected amount after verifying physical invoice..."
+                                    className="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                                />
+                                {errors?.expenses?.[0]?.reason && (
+                                    <p className="text-xs text-red-500 mt-1">{errors.expenses[0].reason.message}</p>
+                                )}
+                            </div>
+                        )}
+
                         {!expense && (
                             <div className="mt-3">
                                 <button
@@ -433,19 +510,81 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
                     </form>
                 </div>
 
-                <div className="p-6 border-t border-gray-200 dark:border-gray-700 shrink-0 bg-gray-50 dark:bg-gray-800 rounded-b-3xl flex justify-end gap-3">
-                    <button type="button" onClick={onClose}
-                        className="px-6 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-medium rounded-xl transition-all shadow-sm">
-                        Cancel
-                    </button>
-                    <button type="submit" form="expenses-form" disabled={mutation.isPending}
-                        className="px-8 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2">
-                        {mutation.isPending && <Loader2 className="h-5 w-5 animate-spin" />}
-                        {expense ? 'Update Expense' : `Save ${fields.length} Expense${fields.length > 1 ? 's' : ''}`}
-                    </button>
+                <div className="p-6 border-t border-gray-200 dark:border-gray-700 shrink-0 bg-gray-50 dark:bg-gray-800 rounded-b-3xl flex justify-between items-center gap-3">
+                    <div>
+                        {expense && (
+                            <button
+                                type="button"
+                                onClick={() => { setDeleteReason(''); setIsDeleteConfirmOpen(true); }}
+                                className="flex items-center gap-2 px-4 py-2.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-xl font-medium transition-all"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                Delete Expense
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button type="button" onClick={onClose}
+                            className="px-6 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-medium rounded-xl transition-all shadow-sm">
+                            Cancel
+                        </button>
+                        <button type="submit" form="expenses-form" disabled={mutation.isPending}
+                            className="px-8 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2">
+                            {mutation.isPending && <Loader2 className="h-5 w-5 animate-spin" />}
+                            {expense ? 'Update Expense' : `Save ${fields.length} Expense${fields.length > 1 ? 's' : ''}`}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {isDeleteConfirmOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-md w-full p-6">
+                    <div className="flex items-start gap-4 mb-5">
+                        <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-xl shrink-0">
+                            <AlertTriangle className="h-6 w-6 text-rose-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Delete Expense</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                This action is irreversible. Provide a reason before deleting — it will be permanently recorded for audit purposes.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="mb-5">
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Reason for Deletion *</label>
+                        <textarea
+                            value={deleteReason}
+                            onChange={e => setDeleteReason(e.target.value)}
+                            rows={3}
+                            placeholder="e.g., duplicate entry, wrong property, incorrect data..."
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-1 focus:ring-rose-500 outline-none"
+                        />
+                    </div>
+                    <div className="flex gap-3 justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setIsDeleteConfirmOpen(false)}
+                            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={!deleteReason.trim() || deleteMutation.isPending}
+                            onClick={() => deleteMutation.mutate()}
+                            className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors"
+                        >
+                            {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                            Confirm Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+    </>
     );
 }
 

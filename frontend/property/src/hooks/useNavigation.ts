@@ -63,7 +63,7 @@ export function useNavigation() {
             ] : []),
 
             ...(hasPermission('payments.read') ? [
-                { icon: CreditCard, label: 'Payments', path: '/payments' },
+                { icon: CreditCard, label: 'Booking Revenue', path: '/payments' },
             ] : []),
 
             ...(hasPermission('reports.viewFinancial') ? [
@@ -97,7 +97,7 @@ export function useNavigation() {
             ] : []),
 
             ...(hasPermission('settings.manage') ? [
-                { icon: RefreshCw, label: 'Calendar Sync', path: '/calendar-sync' },
+                { icon: RefreshCw, label: 'OTA Sync', path: '/calendar-sync' },
             ] : []),
         ] : []),
 

@@ -106,4 +106,19 @@ export interface IChannelAdapter {
     externalPropertyId: string,
     webhookUrl: string,
   ): Promise<boolean>;
+
+  createChannel?(
+    externalPropertyId: string,
+    otaId: string,
+    title: string,
+    settings?: any,
+  ): Promise<string>;
+
+  deleteChannel?(
+    externalChannelId: string,
+  ): Promise<boolean>;
+
+  getIframeSessionToken?(
+    externalPropertyId: string,
+  ): Promise<string>;
 }

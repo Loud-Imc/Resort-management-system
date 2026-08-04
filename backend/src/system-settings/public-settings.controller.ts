@@ -13,7 +13,7 @@ export class PublicSettingsController {
         const platformCommission = await this.systemSettingsService.getSetting('DEFAULT_PLATFORM_COMMISSION');
 
         return {
-            DEFAULT_PLATFORM_COMMISSION: platformCommission ?? 10.0,
+            DEFAULT_PLATFORM_COMMISSION: platformCommission ?? 25.0,
         };
     }
 }

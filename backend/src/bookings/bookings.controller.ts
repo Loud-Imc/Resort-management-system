@@ -121,7 +121,8 @@ export class BookingsController {
                 groupUnavailableReason = hasPool ? 'CAPACITY_EXCEEDED' : 'NO_POOL_CONFIGURED';
             }
         } else if (!dto.isGroupBooking && dto.roomTypeId) {
-            // For standard bookings, return the list of available rooms
+            // For standard bookings, return the list of available rooms.
+            // getAvailableRooms() returns rooms pre-sorted by consolidation score (most booked first).
             const availableRooms = await this.availabilityService.getAvailableRooms(
                 dto.roomTypeId,
                 new Date(dto.checkInDate),
@@ -132,7 +133,7 @@ export class BookingsController {
             const roomType = await (this.availabilityService as any).prisma.roomType.findUnique({
                 where: { id: dto.roomTypeId }
             });
-            roomList = availableRooms.map(r => ({
+            roomList = availableRooms.map((r, idx) => ({
                 id: r.id,
                 name: r.name,
                 roomNumber: r.roomNumber,
@@ -144,8 +145,12 @@ export class BookingsController {
                 baseChildren: roomType?.baseChildren ?? roomType?.maxChildren ?? 1,
                 maxPhysicalAdults: roomType?.maxPhysicalAdults ?? 4,
                 maxPhysicalChildren: roomType?.maxPhysicalChildren ?? 2,
+                // Consolidation metadata for the PMS UI
+                consolidationScore: r.consolidationScore ?? 0,
+                isRecommended: idx === 0, // First room = highest score = recommended
             }));
         }
+
 
         return {
             available: isAvailable,

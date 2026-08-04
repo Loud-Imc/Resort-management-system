@@ -523,15 +523,25 @@ export class BookingsService {
                         const first = effectiveName.split(' ')[0];
                         const last = effectiveName.split(' ').slice(1).join(' ');
 
+                        const updateData: any = {
+                            firstName: first || guestUser.firstName,
+                            lastName: (last !== undefined ? last : guestUser.lastName) || '',
+                            whatsappNumber: createBookingDto.whatsappNumber || guestUser.whatsappNumber,
+                        };
+
+                        if (effectiveEmail && effectiveEmail !== guestUser.email) {
+                            const existingWithEmail = await tx.user.findFirst({ where: { email: effectiveEmail, id: { not: guestUser.id } } });
+                            if (!existingWithEmail) updateData.email = effectiveEmail;
+                        }
+
+                        if (effectivePhone && effectivePhone !== guestUser.phone) {
+                            const existingWithPhone = await tx.user.findFirst({ where: { phone: effectivePhone, id: { not: guestUser.id } } });
+                            if (!existingWithPhone) updateData.phone = effectivePhone;
+                        }
+
                         await tx.user.update({
                             where: { id: guestUser.id },
-                            data: {
-                                firstName: first || guestUser.firstName,
-                                lastName: (last !== undefined ? last : guestUser.lastName) || '',
-                                whatsappNumber: createBookingDto.whatsappNumber || guestUser.whatsappNumber,
-                                email: (effectiveEmail || guestUser.email) || undefined,
-                                phone: (effectivePhone || guestUser.phone) || undefined,
-                            }
+                            data: updateData
                         });
                     }
                 }
@@ -543,8 +553,16 @@ export class BookingsService {
                     const updateData: any = {};
                     if (!currentUser.firstName && effectiveName) updateData.firstName = effectiveName.split(' ')[0];
                     if (!currentUser.lastName && effectiveName) updateData.lastName = effectiveName.split(' ').slice(1).join(' ');
-                    if (!currentUser.email && effectiveEmail) updateData.email = effectiveEmail;
                     if (!currentUser.whatsappNumber) updateData.whatsappNumber = createBookingDto.whatsappNumber;
+
+                    if (!currentUser.email && effectiveEmail) {
+                        const existingWithEmail = await tx.user.findFirst({ where: { email: effectiveEmail, id: { not: userId } } });
+                        if (!existingWithEmail) updateData.email = effectiveEmail;
+                    }
+                    if (!currentUser.phone && effectivePhone) {
+                        const existingWithPhone = await tx.user.findFirst({ where: { phone: effectivePhone, id: { not: userId } } });
+                        if (!existingWithPhone) updateData.phone = effectivePhone;
+                    }
 
                     if (Object.keys(updateData).length > 0) {
                         console.log(`[BookingsService] [TX] Updating profile for logged-in user ${userId}:`, updateData);
@@ -613,15 +631,17 @@ export class BookingsService {
             }
 
             // 7.2.2 Mathematical Validation of Pricing Object
-            const computedTotal = (
-                pricing.baseAmount +
-                pricing.extraAdultAmount +
-                pricing.extraChildAmount +
-                pricing.taxAmount -
-                pricing.offerDiscountAmount -
-                pricing.couponDiscountAmount -
-                pricing.referralDiscountAmount
-            );
+            const computedTotal = pricing.isGstInclusive
+                ? (pricing.baseAmount + pricing.taxAmount)
+                : (
+                    pricing.baseAmount +
+                    pricing.extraAdultAmount +
+                    pricing.extraChildAmount +
+                    pricing.taxAmount -
+                    pricing.offerDiscountAmount -
+                    pricing.couponDiscountAmount -
+                    pricing.referralDiscountAmount
+                );
 
             // Allow up to ±0.50 in rounding differences
             if (Math.abs(computedTotal - finalTotal) > 0.50) {
@@ -1521,6 +1541,9 @@ export class BookingsService {
             // Notify guest of check-in
             await this.notificationsService.notifyCheckIn(updated);
 
+            // Auto-sync Channex Channel Manager
+            this.triggerChannexSync(updated.propertyId || booking.propertyId);
+
             return updated;
         });
     }
@@ -1604,6 +1627,9 @@ export class BookingsService {
         // Notify guest of check-out
         await this.notificationsService.notifyCheckOut(updated);
 
+        // Auto-sync increased room availability with Channex Channel Manager
+        this.triggerChannexSync(updated.propertyId || booking.propertyId);
+
         return updated;
     }
 
@@ -1656,6 +1682,9 @@ export class BookingsService {
         } catch (err) {
             this.logger.error(`[markNoShow] Failed to send cancellation notification for booking ${booking.bookingNumber}:`, err);
         }
+
+        // Auto-sync increased room availability with Channex Channel Manager
+        this.triggerChannexSync(updated.propertyId || booking.propertyId);
 
         return updated;
     }
@@ -1983,6 +2012,10 @@ export class BookingsService {
     async update(id: string, user: any, dto: UpdateBookingDto) {
         const booking = await this.findOne(id, user);
 
+        if (['CHECKED_IN', 'CHECKED_OUT'].includes(booking.status)) {
+            throw new BadRequestException('Checked-in bookings cannot be edited.');
+        }
+
         if (!booking.isManualBooking) {
             throw new ForbiddenException('Only manual bookings can be edited');
         }
@@ -2016,7 +2049,7 @@ export class BookingsService {
         }
 
         // Update stay details & rooms
-        return this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             // Delete old room blocks
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
@@ -2066,16 +2099,48 @@ export class BookingsService {
 
             // Update user/primary guest info if provided
             if (dto.guestName || dto.guestEmail || dto.guestPhone) {
-                await tx.user.update({
-                    where: { id: booking.userId },
-                    data: {
-                        firstName: dto.guestName?.split(' ')[0],
-                        lastName: dto.guestName?.split(' ').slice(1).join(' '),
-                        email: dto.guestEmail || undefined,
-                        phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
-                        whatsappNumber: dto.whatsappNumber,
+                const normEmail = dto.guestEmail ? dto.guestEmail.trim().toLowerCase() : undefined;
+                const normPhone = dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined;
+
+                const conflictingUser = (normEmail || normPhone) ? await tx.user.findFirst({
+                    where: {
+                        id: { not: booking.userId },
+                        OR: [
+                            ...(normEmail ? [{ email: normEmail }] : []),
+                            ...(normPhone ? [{ phone: normPhone }] : []),
+                        ]
                     }
-                });
+                }) : null;
+
+                if (conflictingUser) {
+                    await tx.booking.update({
+                        where: { id: booking.id },
+                        data: { userId: conflictingUser.id }
+                    });
+                    const first = dto.guestName?.split(' ')[0];
+                    const last = dto.guestName?.split(' ').slice(1).join(' ');
+                    await tx.user.update({
+                        where: { id: conflictingUser.id },
+                        data: {
+                            ...(first ? { firstName: first } : {}),
+                            ...(last !== undefined ? { lastName: last } : {}),
+                            ...(dto.whatsappNumber ? { whatsappNumber: dto.whatsappNumber } : {}),
+                        }
+                    });
+                } else {
+                    const first = dto.guestName?.split(' ')[0];
+                    const last = dto.guestName?.split(' ').slice(1).join(' ');
+                    await tx.user.update({
+                        where: { id: booking.userId },
+                        data: {
+                            ...(first ? { firstName: first } : {}),
+                            ...(last !== undefined ? { lastName: last } : {}),
+                            ...(normEmail ? { email: normEmail } : {}),
+                            ...(normPhone ? { phone: normPhone } : {}),
+                            ...(dto.whatsappNumber ? { whatsappNumber: dto.whatsappNumber } : {}),
+                        }
+                    });
+                }
             }
 
             // Update guests if provided
@@ -2142,6 +2207,11 @@ export class BookingsService {
 
             return updated;
         });
+
+        // Auto-sync updated booking details / room allocations with Channex Channel Manager
+        this.triggerChannexSync(booking.propertyId);
+
+        return result;
     }
 
     async reschedule(id: string, dto: RescheduleBookingDto, user: any) {
@@ -2345,16 +2415,48 @@ export class BookingsService {
         const updatedBooking = await this.prisma.$transaction(async (tx) => {
             // Update user/primary guest info if provided
             if (dto.guestName || dto.guestEmail || dto.guestPhone) {
-                await tx.user.update({
-                    where: { id: booking.userId },
-                    data: {
-                        firstName: dto.guestName?.split(' ')[0],
-                        lastName: dto.guestName?.split(' ').slice(1).join(' '),
-                        email: dto.guestEmail || undefined,
-                        phone: dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined,
-                        whatsappNumber: dto.whatsappNumber,
+                const normEmail = dto.guestEmail ? dto.guestEmail.trim().toLowerCase() : undefined;
+                const normPhone = dto.guestPhone ? normalizePhone(dto.guestPhone) : undefined;
+
+                const conflictingUser = (normEmail || normPhone) ? await tx.user.findFirst({
+                    where: {
+                        id: { not: booking.userId },
+                        OR: [
+                            ...(normEmail ? [{ email: normEmail }] : []),
+                            ...(normPhone ? [{ phone: normPhone }] : []),
+                        ]
                     }
-                });
+                }) : null;
+
+                if (conflictingUser) {
+                    await tx.booking.update({
+                        where: { id: booking.id },
+                        data: { userId: conflictingUser.id }
+                    });
+                    const first = dto.guestName?.split(' ')[0];
+                    const last = dto.guestName?.split(' ').slice(1).join(' ');
+                    await tx.user.update({
+                        where: { id: conflictingUser.id },
+                        data: {
+                            ...(first ? { firstName: first } : {}),
+                            ...(last !== undefined ? { lastName: last } : {}),
+                            ...(dto.whatsappNumber ? { whatsappNumber: dto.whatsappNumber } : {}),
+                        }
+                    });
+                } else {
+                    const first = dto.guestName?.split(' ')[0];
+                    const last = dto.guestName?.split(' ').slice(1).join(' ');
+                    await tx.user.update({
+                        where: { id: booking.userId },
+                        data: {
+                            ...(first ? { firstName: first } : {}),
+                            ...(last !== undefined ? { lastName: last } : {}),
+                            ...(normEmail ? { email: normEmail } : {}),
+                            ...(normPhone ? { phone: normPhone } : {}),
+                            ...(dto.whatsappNumber ? { whatsappNumber: dto.whatsappNumber } : {}),
+                        }
+                    });
+                }
             }
 
             // Update guests if provided
@@ -2569,6 +2671,10 @@ export class BookingsService {
 
     async remove(id: string, user: any) {
         const booking = await this.findOne(id, user);
+
+        if (['CHECKED_IN', 'CHECKED_OUT'].includes(booking.status)) {
+            throw new BadRequestException('Checked-in bookings cannot be deleted.');
+        }
 
         if (!booking.isManualBooking) {
             throw new ForbiddenException('Only manual bookings can be deleted');

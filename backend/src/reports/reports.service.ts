@@ -519,7 +519,7 @@ export class ReportsService {
 
         // Helper to fetch core metrics for a period
         const fetchMetrics = async (start: Date, end: Date) => {
-            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialData, platformFees] = await Promise.all([
+            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialData, platformFees, cashPayments, generalIncome] = await Promise.all([
                 this.prisma.income.aggregate({
                     where: {
                         OR: [
@@ -631,6 +631,26 @@ export class ReportsService {
                         status: 'PAID'
                     },
                     _sum: { platformFee: true }
+                }),
+                this.prisma.payment.findMany({
+                    where: {
+                        status: 'PAID',
+                        paymentDate: { gte: start, lte: end },
+                        booking: { property: propertyFilter }
+                    },
+                    select: {
+                        amount: true,
+                        paymentMethod: true
+                    }
+                }),
+                this.prisma.income.aggregate({
+                    where: {
+                        bookingId: null,
+                        eventBookingId: null,
+                        date: { gte: start, lte: end },
+                        ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                    },
+                    _sum: { amount: true }
                 })
             ]);
 
@@ -647,6 +667,20 @@ export class ReportsService {
                 partialAmount: Number(partialData._sum?.paidAmount || 0)
             };
 
+            const cashInflowByMethod = cashPayments.reduce((acc: Record<string, number>, p: any) => {
+                const method = p.paymentMethod || 'UNKNOWN';
+                acc[method] = (acc[method] || 0) + Number(p.amount);
+                return acc;
+            }, {} as Record<string, number>);
+
+            // General/manual income is also cash inflow in the period (attribute to CASH by default)
+            const manualAmount = Number(generalIncome._sum?.amount || 0);
+            if (manualAmount > 0) {
+                cashInflowByMethod['CASH'] = (cashInflowByMethod['CASH'] || 0) + manualAmount;
+            }
+
+            const totalCashInflow = Object.values(cashInflowByMethod).reduce((a, b) => a + b, 0);
+
             // Duration in days for RevPAR calculation
             const days = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1;
             const availableNights = totalRooms * days;
@@ -654,7 +688,7 @@ export class ReportsService {
             const adr = occupiedNights > 0 ? totalIncome / occupiedNights : 0;
             const revPar = availableNights > 0 ? totalIncome / availableNights : 0;
 
-            return { totalIncome, totalExpenses: totalExpense, totalPlatformFees, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource }; // totalVolume as alias for totalIncome for legacy compatibility
+            return { totalIncome, totalExpenses: totalExpense, totalPlatformFees, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource, totalCashInflow, cashInflowByMethod }; // totalVolume as alias for totalIncome for legacy compatibility
         };
 
         const currentMetrics = await fetchMetrics(sDate, eDate);
@@ -1527,17 +1561,21 @@ export class ReportsService {
                         { text: 'BOOKINGS DETAILS', style: 'sectionHeader' },
                         {
                             table: {
-                                headerRows: 1, widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto'],
+                                headerRows: 1, widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto'],
                                 body: [
-                                    [ { text: 'BOOKING #', style: 'tableHeader' }, { text: 'DATE', style: 'tableHeader' }, { text: 'DATES', style: 'tableHeader' }, { text: 'GUEST', style: 'tableHeader' }, { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }, { text: 'STATUS', style: 'tableHeader', alignment: 'center' } ],
-                                    ...details.bookings.map((b: any) => [
-                                        { text: `#${b.bookingNumber}`, style: 'tableCellBold' },
-                                        { text: new Date(b.createdAt).toLocaleDateString(), style: 'tableCell' },
-                                        { text: `${new Date(b.checkInDate).toLocaleDateString()} - ${new Date(b.checkOutDate).toLocaleDateString()}`, style: 'tableCell' },
-                                        { text: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'N/A', style: 'tableCell' },
-                                        { text: `₹${Number(b.totalAmount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right' },
-                                        { text: b.status, style: 'tableCell', alignment: 'center' }
-                                    ])
+                                    [ { text: 'BOOKING #', style: 'tableHeader' }, { text: 'DATE', style: 'tableHeader' }, { text: 'DATES', style: 'tableHeader' }, { text: 'GUEST', style: 'tableHeader' }, { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }, { text: 'TAC', style: 'tableHeader', alignment: 'right' }, { text: 'STATUS', style: 'tableHeader', alignment: 'center' } ],
+                                    ...details.bookings.map((b: any) => {
+                                        const tac = Number(b.cpCommission || b.offlineCpCommission || 0);
+                                        return [
+                                            { text: `#${b.bookingNumber}`, style: 'tableCellBold' },
+                                            { text: new Date(b.createdAt).toLocaleDateString(), style: 'tableCell' },
+                                            { text: `${new Date(b.checkInDate).toLocaleDateString()} - ${new Date(b.checkOutDate).toLocaleDateString()}`, style: 'tableCell' },
+                                            { text: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'N/A', style: 'tableCell' },
+                                            { text: `₹${Number(b.totalAmount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right' },
+                                            { text: tac > 0 ? `₹${tac.toLocaleString()}` : '—', style: 'tableCell', alignment: 'right' },
+                                            { text: b.status, style: 'tableCell', alignment: 'center' }
+                                        ];
+                                    })
                                 ]
                             },
                             layout: {
@@ -1868,7 +1906,7 @@ export class ReportsService {
                                 { text: 'GUEST NAME', style: 'tableHeader' },
                                 { text: 'GUEST GST', style: 'tableHeader' },
                                 { text: 'TAXABLE', style: 'tableHeader', alignment: 'right' },
-                                { text: 'GST (12%)', style: 'tableHeader', alignment: 'right' },
+                                { text: 'GST', style: 'tableHeader', alignment: 'right' },
                                 { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }
                             ],
                             ...report.details.map(item => [

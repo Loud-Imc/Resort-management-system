@@ -2,6 +2,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import { paymentsService } from '../../services/payments';
+import { reportsService } from '../../services/reports';
 import {
     Loader2,
     Search,
@@ -27,6 +28,21 @@ export default function PaymentsList() {
         endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     });
     const { selectedProperty } = useProperty();
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        if (!selectedProperty?.id) return;
+        setIsDownloading(true);
+        try {
+            await reportsService.exportPdf(dateRange.startDate, dateRange.endDate, selectedProperty.id, 'revenue_details');
+            toast.success('PDF report downloaded successfully');
+        } catch (error) {
+            console.error('Error downloading PDF:', error);
+            toast.error('Failed to download PDF report');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     const { data: payments, isLoading } = useQuery<Payment[]>({
         queryKey: ['payments', selectedProperty?.id, dateRange.startDate, dateRange.endDate],
@@ -80,23 +96,23 @@ export default function PaymentsList() {
         }
     };
 
-    if (isLoading) {
-        return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
-    }
-
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Payment Transactions</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-foreground">Payment Transactions</h1>
+                        {isLoading && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                    </div>
                     <p className="text-sm text-muted-foreground mt-1">Monitor all payments for your property</p>
                 </div>
                 <button
-                    className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted bg-card shadow-sm transition-colors"
-                    onClick={() => toast("Export CSV simulation activated!", { icon: '📊' })}
+                    className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    onClick={handleDownloadPdf}
+                    disabled={isDownloading}
                 >
-                    <Download className="h-4 w-4" />
-                    Export CSV
+                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {isDownloading ? 'Exporting...' : 'Export PDF'}
                 </button>
             </div>
 
@@ -202,7 +218,24 @@ export default function PaymentsList() {
                             </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
-                            {filteredPayments?.map((payment) => (
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-12 text-center">
+                                        <div className="flex flex-col items-center justify-center space-y-3 py-8">
+                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                            <p className="text-sm font-semibold text-muted-foreground">Loading transactions...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filteredPayments?.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                                        <CreditCard className="h-8 w-8 mx-auto mb-3 opacity-30" />
+                                        No payments found matching criteria.
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredPayments?.map((payment) => (
                                 <tr key={payment.id} className="hover:bg-muted/30 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-bold text-foreground">
@@ -242,15 +275,7 @@ export default function PaymentsList() {
                                         </span>
                                     </td>
                                 </tr>
-                            ))}
-
-                            {filteredPayments?.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                                        <CreditCard className="h-8 w-8 mx-auto mb-3 opacity-30" />
-                                        No payments found matching criteria.
-                                    </td>
-                                </tr>
+                                ))
                             )}
                         </tbody>
                     </table>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { bookingsService } from '../../services/bookings';
+import type { Booking } from '../../types/booking';
 import {
     ChevronLeft,
     Calendar,
@@ -19,13 +20,13 @@ import {
     X,
     Receipt,
     Pencil,
-    Briefcase
+    Briefcase,
+    AlertCircle
 } from 'lucide-react';
 import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
-import type { Booking } from '../../types/booking';
-
+import { CheckInVerificationModal } from '../../components/bookings/CheckInVerificationModal';
 
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
@@ -42,16 +43,18 @@ const BookingDetails = () => {
     const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
-    const checkInMutation = useMutation({
-        mutationFn: (bookingId: string) => bookingsService.checkIn({ id: bookingId, data: { guestVerification: [] } }),
-        onSuccess: () => {
-            toast.success('Guest checked in successfully');
-            queryClient.invalidateQueries({ queryKey: ['booking', id] });
-        },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.message || 'Failed to check-in');
-        },
-    });
+    // Check-In & Warning Modal States
+    const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
+    const [warningModal, setWarningModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'BLOCK' | 'WARNING';
+        onConfirm: () => void;
+        confirmText: string;
+        onCancel: () => void;
+        cancelText: string;
+    } | null>(null);
 
     const checkOutMutation = useMutation({
         mutationFn: (bookingId: string) => bookingsService.checkOut({ id: bookingId, data: {} }),
@@ -89,6 +92,8 @@ const BookingDetails = () => {
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
     const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
 
+
+
     const handleDownloadBackendPDF = async () => {
         try {
             setIsDownloading(true);
@@ -121,7 +126,13 @@ const BookingDetails = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-4">
                     <button
-                        onClick={() => navigate('/bookings')}
+                        onClick={() => {
+                            if (window.history.length > 1) {
+                                navigate(-1);
+                            } else {
+                                navigate('/bookings');
+                            }
+                        }}
                         className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-primary font-bold transition-colors"
                     >
                         <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
@@ -172,15 +183,10 @@ const BookingDetails = () => {
                     </button>
                     {['CONFIRMED', 'RESERVED'].includes(booking.status) && (
                         <button
-                            onClick={() => {
-                                if (window.confirm("Are you sure you want to check-in this guest?")) {
-                                    checkInMutation.mutate(booking.id);
-                                }
-                            }}
-                            disabled={checkInMutation.isPending}
-                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                            onClick={() => setCheckInBooking(booking)}
+                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest cursor-pointer"
                         >
-                            {checkInMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                            <ShieldCheck className="h-4 w-4" />
                             Check In
                         </button>
                     )}
@@ -216,7 +222,7 @@ const BookingDetails = () => {
                             Reschedule History
                         </button>
                     )}
-                    {booking.isManualBooking && (
+                    {booking.isManualBooking && booking.status !== 'CHECKED_IN' && booking.status !== 'CHECKED_OUT' && (
                         <button
                             onClick={() => navigate(`/bookings/${booking.id}/edit`)}
                             className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-xl hover:shadow-indigo-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest"
@@ -761,6 +767,48 @@ const BookingDetails = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Warning / Validation Modal */}
+            {warningModal && warningModal.isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-card w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border border-border/50 text-center space-y-6 animate-in zoom-in-95 duration-200">
+                        <div className={`mx-auto w-16 h-16 rounded-3xl flex items-center justify-center ${warningModal.type === 'BLOCK' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-500'}`}>
+                            <AlertCircle className="h-8 w-8" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-black text-foreground tracking-tight">{warningModal.title}</h3>
+                            <p className="text-sm text-muted-foreground font-medium leading-relaxed">{warningModal.message}</p>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={warningModal.onCancel}
+                                className="flex-1 py-3.5 px-4 bg-muted hover:bg-muted/80 text-muted-foreground rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                            >
+                                {warningModal.cancelText}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={warningModal.onConfirm}
+                                className={`flex-1 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all text-white shadow-lg ${warningModal.type === 'BLOCK' ? 'bg-primary hover:bg-primary/90' : 'bg-amber-500 hover:bg-amber-600'}`}
+                            >
+                                {warningModal.confirmText}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Check-In Verification Modal */}
+            {checkInBooking && (
+                <CheckInVerificationModal
+                    booking={checkInBooking}
+                    onClose={() => setCheckInBooking(null)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ['booking', id] });
+                    }}
+                />
             )}
 
         </div>

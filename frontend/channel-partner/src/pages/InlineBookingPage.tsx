@@ -139,6 +139,7 @@ const InlineBookingPage: React.FC = () => {
     // Server-side pricing
     const [pricing, setPricing] = useState<any>(null);
     const [isPricingLoading, setIsPricingLoading] = useState(false);
+    const [idWarnings, setIdWarnings] = useState<Record<string, string>>({});
 
     // Step 3
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
@@ -712,6 +713,24 @@ const InlineBookingPage: React.FC = () => {
             gap: 'var(--section-padding)',
             width: '100%',
         }}>
+            {isSubmitting && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 9999,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: 'blur(8px)',
+                    animation: 'fadeIn 0.2s ease'
+                }}>
+                    <Loader2 size={48} className="animate-spin" style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }} />
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.15em', margin: 0 }}>Finalizing Luxury Stay...</h2>
+                    <p style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-dim)', marginTop: '0.5rem', margin: 0 }}>Please wait, do not close or refresh this page.</p>
+                </div>
+            )}
 
             {/* Page Header (Non-sticky) */}
             <div className="booking-page-header" style={{
@@ -910,9 +929,10 @@ const InlineBookingPage: React.FC = () => {
                                         value={tempCheckIn}
                                         min={new Date().toISOString().split('T')[0]}
                                         onChange={(e) => {
-                                            setTempCheckIn(e.target.value);
-                                            if (tempCheckOut <= e.target.value) {
-                                                const nextDay = new Date(new Date(e.target.value).getTime() + 86400000).toISOString().split('T')[0];
+                                            const val = e.target.value;
+                                            setTempCheckIn(val);
+                                            if (val) {
+                                                const nextDay = new Date(new Date(val).getTime() + 86400000).toISOString().split('T')[0];
                                                 setTempCheckOut(nextDay);
                                             }
                                         }}
@@ -1078,7 +1098,14 @@ const InlineBookingPage: React.FC = () => {
                                     type="date"
                                     value={checkIn}
                                     min={new Date().toISOString().split('T')[0]}
-                                    onChange={(e) => setCheckIn(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCheckIn(val);
+                                        if (val) {
+                                            const nextDay = new Date(new Date(val).getTime() + 86400000).toISOString().split('T')[0];
+                                            setCheckOut(nextDay);
+                                        }
+                                    }}
                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box' }}
                                 />
                             </div>
@@ -1385,9 +1412,19 @@ const InlineBookingPage: React.FC = () => {
                                                 <select
                                                     value={g.idType || ''}
                                                     onChange={(e) => {
+                                                        const val = e.target.value;
                                                         const newGuests = [...guests];
-                                                        newGuests[idx].idType = e.target.value;
+                                                        newGuests[idx].idType = val;
                                                         setGuests(newGuests);
+                                                        if (val) {
+                                                            setIdWarnings(prev => {
+                                                                const next = { ...prev };
+                                                                delete next[`${idx}-idNumber`];
+                                                                delete next[`${idx}-idImage`];
+                                                                delete next[`${idx}-idImageBack`];
+                                                                return next;
+                                                            });
+                                                        }
                                                     }}
                                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: '#1a1a1a', color: '#fff', outline: 'none' }}
                                                 >
@@ -1400,33 +1437,79 @@ const InlineBookingPage: React.FC = () => {
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Number</label>
-                                                <input
-                                                    type="text"
-                                                    value={g.idNumber || ''}
-                                                    onChange={(e) => {
-                                                        const newGuests = [...guests];
-                                                        newGuests[idx].idNumber = e.target.value;
-                                                        setGuests(newGuests);
+                                                <div
+                                                    onClick={() => {
+                                                        if (!g.idType) {
+                                                            setIdWarnings(prev => ({ ...prev, [`${idx}-idNumber`]: 'Please select the ID type first' }));
+                                                        }
                                                     }}
-                                                    placeholder="Identification Number"
-                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
-                                                />
+                                                    style={{ width: '100%', cursor: g.idType ? 'default' : 'not-allowed' }}
+                                                >
+                                                    <input
+                                                        type="text"
+                                                        value={g.idNumber || ''}
+                                                        disabled={!g.idType}
+                                                        onChange={(e) => {
+                                                            const newGuests = [...guests];
+                                                            newGuests[idx].idNumber = e.target.value;
+                                                            setGuests(newGuests);
+                                                        }}
+                                                        placeholder="Identification Number"
+                                                        style={{ 
+                                                            width: '100%', 
+                                                            padding: '0.75rem', 
+                                                            border: '1px solid var(--border-glass)', 
+                                                            borderRadius: 'var(--radius-sm)', 
+                                                            background: g.idType ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)', 
+                                                            color: g.idType ? 'var(--text-main)' : 'rgba(255,255,255,0.3)', 
+                                                            outline: 'none',
+                                                            cursor: g.idType ? 'text' : 'not-allowed',
+                                                            pointerEvents: g.idType ? 'auto' : 'none'
+                                                        }}
+                                                    />
+                                                </div>
+                                                {idWarnings[`${idx}-idNumber`] && (
+                                                    <p style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                                                        {idWarnings[`${idx}-idNumber`]}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Scan (Front)</label>
-                                                <div style={{ position: 'relative', border: '1px dashed var(--border-glass)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', textAlign: 'center', background: g.idImage ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', minHeight: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*,application/pdf"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) handleGuestIdUpload(idx, file, false);
-                                                        }}
-                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-                                                    />
+                                                <div 
+                                                    onClick={() => {
+                                                        if (!g.idType) {
+                                                            setIdWarnings(prev => ({ ...prev, [`${idx}-idImage`]: 'Please select the ID type first' }));
+                                                        }
+                                                    }}
+                                                    style={{ 
+                                                        position: 'relative', 
+                                                        border: '1px dashed var(--border-glass)', 
+                                                        borderRadius: 'var(--radius-sm)', 
+                                                        padding: '0.75rem', 
+                                                        textAlign: 'center', 
+                                                        background: g.idType ? (g.idImage ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)') : 'rgba(255,255,255,0.01)', 
+                                                        cursor: g.idType ? 'pointer' : 'not-allowed', 
+                                                        minHeight: '52px', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center' 
+                                                    }}
+                                                >
+                                                    {g.idType && (
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*,application/pdf"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleGuestIdUpload(idx, file, false);
+                                                            }}
+                                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+                                                        />
+                                                    )}
                                                     {g.isUploading ? (
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--primary-teal)', fontWeight: 700 }}>Uploading...</span>
                                                     ) : g.idImage ? (
@@ -1451,19 +1534,45 @@ const InlineBookingPage: React.FC = () => {
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Upload Front Side</span>
                                                     )}
                                                 </div>
+                                                {idWarnings[`${idx}-idImage`] && (
+                                                    <p style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                                                        {idWarnings[`${idx}-idImage`]}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Scan (Back - Optional)</label>
-                                                <div style={{ position: 'relative', border: '1px dashed var(--border-glass)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', textAlign: 'center', background: g.idImageBack ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', minHeight: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*,application/pdf"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) handleGuestIdUpload(idx, file, true);
-                                                        }}
-                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-                                                    />
+                                                <div 
+                                                    onClick={() => {
+                                                        if (!g.idType) {
+                                                            setIdWarnings(prev => ({ ...prev, [`${idx}-idImageBack`]: 'Please select the ID type first' }));
+                                                        }
+                                                    }}
+                                                    style={{ 
+                                                        position: 'relative', 
+                                                        border: '1px dashed var(--border-glass)', 
+                                                        borderRadius: 'var(--radius-sm)', 
+                                                        padding: '0.75rem', 
+                                                        textAlign: 'center', 
+                                                        background: g.idType ? (g.idImageBack ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)') : 'rgba(255,255,255,0.01)', 
+                                                        cursor: g.idType ? 'pointer' : 'not-allowed', 
+                                                        minHeight: '52px', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center' 
+                                                    }}
+                                                >
+                                                    {g.idType && (
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*,application/pdf"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleGuestIdUpload(idx, file, true);
+                                                            }}
+                                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+                                                        />
+                                                    )}
                                                     {g.isUploadingBack ? (
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--primary-teal)', fontWeight: 700 }}>Uploading...</span>
                                                     ) : g.idImageBack ? (
@@ -1488,6 +1597,11 @@ const InlineBookingPage: React.FC = () => {
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Upload Back Side</span>
                                                     )}
                                                 </div>
+                                                {idWarnings[`${idx}-idImageBack`] && (
+                                                    <p style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                                                        {idWarnings[`${idx}-idImageBack`]}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

@@ -359,9 +359,9 @@ export class PricingService {
         if (activeOffer) {
             const offer = activeOffer as any;
             if (offer.discountType === 'PERCENTAGE') {
-                offerDiscountAmount = (subtotal * Number(offer.discountValue)) / 100;
+                offerDiscountAmount = Math.round((subtotal * Number(offer.discountValue)) / 100);
             } else {
-                offerDiscountAmount = Number(offer.discountValue);
+                offerDiscountAmount = Math.round(Number(offer.discountValue));
             }
             subtotal -= offerDiscountAmount;
         }
@@ -493,8 +493,8 @@ export class PricingService {
             : cleanFloat(extraChildAmount);
 
         const grossOfferDiscountAmount = isGstInc
-            ? cleanFloat(offerDiscountAmount * taxMultiplier)
-            : cleanFloat(offerDiscountAmount);
+            ? Math.round(offerDiscountAmount * taxMultiplier)
+            : Math.round(offerDiscountAmount);
 
         const grossCouponDiscountAmount = isGstInc
             ? cleanFloat(couponDiscountAmount * taxMultiplier)
@@ -504,22 +504,30 @@ export class PricingService {
             ? cleanFloat(referralDiscountAmount * taxMultiplier)
             : cleanFloat(referralDiscountAmount);
 
+        const finalTotalAmount = isGstInc
+            ? Math.max(0, Math.round(grossBaseAmount + grossExtraAdultAmount + grossExtraChildAmount - grossOfferDiscountAmount - grossCouponDiscountAmount - grossReferralDiscountAmount))
+            : cleanFloat(totalAmount);
+
+        const finalTaxAmount = isGstInc && taxRate > 0
+            ? cleanFloat(finalTotalAmount * (taxRate / (100 + taxRate)))
+            : cleanFloat(totalTaxAmount);
+
         const result = {
-            baseAmount: cleanFloat(baseAmount),
+            baseAmount: isGstInc ? cleanFloat(finalTotalAmount - finalTaxAmount) : cleanFloat(baseAmount),
             grossBaseAmount,
             extraAdultAmount: cleanFloat(extraAdultAmount),
             grossExtraAdultAmount,
             extraChildAmount: cleanFloat(extraChildAmount),
             grossExtraChildAmount,
-            taxAmount: cleanFloat(totalTaxAmount),
-            offerDiscountAmount: cleanFloat(offerDiscountAmount),
+            taxAmount: finalTaxAmount,
+            offerDiscountAmount: Math.round(offerDiscountAmount),
             grossOfferDiscountAmount,
             couponDiscountAmount: cleanFloat(couponDiscountAmount),
             grossCouponDiscountAmount,
             referralDiscountAmount: cleanFloat(referralDiscountAmount),
             grossReferralDiscountAmount,
             discountAmount: cleanFloat(offerDiscountAmount + couponDiscountAmount + referralDiscountAmount),
-            totalAmount: cleanFloat(totalAmount),
+            totalAmount: finalTotalAmount,
             originalTotal: cleanFloat(originalTotal),
             numberOfNights,
             pricePerNight: basePricePerNight,
@@ -527,7 +535,7 @@ export class PricingService {
             baseCurrency,
             targetCurrency,
             exchangeRate,
-            convertedTotal: cleanFloat(totalAmount * exchangeRate),
+            convertedTotal: isGstInc && exchangeRate === 1.0 ? finalTotalAmount : cleanFloat(finalTotalAmount * exchangeRate),
             originalConvertedTotal: cleanFloat(originalTotal * exchangeRate),
             roomCount,
             baseAdults: Number(roomType.baseAdults ?? roomType.maxAdults ?? 2),

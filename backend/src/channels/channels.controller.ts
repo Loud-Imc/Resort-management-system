@@ -98,6 +98,39 @@ export class ChannelsController {
     @Body() payload: any,
     @Headers() headers: Record<string, any>,
   ) {
+    console.log("webhook payload : ", payload)
     return this.channelsService.handleIncomingReservation(channelName, payload, headers);
+  }
+
+  @Post('connect-ota')
+  async connectOtaChannel(
+    @Body() body: { propertyId: string; otaKey: string; hotelId: string; settings: any },
+  ) {
+    return this.channelsService.connectOtaChannel(
+      body.propertyId,
+      body.otaKey,
+      body.hotelId,
+      body.settings,
+    );
+  }
+
+  @Post('disconnect-ota')
+  async disconnectOtaChannel(
+    @Body() body: { propertyId: string; otaKey: string },
+  ) {
+    return this.channelsService.disconnectOtaChannel(body.propertyId, body.otaKey);
+  }
+
+  @Get('iframe-url/:propertyId')
+  async getIframeUrl(@Param('propertyId') propertyId: string) {
+    return this.channelsService.getIframeSessionUrl(propertyId);
+  }
+
+  @Post('update-currency/:propertyId')
+  async updatePropertyCurrency(
+    @Param('propertyId') propertyId: string,
+    @Body() body: { currency: string },
+  ) {
+    return this.channelsService.updatePropertyCurrency(propertyId, body.currency);
   }
 }

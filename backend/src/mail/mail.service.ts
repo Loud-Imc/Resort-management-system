@@ -1130,4 +1130,71 @@ export class MailService {
             console.error('[MailService] Error sending admin CP alert:', error);
         }
     }
+
+    async sendPropertyRegistrationConfirmation(propertyEmail: string, ownerEmail: string, request: any) {
+        const from = this.configService.get('EMAIL_FROM');
+        const subject = `🏨 Property Registration Received - ${request.name}`;
+        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.routeguide.in';
+        const loginUrl = `${propertyUrl.replace(/\/$/, '')}/login`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; }
+              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
+              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
+              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
+              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header">
+                  <h1>Registration Received! 🏨</h1>
+              </div>
+              <div class="content">
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
+                      Thank you for registering <strong>${request.name}</strong> on our platform. We have received your request, and our administrative team is currently reviewing the details.
+                  </p>
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
+                      Here are the registration details we received:
+                  </p>
+                  
+                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${request.name}</span></div>
+                  <div class="detail-row"><span class="label">Location</span><span class="value">${request.location}</span></div>
+                  <div class="detail-row"><span class="label">Owner Phone</span><span class="value">${request.ownerPhone}</span></div>
+                  <div class="detail-row"><span class="label">Status</span><span class="value" style="color: #eab308; font-weight: 800;">PENDING APPROVAL</span></div>
+                  
+                  <p style="color: #475569; font-size: 14px; margin-top: 30px; line-height: 1.6;">
+                      Once our team approves your property, you will receive a notification, and your property will become publicly visible on the platform. If we require any additional information or documentation, we will reach out to you directly.
+                  </p>
+
+                  <a href="${loginUrl}" class="btn">Log In to Your Account</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            await this.transporter.sendMail({
+                from,
+                to: propertyEmail,
+                cc: ownerEmail !== propertyEmail ? ownerEmail : undefined,
+                subject,
+                html
+            });
+            console.log(`[MailService] Property registration confirmation email sent to ${propertyEmail}`);
+        } catch (error) {
+            console.error('[MailService] Error sending property registration confirmation email:', error);
+        }
+    }
 }

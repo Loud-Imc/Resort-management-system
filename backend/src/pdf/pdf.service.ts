@@ -356,7 +356,7 @@ export class PdfService {
                 { text: 'Grand Total', style: 'tableTotalLabel' },
                 { text: `₹${totalAmount.toLocaleString()}`, style: 'tableTotalValue', alignment: 'right' },
               ],
-              ...(!isCheckedIn && isPartner ? [
+              ...(isCheckedIn && isPartner ? [
                 [
                   { text: 'Instant Commission', style: 'tableCell', color: '#ef4444' },
                   { text: `-₹${cpCommission.toLocaleString()}`, style: 'tableCell', alignment: 'right', color: '#ef4444' },

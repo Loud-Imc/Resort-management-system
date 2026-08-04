@@ -7,9 +7,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuditModule } from '../audit/audit.module';
 import { SystemSettingsModule } from '../system-settings/system-settings.module';
 import { BookingsModule } from '../bookings/bookings.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
-    imports: [PrismaModule, AuditModule, SystemSettingsModule, forwardRef(() => BookingsModule)],
+    imports: [PrismaModule, AuditModule, SystemSettingsModule, MailModule, forwardRef(() => BookingsModule)],
     controllers: [PropertiesController, PropertyStaffController],
     providers: [PropertiesService, PropertyStaffService],
     exports: [PropertiesService, PropertyStaffService],

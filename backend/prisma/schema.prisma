@@ -1359,3 +1359,18 @@ model Asset {
 
   @@map("assets")
 }
+
+model ExpenseHistory {
+  id            String   @id @default(uuid())
+  expenseId     String
+  action        String   // 'UPDATE' or 'DELETE'
+  amount        Decimal  @db.Decimal(10, 2)
+  description   String
+  categoryId    String
+  propertyId    String?
+  reason        String
+  changedBy     String?
+  changedAt     DateTime @default(now())
+
+  @@map("expense_histories")
+}

@@ -71,4 +71,32 @@ export const channelsService = {
     const response = await api.post(`/channels/simulate-booking/${propertyId}?otaName=${encodeURIComponent(otaName)}`);
     return response.data;
   },
+
+  connectOta: async (propertyId: string, otaKey: string, hotelId: string, settings: any): Promise<any> => {
+    const response = await api.post('/channels/connect-ota', {
+      propertyId,
+      otaKey,
+      hotelId,
+      settings,
+    });
+    return response.data;
+  },
+
+  disconnectOta: async (propertyId: string, otaKey: string): Promise<any> => {
+    const response = await api.post('/channels/disconnect-ota', {
+      propertyId,
+      otaKey,
+    });
+    return response.data;
+  },
+
+  getIframeUrl: async (propertyId: string): Promise<{ url: string }> => {
+    const response = await api.get(`/channels/iframe-url/${propertyId}`);
+    return response.data;
+  },
+
+  updateCurrency: async (propertyId: string, currency: string): Promise<any> => {
+    const response = await api.post(`/channels/update-currency/${propertyId}`, { currency });
+    return response.data;
+  },
 };
