@@ -28,6 +28,7 @@ import {
     Tag
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
+import { formatDateTime } from '../../utils/dateTime';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -466,7 +467,7 @@ export default function Reports() {
                                         </td>
                                         <td className="px-4 py-4 font-black text-sm">₹{item.amount.toLocaleString()}</td>
                                         <td className="px-4 py-4 text-xs text-muted-foreground font-medium">
-                                            {format(new Date(item.createdAt), 'MMM dd, HH:mm')}
+                                            {formatDateTime(item.createdAt)}
                                         </td>
                                     </tr>
                                 ))

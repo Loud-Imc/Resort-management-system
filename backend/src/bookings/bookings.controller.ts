@@ -293,6 +293,9 @@ export class BookingsController {
     @ApiQuery({ name: 'status', required: false })
     @ApiQuery({ name: 'roomTypeId', required: false })
     @ApiQuery({ name: 'propertyId', required: false })
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
+    @ApiQuery({ name: 'search', required: false })
     findAll(
         @Request() req,
         @Query('status') status?: string,
@@ -301,6 +304,9 @@ export class BookingsController {
         @Query('hasSettlement') hasSettlement?: string,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('search') search?: string,
     ) {
         const start = startDate ? new Date(startDate) : undefined;
         if (start) start.setHours(0, 0, 0, 0);
@@ -315,6 +321,9 @@ export class BookingsController {
             hasSettlement: hasSettlement === 'true' ? true : (hasSettlement === 'false' ? false : undefined),
             checkInDateStart: start,
             checkInDateEnd: end,
+            page: page ? parseInt(page, 10) : undefined,
+            limit: limit ? parseInt(limit, 10) : undefined,
+            search,
         });
     }
 

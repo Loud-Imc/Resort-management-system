@@ -136,6 +136,30 @@ export class AvailabilityService {
             checkOut.setHours(23, 59, 59, 999);
         }
 
+        // Fetch propertyId for this room type to evaluate stop-sell restrictions
+        const roomType = await this.prisma.roomType.findUnique({
+            where: { id: roomTypeId },
+            select: { propertyId: true }
+        });
+
+        if (!includeAllStatus && roomType) {
+            const stopSell = await this.prisma.stopSellRestriction.findFirst({
+                where: {
+                    propertyId: roomType.propertyId,
+                    isActive: true,
+                    OR: [
+                        { roomTypeId: null },
+                        { roomTypeId }
+                    ],
+                    startDate: { lte: checkOut },
+                    endDate: { gte: checkIn }
+                }
+            });
+            if (stopSell) {
+                return [];
+            }
+        }
+
         // Get all enabled rooms of this type
         const allRooms = await this.prisma.room.findMany({
             where: {
@@ -642,6 +666,56 @@ export class AvailabilityService {
             }
         });
 
+        // Load active stop sell restrictions for the range
+        const stopSells = await this.prisma.stopSellRestriction.findMany({
+            where: {
+                propertyId,
+                isActive: true,
+                startDate: { lte: end },
+                endDate: { gte: start }
+            }
+        });
+
+        // Load active room blocks for the range
+        const blocksWhere: any = {};
+        if (isGroupBooking) {
+            blocksWhere.room = {
+                propertyId,
+                roomTypeId: { in: groupPoolRoomTypeIds },
+                isEnabled: true
+            };
+        } else if (roomTypeId) {
+            blocksWhere.room = {
+                propertyId,
+                roomTypeId,
+                isEnabled: true
+            };
+        } else {
+            blocksWhere.room = {
+                propertyId,
+                isEnabled: true
+            };
+        }
+
+        blocksWhere.AND = [
+            { startDate: { lte: end } },
+            { endDate: { gte: start } }
+        ];
+
+        if (excludeBookingId) {
+            blocksWhere.NOT = { bookingId: excludeBookingId };
+        }
+
+        const roomBlocks = await this.prisma.roomBlock.findMany({
+            where: blocksWhere,
+            select: {
+                id: true,
+                startDate: true,
+                endDate: true,
+                roomId: true
+            }
+        });
+
         const calendarDays = eachDayOfInterval({ start, end });
         const result: Record<string, { available: number, total: number, isFull: boolean }> = {};
 
@@ -673,7 +747,34 @@ export class AvailabilityService {
                 }
             }
 
-            const availableCount = Math.max(0, totalRoomsOfType - occupiedRooms);
+            let blockedRooms = 0;
+            for (const blk of roomBlocks) {
+                const blkStart = new Date(blk.startDate);
+                blkStart.setHours(0, 0, 0, 0);
+                const blkEnd = new Date(blk.endDate);
+                blkEnd.setHours(0, 0, 0, 0);
+
+                if (day >= blkStart && day < blkEnd) {
+                    blockedRooms++;
+                }
+            }
+
+            const dayStart = new Date(day);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(day);
+            dayEnd.setHours(23, 59, 59, 999);
+
+            const hasStopSell = stopSells.some(ss => {
+                const ssStart = new Date(ss.startDate);
+                ssStart.setHours(0, 0, 0, 0);
+                const ssEnd = new Date(ss.endDate);
+                ssEnd.setHours(23, 59, 59, 999);
+
+                const matchesRoomType = !ss.roomTypeId || (roomTypeId && ss.roomTypeId === roomTypeId) || (isGroupBooking && groupPoolRoomTypeIds.includes(ss.roomTypeId));
+                return matchesRoomType && dayStart <= ssEnd && dayEnd >= ssStart;
+            });
+
+            const availableCount = hasStopSell ? 0 : Math.max(0, totalRoomsOfType - occupiedRooms - blockedRooms);
             result[dateStr] = {
                 available: availableCount,
                 total: totalRoomsOfType,

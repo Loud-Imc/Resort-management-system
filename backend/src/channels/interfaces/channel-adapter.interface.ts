@@ -32,6 +32,7 @@ export interface ChannelReservationGuestDto {
 
 export interface NormalizedChannelReservationDto {
   externalBookingId: string;
+  externalRevisionId?: string;
   channelName: string;
   sourceName?: string;
   externalPropertyId: string;

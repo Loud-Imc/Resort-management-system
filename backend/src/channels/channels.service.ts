@@ -5,8 +5,9 @@ import { PricingService } from '../bookings/pricing.service';
 import { IChannelAdapter, InventoryUpdateDto, RateUpdateDto } from './interfaces/channel-adapter.interface';
 import { ChannexAdapter } from './adapters/channex.adapter';
 import { MockAdapter } from './adapters/mock.adapter';
-import { format, addDays } from 'date-fns';
+import { format, addDays, differenceInDays } from 'date-fns';
 import { DateUtils } from '../common/utils/date.utils';
+import { CurrenciesService } from '../currencies/currencies.service';
 
 @Injectable()
 export class ChannelsService {
@@ -19,6 +20,7 @@ export class ChannelsService {
     private readonly pricingService: PricingService,
     private readonly channexAdapter: ChannexAdapter,
     private readonly mockAdapter: MockAdapter,
+    private readonly currenciesService: CurrenciesService,
   ) {
     this.registerAdapter(this.channexAdapter);
     this.registerAdapter(this.mockAdapter);
@@ -432,11 +434,46 @@ export class ChannelsService {
           include: { roomType: true },
         });
       }
+      const checkInStart = today;
+      const checkOutEnd = addDays(today, daysToSync);
+      const roomTypeIds = currentRoomMappings.map((rm) => rm.roomTypeId);
+
+      // 1. Fetch total room counts in a single query
+      const rooms = await this.prisma.room.findMany({
+        where: {
+          roomTypeId: { in: roomTypeIds },
+          isEnabled: true,
+          status: { in: ['AVAILABLE', 'OCCUPIED'] },
+        },
+        select: { roomTypeId: true },
+      });
+      const roomsMap = new Map<string, number>();
+      for (const rtId of roomTypeIds) {
+        roomsMap.set(rtId, rooms.filter((r) => r.roomTypeId === rtId).length);
+      }
+
+      // 2. Fetch all active bookings for the range in a single query
+      const bookings = await this.prisma.booking.findMany({
+        where: {
+          roomTypeId: { in: roomTypeIds },
+          status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED', 'PENDING_PAYMENT'] },
+          checkOutDate: { gte: checkInStart },
+          checkInDate: { lte: checkOutEnd },
+        },
+        select: { roomTypeId: true, checkInDate: true, checkOutDate: true },
+      });
+
+      // 3. Fetch active stop sell restrictions in a single query
+      const stopSells = await this.prisma.stopSellRestriction.findMany({
+        where: {
+          propertyId,
+          isActive: true,
+          startDate: { lte: checkOutEnd },
+          endDate: { gte: checkInStart },
+        },
+      });
 
       for (const roomMapping of currentRoomMappings) {
-        // Fetch published daily rates for the full sync window from the Pricing SSOT
-        const checkInStart = today;
-        const checkOutEnd = addDays(today, daysToSync);
         const dailyRates = await this.pricingService.getPublishedDailyRates(
           roomMapping.roomTypeId,
           checkInStart,
@@ -445,37 +482,52 @@ export class ChannelsService {
         this.logger.debug(`[Channex Sync] Fetched ${dailyRates.length} daily rates for RoomType [${roomMapping.roomTypeId}]`);
         const ratesMap = new Map(dailyRates.map(r => [r.date, r.publishedPrice]));
 
-        // Calculate daily inventory for each date
+        const totalRooms = roomsMap.get(roomMapping.roomTypeId) || 0;
+
+        // Calculate daily inventory for each date in-memory
         for (let i = 0; i < daysToSync; i++) {
           const checkIn = addDays(today, i);
           const checkOut = addDays(checkIn, 1);
           const dateStr = format(checkIn, 'yyyy-MM-dd');
 
-          // Count available physical rooms for this roomTypeId
-          const availableRoomsList = await this.availabilityService.getAvailableRooms(
-            roomMapping.roomTypeId,
-            checkIn,
-            checkOut,
-          );
+          // Check if stop sell is active for this roomType on this day
+          const hasStopSell = stopSells.some(ss => {
+            const ssStart = new Date(ss.startDate);
+            ssStart.setHours(0, 0, 0, 0);
+            const ssEnd = new Date(ss.endDate);
+            ssEnd.setHours(23, 59, 59, 999);
+            return (!ss.roomTypeId || ss.roomTypeId === roomMapping.roomTypeId) && checkIn <= ssEnd && checkOut >= ssStart;
+          });
+
+          // Count bookings overlapping with this date in-memory
+          const bookedCount = bookings.filter(b => {
+            if (b.roomTypeId !== roomMapping.roomTypeId) return false;
+            const bStart = new Date(b.checkInDate);
+            bStart.setHours(0, 0, 0, 0);
+            const bEnd = new Date(b.checkOutDate);
+            bEnd.setHours(0, 0, 0, 0);
+            return checkIn < bEnd && checkOut > bStart;
+          }).length;
+
+          const availableRoomsCount = Math.max(0, totalRooms - bookedCount);
 
           inventoryUpdates.push({
             date: dateStr,
             roomTypeId: roomMapping.roomTypeId,
             externalRoomTypeId: roomMapping.externalRoomTypeId,
-            availableRooms: availableRoomsList.length,
+            availableRooms: hasStopSell ? 0 : availableRoomsCount,
           });
 
-          // Push rate from SSOT
+          // Push rate and stopSell restriction
           const dailyPrice = ratesMap.get(dateStr);
-          if (dailyPrice !== undefined) {
-            rateUpdates.push({
-              date: dateStr,
-              roomTypeId: roomMapping.roomTypeId,
-              externalRoomTypeId: roomMapping.externalRoomTypeId,
-              externalRatePlanId: roomMapping.externalRatePlanId || undefined,
-              price: dailyPrice,
-            });
-          }
+          rateUpdates.push({
+            date: dateStr,
+            roomTypeId: roomMapping.roomTypeId,
+            externalRoomTypeId: roomMapping.externalRoomTypeId,
+            externalRatePlanId: roomMapping.externalRatePlanId || undefined,
+            price: dailyPrice,
+            stopSell: hasStopSell,
+          });
         }
       }
 
@@ -484,6 +536,137 @@ export class ChannelsService {
       if (rateUpdates.length > 0) {
         this.logger.debug(`[Channex Sync] Pushing ${rateUpdates.length} rate updates to adapter`);
         await adapter.pushRates(mapping, rateUpdates);
+      }
+    }
+  }
+
+  async pushAvailabilityForDates(
+    propertyId: string,
+    roomTypeId: string,
+    startDate: Date,
+    endDate: Date,
+    oldStartDate?: Date,
+    oldEndDate?: Date,
+    oldRoomTypeId?: string
+  ): Promise<void> {
+    const mappings = await this.prisma.channelPropertyMapping.findMany({
+      where: { propertyId, isActive: true },
+      include: {
+        roomMappings: {
+          include: { roomType: true },
+        },
+      },
+    });
+
+    if (mappings.length === 0) return;
+
+    // Collect all dates to recalculate availability
+    const datesToRecalculate = new Set<string>();
+    const roomTypeIds = new Set<string>([roomTypeId]);
+    if (oldRoomTypeId) roomTypeIds.add(oldRoomTypeId);
+
+    // Helper to add interval dates
+    const addIntervalDates = (start: Date, end: Date) => {
+      const days = differenceInDays(end, start);
+      for (let i = 0; i < days; i++) {
+        const d = addDays(start, i);
+        datesToRecalculate.add(format(d, 'yyyy-MM-dd'));
+      }
+    };
+
+    addIntervalDates(startDate, endDate);
+    if (oldStartDate && oldEndDate) {
+      addIntervalDates(oldStartDate, oldEndDate);
+    }
+
+    // Load total room counts and active bookings for the range (using our optimized queries)
+    const checkInStart = new Date(Math.min(
+      startDate.getTime(),
+      oldStartDate ? oldStartDate.getTime() : startDate.getTime()
+    ));
+    const checkOutEnd = new Date(Math.max(
+      endDate.getTime(),
+      oldEndDate ? oldEndDate.getTime() : endDate.getTime()
+    ));
+
+    const rooms = await this.prisma.room.findMany({
+      where: {
+        roomTypeId: { in: Array.from(roomTypeIds) },
+        isEnabled: true,
+        status: { in: ['AVAILABLE', 'OCCUPIED'] },
+      },
+      select: { roomTypeId: true },
+    });
+    const roomsMap = new Map<string, number>();
+    for (const rtId of roomTypeIds) {
+      roomsMap.set(rtId, rooms.filter((r) => r.roomTypeId === rtId).length);
+    }
+
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        roomTypeId: { in: Array.from(roomTypeIds) },
+        status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED', 'PENDING_PAYMENT'] },
+        checkOutDate: { gte: checkInStart },
+        checkInDate: { lte: checkOutEnd },
+      },
+      select: { roomTypeId: true, checkInDate: true, checkOutDate: true },
+    });
+
+    const stopSells = await this.prisma.stopSellRestriction.findMany({
+      where: {
+        propertyId,
+        isActive: true,
+        startDate: { lte: checkOutEnd },
+        endDate: { gte: checkInStart },
+      },
+    });
+
+    for (const mapping of mappings) {
+      const adapter = this.getAdapter(mapping.channelName);
+      const inventoryUpdates: InventoryUpdateDto[] = [];
+
+      for (const rtId of roomTypeIds) {
+        const roomMapping = mapping.roomMappings.find(rm => rm.roomTypeId === rtId);
+        if (!roomMapping) continue;
+
+        const totalRooms = roomsMap.get(rtId) || 0;
+
+        for (const dateStr of datesToRecalculate) {
+          const checkIn = new Date(dateStr);
+          checkIn.setHours(0, 0, 0, 0);
+          const checkOut = addDays(checkIn, 1);
+
+          const hasStopSell = stopSells.some(ss => {
+            const ssStart = new Date(ss.startDate);
+            ssStart.setHours(0, 0, 0, 0);
+            const ssEnd = new Date(ss.endDate);
+            ssEnd.setHours(23, 59, 59, 999);
+            return (!ss.roomTypeId || ss.roomTypeId === rtId) && checkIn <= ssEnd && checkOut >= ssStart;
+          });
+
+          const bookedCount = bookings.filter(b => {
+            if (b.roomTypeId !== rtId) return false;
+            const bStart = new Date(b.checkInDate);
+            bStart.setHours(0, 0, 0, 0);
+            const bEnd = new Date(b.checkOutDate);
+            bEnd.setHours(0, 0, 0, 0);
+            return checkIn < bEnd && checkOut > bStart;
+          }).length;
+
+          const availableRoomsCount = Math.max(0, totalRooms - bookedCount);
+
+          inventoryUpdates.push({
+            date: dateStr,
+            roomTypeId: rtId,
+            externalRoomTypeId: roomMapping.externalRoomTypeId,
+            availableRooms: hasStopSell ? 0 : availableRoomsCount,
+          });
+        }
+      }
+
+      if (inventoryUpdates.length > 0) {
+        this.logger.log(`[Channex] Pushing delta inventory updates for ${inventoryUpdates.length} date items: ${JSON.stringify(inventoryUpdates)}`);
+        await adapter.pushInventory(mapping, inventoryUpdates);
       }
     }
   }
@@ -577,15 +760,15 @@ export class ChannelsService {
     if (channelName.toUpperCase() === 'CHANNEX' && payload.event === 'booking') {
       const extPropId = payload.property_id || payload.payload?.property_id || '';
       const bookingId = payload.payload?.booking_id || '';
+      const revisionId = payload.payload?.revision_id || '';
       
-      // If there is no booking_id, this is a retry of an old webhook event sent when "Send Data" was disabled.
-      // We must return 200 OK to acknowledge it so Channex stops retrying it.
-      if (!bookingId) {
-        this.logger.log(`[Webhook] Acknowledged and ignored old data-less booking event (no booking_id).`);
+      // If there are no booking identifiers, ignore
+      if (!bookingId && !revisionId) {
+        this.logger.log(`[Webhook] Acknowledged and ignored old data-less booking event (no booking_id/revision_id).`);
         return { success: true, action: 'IGNORED_DATALESS_WEBHOOK' };
       }
 
-      this.logger.log(`[Webhook] Fetching full details for lightweight booking ${bookingId}...`);
+      this.logger.log(`[Webhook] Fetching details for lightweight booking ${bookingId} (Revision: ${revisionId})...`);
 
       const mapping = await this.prisma.channelPropertyMapping.findFirst({
         where: {
@@ -598,7 +781,11 @@ export class ChannelsService {
         throw new NotFoundException(`No active Channex mapping or API key found for externalPropertyId: ${extPropId}`);
       }
 
-      const fetchUrl = `${process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1'}/bookings/${bookingId}`;
+      // Use booking_revisions endpoint if revisionId is present (required for Channex certification)
+      const fetchUrl = revisionId 
+        ? `${process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1'}/booking_revisions/${revisionId}`
+        : `${process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1'}/bookings/${bookingId}`;
+
       const response = await fetch(fetchUrl, {
         method: 'GET',
         headers: {
@@ -607,7 +794,7 @@ export class ChannelsService {
         },
       });
 
-      console.log('channex response : ', response)
+      console.log('channex response : ', response);
 
       if (response.status !== 200) {
         throw new Error(`Failed to fetch booking details from Channex: ${response.status} ${response.statusText}`);
@@ -622,11 +809,14 @@ export class ChannelsService {
 
       // Map to the format the adapter expects
       payload = {
-        id: bookingData.id,
+        id: bookingData.attributes?.booking_id || bookingId || bookingData.id,
+        booking_revision_id: bookingData.id || revisionId,
         property_id: bookingData.relationships?.property?.data?.id || extPropId,
         status: bookingData.attributes.status,
         arrival_date: bookingData.attributes.arrival_date,
         departure_date: bookingData.attributes.departure_date,
+        amount: bookingData.attributes.amount,
+        currency: bookingData.attributes.currency,
         rooms: (bookingData.attributes.rooms || []).map((r: any) => ({
           id: r.id,
           room_type_id: r.room_type_id,
@@ -679,6 +869,18 @@ export class ChannelsService {
           await this.pushAriForProperty(existingBooking.propertyId, 60);
         }
       }
+
+      // Acknowledge revision modification/cancellation back to Channex (required for certification)
+      if (existingBooking.propertyId) {
+        const mapping = await this.prisma.channelPropertyMapping.findFirst({
+          where: { propertyId: existingBooking.propertyId, channelName: channelName.toUpperCase() },
+        });
+        if (mapping) {
+          const ackId = res.externalRevisionId || res.externalBookingId;
+          await adapter.acknowledgeReservation(mapping, ackId, existingBooking.bookingNumber);
+        }
+      }
+
       return { success: true, action: 'UPDATED', bookingNumber: existingBooking.bookingNumber };
     }
 
@@ -791,6 +993,40 @@ export class ChannelsService {
       });
     }
 
+    // Fetch property base currency
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { baseCurrency: true },
+    });
+    const propCurrency = property?.baseCurrency || 'INR';
+
+    // Convert booking total amount to property base currency
+    const convertedTotal = await this.currenciesService.convert(
+      res.totalAmount,
+      res.currency || 'INR',
+      propCurrency,
+    );
+
+    // Reverse-calculate GST and Base Amount from the total guest price
+    const gstCalculation = await this.pricingService.calculateReverseGST(
+      convertedTotal,
+      res.numberOfNights || 1,
+      1
+    );
+
+    // Calculate commission amount if the source defines a commission percentage
+    let commissionAmount = 0;
+    if (bookingSource?.commission) {
+      commissionAmount = (convertedTotal * Number(bookingSource.commission)) / 100;
+    }
+
+    // Calculate exchange rate from Property Base Currency to Booking Currency
+    const exchangeRate = await this.currenciesService.convert(
+      1.0,
+      propCurrency,
+      res.currency || 'INR',
+    );
+
     // Generate internal booking number
     const bookingNumber = `CM-${channelName.slice(0, 3)}-${Date.now()}`;
 
@@ -806,8 +1042,12 @@ export class ChannelsService {
             numberOfNights: res.numberOfNights,
             adultsCount: res.adultsCount,
             childrenCount: res.childrenCount,
-            baseAmount: res.totalAmount,
-            totalAmount: res.totalAmount,
+            baseAmount: gstCalculation.baseAmount,
+            taxAmount: gstCalculation.taxAmount,
+            totalAmount: convertedTotal,
+            paidAmount: convertedTotal,
+            commissionAmount,
+            exchangeRate,
             status: 'CONFIRMED',
             specialRequests: res.specialRequests,
             roomId: assignedRoom.id,
@@ -860,8 +1100,9 @@ export class ChannelsService {
 
     this.logger.log(`Created internal booking #${newBooking.bookingNumber} for physical room ${assignedRoom.roomNumber}`);
 
-    // Acknowledge back to channel
-    await adapter.acknowledgeReservation(roomMapping.propertyMapping, res.externalBookingId, newBooking.bookingNumber);
+    // Acknowledge back to channel using revision ID if available (falls back to booking ID)
+    const ackId = res.externalRevisionId || res.externalBookingId;
+    await adapter.acknowledgeReservation(roomMapping.propertyMapping, ackId, newBooking.bookingNumber);
 
     // Push updated inventory outward to block all other OTAs instantly
     await this.pushAriForProperty(propertyId, 60);
@@ -881,6 +1122,50 @@ export class ChannelsService {
         },
       },
     });
+  }
+
+  async getActiveOtas(propertyId: string) {
+    const mapping = await this.prisma.channelPropertyMapping.findFirst({
+      where: { propertyId, isActive: true, channelName: 'CHANNEX' },
+    });
+
+    if (!mapping) {
+      return [];
+    }
+
+    const userApiKey = process.env.CHANNEX_USER_API_KEY || 'u5wpOi89Mo9NPXiGg03sDppzK6cYX1oUu3jDPx8K8MT10PdikVNXrvcFy4mtAhqF';
+    const baseUrl = 'https://staging.channex.io/api/v1';
+
+    try {
+      const response = await fetch(`${baseUrl}/channels?filter[property_id]=${mapping.externalPropertyId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'user-api-key': userApiKey,
+        },
+      });
+
+      if (!response.ok) {
+        this.logger.error(`Failed to fetch connected channels from Channex: ${response.statusText}`);
+        return [];
+      }
+
+      const resData = await response.json();
+      if (!resData || !resData.data) {
+        return [];
+      }
+
+      return resData.data.map((item: any) => ({
+        id: item.id || item.attributes?.id,
+        title: item.attributes?.title || 'Unknown Channel',
+        channel: item.attributes?.channel || 'Unknown',
+        isActive: item.attributes?.is_active ?? false,
+        mappedRooms: item.attributes?.settings?.mappingSettings?.rooms || {},
+      }));
+    } catch (err: any) {
+      this.logger.error(`Error in getActiveOtas: ${err.message}`);
+      return [];
+    }
   }
 
   async savePropertyMapping(propertyId: string, channelName: string, externalPropertyId: string, apiKey?: string) {
@@ -946,6 +1231,8 @@ export class ChannelsService {
         property_id: propertyMapping.externalPropertyId || 'SIMULATED_PROP',
         channel_name: otaName,
         status: 'new',
+        amount: 14500,
+        currency: 'INR',
         rooms: [
           {
             room_type_id: roomMapping.externalRoomTypeId || 'SIMULATED_ROOM_TYPE',
@@ -970,6 +1257,47 @@ export class ChannelsService {
     return this.prisma.property.update({
       where: { id: propertyId },
       data: { baseCurrency: currency.toUpperCase() },
+    });
+  }
+
+  async createStopSell(propertyId: string, roomTypeId: string | null, startDate: string, endDate: string) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const restriction = await this.prisma.stopSellRestriction.create({
+      data: {
+        propertyId,
+        roomTypeId: roomTypeId || null,
+        startDate: start,
+        endDate: end,
+      },
+    });
+
+    // Immediate ARI push to pause sales on Channex
+    await this.pushAriForProperty(propertyId, 60);
+
+    return restriction;
+  }
+
+  async deleteStopSell(id: string) {
+    const restriction = await this.prisma.stopSellRestriction.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    // Immediate ARI push to resume sales on Channex
+    await this.pushAriForProperty(restriction.propertyId, 60);
+
+    return restriction;
+  }
+
+  async getStopSells(propertyId: string) {
+    return this.prisma.stopSellRestriction.findMany({
+      where: { propertyId, isActive: true },
+      include: { roomType: true },
+      orderBy: { startDate: 'asc' },
     });
   }
 }

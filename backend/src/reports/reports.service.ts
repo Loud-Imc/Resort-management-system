@@ -1022,6 +1022,17 @@ export class ReportsService {
                 }
             });
 
+            const activeBlocks = await this.prisma.roomBlock.findMany({
+                where: {
+                    startDate: { lte: date },
+                    endDate: { gt: date },
+                    room: { property: propertyFilter }
+                },
+                select: {
+                    roomId: true
+                }
+            });
+
             const uniqueOccupiedRooms = new Set<string>();
             activeBookings.forEach(b => {
                 if (b.roomId) uniqueOccupiedRooms.add(b.roomId);
@@ -1029,6 +1040,11 @@ export class ReportsService {
                     if (rb.roomId) uniqueOccupiedRooms.add(rb.roomId);
                 });
             });
+
+            activeBlocks.forEach(block => {
+                if (block.roomId) uniqueOccupiedRooms.add(block.roomId);
+            });
+
             const occupied = uniqueOccupiedRooms.size;
 
             report.push({

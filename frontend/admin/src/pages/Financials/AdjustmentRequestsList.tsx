@@ -13,7 +13,7 @@ import {
     Clock,
     Search
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateTime } from '../../utils/dateTime';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
@@ -164,7 +164,7 @@ export default function AdjustmentRequestsList() {
                                         <td className="px-6 py-4 text-sm text-muted-foreground">
                                             <div className="flex items-center gap-2">
                                                 <Clock className="h-3.5 w-3.5" />
-                                                {format(new Date(a.createdAt), 'dd MMM, HH:mm')}
+                                                {formatDateTime(a.createdAt)}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">

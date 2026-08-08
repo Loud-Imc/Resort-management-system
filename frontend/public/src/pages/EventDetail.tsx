@@ -7,6 +7,7 @@ import {
 import eventsService, { Event } from '../services/events';
 import { useCurrency } from '../context/CurrencyContext';
 import { formatPrice } from '../utils/currency';
+import { formatTime } from '../utils/dateTime';
 
 export default function EventDetail() {
     const { id } = useParams();
@@ -167,7 +168,7 @@ export default function EventDetail() {
                                         </div>
                                         <div>
                                             <div className="text-xs text-gray-500 font-bold uppercase tracking-tighter">Time</div>
-                                            <div className="font-semibold">{eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                            <div className="font-semibold">{formatTime(eventDate)}</div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 text-gray-700 p-3 rounded-lg bg-gray-50">

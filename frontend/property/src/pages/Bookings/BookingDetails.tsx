@@ -42,7 +42,6 @@ const BookingDetails = () => {
 
     const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-
     // Check-In & Warning Modal States
     const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
     const [warningModal, setWarningModal] = useState<{
@@ -55,7 +54,6 @@ const BookingDetails = () => {
         onCancel: () => void;
         cancelText: string;
     } | null>(null);
-
     const checkOutMutation = useMutation({
         mutationFn: (bookingId: string) => bookingsService.checkOut({ id: bookingId, data: {} }),
         onSuccess: () => {
@@ -91,9 +89,52 @@ const BookingDetails = () => {
     const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
     const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
+    const handleOpenCheckIn = (b: Booking) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkInDate = new Date(b.checkInDate);
+        checkInDate.setHours(0, 0, 0, 0);
 
+        const openCheckInModal = () => {
+            setCheckInBooking(b);
+        };
 
+        if (checkInDate.getTime() > today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Invalid Check-In Date",
+                message: "You have to reschedule the booking to today to do a check-in today.",
+                type: 'BLOCK',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    navigate(`/bookings/${b.id}/reschedule`);
+                },
+                confirmText: "Reschedule Now",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
 
+        if (checkInDate.getTime() < today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Late Check-In Warning",
+                message: "The scheduled check-in date is in the past. Are you sure you want to proceed with checking in now?",
+                type: 'WARNING',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    openCheckInModal();
+                },
+                confirmText: "Proceed Anyway",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        openCheckInModal();
+    };
     const handleDownloadBackendPDF = async () => {
         try {
             setIsDownloading(true);
@@ -183,7 +224,7 @@ const BookingDetails = () => {
                     </button>
                     {['CONFIRMED', 'RESERVED'].includes(booking.status) && (
                         <button
-                            onClick={() => setCheckInBooking(booking)}
+                            onClick={() => handleOpenCheckIn(booking)}
                             className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest cursor-pointer"
                         >
                             <ShieldCheck className="h-4 w-4" />

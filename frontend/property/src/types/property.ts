@@ -74,6 +74,11 @@ export interface Property {
     isRequest?: boolean;
     location?: string;
     details?: any;
+    licenceImage?: string;
+    ownerAadhaarImage?: string;
+    ownerAadhaarImageBack?: string;
+    ownerAadhaarNumber?: string;
+    gstNumber?: string;
 }
 
 export interface PropertyListResponse {

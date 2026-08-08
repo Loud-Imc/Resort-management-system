@@ -8,8 +8,12 @@ export const bookingsService = {
         propertyId?: string;
         startDate?: string;
         endDate?: string;
+        page?: number;
+        limit?: number;
+        search?: string;
+        hasSettlement?: boolean;
     }) => {
-        const { data } = await api.get<Booking[]>('/bookings', { params });
+        const { data } = await api.get<any>('/bookings', { params });
         return data;
     },
 

@@ -1,0 +1,340 @@
+{
+  "data": {
+    "attributes": {
+      "id": "b17b40b4-45b2-4e8c-97f9-f750bb0e600c",
+      "meta": {
+        "converter_version": "6970f20",
+        "ruid": "UmFuZG9tSVYkc2RlIyh9Yeh5Zey4gaCgcpIhYN45Ysk3VP8kbeuhCygYX3iOSFIyG3VZdIoVfDA/2UO/RanbPO9w4KfeLWh+Z7uuN4eGq3E="
+      },
+      "status": "new",
+      "services": [],
+      "currency": "USD",
+      "amount": "97.74",
+      "agent": null,
+      "unique_id": "BDC-6793497288",
+      "inserted_at": "2026-08-05T05:07:04.151997",
+      "ota_name": "BookingCom",
+      "property_id": "ebdff081-640f-4df8-8231-7b1ee84f232c",
+      "channel_id": "d7c707c1-fb66-4b8c-b576-0382b687d9de",
+      "booking_id": "b17b40b4-45b2-4e8c-97f9-f750bb0e600c",
+      "arrival_date": "2026-08-06",
+      "arrival_hour": null,
+      "customer": {
+        "meta": {
+          "is_genius": true
+        },
+        "name": "Kamarudheen123456789",
+        "state": null,
+        "zip": null,
+        "address": null,
+        "city": null,
+        "country": "IN",
+        "language": "en-gb",
+        "mail": "kmv.626486@guest.booking.com",
+        "phone": "+91 98476 78427",
+        "surname": "MV",
+        "company": null
+      },
+      "departure_date": "2026-08-07",
+      "deposits": [],
+      "notes": "Meal Plan: O café da manhã está incluído na tarifa deste quarto.\nAlmoço: US$19 por pessoa, por diária.\nJantar: US$25 por pessoa, por diária.\nSmoking Preference: Non-Smoking\nPayment Collect: Hotel collect\nOTA Commission: 0.00",
+      "ota_commission": "0.00",
+      "ota_reservation_code": "6793497288",
+      "payment_collect": "property",
+      "payment_type": "credit_card",
+      "rooms": [
+        {
+          "meta": {
+            "mapping_id": null,
+            "promotion": null,
+            "rate_plan_code": 40564345,
+            "room_type_code": "1114046602",
+            "cancel_penalties": [
+              {
+                "amount": "79.00",
+                "currency": "USD",
+                "from": "2026-08-05T05:05:49"
+              }
+            ],
+            "days_breakdown": [
+              {
+                "amount": "79.00",
+                "date": "2026-08-06",
+                "promotion": null,
+                "rate_code": 40564345,
+                "rate_plan": null
+              }
+            ],
+            "promotions": [],
+            "booking_com_room_index": 588,
+            "meal_plan": "O café da manhã está incluído na tarifa deste quarto.\nAlmoço: US$19 por pessoa, por diária.\nJantar: US$25 por pessoa, por diária.",
+            "policies": "Política Relacionada a Crianças e Camas Extras: Crianças de qualquer idade são permitidas. O número máximo de camas extras é 1. O número máximo de berços é 2. O número máximo de hóspedes é 11.  Política de Depósito/Pré-pagamento: O hóspede deverá fazer um pré-pagamento do custo da primeira diária após a reserva.  Política de cancelamento: O hóspede pode cancelar gratuitamente até 1 dia antes da chegada. O hóspede deverá pagar do custo da primeira diária em caso de cancelamento no dia anterior à chegada. Em caso de não comparecimento, haverá a cobrança do preço total da reserva.",
+            "additional_details": [],
+            "charge_periods": {
+              "BEDLINEN": [
+                {
+                  "excluded": true,
+                  "from": "2023-11-28",
+                  "to": null
+                }
+              ],
+              "CITYTAX": [
+                {
+                  "excluded": true,
+                  "from": "2023-11-28",
+                  "to": null
+                }
+              ],
+              "CLEANINGFEE": [
+                {
+                  "excluded": true,
+                  "from": "2023-11-28",
+                  "to": null
+                }
+              ],
+              "ELECTRICITYFEE": [
+                {
+                  "excluded": true,
+                  "from": "2023-11-28",
+                  "to": null
+                }
+              ],
+              "VAT": [
+                {
+                  "excluded": false,
+                  "from": "2023-11-28",
+                  "to": null
+                }
+              ]
+            },
+            "price_details": {
+              "guest_view": {
+                "taxes": [
+                  {
+                    "amount": "35",
+                    "charge_frequency": 12,
+                    "code": "14",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Taxa de limpeza",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "5",
+                    "charge_frequency": 19,
+                    "code": "14",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Taxa de eletricidade",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "1600",
+                    "charge_frequency": 12,
+                    "code": "14",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Taxa de roupa de cama",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "1205",
+                    "charge_frequency": 12,
+                    "code": "19",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "ISS (18%)",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "234",
+                    "charge_frequency": 12,
+                    "code": "3",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Imposto municipal (3.5%)",
+                    "type": "Inclusive",
+                    "version": 2
+                  }
+                ],
+                "total": {
+                  "amount": "9774",
+                  "decimal_places": 2
+                }
+              },
+              "hotel_view": {
+                "taxes": [
+                  {
+                    "amount": "35",
+                    "charge_frequency": 12,
+                    "code": "14",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Taxa de limpeza",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "5",
+                    "charge_frequency": 19,
+                    "code": "14",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Taxa de eletricidade",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "1600",
+                    "charge_frequency": 12,
+                    "code": "14",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Taxa de roupa de cama",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "1205",
+                    "charge_frequency": 12,
+                    "code": "19",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "ISS (18%)",
+                    "type": "Inclusive",
+                    "version": 2
+                  },
+                  {
+                    "amount": "234",
+                    "charge_frequency": 12,
+                    "code": "3",
+                    "currency_code": "USD",
+                    "decimal_places": 2,
+                    "tax_description": "Imposto municipal (3.5%)",
+                    "type": "Inclusive",
+                    "version": 2
+                  }
+                ],
+                "total": {
+                  "amount": "9774",
+                  "decimal_places": 2
+                }
+              }
+            },
+            "room_remarks": [],
+            "smoking_preferences": "Non-Smoking"
+          },
+          "taxes": [
+            {
+              "is_inclusive": false,
+              "name": "Taxa de limpeza",
+              "nights": 1,
+              "persons": 2,
+              "price_mode": "Per booking",
+              "price_per_unit": "0.35",
+              "total_price": "0.35",
+              "type": "Service Charge",
+              "version": 2
+            },
+            {
+              "is_inclusive": false,
+              "name": "Taxa de eletricidade",
+              "nights": 1,
+              "persons": 2,
+              "price_mode": "Per night",
+              "price_per_unit": "0.05",
+              "total_price": "0.05",
+              "type": "Service Charge",
+              "version": 2
+            },
+            {
+              "is_inclusive": false,
+              "name": "Taxa de roupa de cama",
+              "nights": 1,
+              "persons": 2,
+              "price_mode": "Per booking",
+              "price_per_unit": "16.00",
+              "total_price": "16.00",
+              "type": "Service Charge",
+              "version": 2
+            },
+            {
+              "is_inclusive": true,
+              "name": "ISS (18%)",
+              "nights": 1,
+              "persons": 2,
+              "price_mode": "Per booking",
+              "price_per_unit": "12.05",
+              "total_price": "12.05",
+              "type": "Value Added Tax (VAT)",
+              "version": 2
+            },
+            {
+              "is_inclusive": false,
+              "name": "Imposto municipal (3.5%)",
+              "nights": 1,
+              "persons": 2,
+              "price_mode": "Per booking",
+              "price_per_unit": "2.34",
+              "total_price": "2.34",
+              "type": "City Tax",
+              "version": 2
+            }
+          ],
+          "services": [],
+          "amount": "97.74",
+          "days": {
+            "2026-08-06": "79.00"
+          },
+          "ota_commission": "0.00",
+          "guests": [
+            {
+              "name": "Kamarudheen123456789",
+              "surname": "MV"
+            }
+          ],
+          "occupancy": {
+            "children": 0,
+            "adults": 2,
+            "ages": [],
+            "infants": 0
+          },
+          "rate_plan_id": null,
+          "room_type_id": null,
+          "booking_room_id": "22b5ed0d-2709-478a-8530-3ecff5c30c14",
+          "checkout_date": "2026-08-07",
+          "checkin_date": "2026-08-06",
+          "is_cancelled": false,
+          "ota_unique_id": "588"
+        }
+      ],
+      "occupancy": {
+        "children": 0,
+        "adults": 2,
+        "ages": [],
+        "infants": 0
+      },
+      "guarantee": {
+        "token": null,
+        "card_number": "411111******1111",
+        "card_type": "VI",
+        "cardholder_name": "Kamarudheen123456789 MV",
+        "cvv": "***",
+        "expiration_date": "12/2031",
+        "is_virtual": false
+      },
+      "secondary_ota": null,
+      "acknowledge_status": "pending",
+      "has_unacked_revisions": false,
+      "raw_message": "{\"services\":[],\"ResGlobalInfo\":{\"Comments\":[],\"DepositPayments\":null,\"Guarantee\":{\"GuaranteesAccepted\":{\"GuaranteeAccepted\":{\"PaymentCard\":{\"@CardCode\":\"VI\",\"@CardNumber\":\"411111******1111\",\"@CurrencyCode\":\"\",\"@CurrentBalance\":\"\",\"@DecimalPlaces\":\"\",\"@EffectiveDate\":\"\",\"@Error\":\"\",\"@ExpireDate\":\"1231\",\"@SeriesCode\":\"***\",\"@Token\":\"***\",\"@VCCActivationDate\":\"\",\"@VCCExpirationDate\":\"\",\"@Warning\":\"\",\"CardHolderName\":\"Kamarudheen123456789 MV\"}}}},\"GuestCounts\":[],\"HotelReservationIDs\":[{\"HotelReservationID\":{\"@ResID_Source\":\"BOOKING.COM\",\"@ResID_SourceContext\":\"11140466\",\"@ResID_Type\":\"14\",\"@ResID_Value\":\"6793497288\"}},{\"HotelReservationID\":{\"@ResID_Source\":\"BOOKING.COM\",\"@ResID_SourceContext\":\"\",\"@ResID_Type\":\"18\",\"@ResID_Value\":\"70c33ca3\"}}],\"Profiles\":[{\"ProfileInfo\":{\"Profile\":{\"Customer\":{\"Email\":\"kmv.626486@guest.booking.com\",\"@Language\":\"en-gb\",\"Address\":{\"CountryName\":{\"@Code\":\"IN\"},\"AddressLine\":\"\",\"CityName\":\"\",\"CompanyName\":\"\",\"PostalCode\":\"\",\"StateProv\":null},\"PersonName\":{\"GivenName\":\"Kamarudheen123456789\",\"Surname\":\"MV\"},\"Telephone\":{\"@PhoneNumber\":\"+91 98476 78427\"}}}}}],\"Total\":{\"amount_after_tax\":\"7900\",\"currency_code\":\"USD\",\"decimal_places\":2,\"tpa_extensions\":[]},\"TotalCommissions\":{\"Comment\":\"This is the total commission amount calculated by Booking.com\",\"CommissionPayableAmount\":{\"amount\":0,\"currency_code\":\"USD\",\"decimal_places\":2}},\"ruid\":\"UmFuZG9tSVYkc2RlIyh9Yeh5Zey4gaCgcpIhYN45Ysk3VP8kbeuhCygYX3iOSFIyG3VZdIoVfDA/2UO/RanbPO9w4KfeLWh+Z7uuN4eGq3E=\"},\"ResGuests\":[{\"ResGuest\":{\"GivenName\":\"Kamarudheen123456789\",\"Surname\":\"MV\",\"@ResGuestRPH\":1}}],\"RoomStays\":[{\"RoomStay\":{\"room_index\":588,\"Comments\":[],\"GuestCounts\":[{\"GuestCount\":{\"@Age\":null,\"@AgeQualifyingCode\":10,\"@Count\":2}}],\"Total\":{\"taxes\":[],\"amount_after_tax\":\"7900\",\"currency_code\":\"USD\",\"decimal_places\":2},\"BasicPropertyInfo\":{\"@HotelCode\":\"11140466\"},\"CancelPenalties\":[{\"from\":\"2026-08-05T05:05:49+00:00\",\"amount\":\"7900\",\"currency_code\":\"USD\",\"decimal_places\":2,\"policy_code\":\"36\"}],\"PriceDetails\":{\"guest_view\":{\"total\":{\"amount\":\"9774\",\"decimal_places\":2},\"taxes\":[{\"code\":\"14\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"35\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"Taxa de limpeza\"},{\"code\":\"14\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"5\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":19,\"tax_description\":\"Taxa de eletricidade\"},{\"code\":\"14\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"1600\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"Taxa de roupa de cama\"},{\"code\":\"19\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"1205\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"ISS (18%)\"},{\"code\":\"3\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"234\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"Imposto municipal (3.5%)\"}]},\"hotel_view\":{\"total\":{\"amount\":\"9774\",\"decimal_places\":2},\"taxes\":[{\"code\":\"14\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"35\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"Taxa de limpeza\"},{\"code\":\"14\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"5\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":19,\"tax_description\":\"Taxa de eletricidade\"},{\"code\":\"14\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"1600\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"Taxa de roupa de cama\"},{\"code\":\"19\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"1205\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"ISS (18%)\"},{\"code\":\"3\",\"type\":\"Inclusive\",\"version\":2,\"amount\":\"234\",\"currency_code\":\"USD\",\"decimal_places\":2,\"charge_frequency\":12,\"tax_description\":\"Imposto municipal (3.5%)\"}]}},\"RatePlans\":[{\"RatePlan\":{\"Commission\":{\"CommissionPayableAmount\":{\"amount\":0,\"currency_code\":\"USD\",\"decimal_places\":2}}}}],\"ResGuestRPHs\":[{\"ResGuestRPH\":{\"@RPH\":1}}],\"RoomRates\":{\"Rates\":[{\"rate_plan_code\":40564345,\"amount_after_tax\":\"7900\",\"currency_code\":\"USD\",\"decimal_places\":2,\"amount_before_tax\":\"\",\"effective_date\":\"2026-08-06\"}],\"TPA_Extensions\":{\"BookingCondition\":\"O café da manhã está incluído na tarifa deste quarto.\\nAlmoço: US$19 por pessoa, por diária.\\nJantar: US$25 por pessoa, por diária. Política Relacionada a Crianças e Camas Extras: Crianças de qualquer idade são permitidas. O número máximo de camas extras é 1. O número máximo de berços é 2. O número máximo de hóspedes é 11.  Política de Depósito/Pré-pagamento: O hóspede deverá fazer um pré-pagamento do custo da primeira diária após a reserva.  Política de cancelamento: O hóspede pode cancelar gratuitamente até 1 dia antes da chegada. O hóspede deverá pagar do custo da primeira diária em caso de cancelamento no dia anterior à chegada. Em caso de não comparecimento, haverá a cobrança do preço total da reserva. \",\"RateRewrite\":[]}},\"TPA_Extensions\":null,\"RoomTypes\":[{\"RoomType\":{\"room_type_code\":\"1114046602\",\"AdditionalDetails\":[],\"RoomDescription\":{\"@Name\":\"Casa de 5 Quartos - Condições especiais 2 - Breakfast included\",\"MaxChildren\":0,\"MealPlan\":\"O café da manhã está incluído na tarifa deste quarto.\\nAlmoço: US$19 por pessoa, por diária.\\nJantar: US$25 por pessoa, por diária.\",\"Text\":\"\"}}}],\"ServiceRPHs\":[],\"SpecialRequests\":[{\"SpecialRequest\":{\"@Name\":\"smoking preference\",\"Text\":\"Non-Smoking\"}}]}}],\"TPA_Extention\":{\"flags\":[{\"name\":\"booker_is_genius\"}],\"booker\":null}}",
+      "revision_id": "8f0e5324-dce4-4242-8407-d3bfc3fbbd17",
+      "is_crs_revision": false
+    },
+    "id": "b17b40b4-45b2-4e8c-97f9-f750bb0e600c",
+    "type": "booking"
+  }
+}

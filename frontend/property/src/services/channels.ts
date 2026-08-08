@@ -99,4 +99,24 @@ export const channelsService = {
     const response = await api.post(`/channels/update-currency/${propertyId}`, { currency });
     return response.data;
   },
+
+  getActiveOtas: async (propertyId: string): Promise<any[]> => {
+    const response = await api.get(`/channels/active-otas/${propertyId}`);
+    return response.data;
+  },
+
+  getStopSells: async (propertyId: string): Promise<any[]> => {
+    const response = await api.get(`/channels/stop-sells/${propertyId}`);
+    return response.data;
+  },
+
+  createStopSell: async (propertyId: string, roomTypeId: string | null, startDate: string, endDate: string): Promise<any> => {
+    const response = await api.post('/channels/stop-sell', { propertyId, roomTypeId, startDate, endDate });
+    return response.data;
+  },
+
+  deleteStopSell: async (id: string): Promise<any> => {
+    const response = await api.delete(`/channels/stop-sell/${id}`);
+    return response.data;
+  },
 };

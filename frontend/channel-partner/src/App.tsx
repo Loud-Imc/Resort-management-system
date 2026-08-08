@@ -43,10 +43,17 @@ function App() {
     return <DashboardLayout>{children}</DashboardLayout>;
   };
 
+  const GuestRoute = ({ children }: { children: React.ReactNode }) => {
+    if (user && hasCpAccess) {
+      return <Navigate to="/" replace />;
+    }
+    return <>{children}</>;
+  };
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+      <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
       <Route path="/delete-account" element={<DeleteAccount />} />
 
       {/* Protected Routes */}

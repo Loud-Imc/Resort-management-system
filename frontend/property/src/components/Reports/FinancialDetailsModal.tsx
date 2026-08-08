@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { reportsService } from '../../services/reports';
 import { Loader2, Calendar, User, X, Info, Download } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatDateTimeFull } from '../../utils/dateTime';
 
 interface FinancialDetailsModalProps {
     isOpen: boolean;
@@ -172,11 +173,11 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                                             #{b.bookingNumber}
                                                             <span className="md:hidden ml-2 text-xs font-normal text-gray-500 flex items-center gap-1">
                                                                 <Calendar className="h-3 w-3" />
-                                                                {format(new Date(b.createdAt), 'MMM dd, yyyy HH:mm')}
+                                                                {formatDateTimeFull(b.createdAt)}
                                                             </span>
                                                         </td>
                                                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
-                                                            {format(new Date(b.createdAt), 'MMM dd, yyyy HH:mm')}
+                                                            {formatDateTimeFull(b.createdAt)}
                                                         </td>
                                                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                                                             <div className="flex items-center gap-1 text-xs whitespace-nowrap">
@@ -232,7 +233,7 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                             {filteredIncomes?.map((i: DetailIncome) => (
                                                 <tr key={i.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
                                                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                                                        {format(new Date(i.date), 'MMM dd, yyyy HH:mm')}
+                                                        {formatDateTimeFull(i.date)}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] uppercase font-bold rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
@@ -276,7 +277,7 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                             {filteredPlatformFees?.map((p: any) => (
                                                 <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
                                                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                                                        {format(new Date(p.paymentDate), 'MMM dd, yyyy HH:mm')}
+                                                        {formatDateTimeFull(p.paymentDate)}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <div className="font-bold text-gray-900 dark:text-white">#{p.booking?.bookingNumber}</div>

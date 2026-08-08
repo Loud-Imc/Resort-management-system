@@ -148,6 +148,7 @@ model RoomType {
   offers                     Offer[]
   pricingRules               PricingRule[]
   icalSyncs                  PropertyIcal[]
+  stopSellRestrictions       StopSellRestriction[]
   reviews                    Review[]
   cancellationPolicy         CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
   isGstInclusive             Boolean             @default(false)
@@ -369,6 +370,21 @@ model PricingRule {
   @@map("pricing_rules")
 }
 
+model StopSellRestriction {
+  id           String    @id @default(uuid())
+  propertyId   String
+  roomTypeId   String?
+  startDate    DateTime
+  endDate      DateTime
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  property     Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType     RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@map("stop_sell_restrictions")
+}
+
 model Coupon {
   id               String       @id @default(uuid())
   code             String       @unique
@@ -575,6 +591,7 @@ model Property {
   promotionRequests           PromotionRequest[]
   channelMappings             ChannelPropertyMapping[]
   offlineChannelPartners      OfflineCP[]
+  stopSellRestrictions        StopSellRestriction[]
 
   @@map("properties")
 }

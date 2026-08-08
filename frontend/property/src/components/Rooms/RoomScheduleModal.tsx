@@ -38,6 +38,7 @@ export default function RoomScheduleModal({ roomId, selectedDate, isOpen, onClos
             toast.success('Room unblocked successfully');
             queryClient.invalidateQueries({ queryKey: ['room-details'] });
             queryClient.invalidateQueries({ queryKey: ['rooms'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-unified'] });
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || 'Failed to unblock room');

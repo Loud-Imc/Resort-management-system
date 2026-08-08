@@ -22,18 +22,12 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { uploadService } from '../../services/uploads';
-import { paymentsService } from '../../services/payments';
+// import { uploadService } from '../../services/uploads';
+// import { paymentsService } from '../../services/payments';
 import { Download, Wallet } from 'lucide-react';
 import { CheckInVerificationModal } from '../../components/bookings/CheckInVerificationModal';
 
-const ID_VALIDATION_PATTERNS: Record<string, { pattern: RegExp; message: string; sample: string }> = {
-    AADHAR: { pattern: /^\d{12}$/, message: 'Aadhar must be exactly 12 digits', sample: 'e.g. 1234 5678 9012' },
-    PASSPORT: { pattern: /^[A-Z][0-9]{7}$/, message: '1 Letter + 7 Digits (e.g. A1234567)', sample: 'e.g. A1234567' },
-    VOTER_ID: { pattern: /^[A-Z]{3}[0-9]{7}$/, message: '3 Letters + 7 Digits', sample: 'e.g. ABC1234567' },
-    DRIVING_LICENSE: { pattern: /^[A-Z]{2}[0-9]{13}$/, message: '2 Letters + 13 Digits', sample: 'e.g. MH1220100012345' },
-    PAN: { pattern: /^[A-Z]{5}[0-9]{4}[A-Z]$/, message: 'Invalid PAN format', sample: 'e.g. ABCDE1234F' },
-};
+
 
 export default function BookingsList() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -73,6 +67,7 @@ export default function BookingsList() {
 
     const [startDate, setStartDate] = useState<string>(searchParams.get('startDate') || '');
     const [endDate, setEndDate] = useState<string>(searchParams.get('endDate') || '');
+    const [currentPage, setCurrentPage] = useState<number>(parseInt(searchParams.get('page') || '1', 10));
 
     // Sync state with URL params on changes
     useEffect(() => {
@@ -80,10 +75,15 @@ export default function BookingsList() {
         const queryEnd = searchParams.get('endDate');
         const queryStatus = searchParams.get('status');
         const querySearch = searchParams.get('search');
+        const queryPage = searchParams.get('page');
         if (queryStart !== null && queryStart !== startDate) setStartDate(queryStart);
         if (queryEnd !== null && queryEnd !== endDate) setEndDate(queryEnd);
         if (queryStatus !== null && queryStatus !== statusFilter) setStatusFilter(queryStatus);
         if (querySearch !== null && querySearch !== searchTerm) setSearchTerm(querySearch);
+        if (queryPage !== null) {
+            const pageNum = parseInt(queryPage, 10);
+            if (pageNum !== currentPage) setCurrentPage(pageNum);
+        }
     }, [searchParams]);
 
     // Sync statusFilter changes to URL search parameters
@@ -95,8 +95,10 @@ export default function BookingsList() {
             } else {
                 next.delete('status');
             }
+            next.set('page', '1');
             return next;
         });
+        setCurrentPage(1);
     }, [statusFilter, setSearchParams]);
 
     // Debounce syncing searchTerm changes to URL search parameters (300ms)
@@ -109,11 +111,22 @@ export default function BookingsList() {
                 } else {
                     next.delete('search');
                 }
+                next.set('page', '1');
                 return next;
             });
+            setCurrentPage(1);
         }, 300);
         return () => clearTimeout(timer);
     }, [searchTerm, setSearchParams]);
+
+    // Sync currentPage changes to URL search parameters
+    useEffect(() => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('page', String(currentPage));
+            return next;
+        });
+    }, [currentPage, setSearchParams]);
 
     const handleRowClick = (e: React.MouseEvent, bookingId: string) => {
         if ((e.target as HTMLElement).closest('button, a, select, input, [role="button"]')) {
@@ -207,51 +220,43 @@ export default function BookingsList() {
         openCheckOutModal();
     };
 
-    const { data: bookings, isLoading, error } = useQuery<Booking[]>({
-        queryKey: ['bookings', statusFilter, selectedProperty?.id, startDate, endDate],
+    const PAGE_SIZE = 10;
+
+    const { data: bookings, isLoading, error } = useQuery<{ data: Booking[], total: number, page: number, totalPages: number }>({
+        queryKey: ['bookings', statusFilter, selectedProperty?.id, startDate, endDate, currentPage, searchTerm],
         queryFn: async () => {
-            const data = await bookingsService.getAll({
+            const res = await bookingsService.getAll({
                 status: statusFilter || undefined,
                 propertyId: selectedProperty?.id,
                 startDate: startDate || undefined,
                 endDate: endDate || undefined,
+                page: currentPage,
+                limit: PAGE_SIZE,
+                search: searchTerm || undefined,
             });
-            if (!statusFilter) {
-                return data.filter(b => b.status !== BookingStatus.PENDING_PAYMENT);
+            if (Array.isArray(res)) {
+                const data = !statusFilter ? res.filter(b => b.status !== BookingStatus.PENDING_PAYMENT) : res;
+                return {
+                    data,
+                    total: data.length,
+                    page: 1,
+                    totalPages: 1
+                };
             }
-            return data;
+            if (!statusFilter && res.data) {
+                res.data = res.data.filter((b: any) => b.status !== BookingStatus.PENDING_PAYMENT);
+            }
+            return res;
         },
         enabled: !!selectedProperty?.id,
+        placeholderData: (prev) => prev,
     });
 
+    const bookingsData = bookings?.data || [];
+    const totalItems = bookings?.total || 0;
+    const totalPages = bookings?.totalPages || 0;
 
-    const filteredBookings = (bookings || []).filter(booking => {
-        if (!searchTerm) return true;
-        const searchStr = searchTerm.toLowerCase();
-        const guestName = (booking.isManualBooking && booking.guests?.[0]
-            ? `${booking.guests[0].firstName} ${booking.guests[0].lastName}`
-            : `${booking.user?.firstName || ''} ${booking.user?.lastName || ''}`).toLowerCase();
-        const bookingNumber = booking.bookingNumber.toLowerCase();
-        const email = (booking.isManualBooking && booking.guests?.[0]
-            ? (booking.guests[0].email || '')
-            : (booking.user?.email || '')).toLowerCase();
-        // Gather all possible phone numbers related to this booking
-        const allPhones = [
-            booking.user?.phone,
-            booking.whatsappNumber,
-            ...(booking.guests || []).map(g => g.phone),
-            ...(booking.guests || []).map(g => g.whatsappNumber)
-        ].filter(Boolean).map(p => String(p).toLowerCase());
-
-        const cleanSearch = searchStr.replace(/\D/g, '');
-        const hasPhoneMatch = allPhones.some(p => p.includes(searchStr)) || 
-            (cleanSearch !== '' && allPhones.some(p => p.replace(/\D/g, '').includes(cleanSearch)));
-
-        return guestName.includes(searchStr) ||
-            bookingNumber.includes(searchStr) ||
-            email.includes(searchStr) ||
-            hasPhoneMatch;
-    }).sort((a, b) => {
+    const filteredBookings = [...bookingsData].sort((a, b) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
@@ -726,6 +731,96 @@ export default function BookingsList() {
                         </table>
                     </div>
 
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="px-6 py-4 flex items-center justify-between border-t border-border/50 bg-card/5">
+                            <div className="flex-1 flex justify-between sm:hidden">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="relative inline-flex items-center px-4 py-2 border border-border/50 text-xs font-bold rounded-xl text-foreground bg-background hover:bg-muted disabled:opacity-50 transition-all cursor-pointer"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="relative inline-flex items-center ml-3 px-4 py-2 border border-border/50 text-xs font-bold rounded-xl text-foreground bg-background hover:bg-muted disabled:opacity-50 transition-all cursor-pointer"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-xs text-muted-foreground font-medium">
+                                        Showing <span className="font-bold text-foreground">{(currentPage - 1) * PAGE_SIZE + 1}</span> to <span className="font-bold text-foreground">{Math.min(currentPage * PAGE_SIZE, totalItems)}</span> of <span className="font-bold text-foreground">{totalItems}</span> entries
+                                    </p>
+                                </div>
+                                <div>
+                                    <nav className="relative z-0 inline-flex rounded-xl -space-x-px gap-1" aria-label="Pagination">
+                                        <button
+                                            onClick={() => setCurrentPage(1)}
+                                            disabled={currentPage === 1}
+                                            className="relative inline-flex items-center px-3 py-1.5 rounded-l-xl border border-border/50 bg-background text-xs font-bold text-muted-foreground hover:bg-muted disabled:opacity-50 transition-all cursor-pointer"
+                                        >
+                                            First
+                                        </button>
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={currentPage === 1}
+                                            className="relative inline-flex items-center px-3 py-1.5 border border-border/50 bg-background text-xs font-bold text-muted-foreground hover:bg-muted disabled:opacity-50 transition-all cursor-pointer"
+                                        >
+                                            Prev
+                                        </button>
+                                        
+                                        {(() => {
+                                            const pages = [];
+                                            const maxVisible = 5;
+                                            let start = Math.max(1, currentPage - 2);
+                                            let end = Math.min(totalPages, start + maxVisible - 1);
+                                            if (end - start + 1 < maxVisible) {
+                                                start = Math.max(1, end - maxVisible + 1);
+                                            }
+                                            for (let p = start; p <= end; p++) {
+                                                pages.push(p);
+                                            }
+                                            return pages.map(pageNum => {
+                                                const isSelected = pageNum === currentPage;
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => setCurrentPage(pageNum)}
+                                                        className={`relative inline-flex items-center px-3 py-1.5 border text-xs font-bold transition-all rounded-lg cursor-pointer ${
+                                                            isSelected
+                                                                ? 'border-primary bg-primary text-white scale-105 z-10 shadow-sm'
+                                                                : 'border-border/50 bg-background text-muted-foreground hover:bg-muted'
+                                                        }`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                );
+                                            });
+                                        })()}
+
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                            disabled={currentPage === totalPages}
+                                            className="relative inline-flex items-center px-3 py-1.5 border border-border/50 bg-background text-xs font-bold text-muted-foreground hover:bg-muted disabled:opacity-50 transition-all cursor-pointer"
+                                        >
+                                            Next
+                                        </button>
+                                        <button
+                                            onClick={() => setCurrentPage(totalPages)}
+                                            disabled={currentPage === totalPages}
+                                            className="relative inline-flex items-center px-3 py-1.5 rounded-r-xl border border-border/50 bg-background text-xs font-bold text-muted-foreground hover:bg-muted disabled:opacity-50 transition-all cursor-pointer"
+                                        >
+                                            Last
+                                        </button>
+                                    </nav>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Check-In Verification Modal */}

@@ -37,11 +37,35 @@ export class BookingsService {
         @Optional() @Inject(forwardRef(() => ChannelsService)) private channelsService?: ChannelsService,
     ) { }
 
-    private triggerChannexSync(propertyId?: string | null) {
+    private triggerChannexSync(
+        propertyId?: string | null,
+        bookingDetails?: {
+            roomTypeId: string;
+            startDate: Date;
+            endDate: Date;
+            oldStartDate?: Date;
+            oldEndDate?: Date;
+            oldRoomTypeId?: string;
+        }
+    ) {
         if (!this.channelsService || !propertyId) return;
-        this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
-            this.logger.error(`[Channex ARI Sync] Background push failed after internal booking action for property ${propertyId}: ${err.message}`);
-        });
+        if (bookingDetails) {
+            this.channelsService.pushAvailabilityForDates(
+                propertyId,
+                bookingDetails.roomTypeId,
+                bookingDetails.startDate,
+                bookingDetails.endDate,
+                bookingDetails.oldStartDate,
+                bookingDetails.oldEndDate,
+                bookingDetails.oldRoomTypeId
+            ).catch(err => {
+                this.logger.error(`[Channex ARI Sync] Delta push failed after internal booking action for property ${propertyId}: ${err.message}`);
+            });
+        } else {
+            this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+                this.logger.error(`[Channex ARI Sync] Background push failed after internal booking action for property ${propertyId}: ${err.message}`);
+            });
+        }
     }
 
     /**
@@ -1002,7 +1026,11 @@ export class BookingsService {
         }
 
         // Always trigger Channex ARI push whenever any booking is created across any channel (OTA, PMS, CP)
-        this.triggerChannexSync(booking.propertyId);
+        this.triggerChannexSync(booking.propertyId, {
+            roomTypeId: booking.roomTypeId,
+            startDate: booking.checkInDate,
+            endDate: booking.checkOutDate,
+        });
 
         return booking;
     }
@@ -1017,20 +1045,30 @@ export class BookingsService {
         roomTypeId?: string;
         propertyId?: string;
         hasSettlement?: boolean;
+        page?: number;
+        limit?: number;
+        search?: string;
     }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
         const isCP = roles.includes('ChannelPartner');
 
-        const where: any = {
-            status: filters?.status as any,
-            checkInDate: (filters?.checkInDateStart || filters?.checkInDateEnd) ? {
+        const where: any = {};
+        if (filters?.status) {
+            where.status = filters.status as any;
+        }
+        if (filters?.roomTypeId) {
+            where.roomTypeId = filters.roomTypeId;
+        }
+        if (filters?.propertyId) {
+            where.propertyId = filters.propertyId;
+        }
+        if (filters?.checkInDateStart || filters?.checkInDateEnd) {
+            where.checkInDate = {
                 ...(filters.checkInDateStart && { gte: filters.checkInDateStart }),
                 ...(filters.checkInDateEnd && { lte: filters.checkInDateEnd })
-            } : undefined,
-            roomTypeId: filters?.roomTypeId,
-            propertyId: filters?.propertyId,
-        };
+            };
+        }
 
         if (filters?.hasSettlement !== undefined) {
             if (filters.hasSettlement) {
@@ -1040,14 +1078,8 @@ export class BookingsService {
             }
         }
 
-        if (isGlobalAdmin) {
-            // Global admins can see everything or filter by a specific property if provided
-            if (filters?.propertyId) {
-                where.propertyId = filters.propertyId;
-            }
-        } else {
-            // For all other users (Owners, Staff, Partners, Customers),
-            // ensure they see their OWN personal bookings PLUS anything they are authorized for.
+        // Apply visibility restrictions
+        if (!isGlobalAdmin) {
             const visibilityOR: any[] = [
                 { userId: user.id } // Always see personal bookings
             ];
@@ -1069,57 +1101,112 @@ export class BookingsService {
                 });
             }
 
-            where.OR = visibilityOR;
-
-            // Apply property filter on top if provided
-            if (filters?.propertyId) {
-                where.propertyId = filters.propertyId;
-            }
+            where.AND = where.AND || [];
+            where.AND.push({ OR: visibilityOR });
         }
 
+        // Apply search query criteria if provided
+        if (filters?.search) {
+            const searchPattern = filters.search;
+            const searchOR = [
+                { bookingNumber: { contains: searchPattern, mode: 'insensitive' } },
+                {
+                    user: {
+                        OR: [
+                            { firstName: { contains: searchPattern, mode: 'insensitive' } },
+                            { lastName: { contains: searchPattern, mode: 'insensitive' } },
+                            { email: { contains: searchPattern, mode: 'insensitive' } },
+                            { phone: { contains: searchPattern, mode: 'insensitive' } }
+                        ]
+                    }
+                },
+                {
+                    guests: {
+                        some: {
+                            OR: [
+                                { firstName: { contains: searchPattern, mode: 'insensitive' } },
+                                { lastName: { contains: searchPattern, mode: 'insensitive' } },
+                                { email: { contains: searchPattern, mode: 'insensitive' } },
+                                { phone: { contains: searchPattern, mode: 'insensitive' } }
+                            ]
+                        }
+                    }
+                }
+            ];
+            where.AND = where.AND || [];
+            where.AND.push({ OR: searchOR });
+        }
+
+        const includeOptions = {
+            room: {
+                include: {
+                    roomType: true
+                }
+            },
+            roomType: { include: { cancellationPolicy: true } },
+            user: {
+                select: {
+                    id: true,
+                    email: true,
+                    phone: true,
+                    firstName: true,
+                    lastName: true,
+                },
+            },
+            bookingSource: true,
+            guests: true,
+            property: true,
+            roomBlocks: {
+                include: {
+                    room: {
+                        include: {
+                            roomType: true
+                        }
+                    }
+                }
+            },
+            bookingRooms: {
+                include: {
+                    room: {
+                        include: {
+                            roomType: true
+                        }
+                    }
+                }
+            },
+            payments: { where: { status: 'PAID' as any } },
+            channelPartner: true,
+        };
+
+        // If pagination is requested, return page metadata along with slice of data
+        if (filters?.page && filters?.limit) {
+            const total = await this.prisma.booking.count({ where });
+            const skip = (filters.page - 1) * filters.limit;
+            const take = filters.limit;
+
+            const data = await this.prisma.booking.findMany({
+                where,
+                include: includeOptions,
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                skip,
+                take,
+            });
+
+            return {
+                data,
+                total,
+                page: filters.page,
+                limit: filters.limit,
+                totalPages: Math.ceil(total / filters.limit),
+            };
+        }
+
+        // Return standard array if no pagination params are provided (backwards compatibility)
         return this.prisma.booking.findMany({
             where,
-            include: {
-                room: {
-                    include: {
-                        roomType: true
-                    }
-                },
-                roomType: { include: { cancellationPolicy: true } },
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        phone: true,
-
-                        firstName: true,
-                        lastName: true,
-                    },
-                },
-                bookingSource: true,
-                guests: true,
-                property: true,
-                roomBlocks: {
-                    include: {
-                        room: {
-                            include: {
-                                roomType: true
-                            }
-                        }
-                    }
-                },
-                bookingRooms: {
-                    include: {
-                        room: {
-                            include: {
-                                roomType: true
-                            }
-                        }
-                    }
-                },
-                payments: { where: { status: 'PAID' } },
-                channelPartner: true,
-            },
+            include: includeOptions,
             orderBy: {
                 createdAt: 'desc',
             },
@@ -1542,7 +1629,11 @@ export class BookingsService {
             await this.notificationsService.notifyCheckIn(updated);
 
             // Auto-sync Channex Channel Manager
-            this.triggerChannexSync(updated.propertyId || booking.propertyId);
+            this.triggerChannexSync(updated.propertyId || booking.propertyId, {
+                roomTypeId: updated.roomTypeId,
+                startDate: updated.checkInDate,
+                endDate: updated.checkOutDate,
+            });
 
             return updated;
         });
@@ -1628,7 +1719,11 @@ export class BookingsService {
         await this.notificationsService.notifyCheckOut(updated);
 
         // Auto-sync increased room availability with Channex Channel Manager
-        this.triggerChannexSync(updated.propertyId || booking.propertyId);
+        this.triggerChannexSync(updated.propertyId || booking.propertyId, {
+            roomTypeId: updated.roomTypeId,
+            startDate: updated.checkInDate,
+            endDate: updated.checkOutDate,
+        });
 
         return updated;
     }
@@ -1684,7 +1779,11 @@ export class BookingsService {
         }
 
         // Auto-sync increased room availability with Channex Channel Manager
-        this.triggerChannexSync(updated.propertyId || booking.propertyId);
+        this.triggerChannexSync(updated.propertyId || booking.propertyId, {
+            roomTypeId: updated.roomTypeId,
+            startDate: updated.checkInDate,
+            endDate: updated.checkOutDate,
+        });
 
         return updated;
     }
@@ -1974,7 +2073,11 @@ export class BookingsService {
             data: { status: 'CANCELLED' },
         });
 
-        this.triggerChannexSync(booking.propertyId);
+        this.triggerChannexSync(booking.propertyId, {
+            roomTypeId: booking.roomTypeId,
+            startDate: booking.checkInDate,
+            endDate: booking.checkOutDate,
+        });
         return updated;
     }
 
@@ -2005,7 +2108,11 @@ export class BookingsService {
             bookingId: id,
         });
 
-        this.triggerChannexSync(booking.propertyId);
+        this.triggerChannexSync(booking.propertyId, {
+            roomTypeId: booking.roomTypeId,
+            startDate: booking.checkInDate,
+            endDate: booking.checkOutDate,
+        });
         return updated;
     }
 
@@ -2209,7 +2316,14 @@ export class BookingsService {
         });
 
         // Auto-sync updated booking details / room allocations with Channex Channel Manager
-        this.triggerChannexSync(booking.propertyId);
+        this.triggerChannexSync(result.propertyId || booking.propertyId, {
+            roomTypeId: result.roomTypeId || booking.roomTypeId,
+            startDate: result.checkInDate || booking.checkInDate,
+            endDate: result.checkOutDate || booking.checkOutDate,
+            oldStartDate: booking.checkInDate,
+            oldEndDate: booking.checkOutDate,
+            oldRoomTypeId: booking.roomTypeId,
+        });
 
         return result;
     }
@@ -2633,7 +2747,14 @@ export class BookingsService {
             return updated;
         });
 
-        this.triggerChannexSync(updatedBooking.propertyId);
+        this.triggerChannexSync(updatedBooking.propertyId, {
+            roomTypeId: updatedBooking.roomTypeId,
+            startDate: updatedBooking.checkInDate,
+            endDate: updatedBooking.checkOutDate,
+            oldStartDate: booking.checkInDate,
+            oldEndDate: booking.checkOutDate,
+            oldRoomTypeId: booking.roomTypeId,
+        });
         return updatedBooking;
     }
 
@@ -2858,7 +2979,7 @@ export class BookingsService {
                 status: 'PENDING_PAYMENT',
                 createdAt: { lt: thirtyMinutesAgo },
             },
-            select: { id: true, bookingNumber: true, roomId: true, couponId: true, roomBlocks: { select: { roomId: true } } },
+            select: { id: true, bookingNumber: true, roomId: true, couponId: true, propertyId: true, roomTypeId: true, checkInDate: true, checkOutDate: true, roomBlocks: { select: { roomId: true } } },
         });
 
         if (staleBookings.length === 0) return;
@@ -2906,6 +3027,13 @@ export class BookingsService {
                 });
 
                 this.logger.log(`[ExpiryCron] Expired booking ${booking.bookingNumber} (${booking.id})`);
+                if (booking.propertyId) {
+                    this.triggerChannexSync(booking.propertyId, {
+                        roomTypeId: booking.roomTypeId,
+                        startDate: booking.checkInDate,
+                        endDate: booking.checkOutDate,
+                    });
+                }
             } catch (error) {
                 this.logger.error(`[ExpiryCron] Failed to expire booking ${booking.bookingNumber}: ${error.message}`);
             }
@@ -3106,6 +3234,77 @@ export class BookingsService {
             orderBy: { checkInDate: 'asc' }
         });
 
-        return bookings;
+        // Fetch room blocks for the same query scope
+        const blocksWhere: any = {};
+        if (propertyId) {
+            blocksWhere.room = { propertyId };
+        }
+        if (startDate || endDate) {
+            blocksWhere.AND = [];
+            if (startDate) {
+                blocksWhere.AND.push({ endDate: { gte: new Date(startDate) } });
+            }
+            if (endDate) {
+                blocksWhere.AND.push({ startDate: { lte: new Date(endDate) } });
+            }
+        }
+        if (user && !user.roles?.includes('SuperAdmin') && !user.roles?.includes('Admin')) {
+            if (user.roles?.includes('PropertyOwner') || user.roles?.includes('PropertyStaff')) {
+                blocksWhere.room = {
+                    ...(blocksWhere.room || {}),
+                    property: {
+                        OR: [
+                            { ownerId: user.id },
+                            { staff: { some: { userId: user.id } } }
+                        ]
+                    }
+                };
+            }
+        }
+
+        const blocks = await this.prisma.roomBlock.findMany({
+            where: blocksWhere,
+            select: {
+                id: true,
+                reason: true,
+                startDate: true,
+                endDate: true,
+                notes: true,
+                roomId: true,
+                room: {
+                    select: {
+                        roomNumber: true
+                    }
+                }
+            }
+        });
+
+        const pseudoBookings = blocks.map(block => ({
+            id: block.id,
+            bookingNumber: `BLOCK-${block.id.substring(0, 8).toUpperCase()}`,
+            checkInDate: block.startDate,
+            checkOutDate: block.endDate,
+            status: 'CONFIRMED', // Bypass frontend status filter for non-cancelled
+            paymentStatus: 'PAID',
+            adultsCount: 0,
+            childrenCount: 0,
+            numberOfNights: differenceInDays(new Date(block.endDate), new Date(block.startDate)) || 1,
+            bookingRooms: [
+                {
+                    roomId: block.roomId,
+                    room: {
+                        roomNumber: block.room?.roomNumber || 'N/A'
+                    }
+                }
+            ],
+            guests: [
+                {
+                    firstName: 'Room',
+                    lastName: `Blocked (${block.reason})`
+                }
+            ]
+        }));
+
+        return [...bookings, ...pseudoBookings];
     }
 }

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../services/booking';
 import { paymentService } from '../services/payment';
 import { formatPrice } from '../utils/currency';
+import { formatDateTimeFull } from '../utils/dateTime';
 import { QRCodeSVG } from 'qrcode.react';
 // import jsPDF from 'jspdf';
 // import { toCanvas } from 'html-to-image';
@@ -315,7 +316,7 @@ export default function Confirmation() {
                                 <span className="block text-[9px] text-primary-600 font-black uppercase tracking-widest mb-1">Booking ID</span>
                                 <span className="text-md font-black text-primary-950">#{booking.bookingNumber}</span>
                             </div>
-                            <p className="text-[10px] text-gray-500 font-bold mt-2 lowercase italic">Generated on {format(new Date(), 'MMM d, yyyy HH:mm')}</p>
+                            <p className="text-[10px] text-gray-500 font-bold mt-2 lowercase italic">Generated on {formatDateTimeFull(new Date())}</p>
                         </div>
                     </div>
 

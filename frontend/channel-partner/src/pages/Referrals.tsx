@@ -38,7 +38,13 @@ const Referrals: React.FC = () => {
         const fetchReferrals = async () => {
             try {
                 const response: any = await api.get('/channel-partners/me');
-                const mappedData = response.referrals.map((ref: any) => ({
+                
+                // Filter out direct bookings created by this Channel Partner to only show guest referrals
+                const guestReferrals = (response.referrals || []).filter((ref: any) =>
+                    !ref.createdBy || !ref.createdBy.startsWith('Channel Partner:')
+                );
+
+                const mappedData = guestReferrals.map((ref: any) => ({
                     id: ref.id,
                     bookingNumber: ref.bookingNumber,
                     guestName: ref.user ? `${ref.user.firstName} ${ref.user.lastName}` : 'Guest',
@@ -217,8 +223,8 @@ const Referrals: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-padding)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, lineHeight: 1.2 }}>Your Referrals</h1>
-                    <p style={{ color: 'var(--text-dim)' }}>Track the progress of your shared links and commissions.</p>
+                    <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 700, lineHeight: 1.2 }}>Guest Referrals</h1>
+                    <p style={{ color: 'var(--text-dim)' }}>Track commissions and points earned from bookings made by third-party guests using your referral code.</p>
                 </div>
                 {/* Search */}
                 <div style={{ position: 'relative', width: '100%', maxWidth: '380px' }}>

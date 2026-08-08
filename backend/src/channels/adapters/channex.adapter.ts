@@ -252,6 +252,10 @@ export class ChannexAdapter implements IChannelAdapter {
         return false;
       }
 
+      const resJson: any = await response.json();
+      const taskId = resJson.data?.[0]?.id || 'Unknown';
+      this.logger.log(`[Channex] Successfully pushed inventory. Task ID: ${taskId}`);
+
       return true;
     } catch (error: any) {
       this.logger.error(`[Channex] Network error pushing inventory: ${error.message}`);
@@ -270,7 +274,6 @@ export class ChannexAdapter implements IChannelAdapter {
       values: updates.map((u) => {
         const item: any = {
           property_id: propertyMapping.externalPropertyId,
-          room_type_id: u.externalRoomTypeId,
           date_from: u.date,
           date_to: u.dateTo || u.date,
         };
@@ -303,6 +306,10 @@ export class ChannexAdapter implements IChannelAdapter {
         return false;
       }
 
+      const resJson: any = await response.json();
+      const taskId = resJson.data?.[0]?.id || 'Unknown';
+      this.logger.log(`[Channex] Successfully pushed rates/restrictions. Task ID: ${taskId}`);
+
       return true;
     } catch (error: any) {
       this.logger.error(`[Channex] Network error pushing restrictions: ${error.message}`);
@@ -334,6 +341,7 @@ export class ChannexAdapter implements IChannelAdapter {
 
     return {
       externalBookingId: String(booking.id || payload.id || `ch-${Date.now()}`),
+      externalRevisionId: String(booking.booking_revision_id || booking.revision_id || payload.booking_revision_id || payload.revision_id || ''),
       channelName: 'CHANNEX',
       sourceName: String(booking?.channel_name || booking?.source || booking?.ota_name || booking?.channel?.title || booking?.channel?.name || 'Channex OTA').trim(),
       externalPropertyId: String(booking.property_id || payload.property_id || ''),

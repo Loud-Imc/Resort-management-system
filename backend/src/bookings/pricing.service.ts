@@ -619,13 +619,25 @@ export class PricingService {
 
         let targetTaxRate = 0.12; // default fallback
 
-        if (gstTiers && Array.isArray(gstTiers)) {
+        if (gstTiers && Array.isArray(gstTiers) && gstTiers.length > 0) {
             // Find which tier this base price falls into
             for (const tier of gstTiers) {
                 if (basePerUnitPerNight >= tier.min && (tier.max === null || tier.max === undefined || basePerUnitPerNight <= tier.max)) {
                     targetTaxRate = tier.rate / 100;
                     break;
                 }
+            }
+        } else {
+            // Fallback tax rate brackets:
+            // 0 - 1000: 0%
+            // 1001 - 7500: 5%
+            // 7501+: 18%
+            if (basePerUnitPerNight <= 1000) {
+                targetTaxRate = 0.0;
+            } else if (basePerUnitPerNight <= 7500) {
+                targetTaxRate = 0.05;
+            } else {
+                targetTaxRate = 0.18;
             }
         }
 
@@ -723,14 +735,26 @@ export class PricingService {
      * Calculate tax for a single tariff unit (one room for one night)
      */
     private calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
-        let taxRate = 0.12; // Default fallback 12%
-        if (gstTiers && Array.isArray(gstTiers)) {
+        let taxRate = 0.12; // Default fallback
+        if (gstTiers && Array.isArray(gstTiers) && gstTiers.length > 0) {
             const applicableTier = gstTiers.find(tier =>
                 tariff >= tier.min &&
                 (tier.max === null || tier.max === undefined || tariff <= tier.max)
             );
             if (applicableTier) {
                 taxRate = applicableTier.rate / 100;
+            }
+        } else {
+            // Fallback tax rate brackets:
+            // 0 - 1000: 0%
+            // 1001 - 7500: 5%
+            // 7501+: 18%
+            if (tariff <= 1000) {
+                taxRate = 0.0;
+            } else if (tariff <= 7500) {
+                taxRate = 0.05;
+            } else {
+                taxRate = 0.18;
             }
         }
         return tariff * taxRate;
@@ -788,9 +812,25 @@ export class PricingService {
         }
 
         // If no tier matched (should not happen with default 0-1000, 1000-7500, etc)
-        // Fallback to 12% reverse calculation
+        // Fallback to dynamic reverse calculation brackets
         if (!validTariff) {
-            targetTaxRate = 0.12;
+            // Test 18% rate (Tariff > 7500)
+            const testTariff18 = totalPerUnitPerNight / (1 + 0.18);
+            if (testTariff18 > 7500) {
+                targetTaxRate = 0.18;
+                validTariff = testTariff18;
+            } else {
+                // Test 5% rate (1001 <= Tariff <= 7500)
+                const testTariff5 = totalPerUnitPerNight / (1 + 0.05);
+                if (testTariff5 > 1000 && testTariff5 <= 7500) {
+                    targetTaxRate = 0.05;
+                    validTariff = testTariff5;
+                } else {
+                    // Default to 0% rate (Tariff <= 1000)
+                    targetTaxRate = 0.0;
+                    validTariff = totalPerUnitPerNight;
+                }
+            }
         }
 
         // Calculate precise tax and base using the selected rate

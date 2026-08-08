@@ -11,7 +11,7 @@ import {
     Clock,
     Search
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateTime } from '../../utils/dateTime';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { RefundRequest } from '../../types/payment';
@@ -160,7 +160,7 @@ export default function RefundRequestsList() {
                                         <td className="px-6 py-4 text-sm text-muted-foreground">
                                             <div className="flex items-center gap-2">
                                                 <Clock className="h-3.5 w-3.5" />
-                                                {format(new Date(r.createdAt), 'dd MMM, HH:mm')}
+                                                {formatDateTime(r.createdAt)}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">

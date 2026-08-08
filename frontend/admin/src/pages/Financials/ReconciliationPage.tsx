@@ -9,7 +9,7 @@ import {
     RefreshCw,
     Check
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateTime } from '../../utils/dateTime';
 import toast from 'react-hot-toast';
 
 export default function ReconciliationPage() {
@@ -124,7 +124,7 @@ export default function ReconciliationPage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-sm text-muted-foreground">
-                                            {format(new Date(d.createdAt), 'dd MMM, HH:mm')}
+                                            {formatDateTime(d.createdAt)}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button

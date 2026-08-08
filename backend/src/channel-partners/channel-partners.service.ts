@@ -985,7 +985,7 @@ async getStats(userId: string) {
         });
 
         if (level) {
-            this.logger.log(`[Tier Resolution] CP ${channelPartnerId} activePoints: ${activePoints} -> Level: ${level.name}`);
+            this.logger.debug(`[Tier Resolution] CP ${channelPartnerId} activePoints: ${activePoints} -> Level: ${level.name}`);
         }
 
         return level;

@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useProperty } from '../../context/PropertyContext';
 import { channelsService, type ChannelPropertyMapping } from '../../services/channels';
 import { propertiesService } from '../../services/properties';
+import { roomTypesService } from '../../services/roomTypes';
 import toast from 'react-hot-toast';
 import {
   RefreshCw, Plus,
   CheckCircle2, AlertCircle, Loader2,
   Zap, Globe, ShieldCheck, Power, ArrowRight, Layers,
-  BookOpen, X, Search, Check, TrendingUp, Users
+  BookOpen, X, Search, Check, TrendingUp, Users,
+  Trash2, Ban
 } from 'lucide-react';
 import clsx from 'clsx';
 import { ChannexOtaModal } from '../../components/Channels/ChannexOtaModal';
@@ -21,6 +23,7 @@ export default function CalendarSync() {
   const [enablingChannel, setEnablingChannel] = useState(false);
   const [pushingAri, setPushingAri] = useState(false);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  const [activeOtas, setActiveOtas] = useState<any[]>([]);
   const [readiness, setReadiness] = useState<{
     hasCoordinates: boolean;
     hasImages: boolean;
@@ -32,7 +35,7 @@ export default function CalendarSync() {
   // Dedicated Channel Configuration Modal state matching exact Channex schema
   const [activeOtaModal, setActiveOtaModal] = useState<{ open: boolean; otaKey: string; otaTitle: string } | null>(null);
   const [otaConfigs, setOtaConfigs] = useState<Record<string, any>>({});
-  const [emergencyStopSell, setEmergencyStopSell] = useState(false);
+
 
   // Custom System Confirm Modal (`replacing window.confirm`)
   const [confirmModal, setConfirmModal] = useState<{
@@ -61,28 +64,103 @@ export default function CalendarSync() {
     message: '',
   });
 
+  // Stop Sell State
+  const [stopSells, setStopSells] = useState<any[]>([]);
+  const [loadingStopSells, setLoadingStopSells] = useState(false);
+  const [isStopSellModalOpen, setIsStopSellModalOpen] = useState(false);
+  const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [stopSellForm, setStopSellForm] = useState<{
+    roomTypeId: string | null;
+    startDate: string;
+    endDate: string;
+  }>({ roomTypeId: null, startDate: '', endDate: '' });
+
+  const loadStopSells = async () => {
+    if (!selectedProperty?.id) return;
+    try {
+      setLoadingStopSells(true);
+      const data = await channelsService.getStopSells(selectedProperty.id);
+      setStopSells(data);
+    } catch (err) {
+      console.error("Failed to load stop sells", err);
+    } finally {
+      setLoadingStopSells(false);
+    }
+  };
+
+  const loadRoomTypes = async () => {
+    if (!selectedProperty?.id) return;
+    try {
+      const data = await roomTypesService.getAll({ propertyId: selectedProperty.id });
+      setRoomTypes(data || []);
+    } catch (err) {
+      console.error("Failed to load room types", err);
+    }
+  };
+
+  const handleCreateStopSell = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProperty?.id) return;
+    try {
+      toast.loading('Enforcing Closeout restriction...', { id: 'stop-sell' });
+      await channelsService.createStopSell(
+        selectedProperty.id,
+        stopSellForm.roomTypeId,
+        stopSellForm.startDate,
+        stopSellForm.endDate
+      );
+      toast.success('Stop Sell restriction pushed successfully!', { id: 'stop-sell' });
+      setIsStopSellModalOpen(false);
+      loadStopSells();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to create stop sell', { id: 'stop-sell' });
+    }
+  };
+
+  const handleCancelStopSell = async (id: string) => {
+    setConfirmModal({
+      open: true,
+      title: 'Remove Stop Sell Block?',
+      message: 'This will re-open room availability on all online channels and your booking website for this date range.',
+      confirmLabel: 'Yes, Open Sales',
+      confirmColor: 'bg-red-600 hover:bg-red-700 text-white',
+      onConfirm: async () => {
+        try {
+          toast.loading('Removing restriction...', { id: 'stop-sell-cancel' });
+          await channelsService.deleteStopSell(id);
+          toast.success('Sales re-opened successfully!', { id: 'stop-sell-cancel' });
+          loadStopSells();
+        } catch (err: any) {
+          toast.error('Failed to remove stop sell', { id: 'stop-sell-cancel' });
+        }
+      }
+    });
+  };
+
   useEffect(() => {
-    setCatalogLoading(true);
     channelsService.getCatalog().then(data => {
       if (data && data.length > 0) setAvailableCatalog(data);
     })
-    .catch(err => console.error("Failed to load Channex channel catalog from API:", err))
-    .finally(() => setCatalogLoading(false));
+    .catch(err => console.error("Failed to load Channex channel catalog from API:", err));
 
     if (selectedProperty?.id) {
       loadMappings();
+      loadStopSells();
+      loadRoomTypes();
     }
   }, [selectedProperty?.id]);
 
   const loadMappings = async () => {
     try {
       setLoading(true);
-      const [mappingsData, readinessData] = await Promise.all([
+      const [mappingsData, readinessData, activeOtasData] = await Promise.all([
         channelsService.getMappings(selectedProperty!.id).catch(() => []),
         propertiesService.getReadiness(selectedProperty!.id).catch(() => null),
+        channelsService.getActiveOtas(selectedProperty!.id).catch(() => []),
       ]);
       setMappings(mappingsData || []);
       setReadiness(readinessData);
+      setActiveOtas(activeOtasData || []);
 
       // Auto-load secure Channex iframe session link when active mapping exists
       const activeMapping = (mappingsData || []).find((m: any) => m.isActive);
@@ -97,16 +175,11 @@ export default function CalendarSync() {
         setIframeUrl(null);
       }
 
-      // Parse and populate OTA channel connection statuses and settings dynamically
-      const initialStatus: Record<string, { connected: boolean; hotelId?: string }> = {};
+      // Parse and populate OTA channel settings dynamically
       const initialConfigs: Record<string, any> = {};
 
       (mappingsData || []).forEach((m: any) => {
         const otaKeyLower = m.channelName.toLowerCase();
-        initialStatus[otaKeyLower] = {
-          connected: m.isActive,
-          hotelId: m.externalPropertyId,
-        };
         if (m.apiKey) {
           try {
             initialConfigs[otaKeyLower] = JSON.parse(m.apiKey);
@@ -119,7 +192,6 @@ export default function CalendarSync() {
         initialConfigs[otaKeyLower].hotelId = m.externalPropertyId;
       });
 
-      setConnectedOtaStatus(initialStatus);
       setOtaConfigs(initialConfigs);
     } catch (err) {
       toast.error('Failed to load sync settings');
@@ -195,7 +267,7 @@ export default function CalendarSync() {
     if (!selectedProperty?.id) return;
     try {
       setPushingAri(true);
-      await channelsService.pushAri(selectedProperty.id, 60);
+      await channelsService.pushAri(selectedProperty.id, 500);
       toast.success('⚡ Successfully pushed live rates & room availability across all connected OTAs!');
     } catch (err: any) {
       toast.error('Failed to push inventory.');
@@ -275,6 +347,28 @@ export default function CalendarSync() {
               <BookOpen className="h-4 w-4" />
               <span>📖 Owner & Staff Guide (`Benefits & FAQ`)</span>
             </button>
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 rounded-2xl text-xs font-bold shadow-sm">
+              <span>Currency:</span>
+              <select
+                value={(selectedProperty as any)?.baseCurrency || 'INR'}
+                onChange={async (e) => {
+                  const newCurrency = e.target.value;
+                  if (!selectedProperty?.id) return;
+                  try {
+                    await channelsService.updateCurrency(selectedProperty.id, newCurrency);
+                    toast.success(`Property base currency updated to ${newCurrency}!`);
+                    setTimeout(() => window.location.reload(), 1000);
+                  } catch (err: any) {
+                    toast.error(err?.response?.data?.message || err?.message || 'Failed to update currency');
+                  }
+                }}
+                className="bg-background border border-border rounded-lg px-1.5 py-0.5 text-xs text-foreground font-extrabold focus:outline-hidden cursor-pointer"
+              >
+                {['INR', 'USD', 'GBP', 'EUR', 'JPY'].map(curr => (
+                  <option key={curr} value={curr}>{curr}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -398,22 +492,43 @@ export default function CalendarSync() {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {activeChannelMapping.roomMappings && activeChannelMapping.roomMappings.length > 0 ? (
-                      activeChannelMapping.roomMappings.map((roomMap) => (
-                        <div key={roomMap.id} className="p-4 rounded-2xl bg-muted/40 border border-border flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-sm text-foreground block">
-                              {roomMap.roomType?.name || 'Assigned Room Type'}
-                            </span>
-                            <span className="text-[11px] text-muted-foreground font-mono">
-                              Channex Room ID: {roomMap.externalRoomTypeId}
+                      activeChannelMapping.roomMappings.map((roomMap) => {
+                        const mappedOtas = activeOtas.filter((ota) => {
+                          if (!ota.isActive || !ota.mappedRooms) return false;
+                          return Object.values(ota.mappedRooms).includes(roomMap.externalRoomTypeId);
+                        });
+
+                        return (
+                          <div key={roomMap.id} className="p-4 rounded-2xl bg-muted/40 border border-border flex items-center justify-between">
+                            <div>
+                              <span className="font-bold text-sm text-foreground block">
+                                {roomMap.roomType?.name || 'Assigned Room Type'}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground font-mono block">
+                                Channex ID: {roomMap.externalRoomTypeId}
+                              </span>
+                              {mappedOtas.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                                  {mappedOtas.map(ota => (
+                                    <span key={ota.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary font-extrabold text-[10px] border border-primary/20" title={ota.title}>
+                                      <Globe className="h-2.5 w-2.5" />
+                                      {ota.channel === 'BookingCom' ? 'Booking.com' : ota.channel}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-amber-500 font-extrabold mt-2 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                                  ⚠️ Unmapped on OTAs
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs font-semibold px-2.5 py-1 bg-green-500/10 text-green-600 rounded-lg flex items-center gap-1 self-start">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Active
                             </span>
                           </div>
-                          <span className="text-xs font-semibold px-2.5 py-1 bg-green-500/10 text-green-600 rounded-lg flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Connected
-                          </span>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="col-span-2 p-6 text-center text-sm text-muted-foreground bg-muted/20 rounded-2xl">
                         No individual room types mapped yet. Click "⚡ Force Refresh All Channels (Manual Push)" or ensure room types exist.
@@ -463,6 +578,109 @@ export default function CalendarSync() {
                       className="w-full h-full border-none"
                       sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
                     />
+                  </div>
+
+                  {/* Step-by-Step Connection Guide */}
+                  <div className="pt-6 border-t border-border/85 space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm text-foreground">Point-by-Point Channel Connection Guide</h4>
+                        <p className="text-[10px] text-muted-foreground">Follow these simple steps inside the portal above to link and activate your travel channels.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Step 1 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">1</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Start Channel Connection</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Click the blue <b className="text-foreground font-semibold">+ Create</b> button in the top-right corner of the portal.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 2 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">2</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Define Channel & Currency</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Choose your channel (e.g. Booking.com) under the <b className="text-foreground font-semibold">Channel</b> field. Choose your currency (<b className="text-foreground font-semibold">Auto</b> is recommended).
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 3 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">3</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Access Connection Settings</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Once selected, the connection credentials section automatically expands to show the portal-specific login fields.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 4 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">4</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Enter Hotel Credentials</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Fill in your merchant credentials (like the <b className="text-foreground font-semibold">Hotel ID</b> for Booking.com). You can select a test ID shown in the helper list.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 5 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">5</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Map Room Types & Rates</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Click <b className="text-foreground font-semibold">Next</b> and map each external room type and rate plan to your corresponding internal PMS room types and rates.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 6 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">6</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Auto-Save Confirmation</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Click <b className="text-foreground font-semibold">Save</b>. Your channel maps will be stored, and Channex will choose a title (e.g. <span className="font-mono text-foreground font-bold">BookingCom - [Property Name]</span>).
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 7 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">7</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Activate the Channel</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Locate your new channel row. Click the <b className="text-foreground font-semibold">Actions</b> dropdown on the right side and click <b className="text-emerald-500 font-bold">Activate</b>.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 8 */}
+                      <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex gap-3.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-xs font-extrabold">8</span>
+                        <div className="space-y-1">
+                          <h5 className="font-extrabold text-xs text-foreground">Live and Synchronized</h5>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            The status badge changes to <b className="text-green-600 dark:text-green-400 font-bold">Active</b>. Your rates, rooms, and reservations are now synchronizing in real time!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1119,6 +1337,177 @@ export default function CalendarSync() {
                 Close Directory
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stop Sell / Channel Closeout Section */}
+      {activeChannelMapping && (
+        <div className="bg-card border border-red-500/20 rounded-3xl p-8 shadow-xl relative overflow-hidden space-y-6">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-red-500/10 text-red-600 rounded-full text-xs font-extrabold uppercase tracking-wider">
+                  ⚠️ Direct & OTA Closeout
+                </span>
+                <h3 className="text-xl font-bold text-foreground">Emergency Stop Sell / Pause Bookings</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                PAUSE all online checkouts on external OTAs (via Channex) and direct booking website (RouteGuide) for a specific range. PMS walk-in desk remains open.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                setStopSellForm({ roomTypeId: null, startDate: todayStr, endDate: tomorrowStr });
+                setIsStopSellModalOpen(true);
+              }}
+              className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-extrabold text-xs transition-all shadow-md cursor-pointer flex items-center gap-2"
+            >
+              <Ban className="h-4 w-4" />
+              <span>Add Stop Sell Period</span>
+            </button>
+          </div>
+
+          {/* Active Restrictions List */}
+          {loadingStopSells ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-red-500" />
+            </div>
+          ) : stopSells.length > 0 ? (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border">
+                    <th className="p-4">Target Channel Block</th>
+                    <th className="p-4">Start Date</th>
+                    <th className="p-4">End Date</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-sm">
+                  {stopSells.map((ss) => (
+                    <tr key={ss.id} className="hover:bg-muted/10 transition-colors">
+                      <td className="p-4 font-bold text-foreground">
+                        {ss.roomType ? ss.roomType.name : 'Entire Property (All Rooms)'}
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        {new Date(ss.startDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        {new Date(ss.endDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                      </td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleCancelStopSell(ss.id)}
+                          className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 font-bold text-xs"
+                          title="Remove Stop Sell"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Cancel Block</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-sm text-muted-foreground bg-muted/20 rounded-2xl border border-dashed border-border/80">
+              No active stop sell restrictions currently configured. All online channels are open.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stop Sell Creation Modal */}
+      {isStopSellModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-border/80 flex items-center justify-between bg-gradient-to-r from-red-500/10 to-transparent">
+              <div className="flex items-center gap-2">
+                <Ban className="h-5 w-5 text-red-600" />
+                <h3 className="font-bold text-lg text-foreground">Add Stop Sell / Closeout</h3>
+              </div>
+              <button
+                onClick={() => setIsStopSellModalOpen(false)}
+                className="p-1.5 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateStopSell} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                  Block Target
+                </label>
+                <select
+                  value={stopSellForm.roomTypeId || ''}
+                  onChange={(e) => setStopSellForm({ ...stopSellForm, roomTypeId: e.target.value || null })}
+                  className="w-full p-3 bg-muted/40 border border-border rounded-xl text-sm focus:border-red-500/50 outline-hidden font-medium"
+                >
+                  <option value="">Entire Property (All Room Types)</option>
+                  {roomTypes.map(rt => (
+                    <option key={rt.id} value={rt.id}>{rt.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={stopSellForm.startDate}
+                    onChange={(e) => setStopSellForm({ ...stopSellForm, startDate: e.target.value })}
+                    className="w-full p-3 bg-muted/40 border border-border rounded-xl text-sm focus:border-red-500/50 outline-hidden font-medium"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={stopSellForm.endDate}
+                    onChange={(e) => setStopSellForm({ ...stopSellForm, endDate: e.target.value })}
+                    className="w-full p-3 bg-muted/40 border border-border rounded-xl text-sm focus:border-red-500/50 outline-hidden font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 flex gap-3 text-xs text-red-600">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong>Warning:</strong> Confirming this block will immediately push stop sell commands to all active channel integrations and block checkouts on your direct website.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsStopSellModalOpen(false)}
+                  className="px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4.5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Ban className="h-4.5 w-4.5" />
+                  Confirm Closeout
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

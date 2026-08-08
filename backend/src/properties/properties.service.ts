@@ -260,6 +260,17 @@ export class PropertiesService {
             });
 
             return property;
+        }).then(async (property) => {
+            // After transaction: notify owner of approval via in-app + email
+            // Build enriched object with all emails needed
+            const enrichedProperty = {
+                ...property,
+                ownerEmail: request.ownerEmail,
+                email: details.propertyEmail || request.ownerEmail, // property email
+                details: request.details,
+            };
+            await this.notificationsService.notifyPropertyStatusUpdate(enrichedProperty, 'APPROVED');
+            return property;
         });
     }
 
@@ -293,6 +304,18 @@ export class PropertiesService {
             userId: user.id,
             newValue: { reason }
         });
+
+        // Notify owner of rejection via in-app + email
+        const enrichedRequest = {
+            ...updated,
+            name: request.name,
+            ownerId: updated.requestedById,
+            ownerEmail: updated.ownerEmail,
+            email: (request.details as any)?.propertyEmail || updated.ownerEmail,
+            details: updated.details,
+            location: request.location,
+        };
+        await this.notificationsService.notifyPropertyStatusUpdate(enrichedRequest, 'REJECTED');
 
         return updated;
     }
@@ -1121,14 +1144,10 @@ export class PropertiesService {
                 throw new ForbiddenException('You do not have access to this property');
             }
 
-            // Strip sensitive KYC and financial fields for non-admin callers
-            if (!isAdmin) {
+            // Hide sensitive commissions for staff, but allow them to see documents.
+            // Admins and owners can see both documents and commissions.
+            if (isStaff && !isAdmin && !isOwner) {
                 const sanitized: any = { ...property };
-                delete sanitized.ownerAadhaarNumber;
-                delete sanitized.ownerAadhaarImage;
-                delete sanitized.ownerAadhaarImageBack;
-                delete sanitized.licenceImage;
-                delete sanitized.gstNumber;
                 delete sanitized.platformCommission;
                 delete sanitized.marketingCommission;
                 return sanitized;
@@ -1264,8 +1283,25 @@ export class PropertiesService {
             },
         });
 
-        // Notify owner of status update
-        await this.notificationsService.notifyPropertyStatusUpdate(updated, status);
+        // Fetch additional data needed for approval emails (owner + propertyRequest for emails)
+        const propertyWithDetails = await this.prisma.property.findUnique({
+            where: { id },
+            include: {
+                owner: { select: { email: true, firstName: true, lastName: true } },
+                propertyRequest: { select: { ownerEmail: true, details: true } },
+            },
+        });
+
+        // Build enriched object for notification (includes ownerEmail + propertyEmail)
+        const enrichedProperty = {
+            ...updated,
+            owner: propertyWithDetails?.owner,
+            ownerEmail: propertyWithDetails?.owner?.email || propertyWithDetails?.propertyRequest?.ownerEmail,
+            details: propertyWithDetails?.propertyRequest?.details,
+        };
+
+        // Notify owner of status update (sends in-app + email to owner + property email)
+        await this.notificationsService.notifyPropertyStatusUpdate(enrichedProperty, status);
 
         return updated;
     }

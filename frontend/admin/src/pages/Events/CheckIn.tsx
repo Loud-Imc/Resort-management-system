@@ -7,6 +7,7 @@ import {
 import eventBookingAdminService, { EventBooking } from '../../services/eventBookings';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import clsx from 'clsx';
+import { formatTime } from '../../utils/dateTime';
 
 export default function CheckIn() {
     const [ticketId, setTicketId] = useState('');
@@ -270,7 +271,7 @@ export default function CheckIn() {
                                         </div>
                                         <div className="text-right">
                                             <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Confirmed Time</div>
-                                            <div className="text-sm font-black text-foreground">{new Date(result.checkInTime!).toLocaleTimeString()}</div>
+                                            <div className="text-sm font-black text-foreground">{formatTime(result.checkInTime!)}</div>
                                         </div>
                                     </div>
                                 </div>

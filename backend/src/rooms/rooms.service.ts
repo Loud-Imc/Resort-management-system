@@ -157,17 +157,14 @@ export class RoomsService {
                 return room;
             }
 
-            if (room.status === 'BLOCKED') {
-                // Determine if there is actually an active block on targetDate
-                const hasActiveBlock = room.blocks && room.blocks.some((b: any) => {
-                    const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
-                    const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
-                    return targetDate >= blockStart && targetDate <= blockEnd;
-                });
-                if (hasActiveBlock) {
-                    return { ...room, status: 'BLOCKED' };
-                }
-                // If there's no active block for targetDate, we'll fall through and let dynamic logic figure out if it's available or occupied
+            // Determine if there is actually an active block on targetDate
+            const hasActiveBlock = room.blocks && room.blocks.some((b: any) => {
+                const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
+                const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
+                return targetDate >= blockStart && targetDate < blockEnd;
+            });
+            if (hasActiveBlock) {
+                return { ...room, status: 'BLOCKED' };
             }
 
             const bookingRoomsList = room.bookingRooms || [];

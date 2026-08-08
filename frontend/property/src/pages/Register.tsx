@@ -152,8 +152,6 @@ export default function Register() {
             ownerAadhaarNumber: owner.ownerAadhaarNumber || prev.ownerAadhaarNumber,
             ownerAadhaarImage: owner.ownerAadhaarImage || prev.ownerAadhaarImage,
             ownerAadhaarImageBack: owner.ownerAadhaarImageBack || prev.ownerAadhaarImageBack,
-            gstNumber: owner.gstNumber || prev.gstNumber,
-            licenceImage: owner.licenceImage || prev.licenceImage,
         }));
         setIsPhoneVerified(true);
         toast.success('Owner details fetched! Please enter your existing password to verify and link this property.');

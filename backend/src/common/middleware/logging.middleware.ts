@@ -10,7 +10,19 @@ export class LoggingMiddleware implements NestMiddleware {
         const userAgent = req.get('user-agent') || '';
         const start = Date.now();
 
+        const silentUrls = [
+            '/unread-count',
+            '/adjustments',
+            '/requests',
+            '/redemptions',
+            '/promotions',
+            '/settlements',
+            '/channel-partners?page='
+        ];
+        const isSilent = silentUrls.some(url => originalUrl.includes(url));
+
         res.on('finish', () => {
+            if (isSilent) return;
             const { statusCode } = res;
             const contentLength = res.get('content-length');
             const duration = Date.now() - start;
