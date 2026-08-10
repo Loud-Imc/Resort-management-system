@@ -39,8 +39,9 @@ export default function HistoricalGuestDetailsModal({ booking, roomId, roomNumbe
     if (!isOpen) return null;
 
     const handleViewBooking = () => {
-        if (booking) {
-            navigate(`/bookings/${booking.id}`);
+        const targetId = booking?.id || (booking as any)?.bookingId;
+        if (targetId) {
+            navigate(`/bookings/${targetId}`);
             onClose();
         }
     };

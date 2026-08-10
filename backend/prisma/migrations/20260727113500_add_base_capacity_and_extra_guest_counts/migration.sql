@@ -1,0 +1,1 @@
+-- Superceded by 20260727141500_add_offline_cp_and_capacity_fields

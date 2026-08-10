@@ -8,6 +8,7 @@ import {
     IndianRupee
 } from 'lucide-react';
 import clsx from 'clsx';
+import { formatTime } from '../../utils/dateTime';
 
 export default function EventBookings() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -195,7 +196,7 @@ export default function EventBookings() {
                                                     <CheckCircle className="h-4 w-4" /> Checked In
                                                 </span>
                                                 <span className="text-[10px] text-muted-foreground mt-1 pl-5 font-bold">
-                                                    {new Date(booking.checkInTime!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {formatTime(booking.checkInTime!)}
                                                 </span>
                                             </div>
                                         ) : (

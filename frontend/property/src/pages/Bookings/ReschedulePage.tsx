@@ -1,18 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import {
     Loader2,
     Calendar,
     AlertCircle,
     User,
+    UserPlus,
     House,
     Users,
     ArrowLeft,
     ChevronRight,
+    Info,
+    CheckCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import clsx from 'clsx';
 import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
 import { useProperty } from '../../context/PropertyContext';
@@ -33,12 +37,12 @@ export default function ReschedulePage() {
 
     // ── Fetch room types ───────────────────────────────────────────────────────
     const { data: roomTypes } = useQuery<any[]>({
-        queryKey: ['roomTypes', selectedProperty?.id],
-        queryFn: () => roomTypesService.getAll({ propertyId: selectedProperty?.id }),
-        enabled: !!selectedProperty?.id,
+        queryKey: ['roomTypes', booking?.propertyId],
+        queryFn: () => roomTypesService.getAll({ propertyId: booking?.propertyId }),
+        enabled: !!booking?.propertyId,
     });
 
-    const propertyId = selectedProperty?.id || '';
+    const propertyId = booking?.propertyId || selectedProperty?.id || '';
 
     // ── Local state (matches RescheduleBookingModal) ───────────────────────────
     const [newCheckInDate, setNewCheckInDate] = useState<string>('');
@@ -49,11 +53,13 @@ export default function ReschedulePage() {
     const [useRescheduleOverride, setUseRescheduleOverride] = useState<boolean>(false);
     const [rescheduleOverrideTotal, setRescheduleOverrideTotal] = useState<string>('');
     const [rescheduleOverrideReason, setRescheduleOverrideReason] = useState<string>('');
+    const [specialRequests, setSpecialRequests] = useState<string>('');
     const [availableRooms, setAvailableRooms] = useState<any[]>([]);
     const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
     const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
     const [groupUnavailableReason, setGroupUnavailableReason] = useState<string | null>(null);
-    const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string>('');
+    const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string | null>(null);
+    const [hasResolutionError, setHasResolutionError] = useState<boolean>(false);
 
     const [keepOriginalAmount, setKeepOriginalAmount] = useState<boolean>(false);
     const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);
@@ -73,8 +79,10 @@ export default function ReschedulePage() {
     const [guestPhone, setGuestPhone] = useState<string>('');
     const [guestWhatsapp, setGuestWhatsapp] = useState<string>('');
 
-    const [adultsCount, setAdultsCount] = useState<number>(1);
-    const [childrenCount, setChildrenCount] = useState<number>(0);
+    const [adultsCount, setAdultsCount] = useState<number | string>(1);
+    const [childrenCount, setChildrenCount] = useState<number | string>(0);
+    const [extraAdultsCount, setExtraAdultsCount] = useState<number | string>(0);
+    const [extraChildrenCount, setExtraChildrenCount] = useState<number | string>(0);
     const [isGuestSameAsBooker, setIsGuestSameAsBooker] = useState<boolean>(true);
     const [hydratedBookingId, setHydratedBookingId] = useState<string | null>(null);
 
@@ -114,6 +122,13 @@ export default function ReschedulePage() {
     // ── Hydrate state from fetched booking ────────────────────────────────────
     useEffect(() => {
         if (!booking || hydratedBookingId === booking.id) return;
+
+        if (['CHECKED_IN', 'CHECKED_OUT'].includes(booking.status)) {
+            toast.error('Checked-in bookings cannot be rescheduled');
+            navigate(`/bookings/${booking.id}`);
+            return;
+        }
+
         setHydratedBookingId(booking.id);
 
         setNewCheckInDate(format(new Date(booking.checkInDate), 'yyyy-MM-dd'));
@@ -121,8 +136,15 @@ export default function ReschedulePage() {
         setUseRescheduleOverride(booking.isPriceOverridden || false);
         setRescheduleOverrideTotal(booking.isPriceOverridden ? Number(booking.totalAmount).toString() : '');
         setRescheduleOverrideReason(booking.overrideReason || '');
+        setSpecialRequests(booking.specialRequests || '');
         setSelectedRoomIds(booking.bookingRooms?.map((br: any) => br.roomId) || []);
-        setRescheduleRoomTypeId(booking.roomTypeId || '');
+        const resolvedType = booking.roomTypeId || booking.roomType?.id || (booking.bookingRooms?.[0]?.room?.roomType as any)?.id || '';
+        if (resolvedType) {
+            setRescheduleRoomTypeId(resolvedType);
+            setHasResolutionError(false);
+        } else {
+            setHasResolutionError(true);
+        }
         setBookerFirstName(booking.user?.firstName || '');
         setBookerLastName(booking.user?.lastName || '');
         setBookerEmail(booking.user?.email || '');
@@ -135,6 +157,8 @@ export default function ReschedulePage() {
         setGuestWhatsapp(booking.guests?.[0]?.whatsappNumber || '');
         setAdultsCount(booking.adultsCount || 1);
         setChildrenCount(booking.childrenCount || 0);
+        setExtraAdultsCount((booking as any).extraAdultsCount || 0);
+        setExtraChildrenCount((booking as any).extraChildrenCount || 0);
 
         const g0 = booking.guests?.[0];
         const u = booking.user;
@@ -156,15 +180,32 @@ export default function ReschedulePage() {
         }
     }, [booking]);
 
-    // ── Default room type when roomTypes load ─────────────────────────────────
+    // Automatically set checkOutDate to checkInDate + 1 when check-in date is changed
     useEffect(() => {
-        if (!rescheduleRoomTypeId && roomTypes && roomTypes.length > 0) {
-            const defaultType =
-                roomTypes.find((rt) => rt.isAvailableForGroupBooking || rt.isGroupPool)?.id ||
-                roomTypes[0]?.id;
-            if (defaultType) setRescheduleRoomTypeId(defaultType);
+        if (!booking || !newCheckInDate) return;
+        const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
+        if (newCheckInDate === originalCheckIn) return;
+
+        const checkIn = new Date(newCheckInDate);
+        if (!isNaN(checkIn.getTime())) {
+            const nextDay = addDays(checkIn, 1);
+            setNewCheckOutDate(format(nextDay, 'yyyy-MM-dd'));
         }
-    }, [roomTypes, rescheduleRoomTypeId]);
+    }, [newCheckInDate, booking]);
+
+    // ── Sync selected rooms when roomType dropdown selection changes ───────────
+    useEffect(() => {
+        if (!booking || booking.isGroupBooking) return;
+        const originalRoomTypeId = booking.roomTypeId || booking.roomType?.id || (booking.bookingRooms?.[0]?.room?.roomType as any)?.id;
+        
+        if (rescheduleRoomTypeId === originalRoomTypeId) {
+            // Restore original room selections if switching back to original room type
+            setSelectedRoomIds(booking.bookingRooms?.map((br: any) => br.roomId) || []);
+        } else {
+            // Reset selected rooms to prevent cross-category room selections
+            setSelectedRoomIds([]);
+        }
+    }, [rescheduleRoomTypeId, booking]);
 
     // ── Sync guest same as booker ─────────────────────────────────────────────
     useEffect(() => {
@@ -194,7 +235,12 @@ export default function ReschedulePage() {
 
     // ── Price preview ─────────────────────────────────────────────────────────
     useEffect(() => {
-        if (!booking || !newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId)) {
+        const parsedAdults = Number(adultsCount);
+        const parsedChildren = Number(childrenCount);
+        const parsedExtraAdults = Number(extraAdultsCount);
+        const parsedExtraChildren = Number(extraChildrenCount);
+
+        if (!booking || !newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId) || isNaN(parsedAdults) || parsedAdults < 1) {
             setNewPricePreview(null);
             return;
         }
@@ -202,18 +248,20 @@ export default function ReschedulePage() {
         const fetchPreview = async () => {
             try {
                 setIsCalculatingPreview(true);
-                const roomCount = booking.bookingRooms?.length || 1;
+                const roomCount = selectedRoomIds.length > 0 ? selectedRoomIds.length : (booking.bookingRooms?.length || 1);
                 const preview = await bookingsService.calculatePrice({
-                    roomTypeId: rescheduleRoomTypeId,
+                    roomTypeId: rescheduleRoomTypeId || undefined,
                     checkInDate: newCheckInDate,
                     checkOutDate: newCheckOutDate,
-                    adultsCount,
-                    childrenCount,
+                    adultsCount: Math.max(1, parsedAdults || 1),
+                    childrenCount: Math.max(0, parsedChildren || 0),
+                    extraAdultsCount: Math.max(0, parsedExtraAdults || 0),
+                    extraChildrenCount: Math.max(0, parsedExtraChildren || 0),
                     couponCode: booking.couponCode || undefined,
                     referralCode: booking.channelPartner?.referralCode || undefined,
                     currency: booking.bookingCurrency || 'INR',
                     isGroupBooking: booking.isGroupBooking,
-                    groupSize: booking.isGroupBooking ? adultsCount + childrenCount : undefined,
+                    groupSize: booking.isGroupBooking ? (Math.max(1, parsedAdults || 1) + Math.max(0, parsedChildren || 0)) : undefined,
                     roomCount,
                     overrideTotal:
                         useRescheduleOverride && rescheduleOverrideTotal
@@ -231,11 +279,14 @@ export default function ReschedulePage() {
 
         const timer = setTimeout(fetchPreview, 400);
         return () => clearTimeout(timer);
-    }, [booking, newCheckInDate, newCheckOutDate, useRescheduleOverride, rescheduleOverrideTotal, rescheduleRoomTypeId, adultsCount, childrenCount]);
+    }, [booking, newCheckInDate, newCheckOutDate, useRescheduleOverride, rescheduleOverrideTotal, rescheduleRoomTypeId, adultsCount, childrenCount, extraAdultsCount, extraChildrenCount, selectedRoomIds]);
 
     // ── Available rooms ───────────────────────────────────────────────────────
     useEffect(() => {
-        if (!booking || !newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId)) {
+        const parsedAdults = Number(adultsCount);
+        const parsedChildren = Number(childrenCount);
+
+        if (!booking || !newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId) || isNaN(parsedAdults) || parsedAdults < 1) {
             setAvailableRooms([]);
             return;
         }
@@ -245,12 +296,12 @@ export default function ReschedulePage() {
                 setIsLoadingRooms(true);
                 setGroupUnavailableReason(null);
                 const checkRes = await bookingsService.checkAvailability({
-                    roomTypeId: booking.isGroupBooking ? undefined : rescheduleRoomTypeId,
+                    roomTypeId: booking.isGroupBooking ? undefined : (rescheduleRoomTypeId || undefined),
                     checkInDate: newCheckInDate,
                     checkOutDate: newCheckOutDate,
                     propertyId,
                     isGroupBooking: booking.isGroupBooking,
-                    groupSize: booking.isGroupBooking ? adultsCount + childrenCount : undefined,
+                    groupSize: booking.isGroupBooking ? (Math.max(1, parsedAdults || 1) + Math.max(0, parsedChildren || 0)) : undefined,
                     isAdmin: true,
                     excludeBookingId: booking.id,
                 });
@@ -289,7 +340,14 @@ export default function ReschedulePage() {
         if (!booking) return list;
         
         booking.bookingRooms?.forEach((br: any) => {
-            if (selectedRoomIds.includes(br.roomId) && !list.some(r => r.id === br.roomId)) {
+            const originalRoomTypeId = booking.roomTypeId || booking.roomType?.id || (booking.bookingRooms?.[0]?.room?.roomType as any)?.id;
+            
+            // Only display original rooms if their room category matches the currently selected category
+            if (
+                selectedRoomIds.includes(br.roomId) && 
+                !list.some(r => r.id === br.roomId) &&
+                (booking.isGroupBooking || originalRoomTypeId === rescheduleRoomTypeId)
+            ) {
                 list.push({
                     id: br.roomId,
                     name: `Unit ${br.room?.roomNumber}`,
@@ -303,7 +361,7 @@ export default function ReschedulePage() {
         });
 
         return list;
-    }, [availableRooms, selectedRoomIds, booking]);
+    }, [availableRooms, selectedRoomIds, booking, rescheduleRoomTypeId]);
     const selectedRoomTypesString = useMemo(() => {
         if (!booking) return 'No Room Type';
         
@@ -432,15 +490,18 @@ export default function ReschedulePage() {
                 checkInDate: newCheckInDate,
                 checkOutDate: newCheckOutDate,
                 selectedRoomIds,
-                overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
-                overrideReason: useRescheduleOverride ? (rescheduleOverrideReason || undefined) : undefined,
-                roomTypeId: booking.isGroupBooking ? undefined : rescheduleRoomTypeId,
                 adultsCount: Number(adultsCount),
                 childrenCount: Number(childrenCount),
+                extraAdultsCount: Number(extraAdultsCount || 0),
+                extraChildrenCount: Number(extraChildrenCount || 0),
+                overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
+                overrideReason: useRescheduleOverride ? (rescheduleOverrideReason || undefined) : undefined,
+                roomTypeId: booking.isGroupBooking ? undefined : (rescheduleRoomTypeId || undefined),
                 guestName: `${bookerFirstName} ${bookerLastName || ''}`.trim(),
                 guestEmail: bookerEmail || undefined,
                 guestPhone: bookerPhone,
                 whatsappNumber: bookerWhatsapp || undefined,
+                specialRequests: specialRequests,
                 guests: [
                     {
                         id: booking.guests?.[0]?.id,
@@ -456,11 +517,37 @@ export default function ReschedulePage() {
     };
 
     // ── Loading / Error states ────────────────────────────────────────────────
-    if (isLoadingBooking) {
+    if (isLoadingBooking || (!rescheduleRoomTypeId && !hasResolutionError)) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">Loading booking...</p>
+                <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">Resolving stay details...</p>
+            </div>
+        );
+    }
+
+    if (hasResolutionError) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 max-w-md mx-auto text-center space-y-4">
+                <AlertCircle className="h-12 w-12 text-amber-500" />
+                <h3 className="text-lg font-bold text-foreground">Unable to Resolve Room Type</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                    We couldn't verify the room category linked to this booking. This can happen if the room type is inactive or belongs to a different configuration.
+                </p>
+                <div className="flex gap-3 pt-2">
+                    <button 
+                        onClick={() => navigate('/bookings')} 
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-xl font-bold text-sm"
+                    >
+                        Go to Bookings
+                    </button>
+                    <button 
+                        onClick={() => window.location.reload()} 
+                        className="px-4 py-2 border border-border rounded-xl font-bold text-sm hover:bg-muted"
+                    >
+                        Retry Loading
+                    </button>
+                </div>
             </div>
         );
     }
@@ -501,7 +588,7 @@ export default function ReschedulePage() {
             {showCalendarModal && (
                 <RescheduleCalendarModal
                     booking={booking}
-                    roomTypeId={rescheduleRoomTypeId}
+                    roomTypeId={rescheduleRoomTypeId || ''}
                     roomTypeName={roomTypes?.find((rt) => rt.id === rescheduleRoomTypeId)?.name || 'Selected Room Type'}
                     propertyId={propertyId}
                     roomTypes={roomTypes}
@@ -671,6 +758,20 @@ export default function ReschedulePage() {
                                                 </p>
                                             </div>
                                         </div>
+                                        <div className="sm:col-span-2 bg-muted/20 p-4 rounded-xl border border-border/30 space-y-1">
+                                            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                                Special Notes / Requests
+                                            </div>
+                                            {specialRequests ? (
+                                                <p className="text-xs text-muted-foreground italic pl-1 leading-relaxed">
+                                                    "{specialRequests}"
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-muted-foreground/60 italic pl-1 leading-relaxed">
+                                                    No special requests or notes recorded.
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-5 animate-in fade-in duration-200">
@@ -749,6 +850,19 @@ export default function ReschedulePage() {
                                                 </div>
                                             </div>
                                         </div>
+                                        {/* Special Requests Form */}
+                                        <div className="bg-muted/20 border border-border/30 rounded-xl p-4 space-y-2">
+                                            <label className="block text-[10px] font-black text-primary uppercase tracking-widest pl-1">
+                                                Special Requests / Notes (Optional)
+                                            </label>
+                                            <textarea
+                                                value={specialRequests}
+                                                onChange={(e) => setSpecialRequests(e.target.value)}
+                                                placeholder="Enter any special requests or notes from the guest..."
+                                                rows={3}
+                                                className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -770,7 +884,7 @@ export default function ReschedulePage() {
                                         <div>
                                             <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Room Type</label>
                                             <select
-                                                value={rescheduleRoomTypeId}
+                                                value={rescheduleRoomTypeId || ''}
                                                 onChange={(e) => setRescheduleRoomTypeId(e.target.value)}
                                                 className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
                                             >
@@ -804,24 +918,270 @@ export default function ReschedulePage() {
                                     </div>
                                 </div>
 
-                                {/* Capacity */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Adults (13+)</label>
-                                        <input
-                                            type="number" min="1" value={adultsCount}
-                                            onChange={(e) => setAdultsCount(Math.max(1, parseInt(e.target.value) || 1))}
-                                            className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                        />
+                                {/* Guests & Capacity Sub-Cards */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Guests & Capacity</label>
+                                        {selectedRoomType && !booking.isGroupBooking && (
+                                            <span className="text-[10px] font-extrabold text-primary/80 bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+                                                Base Rate Covers: {selectedRoomType.baseAdults ?? 2} Adults, {selectedRoomType.baseChildren ?? 1} Children
+                                            </span>
+                                        )}
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Children (6–12)</label>
-                                        <input
-                                            type="number" min="0" value={childrenCount}
-                                            onChange={(e) => setChildrenCount(Math.max(0, parseInt(e.target.value) || 0))}
-                                            className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                        />
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Standard Base Included Guests Card */}
+                                        <div className="p-4 bg-muted/20 border border-border/60 rounded-2xl space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-foreground">
+                                                    <Users className="h-4 w-4 text-primary" />
+                                                    <span>Standard Included Guests</span>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Adults</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={adultsCount}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (val === '') {
+                                                                setAdultsCount('');
+                                                            } else {
+                                                                const num = parseInt(val, 10);
+                                                                setAdultsCount(isNaN(num) ? 1 : Math.max(1, num));
+                                                            }
+                                                        }}
+                                                        onBlur={() => {
+                                                            if (adultsCount === '' || Number(adultsCount) < 1) setAdultsCount(1);
+                                                        }}
+                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Children</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={childrenCount}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (val === '') {
+                                                                setChildrenCount('');
+                                                            } else {
+                                                                const num = parseInt(val, 10);
+                                                                setChildrenCount(isNaN(num) ? 0 : Math.max(0, num));
+                                                            }
+                                                        }}
+                                                        onBlur={() => {
+                                                            if (childrenCount === '' || isNaN(Number(childrenCount))) setChildrenCount(0);
+                                                        }}
+                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Extra Guests Card (Optional Paid Bedding) */}
+                                        {!booking.isGroupBooking && (() => {
+                                            const allowsExtraAdults = !selectedRoomType || Number(selectedRoomType.extraAdultPrice || 0) > 0;
+                                            const allowsExtraChildren = !selectedRoomType || Number(selectedRoomType.extraChildPrice || 0) > 0;
+
+                                            const roomCount = Math.max(selectedRoomIds.length, 1);
+                                            const baseAdultsCap = (selectedRoomType?.baseAdults ?? selectedRoomType?.maxAdults ?? 2) * roomCount;
+                                            const baseChildrenCap = (selectedRoomType?.baseChildren ?? selectedRoomType?.maxChildren ?? 1) * roomCount;
+                                            const maxPhysAdultsCap = (selectedRoomType?.maxPhysicalAdults ?? selectedRoomType?.maxAdults ?? 4) * roomCount;
+                                            const maxPhysChildrenCap = (selectedRoomType?.maxPhysicalChildren ?? selectedRoomType?.maxChildren ?? 2) * roomCount;
+
+                                            const curAdults = Number(adultsCount) || 0;
+                                            const curChildren = Number(childrenCount) || 0;
+
+                                            const isBaseAdultsFilled = curAdults >= baseAdultsCap;
+                                            const isBaseChildrenFilled = curChildren >= baseChildrenCap;
+
+                                            const maxExtraAdultsAllowed = selectedRoomType ? Math.max(0, maxPhysAdultsCap - curAdults) : undefined;
+                                            const maxExtraChildrenAllowed = selectedRoomType ? Math.max(0, maxPhysChildrenCap - curChildren) : undefined;
+
+                                            if (!allowsExtraAdults && !allowsExtraChildren && selectedRoomType) {
+                                                return (
+                                                    <div className="flex items-center gap-2 py-3 px-4 bg-muted/30 rounded-2xl border border-border/50 self-center">
+                                                        <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                        <span className="text-xs font-semibold text-muted-foreground">Extra guests are not allowed for this room type.</span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
+                                                    <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <UserPlus className="h-4 w-4 text-amber-500" />
+                                                            <span>Extra Guests (Optional)</span>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 lowercase">Extra charge applies</span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {allowsExtraAdults && (
+                                                            <div>
+                                                                <div className="flex items-center justify-between mb-1.5">
+                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Adults</label>
+                                                                    {maxExtraAdultsAllowed !== undefined && (
+                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraAdultsAllowed}</span>
+                                                                    )}
+                                                                </div>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={maxExtraAdultsAllowed}
+                                                                    disabled={!isBaseAdultsFilled}
+                                                                    placeholder="0"
+                                                                    value={extraAdultsCount}
+                                                                    onChange={(e) => {
+                                                                        const valStr = e.target.value;
+                                                                        if (valStr === '') {
+                                                                            setExtraAdultsCount('');
+                                                                            return;
+                                                                        }
+                                                                        let val = parseInt(valStr, 10) || 0;
+                                                                        if (maxExtraAdultsAllowed !== undefined && val > maxExtraAdultsAllowed) {
+                                                                            val = maxExtraAdultsAllowed;
+                                                                            toast.error(`Maximum extra adults allowed for this room capacity is ${maxExtraAdultsAllowed}`);
+                                                                        }
+                                                                        setExtraAdultsCount(Math.max(0, val));
+                                                                    }}
+                                                                    onBlur={() => {
+                                                                        if (extraAdultsCount === '' || isNaN(Number(extraAdultsCount))) setExtraAdultsCount(0);
+                                                                    }}
+                                                                    className={clsx(
+                                                                        "w-full border rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm transition-all outline-none",
+                                                                        !isBaseAdultsFilled
+                                                                            ? "bg-muted/40 text-muted-foreground border-border cursor-not-allowed opacity-60"
+                                                                            : "border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                                                    )}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                        {allowsExtraChildren && (
+                                                            <div>
+                                                                <div className="flex items-center justify-between mb-1.5">
+                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Children</label>
+                                                                    {maxExtraChildrenAllowed !== undefined && (
+                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraChildrenAllowed}</span>
+                                                                    )}
+                                                                </div>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={maxExtraChildrenAllowed}
+                                                                    disabled={!isBaseChildrenFilled}
+                                                                    placeholder="0"
+                                                                    value={extraChildrenCount}
+                                                                    onChange={(e) => {
+                                                                        const valStr = e.target.value;
+                                                                        if (valStr === '') {
+                                                                            setExtraChildrenCount('');
+                                                                            return;
+                                                                        }
+                                                                        let val = parseInt(valStr, 10) || 0;
+                                                                        if (maxExtraChildrenAllowed !== undefined && val > maxExtraChildrenAllowed) {
+                                                                            val = maxExtraChildrenAllowed;
+                                                                            toast.error(`Maximum extra children allowed for this room capacity is ${maxExtraChildrenAllowed}`);
+                                                                        }
+                                                                        setExtraChildrenCount(Math.max(0, val));
+                                                                    }}
+                                                                    onBlur={() => {
+                                                                        if (extraChildrenCount === '' || isNaN(Number(extraChildrenCount))) setExtraChildrenCount(0);
+                                                                    }}
+                                                                    className={clsx(
+                                                                        "w-full border rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm transition-all outline-none",
+                                                                        !isBaseChildrenFilled
+                                                                            ? "bg-muted/40 text-muted-foreground border-border cursor-not-allowed opacity-60"
+                                                                            : "border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                                                    )}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
+
+                                    {/* Smart Allocation Assistant Banner (Standard Bookings Only) */}
+                                    {(() => {
+                                        if (booking.isGroupBooking || !selectedRoomType) return null;
+
+                                        const roomCount = selectedRoomIds.length || 1;
+                                        const baseA = (selectedRoomType.baseAdults ?? selectedRoomType.maxAdults ?? 2) * roomCount;
+                                        const baseC = (selectedRoomType.baseChildren ?? selectedRoomType.maxChildren ?? 1) * roomCount;
+                                        const maxPhysA = (selectedRoomType.maxPhysicalAdults ?? selectedRoomType.maxAdults ?? 4) * roomCount;
+                                        const maxPhysC = (selectedRoomType.maxPhysicalChildren ?? selectedRoomType.maxChildren ?? 2) * roomCount;
+
+                                        const stdAdults = Number(adultsCount) || 0;
+                                        const extraAdults = Number(extraAdultsCount) || 0;
+                                        const totalAdults = stdAdults + extraAdults;
+
+                                        const stdChildren = Number(childrenCount) || 0;
+                                        const extraChildren = Number(extraChildrenCount) || 0;
+                                        const totalChildren = stdChildren + extraChildren;
+
+                                        const excessA = Math.max(0, stdAdults - baseA);
+                                        const excessC = Math.max(0, stdChildren - baseC);
+
+                                        const isOverPhysicalLimit = totalAdults > maxPhysA || totalChildren > maxPhysC;
+
+                                        if (isOverPhysicalLimit) {
+                                            return (
+                                                <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300 space-y-2 animate-in fade-in zoom-in-95">
+                                                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
+                                                        <AlertCircle className="h-4 w-4 text-red-500" /> Physical Room Capacity Limit Exceeded
+                                                    </div>
+                                                    <p className="text-xs">
+                                                        The total guest count ({totalAdults} Adults, {totalChildren} Children) exceeds the physical capacity limit for {roomCount} room ({maxPhysA} Adults, {maxPhysC} Children max). Please reduce extra guests or select additional rooms.
+                                                    </p>
+                                                </div>
+                                            );
+                                        }
+
+                                        if (excessA > 0 || excessC > 0) {
+                                            return (
+                                                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800/40 space-y-3 animate-in fade-in zoom-in-95">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                                                            <Info className="h-4 w-4 text-amber-600" /> Base Occupancy Exceeded
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2.5 py-0.5 rounded-full">
+                                                            +{excessA} Extra Adult(s), +{excessC} Extra Child(ren)
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                                                        {selectedRoomType.name}'s base rate covers <strong>{baseA} Adults & {baseC} Children</strong>. You entered <strong>{stdAdults} Adults & {stdChildren} Children</strong>.
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-2 pt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const currentExtraA = Number(extraAdultsCount) || 0;
+                                                                const currentExtraC = Number(extraChildrenCount) || 0;
+                                                                setExtraAdultsCount(currentExtraA + excessA);
+                                                                setExtraChildrenCount(currentExtraC + excessC);
+                                                                setAdultsCount(Math.min(stdAdults, baseA));
+                                                                setChildrenCount(Math.min(stdChildren, baseC));
+                                                            }}
+                                                            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                                        >
+                                                            ⚡ Auto-Fill Extra Guests (+{excessA}A, +{excessC}C)
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        return null;
+                                    })()}
                                 </div>
 
                                 {/* Calendar button */}
@@ -860,7 +1220,7 @@ export default function ReschedulePage() {
                                         <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                                         <div className="text-xs text-red-700 dark:text-red-400 font-semibold leading-relaxed">
                                             <strong>Guest count exceeds total room capacity.</strong>{' '}
-                                            {adultsCount + childrenCount} guests ({adultsCount} Adults{childrenCount > 0 ? `, ${childrenCount} Children` : ''}) exceeds the combined capacity of all {availableRooms.length} rooms in the group pool (<strong>{totalPoolCapacity} guests max</strong>). Please reduce the guest count.
+                                            {Number(adultsCount) + Number(childrenCount)} guests ({Number(adultsCount)} Adults{Number(childrenCount) > 0 ? `, ${Number(childrenCount)} Children` : ''}) exceeds the combined capacity of all {availableRooms.length} rooms in the group pool (<strong>{totalPoolCapacity} guests max</strong>). Please reduce the guest count.
                                         </div>
                                     </div>
                                 )}
@@ -879,21 +1239,35 @@ export default function ReschedulePage() {
                                                     key={room.id}
                                                     type="button"
                                                     onClick={() => toggleRoomSelection(room.id)}
-                                                    className={`relative overflow-hidden p-3 rounded-xl border text-left transition-all ${
+                                                    className={`relative overflow-hidden p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
                                                         isSelected
-                                                            ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20 scale-95'
+                                                            ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
                                                             : 'bg-muted/30 text-foreground border-border/50 hover:bg-muted/60'
                                                     }`}
                                                 >
-                                                    <span className={`text-xs font-black uppercase tracking-tight block mb-1 ${isSelected ? 'text-primary-foreground/90' : 'text-primary'}`}>
-                                                        {room.roomNumber || room.name}
-                                                    </span>
-                                                    <span className={`text-[10px] font-bold ${isSelected ? 'text-primary-foreground/80' : 'text-foreground/80'}`}>
-                                                        Cap: {room.capacity || 'N/A'}
-                                                    </span>
-                                                    <span className={`text-[8px] mt-0.5 block truncate ${isSelected ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
-                                                        {room.roomType || 'Standard'}
-                                                    </span>
+                                                    {isSelected && (
+                                                        <div className="absolute top-2.5 right-2.5 z-20">
+                                                            <CheckCircle className="h-3.5 w-3.5 text-primary-foreground" />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex flex-col relative z-10 space-y-1.5">
+                                                        {/* 1. Capacity */}
+                                                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md w-fit tracking-wide ${
+                                                            isSelected ? 'bg-white/20 text-primary-foreground' : 'bg-primary/10 text-primary border border-primary/20'
+                                                        }`}>
+                                                            Cap: {room.baseAdults !== undefined ? `${room.baseAdults}A, ${room.baseChildren || 0}C${room.maxPhysicalAdults ? ` (Max: ${room.maxPhysicalAdults}A)` : ''}` : (room.capacity || 'N/A')}
+                                                        </span>
+                                                        
+                                                        {/* 2. Room Number */}
+                                                        <span className={`text-base font-black uppercase tracking-tight block ${isSelected ? 'text-primary-foreground' : 'text-foreground'}`}>
+                                                            {room.roomNumber || room.name}
+                                                        </span>
+                                                        
+                                                        {/* 3. Room Type Name */}
+                                                        <span className={`text-[10px] truncate font-semibold block ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                                                            {room.roomType || 'Standard'}
+                                                        </span>
+                                                    </div>
                                                 </button>
                                             );
                                         })}
@@ -909,7 +1283,7 @@ export default function ReschedulePage() {
                                         </p>
                                         {booking.isGroupBooking && groupUnavailableReason === 'CAPACITY_EXCEEDED' && (
                                             <p className="text-xs text-destructive/80 font-medium">
-                                                The total of {adultsCount + childrenCount} guests ({adultsCount} Adults{childrenCount > 0 ? `, ${childrenCount} Children` : ''}) exceeds the maximum capacity of all available rooms in the group pool. Please reduce the guest count.
+                                                The total of {Number(adultsCount) + Number(childrenCount)} guests ({Number(adultsCount)} Adults{Number(childrenCount) > 0 ? `, ${Number(childrenCount)} Children` : ''}) exceeds the maximum capacity of all available rooms in the group pool. Please reduce the guest count.
                                             </p>
                                         )}
                                     </div>

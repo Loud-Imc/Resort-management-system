@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 import { RegisterPropertyDto } from './dto/register-property.dto';
@@ -8,6 +8,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { normalizePhone } from '../common/utils/phone';
 import { AuditService } from '../audit/audit.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
+import { PricingService } from '../bookings/pricing.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class PropertiesService {
@@ -17,6 +19,9 @@ export class PropertiesService {
         private readonly notificationsService: NotificationsService,
         private readonly audit: AuditService,
         private readonly systemSettings: SystemSettingsService,
+        @Inject(forwardRef(() => PricingService))
+        private readonly pricingService: PricingService,
+        private readonly mailService: MailService,
     ) { }
 
     /**
@@ -255,6 +260,17 @@ export class PropertiesService {
             });
 
             return property;
+        }).then(async (property) => {
+            // After transaction: notify owner of approval via in-app + email
+            // Build enriched object with all emails needed
+            const enrichedProperty = {
+                ...property,
+                ownerEmail: request.ownerEmail,
+                email: details.propertyEmail || request.ownerEmail, // property email
+                details: request.details,
+            };
+            await this.notificationsService.notifyPropertyStatusUpdate(enrichedProperty, 'APPROVED');
+            return property;
         });
     }
 
@@ -288,6 +304,18 @@ export class PropertiesService {
             userId: user.id,
             newValue: { reason }
         });
+
+        // Notify owner of rejection via in-app + email
+        const enrichedRequest = {
+            ...updated,
+            name: request.name,
+            ownerId: updated.requestedById,
+            ownerEmail: updated.ownerEmail,
+            email: (request.details as any)?.propertyEmail || updated.ownerEmail,
+            details: updated.details,
+            location: request.location,
+        };
+        await this.notificationsService.notifyPropertyStatusUpdate(enrichedRequest, 'REJECTED');
 
         return updated;
     }
@@ -625,7 +653,15 @@ export class PropertiesService {
             }
 
             // Sync email and names from the new registration
-            if (dto.ownerEmail && existingUser.email !== dto.ownerEmail) dataToUpdate.email = dto.ownerEmail;
+            if (dto.ownerEmail && existingUser.email !== dto.ownerEmail) {
+                const userWithEmail = await this.prisma.user.findFirst({
+                    where: { email: dto.ownerEmail }
+                });
+                if (userWithEmail && userWithEmail.id !== existingUser.id) {
+                    throw new ConflictException('This owner email address is already linked to another account.');
+                }
+                dataToUpdate.email = dto.ownerEmail;
+            }
             if (dto.ownerFirstName && existingUser.firstName !== dto.ownerFirstName) dataToUpdate.firstName = dto.ownerFirstName;
             if (dto.ownerLastName && existingUser.lastName !== dto.ownerLastName) dataToUpdate.lastName = dto.ownerLastName;
 
@@ -679,6 +715,13 @@ export class PropertiesService {
 
         // Notify admins of new registration request
         await this.notificationsService.notifyPropertyRequest(request);
+
+        // Send registration confirmation email to propertyEmail (CC ownerEmail)
+        await this.mailService.sendPropertyRegistrationConfirmation(
+            dto.propertyEmail,
+            dto.ownerEmail,
+            request
+        );
 
         return {
             id: request.id,
@@ -1024,36 +1067,41 @@ export class PropertiesService {
             throw new NotFoundException('Property not found');
         }
 
-        // Map offers to virtual fields for frontend strikethrough
+        // Map room pricing via Published Pricing API (Single Source of Truth)
         const propertyWithOffers = {
             ...property,
-            roomTypes: property.roomTypes.map(rt => {
-                const activeOffer = rt.offers?.[0];
-                let offerDiscountAmount = 0;
-                let discountedPricePerNight = Number(rt.basePrice);
+            roomTypes: await Promise.all(
+                property.roomTypes.map(async (rt) => {
+                    const quoteArray = await this.pricingService.getPublishedDailyRate(
+                        rt.id,
+                        new Date(),
+                        property.baseCurrency || 'INR',
+                    );
+                    const quote = Array.isArray(quoteArray) ? quoteArray[0] : quoteArray;
 
-                if (activeOffer) {
-                    if (activeOffer.discountType === 'PERCENTAGE') {
-                        offerDiscountAmount = (Number(rt.basePrice) * Number(activeOffer.discountValue)) / 100;
-                    } else {
-                        offerDiscountAmount = Number(activeOffer.discountValue);
+                    let offerDiscountAmount = 0;
+                    if (quote?.breakdown?.appliedOffer) {
+                        const preTaxDiscount = quote.breakdown.basePrice - quote.breakdown.effectivePriceBeforeTax;
+                        if (!rt.isGstInclusive && quote.breakdown.taxRate > 0) {
+                            offerDiscountAmount = preTaxDiscount * (1 + quote.breakdown.taxRate / 100);
+                        } else {
+                            offerDiscountAmount = preTaxDiscount;
+                        }
                     }
-                    discountedPricePerNight = Number(rt.basePrice) - offerDiscountAmount;
-                }
 
-                // Sync with public portal tax logic (12% GST fallback if not inclusive)
-                if (!rt.isGstInclusive) {
-                    const taxRate = 0.12; // Standard 12% GST
-                    discountedPricePerNight = discountedPricePerNight * (1 + taxRate);
-                    offerDiscountAmount = offerDiscountAmount * (1 + taxRate);
-                }
-
-                return {
-                    ...rt,
-                    offerDiscountAmount,
-                    discountedPricePerNight: Number(discountedPricePerNight.toFixed(2)),
-                };
-            }),
+                    return {
+                        ...rt,
+                        offerDiscountAmount: Number(offerDiscountAmount.toFixed(2)),
+                        offerName: quote?.breakdown?.appliedOffer?.name,
+                        offerDescription: (quote?.breakdown?.appliedOffer as any)?.description,
+                        offerStartDate: (quote?.breakdown?.appliedOffer as any)?.startDate,
+                        offerEndDate: (quote?.breakdown?.appliedOffer as any)?.endDate,
+                        offerDiscountType: quote?.breakdown?.appliedOffer?.discountType,
+                        offerDiscountValue: quote?.breakdown?.appliedOffer?.discountValue,
+                        discountedPricePerNight: quote?.publishedPrice || Number(rt.basePrice),
+                    };
+                }),
+            ),
         };
 
         return propertyWithOffers;
@@ -1096,14 +1144,10 @@ export class PropertiesService {
                 throw new ForbiddenException('You do not have access to this property');
             }
 
-            // Strip sensitive KYC and financial fields for non-admin callers
-            if (!isAdmin) {
+            // Hide sensitive commissions for staff, but allow them to see documents.
+            // Admins and owners can see both documents and commissions.
+            if (isStaff && !isAdmin && !isOwner) {
                 const sanitized: any = { ...property };
-                delete sanitized.ownerAadhaarNumber;
-                delete sanitized.ownerAadhaarImage;
-                delete sanitized.ownerAadhaarImageBack;
-                delete sanitized.licenceImage;
-                delete sanitized.gstNumber;
                 delete sanitized.platformCommission;
                 delete sanitized.marketingCommission;
                 return sanitized;
@@ -1239,8 +1283,25 @@ export class PropertiesService {
             },
         });
 
-        // Notify owner of status update
-        await this.notificationsService.notifyPropertyStatusUpdate(updated, status);
+        // Fetch additional data needed for approval emails (owner + propertyRequest for emails)
+        const propertyWithDetails = await this.prisma.property.findUnique({
+            where: { id },
+            include: {
+                owner: { select: { email: true, firstName: true, lastName: true } },
+                propertyRequest: { select: { ownerEmail: true, details: true } },
+            },
+        });
+
+        // Build enriched object for notification (includes ownerEmail + propertyEmail)
+        const enrichedProperty = {
+            ...updated,
+            owner: propertyWithDetails?.owner,
+            ownerEmail: propertyWithDetails?.owner?.email || propertyWithDetails?.propertyRequest?.ownerEmail,
+            details: propertyWithDetails?.propertyRequest?.details,
+        };
+
+        // Notify owner of status update (sends in-app + email to owner + property email)
+        await this.notificationsService.notifyPropertyStatusUpdate(enrichedProperty, status);
 
         return updated;
     }

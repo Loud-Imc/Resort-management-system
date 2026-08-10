@@ -17,37 +17,39 @@ import {
     Edit2,
     Trash2,
     Calendar,
-    X,
-    Globe,
-    CalendarDays,
-    User
+    CalendarDays
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { format, isAfter } from 'date-fns';
 import GuestDetailsModal from '../../components/Rooms/GuestDetailsModal';
+import RoomScheduleModal from '../../components/Rooms/RoomScheduleModal';
+import BlockRoomModal from '../../components/Rooms/BlockRoomModal';
 
 export default function RoomsList() {
     const { selectedProperty } = useProperty();
     const propertyId = selectedProperty?.id;
 
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [blockingRoom, setBlockingRoom] = useState<Room | null>(null);
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
     const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     // const [viewingBlocksRoom, setViewingBlocksRoom] = useState<Room | null>(null);
 
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
     const { data: rooms, isLoading, error } = useQuery<Room[]>({
-        queryKey: ['rooms', statusFilter, propertyId],
+        queryKey: ['rooms', statusFilter, propertyId, format(selectedDate, 'yyyy-MM-dd')],
         queryFn: () => roomsService.getAll({
             status: statusFilter || undefined,
-            propertyId: propertyId || undefined
+            propertyId: propertyId || undefined,
+            date: format(selectedDate, 'yyyy-MM-dd')
         }),
         enabled: !!propertyId,
     });
@@ -69,17 +71,6 @@ export default function RoomsList() {
             deleteMutation.mutate(id);
         }
     };
-
-    const unblockMutation = useMutation({
-        mutationFn: roomsService.unblock,
-        onSuccess: () => {
-            toast.success('Room unblocked successfully');
-            queryClient.invalidateQueries({ queryKey: ['rooms'] });
-        },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to unblock room');
-        },
-    });
 
     const getStatusColor = (status: RoomStatus) => {
         switch (status) {
@@ -131,13 +122,7 @@ export default function RoomsList() {
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+
 
     if (error) {
         return (
@@ -151,7 +136,10 @@ export default function RoomsList() {
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Rooms</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-foreground">Rooms</h1>
+                        {isLoading && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                    </div>
                     <p className="text-sm text-muted-foreground mt-1">Manage rooms for your property</p>
                 </div>
                 <Link
@@ -166,7 +154,7 @@ export default function RoomsList() {
             <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 {/* Filters */}
                 <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
-                    <div className="relative flex-1">
+                    <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <input
                             type="text"
@@ -174,8 +162,17 @@ export default function RoomsList() {
                             className="w-full pl-10 pr-4 py-2 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         />
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
+                            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                            <input
+                                type="date"
+                                value={format(selectedDate, 'yyyy-MM-dd')}
+                                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                                className="bg-transparent text-sm text-foreground focus:outline-none focus:ring-0 border-none p-0 cursor-pointer"
+                            />
+                        </div>
+                        <Filter className="h-4 w-4 text-muted-foreground ml-2" />
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
@@ -194,23 +191,47 @@ export default function RoomsList() {
 
                 {/* Grid View for Rooms */}
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {rooms?.map((room) => (
+                    {isLoading ? (
+                        <div className="col-span-full flex flex-col items-center justify-center py-16 space-y-3">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="text-sm font-semibold text-muted-foreground">Loading rooms...</p>
+                        </div>
+                    ) : rooms?.length === 0 ? (
+                        <div className="col-span-full text-center py-12 text-muted-foreground border-2 border-dashed border-border rounded-xl font-medium">
+                            No rooms found.
+                        </div>
+                    ) : (
+                        rooms?.map((room) => {
+                        const dateToCompare = new Date(selectedDate);
+                        dateToCompare.setHours(0, 0, 0, 0);
+
+                        // Calculate upcoming counts (after selected date)
+                        const upcomingBookings = room.bookingRooms?.filter((br: any) => {
+                            const checkIn = new Date(br.booking.checkInDate);
+                            return isAfter(checkIn, dateToCompare);
+                        }) || [];
+
+                        const upcomingBlocks = room.blocks?.filter((b: any) => {
+                            if (b.bookingId) return false;
+                            if (b.reason?.startsWith('Group Booking') || b.reason?.startsWith('Multi-Room Booking')) return false;
+                            const startDate = new Date(b.startDate);
+                            return isAfter(startDate, dateToCompare);
+                        }) || [];
+
+                        return (
                         <div
                             key={room.id}
                             onClick={() => {
-                                if (room.status === RoomStatus.OCCUPIED) {
-                                    setSelectedRoomId(room.id);
-                                    setIsGuestModalOpen(true);
-                                }
+                                setSelectedRoomId(room.id);
+                                setIsScheduleModalOpen(true);
                             }}
                             className={clsx(
-                                "border rounded-xl p-4 transition-all hover:shadow-md group",
-                                (room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && "cursor-pointer hover:border-blue-500/50",
+                                "border rounded-xl p-4 transition-all hover:shadow-md group cursor-pointer hover:border-primary/30",
                                 getCardStyle(room.status)
                             )}
                         >
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-xl font-bold text-card-foreground">
+                                <span className="text-xl font-bold text-card-foreground group-hover:text-primary transition-colors">
                                     {room.roomNumber}
                                 </span>
                                 <span className={clsx(
@@ -223,96 +244,23 @@ export default function RoomsList() {
                             </div>
 
                             <div className="text-sm text-muted-foreground mb-4">
-                                <p className="font-bold text-card-foreground">{room.roomType.name}</p>
-                                <p>Floor: {room.floor ?? '-'}</p>
-                                {(room.status === RoomStatus.OCCUPIED || room.status === RoomStatus.OUT_TODAY) && room.bookingRooms && room.bookingRooms.length > 0 && (() => {
-                                    const today = new Date();
-                                    today.setHours(0, 0, 0, 0);
-                                    
-                                    // Prioritize CHECKED_IN, then look for CONFIRMED bookings for today
-                                    const activeBooking = room.bookingRooms.find((br: any) => br.booking.status === 'CHECKED_IN')?.booking
-                                        || room.bookingRooms.find((br: any) => {
-                                            if (br.booking.status !== 'CONFIRMED') return false;
-                                            const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0,0,0,0);
-                                            const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0,0,0,0);
-                                            return today >= checkIn && today < checkOut;
-                                        })?.booking;
-
-                                    if (!activeBooking) return null;
-                                    
-                                    const user = activeBooking.user;
-                                    const primaryGuest = activeBooking.guests?.[0];
-                                    let guestName = 'Guest';
-                                    
-                                    if (user?.firstName || user?.lastName) {
-                                        guestName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-                                    } else if (primaryGuest?.firstName || primaryGuest?.lastName) {
-                                        guestName = `${primaryGuest.firstName || ''} ${primaryGuest.lastName || ''}`.trim();
-                                    }
-                                    return (
-                                        <div className="mt-2 text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 p-2 rounded-lg flex items-center gap-2 border border-blue-500/20">
-                                            <User className="h-3 w-3 shrink-0" />
-                                            <span className="truncate">{guestName}</span>
+                                <p className="font-bold text-card-foreground mb-3">{room.roomType.name}</p>
+                                <p className="mb-2">Floor: {room.floor ?? '-'}</p>
+                                
+                                <div className="flex gap-2 mt-3">
+                                    {upcomingBookings.length > 0 && (
+                                        <div className="text-[10px] font-bold px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1">
+                                            <Calendar className="h-3 w-3" />
+                                            {upcomingBookings.length} Upcoming {upcomingBookings.length === 1 ? 'Booking' : 'Bookings'}
                                         </div>
-                                    );
-                                })()}
-                                {room.blocks && room.blocks.length > 0 && (() => {
-                                    const block = room.blocks[0];
-                                    const isExternal = block.reason.startsWith('External Booking');
-
-                                    return (
-                                        <div className={clsx(
-                                            "mt-3 text-[11px] p-3 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-300",
-                                            isExternal
-                                                ? "bg-indigo-500/5 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
-                                                : "bg-amber-500/5 border-amber-500/20 text-amber-700 dark:text-amber-400"
-                                        )}>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-                                                    {isExternal ? (
-                                                        <Globe className="h-3 w-3" />
-                                                    ) : (
-                                                        <Lock className="h-3 w-3" />
-                                                    )}
-                                                    {isExternal ? 'Cloud Sync' : 'Manual Block'}
-                                                </div>
-                                                <span className={clsx(
-                                                    "px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase",
-                                                    isExternal ? "bg-indigo-500/10" : "bg-amber-500/10"
-                                                )}>
-                                                    Active
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center gap-1.5 mb-1.5 opacity-80 text-foreground">
-                                                <CalendarDays className="h-3 w-3 shrink-0" />
-                                                <span className="font-medium">
-                                                    {format(new Date(block.startDate), 'MMM d')} — {format(new Date(block.endDate), 'MMM d')}
-                                                </span>
-                                            </div>
-
-                                            <p className="line-clamp-2 italic mb-3 leading-relaxed opacity-90 text-muted-foreground">
-                                                "{block.reason}"
-                                            </p>
-
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    unblockMutation.mutate(block.id);
-                                                }}
-                                                className={clsx(
-                                                    "w-full py-1.5 rounded-lg text-[10px] font-bold transition-all border flex items-center justify-center gap-1.5",
-                                                    isExternal
-                                                        ? "bg-indigo-500/10 border-indigo-500/10 hover:bg-indigo-500 text-indigo-700 dark:text-indigo-400 hover:text-white"
-                                                        : "bg-amber-500/10 border-amber-500/10 hover:bg-amber-500 text-amber-700 dark:text-amber-400 hover:text-white"
-                                                )}
-                                            >
-                                                <X className="h-3 w-3" />
-                                                Unblock Room
-                                            </button>
+                                    )}
+                                    {upcomingBlocks.length > 0 && (
+                                        <div className="text-[10px] font-bold px-2 py-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                                            <Lock className="h-3 w-3" />
+                                            {upcomingBlocks.length} Upcoming {upcomingBlocks.length === 1 ? 'Block' : 'Blocks'}
                                         </div>
-                                    );
-                                })()}
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">
@@ -362,7 +310,8 @@ export default function RoomsList() {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )})
+                    )}
                 </div>
 
                 {/* Block Room Modal */}
@@ -397,6 +346,14 @@ export default function RoomsList() {
                 )}
             </div>
 
+            {/* Schedule Modal */}
+            <RoomScheduleModal
+                roomId={selectedRoomId || ''}
+                selectedDate={selectedDate}
+                isOpen={isScheduleModalOpen}
+                onClose={() => setIsScheduleModalOpen(false)}
+            />
+
             {/* Guest Details Modal */}
             <GuestDetailsModal
                 roomId={selectedRoomId || ''}
@@ -407,125 +364,4 @@ export default function RoomsList() {
     );
 }
 
-interface BlockRoomModalProps {
-    room: Room;
-    onClose: () => void;
-    onSuccess: () => void;
-}
 
-function BlockRoomModal({ room, onClose, onSuccess }: BlockRoomModalProps) {
-    const [formData, setFormData] = useState({
-        startDate: format(new Date(), 'yyyy-MM-dd'),
-        endDate: format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'), // Tomorrow
-        reason: 'Maintenance',
-        notes: ''
-    });
-
-    const mutation = useMutation({
-        mutationFn: (data: any) => roomsService.block(room.id, data),
-        onSuccess: () => {
-            toast.success(`Room ${room.roomNumber} blocked successfully`);
-            onSuccess();
-        },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to block room');
-        }
-    });
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        mutation.mutate(formData);
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="p-6 border-b border-border flex justify-between items-center">
-                    <div>
-                        <h2 className="text-xl font-bold text-foreground">Block Room {room.roomNumber}</h2>
-                        <p className="text-sm text-muted-foreground">Set unavailability dates</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-muted rounded-full transition-colors">
-                        <X className="h-5 w-5" />
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-foreground flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-primary" /> Start Date
-                            </label>
-                            <input
-                                type="date"
-                                required
-                                value={formData.startDate}
-                                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-all"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-foreground flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-primary" /> End Date
-                            </label>
-                            <input
-                                type="date"
-                                required
-                                value={formData.endDate}
-                                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-foreground">Reason</label>
-                        <select
-                            value={formData.reason}
-                            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-all"
-                        >
-                            <option value="Maintenance">Maintenance</option>
-                            <option value="Housekeeping">Housekeeping</option>
-                            <option value="Owner Use">Owner Use</option>
-                            <option value="Offline Booking">Offline Booking</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-foreground">Internal Notes (Optional)</label>
-                        <textarea
-                            value={formData.notes}
-                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                            placeholder="Add more details about the block..."
-                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-all h-24 resize-none"
-                        />
-                    </div>
-
-                    <div className="pt-4 flex gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 px-4 py-2 border border-border rounded-lg text-sm font-bold hover:bg-muted transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={mutation.isPending}
-                            className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                            {mutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <Lock className="h-4 w-4" />
-                            )}
-                            Block Room
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-}

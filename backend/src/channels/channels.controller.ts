@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  Delete,
 } from '@nestjs/common';
 import { ChannelsService } from './channels.service';
 
@@ -23,6 +24,11 @@ export class ChannelsController {
   @Get('mappings/:propertyId')
   async getMappings(@Param('propertyId') propertyId: string) {
     return this.channelsService.getPropertyMappings(propertyId);
+  }
+
+  @Get('active-otas/:propertyId')
+  async getActiveOtas(@Param('propertyId') propertyId: string) {
+    return this.channelsService.getActiveOtas(propertyId);
   }
 
   @Post('mappings/property')
@@ -98,6 +104,66 @@ export class ChannelsController {
     @Body() payload: any,
     @Headers() headers: Record<string, any>,
   ) {
+    const isAri = payload?.event === 'ari';
+    if (isAri) {
+      console.log(`webhook payload: [ARI Event ignored - items count: ${payload.payload?.length || 0}]`);
+    } else {
+      console.log("webhook payload : ", payload);
+    }
     return this.channelsService.handleIncomingReservation(channelName, payload, headers);
+  }
+
+  @Post('connect-ota')
+  async connectOtaChannel(
+    @Body() body: { propertyId: string; otaKey: string; hotelId: string; settings: any },
+  ) {
+    return this.channelsService.connectOtaChannel(
+      body.propertyId,
+      body.otaKey,
+      body.hotelId,
+      body.settings,
+    );
+  }
+
+  @Post('disconnect-ota')
+  async disconnectOtaChannel(
+    @Body() body: { propertyId: string; otaKey: string },
+  ) {
+    return this.channelsService.disconnectOtaChannel(body.propertyId, body.otaKey);
+  }
+
+  @Get('iframe-url/:propertyId')
+  async getIframeUrl(@Param('propertyId') propertyId: string) {
+    return this.channelsService.getIframeSessionUrl(propertyId);
+  }
+
+  @Post('update-currency/:propertyId')
+  async updatePropertyCurrency(
+    @Param('propertyId') propertyId: string,
+    @Body() body: { currency: string },
+  ) {
+    return this.channelsService.updatePropertyCurrency(propertyId, body.currency);
+  }
+
+  @Get('stop-sells/:propertyId')
+  async getStopSells(@Param('propertyId') propertyId: string) {
+    return this.channelsService.getStopSells(propertyId);
+  }
+
+  @Post('stop-sell')
+  async createStopSell(
+    @Body() body: { propertyId: string; roomTypeId: string | null; startDate: string; endDate: string },
+  ) {
+    return this.channelsService.createStopSell(
+      body.propertyId,
+      body.roomTypeId,
+      body.startDate,
+      body.endDate,
+    );
+  }
+
+  @Delete('stop-sell/:id')
+  async deleteStopSell(@Param('id') id: string) {
+    return this.channelsService.deleteStopSell(id);
   }
 }

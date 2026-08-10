@@ -101,6 +101,20 @@ export class CreateBookingDto {
     @Type(() => Number)
     childrenCount: number;
 
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraAdultsCount?: number;
+
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraChildrenCount?: number;
+
     @ApiProperty({ type: [GuestInfoDto] })
     @IsArray()
     @ValidateNested({ each: true })
@@ -121,6 +135,22 @@ export class CreateBookingDto {
     @IsString()
     @IsOptional()
     bookingSourceId?: string;
+
+    @IsString()
+    @IsOptional()
+    offlineCpId?: string;
+
+    @IsNumber()
+    @IsOptional()
+    offlineCpCommission?: number;
+
+    @IsString()
+    @IsOptional()
+    newOfflineCpName?: string;
+
+    @IsString()
+    @IsOptional()
+    newOfflineCpPhone?: string;
 
     // For manual bookings only
     @ApiProperty({ example: false, required: false })
@@ -221,6 +251,13 @@ export class CreateBookingDto {
     @IsString({ each: true })
     @IsOptional()
     selectedRoomIds?: string[];
+
+    @ApiProperty({ example: 3, required: false })
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    @Type(() => Number)
+    roomsCount?: number;
 
     @ApiProperty({ example: '2023-01-01', required: false, description: 'Optional date to use for transaction times (e.g., historical bookings)' })
     @IsDateString()

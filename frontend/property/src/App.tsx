@@ -9,6 +9,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import GuestRoute from './components/auth/GuestRoute';
 
 
 // Pages
@@ -55,8 +56,8 @@ function App() {
               <ThemeProvider>
                 <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
                 <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
+                  <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+                  <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
                   <Route path="/delete-account" element={<DeleteAccount />} />
 
                   <Route path="/" element={<DashboardLayout />}>

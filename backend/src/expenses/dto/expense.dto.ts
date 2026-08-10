@@ -95,6 +95,11 @@ export class UpdateExpenseDto {
     @IsOptional()
     @IsString({ each: true })
     bookingIds?: string[];
+
+    @ApiProperty({ example: 'Verified receipt and updated incorrect amount' })
+    @IsString()
+    @IsNotEmpty()
+    reason: string;
 }
 
 export class CreateExpenseCategoryDto {

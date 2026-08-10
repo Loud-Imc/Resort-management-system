@@ -8,6 +8,7 @@ import { Toaster } from 'react-hot-toast';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
 import Login from './pages/Login';
+import GuestRoute from './components/GuestRoute';
 
 
 
@@ -71,7 +72,7 @@ function App() {
               <ThemeProvider>
                 <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
                 <Routes>
-                  <Route path="/login" element={<Login />} />
+                  <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
 
                   <Route path="/" element={<DashboardLayout />}>
                     <Route index element={<DashboardHome />} />

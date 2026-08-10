@@ -2,7 +2,7 @@ import api from './api';
 import type { Room, CreateRoomDto, UpdateRoomDto, BlockRoomDto, RoomBlock } from '../types/room';
 
 export const roomsService = {
-    getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string }) => {
+    getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string; date?: string }) => {
         const { data } = await api.get<Room[]>('/rooms', { params });
         return data;
     },

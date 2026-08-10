@@ -106,6 +106,7 @@ export default function Checkout() {
 
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
+    const roomsCount = Number(searchParams.get('roomsCount') || searchParams.get('rooms')) || undefined;
     const isGroupBooking = searchParams.get('isGroupBooking') === 'true';
     const groupSize = Number(searchParams.get('groupSize')) || 10;
 
@@ -126,13 +127,14 @@ export default function Checkout() {
 
     // Fetch NON-COUPON pricing (Permanent baseline)
     const { data: basePricing } = useQuery<any>({
-        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children, selectedCurrency],
+        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children, roomsCount, selectedCurrency],
         queryFn: () => bookingService.calculatePrice({
             roomTypeId: roomId!,
             checkInDate: checkIn,
             checkOutDate: checkOut,
             adultsCount: adults,
             childrenCount: children,
+            roomsCount,
             currency: selectedCurrency,
             isGroupBooking,
             groupSize
@@ -142,7 +144,7 @@ export default function Checkout() {
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, appliedCode, selectedCurrency, isGroupBooking, groupSize],
+        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
         queryFn: async () => {
             console.log('[Checkout] Fetching pricing with appliedCode:', appliedCode);
             const res = await bookingService.calculatePrice({
@@ -151,6 +153,7 @@ export default function Checkout() {
                 checkOutDate: checkOut,
                 adultsCount: Number(adults),
                 childrenCount: Number(children),
+                roomsCount,
                 generalCode: appliedCode || undefined,
                 currency: selectedCurrency,
                 isGroupBooking,
@@ -247,6 +250,7 @@ export default function Checkout() {
                 currency: selectedCurrency,
                 isGroupBooking,
                 groupSize,
+                roomsCount,
                 guests: [{
                     firstName: userData.firstName,
                     lastName: userData.lastName,
@@ -352,17 +356,37 @@ export default function Checkout() {
 
     return (
         <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-12 py-8">
-            <button
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-8"
-            >
-                <ArrowLeft className="h-4 w-4" /> Back to Rooms
-            </button>
+            {isProcessing && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary-600 mb-4" />
+                    <h2 className="text-xl font-black text-gray-900 uppercase tracking-widest">Processing Booking...</h2>
+                    <p className="text-sm font-bold text-gray-500 mt-2">Please wait, do not close or refresh this page.</p>
+                </div>
+            )}
+            <div className="mb-6 flex items-center justify-between">
+                <button
+                    onClick={() => navigate(-1)}
+                    className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs rounded-xl border border-gray-200 shadow-sm transition-all hover:shadow-md active:scale-95 group"
+                >
+                    <ArrowLeft className="h-4 w-4 text-gray-500 group-hover:text-primary-600 group-hover:-translate-x-0.5 transition-all" />
+                    <span>Back to Property & Rooms</span>
+                </button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="md:col-span-2">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                        <h2 className="text-2xl font-bold font-serif">Guest Details</h2>
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => navigate(-1)}
+                                className="inline-flex items-center gap-2 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white font-extrabold text-xs rounded-lg shadow transition-all active:scale-95 cursor-pointer"
+                            >
+                                <ArrowLeft className="h-4 w-4" />
+                                <span>Back to Rooms</span>
+                            </button>
+                            <h2 className="text-2xl font-bold font-serif">Guest Details</h2>
+                        </div>
 
                         {!user && (
                             <div className="bg-primary-50 px-4 py-2 rounded-lg border border-primary-100 flex items-center gap-3">
@@ -742,8 +766,8 @@ export default function Checkout() {
                                     <p className="text-sm text-gray-500">
                                         {isGroupBooking ? `Property: ${selectedRoom.property?.name || 'Selected Property'}` : selectedRoom.description?.slice(0, 50) + '...'}
                                     </p>
-                                    <p className="text-sm text-gray-500">
-                                        {nights} Nights, {isGroupBooking ? `${groupSize} Guests (${effectivePricing?.roomCount || 1} Rooms)` : `${adults + children} Guests`}
+                                    <p className="text-sm text-gray-500 font-medium mt-1">
+                                        {nights} {nights === 1 ? 'Night' : 'Nights'} • {roomsCount || effectivePricing?.roomCount || 1} {(roomsCount || effectivePricing?.roomCount || 1) === 1 ? 'Room' : 'Rooms'} • {adults + children} Guests {children > 0 ? `(${adults} Adults, ${children} Children)` : `(${adults} Adults)`}
                                     </p>
                                 </div>
 
@@ -765,7 +789,7 @@ export default function Checkout() {
                                 <div className="border-t border-gray-100 pt-4 space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-600">{effectivePricing?.isGstInclusive ? 'Room Charges (GST Inc.)' : 'Base Room Charges'}</span>
-                                        <span>{formatPrice(effectivePricing?.isGstInclusive ? (effectivePricing.baseAmount + effectivePricing.taxAmount) : effectivePricing?.baseAmount, selectedCurrency, rates) || '0'}</span>
+                                        <span>{formatPrice(effectivePricing?.isGstInclusive ? (effectivePricing.originalTotal || (effectivePricing.baseAmount + effectivePricing.taxAmount)) : effectivePricing?.baseAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
                                     {(effectivePricing?.extraAdultAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm">
@@ -782,11 +806,26 @@ export default function Checkout() {
                                     {effectivePricing?.offerDiscountAmount > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-medium">
                                             <span>Offer Discount</span>
-                                            <span>-{formatPrice(effectivePricing.offerDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.grossOfferDiscountAmount ?? (effectivePricing?.isGstInclusive ? Math.round(effectivePricing.offerDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)) : Math.round(effectivePricing.offerDiscountAmount)), selectedCurrency, rates)}</span>
                                         </div>
                                     )}
+
+                                    {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'COUPON' && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
+                                            <span>Coupon Discount ({appliedCode})</span>
+                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.couponDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)).toFixed(2)) : effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
+                                        </div>
+                                    )}
+
+                                    {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'REFERRAL' && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
+                                        <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
+                                            <span>Referral Discount ({appliedCode})</span>
+                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.referralDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)).toFixed(2)) : effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
+                                        </div>
+                                    )}
+
                                     {!effectivePricing?.isGstInclusive && (
-                                        <div className="flex justify-between text-sm group relative">
+                                        <div className="flex justify-between text-sm group relative pt-2">
                                             <div className="flex items-center gap-1.5 text-gray-600">
                                                 <span>Taxes</span>
                                                 <div className="group/info relative">
@@ -800,25 +839,13 @@ export default function Checkout() {
                                         </div>
                                     )}
 
-                                    {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'COUPON' && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
-                                        <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
-                                            <span>Coupon Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
-                                        </div>
-                                    )}
-
-                                    {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'REFERRAL' && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
-                                        <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
-                                            <span>Referral Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
-                                        </div>
-                                    )}
-
                                     <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
                                         <div className="flex flex-col">
                                             <span className="text-lg font-bold text-gray-900">Total</span>
-                                            {effectivePricing?.isGstInclusive && (
-                                                <span className="text-[10px] text-green-600 font-bold uppercase tracking-tight">GST Inclusive</span>
+                                            {effectivePricing?.isGstInclusive && (effectivePricing?.taxAmount || 0) > 0 && (
+                                                <span className="text-[11px] text-emerald-600 font-semibold tracking-tight block">
+                                                    Includes {formatPrice(effectivePricing.taxAmount, selectedCurrency, rates)} GST ({effectivePricing.taxRate}%)
+                                                </span>
                                             )}
                                         </div>
                                         <span className="text-2xl font-black text-primary-600">{formatPrice(effectivePricing?.totalAmount, selectedCurrency, rates) || '0'}</span>

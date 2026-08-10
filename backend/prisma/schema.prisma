@@ -127,6 +127,10 @@ model RoomType {
   freeChildrenCount          Int                 @default(0)
   maxAdults                  Int                 @default(2)
   maxChildren                Int                 @default(2)
+  baseAdults                 Int                 @default(2)
+  baseChildren               Int                 @default(1)
+  maxPhysicalAdults          Int                 @default(4)
+  maxPhysicalChildren        Int                 @default(2)
   isPubliclyVisible          Boolean             @default(true)
   images                     String[]
   createdAt                  DateTime            @default(now())
@@ -144,6 +148,7 @@ model RoomType {
   offers                     Offer[]
   pricingRules               PricingRule[]
   icalSyncs                  PropertyIcal[]
+  stopSellRestrictions       StopSellRestriction[]
   reviews                    Review[]
   cancellationPolicy         CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
   isGstInclusive             Boolean             @default(false)
@@ -222,6 +227,8 @@ model Booking {
   numberOfNights          Int
   adultsCount             Int
   childrenCount           Int
+  extraAdultsCount        Int                    @default(0)
+  extraChildrenCount      Int                    @default(0)
   baseAmount              Decimal                @db.Decimal(10, 2)
   extraAdultAmount        Decimal                @default(0) @db.Decimal(10, 2)
   extraChildAmount        Decimal                @default(0) @db.Decimal(10, 2)
@@ -248,6 +255,8 @@ model Booking {
   channelPartnerId        String?
   cpCommission            Decimal?               @db.Decimal(10, 2)
   cpDiscount              Decimal?               @db.Decimal(10, 2)
+  offlineCpId             String?
+  offlineCpCommission     Decimal?               @default(0) @db.Decimal(10, 2)
   propertyId              String?
   marketingStaffId        String?
   marketingCommission     Decimal?               @default(0) @db.Decimal(10, 2)
@@ -288,6 +297,7 @@ model Booking {
   agent                   User?                  @relation("AgentBookings", fields: [agentId], references: [id])
   bookingSource           BookingSource?         @relation(fields: [bookingSourceId], references: [id])
   channelPartner          ChannelPartner?        @relation("CPReferrals", fields: [channelPartnerId], references: [id])
+  offlineCp               OfflineCP?             @relation(fields: [offlineCpId], references: [id], onDelete: SetNull)
   coupon                  Coupon?                @relation(fields: [couponId], references: [id])
   property                Property?              @relation(fields: [propertyId], references: [id])
   room                    Room                   @relation(fields: [roomId], references: [id])
@@ -358,6 +368,21 @@ model PricingRule {
   roomType        RoomType?             @relation(fields: [roomTypeId], references: [id])
 
   @@map("pricing_rules")
+}
+
+model StopSellRestriction {
+  id           String    @id @default(uuid())
+  propertyId   String
+  roomTypeId   String?
+  startDate    DateTime
+  endDate      DateTime
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  property     Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType     RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@map("stop_sell_restrictions")
 }
 
 model Coupon {
@@ -565,6 +590,8 @@ model Property {
   assets                      Asset[]
   promotionRequests           PromotionRequest[]
   channelMappings             ChannelPropertyMapping[]
+  offlineChannelPartners      OfflineCP[]
+  stopSellRestrictions        StopSellRestriction[]
 
   @@map("properties")
 }
@@ -702,6 +729,26 @@ model ChannelPartner {
   transactions           CPTransaction[]
 
   @@map("channel_partners")
+}
+
+model OfflineCP {
+  id                String    @id @default(uuid())
+  name              String
+  phone             String?
+  email             String?
+  companyName       String?
+  defaultCommission Decimal?  @db.Decimal(5, 2)
+  notes             String?
+  isActive          Boolean   @default(true)
+  propertyId        String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  property          Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  bookings          Booking[]
+
+  @@unique([propertyId, name])
+  @@map("offline_channel_partners")
 }
 
 model CPTransaction {
@@ -1328,4 +1375,19 @@ model Asset {
   updatedAt   DateTime       @updatedAt
 
   @@map("assets")
+}
+
+model ExpenseHistory {
+  id            String   @id @default(uuid())
+  expenseId     String
+  action        String   // 'UPDATE' or 'DELETE'
+  amount        Decimal  @db.Decimal(10, 2)
+  description   String
+  categoryId    String
+  propertyId    String?
+  reason        String
+  changedBy     String?
+  changedAt     DateTime @default(now())
+
+  @@map("expense_histories")
 }

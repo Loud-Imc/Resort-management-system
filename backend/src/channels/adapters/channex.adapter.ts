@@ -252,6 +252,10 @@ export class ChannexAdapter implements IChannelAdapter {
         return false;
       }
 
+      const resJson: any = await response.json();
+      const taskId = resJson.data?.[0]?.id || 'Unknown';
+      this.logger.log(`[Channex] Successfully pushed inventory. Task ID: ${taskId}`);
+
       return true;
     } catch (error: any) {
       this.logger.error(`[Channex] Network error pushing inventory: ${error.message}`);
@@ -270,7 +274,6 @@ export class ChannexAdapter implements IChannelAdapter {
       values: updates.map((u) => {
         const item: any = {
           property_id: propertyMapping.externalPropertyId,
-          room_type_id: u.externalRoomTypeId,
           date_from: u.date,
           date_to: u.dateTo || u.date,
         };
@@ -303,6 +306,10 @@ export class ChannexAdapter implements IChannelAdapter {
         return false;
       }
 
+      const resJson: any = await response.json();
+      const taskId = resJson.data?.[0]?.id || 'Unknown';
+      this.logger.log(`[Channex] Successfully pushed rates/restrictions. Task ID: ${taskId}`);
+
       return true;
     } catch (error: any) {
       this.logger.error(`[Channex] Network error pushing restrictions: ${error.message}`);
@@ -334,6 +341,7 @@ export class ChannexAdapter implements IChannelAdapter {
 
     return {
       externalBookingId: String(booking.id || payload.id || `ch-${Date.now()}`),
+      externalRevisionId: String(booking.booking_revision_id || booking.revision_id || payload.booking_revision_id || payload.revision_id || ''),
       channelName: 'CHANNEX',
       sourceName: String(booking?.channel_name || booking?.source || booking?.ota_name || booking?.channel?.title || booking?.channel?.name || 'Channex OTA').trim(),
       externalPropertyId: String(booking.property_id || payload.property_id || ''),
@@ -436,5 +444,136 @@ export class ChannexAdapter implements IChannelAdapter {
       this.logger.warn(`[Channex] Network error registering webhook: ${error.message}`);
       return false;
     }
+  }
+
+  async createChannel(
+    externalPropertyId: string,
+    otaId: string,
+    title: string,
+    settings?: any,
+  ): Promise<string> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) {
+      throw new Error('CHANNEX_USER_API_KEY is missing in backend environment (.env).');
+    }
+
+    const payload = {
+      channel: {
+        property_id: externalPropertyId,
+        ota_id: otaId,
+        title: title,
+        is_active: true,
+        settings: settings || {},
+      },
+    };
+
+    this.logger.log(`[Channex] Creating channel '${title}' (${otaId}) for property ${externalPropertyId}`);
+    const response = await this.fetchWithRetry(`${this.baseUrl}/channels`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'user-api-key': userApiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      this.logger.error(`[Channex] Failed to create channel: ${response.status} ${errText}`);
+      
+      let friendlyMessage = 'Failed to link channel.';
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.errors) {
+          if (typeof parsed.errors === 'string') {
+            friendlyMessage = parsed.errors;
+          } else if (parsed.errors.details) {
+            friendlyMessage = parsed.errors.details;
+          } else if (parsed.errors.title) {
+            friendlyMessage = parsed.errors.title;
+          } else if (typeof parsed.errors === 'object') {
+            const errorList: string[] = [];
+            for (const [key, val] of Object.entries(parsed.errors)) {
+              if (Array.isArray(val)) {
+                errorList.push(`${key}: ${val.join(', ')}`);
+              } else if (typeof val === 'string') {
+                errorList.push(`${key}: ${val}`);
+              }
+            }
+            if (errorList.length > 0) {
+              friendlyMessage = errorList.join('; ');
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (friendlyMessage.toLowerCase().includes('you not have access to requested group')) {
+        friendlyMessage = 'Your Channex account does not have access to this property group. Please verify your property credentials and settings.';
+      }
+
+      throw new Error(friendlyMessage);
+    }
+
+    const resData = await response.json();
+    return resData.data.id;
+  }
+
+  async deleteChannel(externalChannelId: string): Promise<boolean> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return false;
+
+    try {
+      this.logger.log(`[Channex] Deleting channel connection ${externalChannelId}`);
+      const response = await this.fetchWithRetry(`${this.baseUrl}/channels/${externalChannelId}`, {
+        method: 'DELETE',
+        headers: {
+          'user-api-key': userApiKey,
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        this.logger.error(`[Channex] Failed to delete channel ${externalChannelId}: ${response.status} ${errText}`);
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error deleting channel: ${error.message}`);
+      return false;
+    }
+  }
+
+  async getIframeSessionToken(externalPropertyId: string): Promise<string> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) {
+      throw new Error('CHANNEX_USER_API_KEY is missing in backend environment (.env).');
+    }
+
+    const payload = {
+      one_time_token: {
+        property_id: externalPropertyId,
+        username: 'ResortAdmin',
+      },
+    };
+
+    this.logger.log(`[Channex] Generating one-time session token for property ${externalPropertyId}`);
+    const response = await this.fetchWithRetry(`${this.baseUrl}/auth/one_time_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'user-api-key': userApiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      this.logger.error(`[Channex] Failed to generate one-time token: ${response.status} ${errText}`);
+      throw new Error(`Channex one-time token generation failed: ${errText}`);
+    }
+
+    const resData = await response.json();
+    return resData.data.token;
   }
 }

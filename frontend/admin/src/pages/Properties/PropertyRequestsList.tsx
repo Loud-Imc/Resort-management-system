@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import propertyService from '../../services/properties';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { formatDateTime } from '../../utils/dateTime';
 import clsx from 'clsx';
 
 export default function PropertyRequestsList() {
@@ -187,7 +187,7 @@ export default function PropertyRequestsList() {
 
                                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                             <Clock className="h-3 w-3" />
-                                            {format(new Date(request.createdAt), 'dd MMM, HH:mm')}
+                                            {formatDateTime(request.createdAt)}
                                         </div>
 
                                         {request.status === 'PENDING' && (

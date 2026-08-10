@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { Loader2, Calendar, X, AlertCircle, User, House, Users, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bookingsService } from '../../services/bookings';
@@ -46,6 +46,19 @@ export function RescheduleBookingModal({
             }
         }
     }, [roomTypes, rescheduleRoomTypeId]);
+
+    // Automatically set checkOutDate to checkInDate + 1 when check-in date is changed
+    useEffect(() => {
+        if (!booking || !newCheckInDate) return;
+        const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
+        if (newCheckInDate === originalCheckIn) return;
+
+        const checkIn = new Date(newCheckInDate);
+        if (!isNaN(checkIn.getTime())) {
+            const nextDay = addDays(checkIn, 1);
+            setNewCheckOutDate(format(nextDay, 'yyyy-MM-dd'));
+        }
+    }, [newCheckInDate, booking]);
 
     const [keepOriginalAmount, setKeepOriginalAmount] = useState<boolean>(false);
     const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);

@@ -22,8 +22,12 @@ export const expensesService = {
         const { data } = await api.patch<Expense>(`/expenses/${id}`, dto);
         return data;
     },
-    delete: async (id: string) => {
-        const { data } = await api.delete(`/expenses/${id}`);
+    delete: async (id: string, reason: string) => {
+        const { data } = await api.delete(`/expenses/${id}`, { params: { reason } });
+        return data;
+    },
+    getAlterationLogs: async (propertyId?: string): Promise<any[]> => {
+        const { data } = await api.get<any[]>('/expenses/alterations/logs', { params: { propertyId } });
         return data;
     },
     getCategories: async (propertyId?: string): Promise<ExpenseCategory[]> => {

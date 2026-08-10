@@ -45,3 +45,6 @@ frontend/channel-partner/dist/
 logs/
 tiers_output.txt
 backend/pdf_debug.log
+Channex-documents/* 
+architecture/* 
+artifacts/*

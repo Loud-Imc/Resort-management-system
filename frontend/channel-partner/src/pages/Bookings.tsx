@@ -57,7 +57,13 @@ const Bookings: React.FC = () => {
             try {
                 const response: any = await api.get('/channel-partners/me');
                 console.log('Bookings Data:', response.referrals); // Adding debug log
-                const mappedData = response.referrals.map((ref: any) => ({
+                
+                // Filter only direct bookings created by this Channel Partner
+                const directBookings = (response.referrals || []).filter((ref: any) =>
+                    ref.createdBy && ref.createdBy.startsWith('Channel Partner:')
+                );
+
+                const mappedData = directBookings.map((ref: any) => ({
                     id: ref.id,
                     bookingNumber: ref.bookingNumber,
                     guestName: ref.user ? `${ref.user.firstName} ${ref.user.lastName || ''}`.trim() : (ref.guests?.[0] ? `${ref.guests[0].firstName} ${ref.guests[0].lastName || ''}`.trim() : 'Guest'),
@@ -279,8 +285,8 @@ const Bookings: React.FC = () => {
 
             {/* Page Header */}
             <div>
-                <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.2 }}>Bookings Portfolio</h1>
-                <p style={{ color: 'var(--text-dim)', fontSize: 'clamp(0.9rem, 3vw, 1.1rem)' }}>Manage and track your referred luxury stay reservations.</p>
+                <h1 className="text-premium-gradient" style={{ fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.2 }}>Direct Bookings</h1>
+                <p style={{ color: 'var(--text-dim)', fontSize: 'clamp(0.9rem, 3vw, 1.1rem)' }}>View and manage stays booked directly by you using your partner wallet balance.</p>
             </div>
 
             {/* Stats Summary Section */}
@@ -290,7 +296,7 @@ const Bookings: React.FC = () => {
                         <TrendingUp size={24} />
                     </div>
                     <div>
-                        <p style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Referrals</p>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Direct Bookings</p>
                         <h3 style={{ fontSize: '1.5rem', fontWeight: 900 }}>{stats.total}</h3>
                     </div>
                 </div>

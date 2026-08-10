@@ -1102,6 +1102,127 @@ export default function MyProperty() {
                 </div>
             </div>
 
+            {/* Uploaded Documents & KYC */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" /> Uploaded Documents & KYC
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* GST & Aadhaar Numbers */}
+                    <div className="space-y-4 bg-gray-50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">KYC Identifications</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <span className="block text-xs font-semibold text-gray-500">GST Number</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {property?.gstNumber || 'Not Provided'}
+                                </span>
+                            </div>
+                            <div className="border-t border-gray-200/50 dark:border-gray-700/50 pt-3">
+                                <span className="block text-xs font-semibold text-gray-500">Owner Aadhaar Number</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {property?.ownerAadhaarNumber || 'Not Provided'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* License Document */}
+                    <div className="space-y-2">
+                        <span className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Business License</span>
+                        {property?.licenceImage ? (
+                            <a
+                                href={property.licenceImage}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group block relative aspect-[4/3] rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 hover:border-primary transition-all duration-300"
+                            >
+                                <img
+                                    src={property.licenceImage}
+                                    alt="Business License"
+                                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-xs font-bold text-white bg-primary px-3 py-1.5 rounded-lg shadow-md">
+                                        View Full Document
+                                    </span>
+                                </div>
+                            </a>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center aspect-[4/3] border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 text-gray-400">
+                                <FileText className="h-8 w-8 stroke-[1.5] mb-2" />
+                                <span className="text-xs font-medium">No license document uploaded</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Aadhaar Images */}
+                <div className="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-6">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Owner Aadhaar Card Images</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Aadhaar Front */}
+                        <div className="space-y-2">
+                            <span className="text-xs font-semibold text-gray-500">Front Side</span>
+                            {property?.ownerAadhaarImage ? (
+                                <a
+                                    href={property.ownerAadhaarImage}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group block relative aspect-video rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 hover:border-primary transition-all duration-300"
+                                >
+                                    <img
+                                        src={property.ownerAadhaarImage}
+                                        alt="Aadhaar Front"
+                                        className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="text-xs font-bold text-white bg-primary px-3 py-1.5 rounded-lg shadow-md">
+                                            View Full Document
+                                        </span>
+                                    </div>
+                                </a>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 text-gray-400">
+                                    <FileText className="h-8 w-8 stroke-[1.5] mb-2" />
+                                    <span className="text-xs font-medium">No front side image uploaded</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Aadhaar Back */}
+                        <div className="space-y-2">
+                            <span className="text-xs font-semibold text-gray-500">Back Side</span>
+                            {property?.ownerAadhaarImageBack ? (
+                                <a
+                                    href={property.ownerAadhaarImageBack}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group block relative aspect-video rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 hover:border-primary transition-all duration-300"
+                                >
+                                    <img
+                                        src={property.ownerAadhaarImageBack}
+                                        alt="Aadhaar Back"
+                                        className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="text-xs font-bold text-white bg-primary px-3 py-1.5 rounded-lg shadow-md">
+                                            View Full Document
+                                        </span>
+                                    </div>
+                                </a>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 text-gray-400">
+                                    <FileText className="h-8 w-8 stroke-[1.5] mb-2" />
+                                    <span className="text-xs font-medium">No back side image uploaded</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     );
 }

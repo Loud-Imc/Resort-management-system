@@ -1,5 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RoomsService } from '../rooms/rooms.service';
+import { format } from 'date-fns';
+import { DateUtils } from '../common/utils/date.utils';
 import * as ExcelJS from 'exceljs';
 import * as path from 'path';
 const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
@@ -32,7 +35,10 @@ const SettlementStatus = { PAID: 'PAID' } as any;
 @Injectable()
 export class ReportsService {
     private readonly logger = new Logger(ReportsService.name);
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private roomsService: RoomsService
+    ) { }
 
     private setEndOfDay(date: Date): Date {
         const d = new Date(date);
@@ -51,6 +57,215 @@ export class ReportsService {
         const prevEnd = new Date(start.getTime() - 1);
         const prevStart = new Date(prevEnd.getTime() - duration);
         return { start: prevStart, end: prevEnd };
+    }
+
+    /**
+     * Get unified dashboard statistics with date-aware room status, block details, and calendar metrics
+     */
+    async getDashboardUnified(user: any, propertyId?: string, dateStr?: string, monthStr?: string) {
+        const targetDate = DateUtils.parseCalendarDate(dateStr || new Date());
+        const today = DateUtils.parseCalendarDate(new Date());
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        // Define property scoping
+        const propertyFilter: any = {};
+        if (isGlobalAdmin) {
+            if (propertyId) {
+                propertyFilter.id = propertyId;
+            }
+        } else {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+            if (propertyId) {
+                propertyFilter.id = propertyId;
+            }
+        }
+
+        // 1. Today's check-ins
+        const checkIns = await (this.prisma as any).bookingRoom.count({
+            where: {
+                booking: {
+                    checkInDate: { gte: today, lt: tomorrow },
+                    status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+                },
+                room: { property: propertyFilter }
+            },
+        });
+
+        // 2. Today's check-outs
+        const checkOuts = await (this.prisma as any).bookingRoom.count({
+            where: {
+                booking: {
+                    checkOutDate: { gte: today, lt: tomorrow },
+                    status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+                },
+                room: { property: propertyFilter }
+            },
+        });
+
+        // 3. Current Occupancy
+        const totalRooms = await this.prisma.room.count({
+            where: { isEnabled: true, property: propertyFilter },
+        });
+
+        const occupiedRooms = await (this.prisma as any).bookingRoom.count({
+            where: {
+                booking: {
+                    status: 'CHECKED_IN',
+                    checkInDate: { lte: new Date() },
+                    checkOutDate: { gt: new Date() },
+                },
+                room: { property: propertyFilter }
+            }
+        });
+
+        const bookedToday = await this.prisma.booking.count({
+            where: {
+                checkInDate: { gte: today, lt: tomorrow },
+                room: { property: propertyFilter }
+            }
+        });
+
+        // 4. Fetch dynamic rooms with block & booking details for targetDate
+        const allRooms = await this.roomsService.findAll(user, { propertyId, date: format(targetDate, 'yyyy-MM-dd') });
+
+        let availableCount = 0;
+        let occupiedCount = 0;
+        let maintenanceCount = 0;
+        let blockedCount = 0;
+        let reservedCount = 0;
+        let outTodayCount = 0;
+
+        const roomsList = allRooms.map((room: any) => {
+            switch (room.status) {
+                case 'AVAILABLE': availableCount++; break;
+                case 'OCCUPIED': occupiedCount++; break;
+                case 'OUT_TODAY': outTodayCount++; break;
+                case 'MAINTENANCE': maintenanceCount++; break;
+                case 'BLOCKED': blockedCount++; break;
+                case 'RESERVED': reservedCount++; break;
+            }
+
+            // Find block details for targetDate if blocked
+            let activeBlockDetails: any = null;
+            if (room.blocks && room.blocks.length > 0) {
+                const b = room.blocks.find((blk: any) => {
+                    const blkStart = new Date(blk.startDate); blkStart.setHours(0, 0, 0, 0);
+                    const blkEnd = new Date(blk.endDate); blkEnd.setHours(0, 0, 0, 0);
+                    return targetDate >= blkStart && targetDate < blkEnd;
+                });
+                if (b) {
+                    activeBlockDetails = {
+                        id: b.id,
+                        reason: b.reason,
+                        notes: b.notes,
+                        startDate: b.startDate,
+                        endDate: b.endDate,
+                    };
+                }
+            }
+
+            // Find active booking for targetDate
+            const bookingRoomsList = room.bookingRooms || [];
+            const activeBookingForTarget = bookingRoomsList.find((br: any) => {
+                const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return targetDate >= checkIn && targetDate < checkOut;
+            })?.booking;
+
+            const checkoutBookingTarget = bookingRoomsList.find((br: any) => {
+                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                return targetDate.getTime() === checkOut.getTime();
+            })?.booking;
+
+            let guestName = '';
+            if (activeBookingForTarget) {
+                const g = activeBookingForTarget.guests?.[0] || activeBookingForTarget.user;
+                if (g?.firstName) guestName = `${g.firstName} ${g.lastName || ''}`.trim();
+            } else if (checkoutBookingTarget) {
+                const g = checkoutBookingTarget.guests?.[0] || checkoutBookingTarget.user;
+                if (g?.firstName) guestName = `${g.firstName} ${g.lastName || ''}`.trim();
+            }
+
+            return {
+                id: room.id,
+                roomNumber: room.roomNumber,
+                floor: room.floor,
+                roomTypeId: room.roomTypeId,
+                status: room.status,
+                guestName: guestName || null,
+                blockDetails: activeBlockDetails,
+                _activeBooking: activeBookingForTarget || null,
+                _checkoutBooking: checkoutBookingTarget || null,
+            };
+        }).sort((a: any, b: any) => {
+            if (a.floor === b.floor) {
+                return a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true });
+            }
+            return (a.floor || 0) - (b.floor || 0);
+        });
+
+        // 5. Financial Overview
+        const incomeToday = await this.prisma.income.aggregate({
+            where: {
+                OR: [
+                    {
+                        bookingId: { not: null },
+                        booking: { checkInDate: { gte: today, lt: tomorrow }, property: propertyFilter }
+                    },
+                    {
+                        eventBookingId: { not: null },
+                        eventBooking: { event: { date: { gte: today, lt: tomorrow }, property: propertyFilter } }
+                    },
+                    {
+                        bookingId: null,
+                        eventBookingId: null,
+                        date: { gte: today, lt: tomorrow },
+                        ...(isGlobalAdmin ? {} : { property: propertyFilter })
+                    }
+                ]
+            },
+            _sum: { amount: true },
+        });
+
+        const feesToday = await this.prisma.payment.aggregate({
+            where: {
+                paymentDate: { gte: today, lt: tomorrow },
+                status: 'PAID',
+                booking: { property: propertyFilter }
+            },
+            _sum: { platformFee: true },
+        });
+
+        return {
+            date: targetDate,
+            checkIns,
+            checkOuts,
+            occupancy: {
+                total: totalRooms,
+                occupied: occupiedRooms,
+                percentage: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
+            },
+            revenue: Number(incomeToday._sum.amount || 0),
+            todayFees: Number(feesToday._sum.platformFee || 0),
+            bookingsCreated: bookedToday,
+            statusSummary: {
+                AVAILABLE: availableCount,
+                OUT_TODAY: outTodayCount,
+                RESERVED: reservedCount,
+                OCCUPIED: occupiedCount,
+                MAINTENANCE: maintenanceCount,
+                BLOCKED: blockedCount,
+                TOTAL: roomsList.length,
+            },
+            roomsList,
+        };
     }
 
     /**
@@ -136,70 +351,35 @@ export class ReportsService {
             }
         })
 
-        // 3.5 Room Status Summary
-        const rawAvailableCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'AVAILABLE', property: propertyFilter }
-        });
+        // 3.5 Room Status Summary (Dynamic logic via RoomsService)
+        let availableCount = 0;
+        let occupiedCount = 0;
+        let maintenanceCount = 0;
+        let blockedCount = 0;
+        let reservedCount = 0;
 
-        const reservedCount = await this.prisma.room.count({
-            where: {
-                isEnabled: true,
-                status: 'AVAILABLE',
-                property: propertyFilter,
-                OR: [
-                    {
-                        bookings: {
-                            some: {
-                                status: 'CONFIRMED',
-                                checkInDate: { lte: today },
-                                checkOutDate: { gt: today }
-                            }
-                        }
-                    },
-                    {
-                        blocks: {
-                            some: {
-                                booking: {
-                                    status: 'CONFIRMED',
-                                    checkInDate: { lte: today },
-                                    checkOutDate: { gt: today }
-                                }
-                            }
-                        }
-                    }
-                ]
+        const allRooms = await this.roomsService.findAll(user, { propertyId });
+        
+        for (const room of allRooms) {
+            switch (room.status) {
+                case 'AVAILABLE':
+                    availableCount++;
+                    break;
+                case 'OCCUPIED':
+                case 'OUT_TODAY':
+                    occupiedCount++;
+                    break;
+                case 'MAINTENANCE':
+                    maintenanceCount++;
+                    break;
+                case 'BLOCKED':
+                    blockedCount++;
+                    break;
+                case 'RESERVED':
+                    reservedCount++;
+                    break;
             }
-        });
-
-        const occupiedFromBlocksCount = await this.prisma.room.count({
-            where: {
-                isEnabled: true,
-                status: 'AVAILABLE',
-                property: propertyFilter,
-                blocks: {
-                    some: {
-                        booking: {
-                            status: 'CHECKED_IN',
-                            checkInDate: { lte: today },
-                            checkOutDate: { gt: today }
-                        }
-                    }
-                }
-            }
-        });
-
-        const availableCount = rawAvailableCount - reservedCount - occupiedFromBlocksCount;
-
-        const dbOccupiedCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'OCCUPIED', property: propertyFilter }
-        });
-        const occupiedCount = dbOccupiedCount + occupiedFromBlocksCount;
-        const maintenanceCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'MAINTENANCE', property: propertyFilter }
-        });
-        const blockedCount = await this.prisma.room.count({
-            where: { isEnabled: true, status: 'BLOCKED', property: propertyFilter }
-        });
+        }
 
         // 4. Today's Revenue (Income created today)
         const incomeToday = await this.prisma.income.aggregate({
@@ -249,11 +429,18 @@ export class ReportsService {
             },
         });
 
-        // 5. Rooms list for dashboard grid (Lite version)
-        const roomsList = await this.prisma.room.findMany({
-            where: { isEnabled: true, property: propertyFilter },
-            select: { id: true, roomNumber: true, status: true, roomTypeId: true },
-            orderBy: { roomNumber: 'asc' }
+        // 5. Rooms list for dashboard grid (Lite version) - using dynamic statuses from allRooms!
+        const roomsList = allRooms.map((room: any) => ({
+            id: room.id,
+            roomNumber: room.roomNumber,
+            status: room.status,
+            roomTypeId: room.roomTypeId,
+            floor: room.floor,
+        })).sort((a: any, b: any) => {
+            if (a.floor === b.floor) {
+                return a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true });
+            }
+            return (a.floor || 0) - (b.floor || 0);
         });
 
         return {
@@ -332,7 +519,7 @@ export class ReportsService {
 
         // Helper to fetch core metrics for a period
         const fetchMetrics = async (start: Date, end: Date) => {
-            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialData, platformFees] = await Promise.all([
+            const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialData, platformFees, cashPayments, generalIncome] = await Promise.all([
                 this.prisma.income.aggregate({
                     where: {
                         OR: [
@@ -444,6 +631,26 @@ export class ReportsService {
                         status: 'PAID'
                     },
                     _sum: { platformFee: true }
+                }),
+                this.prisma.payment.findMany({
+                    where: {
+                        status: 'PAID',
+                        paymentDate: { gte: start, lte: end },
+                        booking: { property: propertyFilter }
+                    },
+                    select: {
+                        amount: true,
+                        paymentMethod: true
+                    }
+                }),
+                this.prisma.income.aggregate({
+                    where: {
+                        bookingId: null,
+                        eventBookingId: null,
+                        date: { gte: start, lte: end },
+                        ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                    },
+                    _sum: { amount: true }
                 })
             ]);
 
@@ -460,6 +667,20 @@ export class ReportsService {
                 partialAmount: Number(partialData._sum?.paidAmount || 0)
             };
 
+            const cashInflowByMethod = cashPayments.reduce((acc: Record<string, number>, p: any) => {
+                const method = p.paymentMethod || 'UNKNOWN';
+                acc[method] = (acc[method] || 0) + Number(p.amount);
+                return acc;
+            }, {} as Record<string, number>);
+
+            // General/manual income is also cash inflow in the period (attribute to CASH by default)
+            const manualAmount = Number(generalIncome._sum?.amount || 0);
+            if (manualAmount > 0) {
+                cashInflowByMethod['CASH'] = (cashInflowByMethod['CASH'] || 0) + manualAmount;
+            }
+
+            const totalCashInflow = Object.values(cashInflowByMethod).reduce((a, b) => a + b, 0);
+
             // Duration in days for RevPAR calculation
             const days = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1;
             const availableNights = totalRooms * days;
@@ -467,7 +688,7 @@ export class ReportsService {
             const adr = occupiedNights > 0 ? totalIncome / occupiedNights : 0;
             const revPar = availableNights > 0 ? totalIncome / availableNights : 0;
 
-            return { totalIncome, totalExpenses: totalExpense, totalPlatformFees, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource }; // totalVolume as alias for totalIncome for legacy compatibility
+            return { totalIncome, totalExpenses: totalExpense, totalPlatformFees, netProfit, bookingsCount, adr, revPar, totalVolume: totalIncome, bookingsBySource, totalCashInflow, cashInflowByMethod }; // totalVolume as alias for totalIncome for legacy compatibility
         };
 
         const currentMetrics = await fetchMetrics(sDate, eDate);
@@ -801,6 +1022,17 @@ export class ReportsService {
                 }
             });
 
+            const activeBlocks = await this.prisma.roomBlock.findMany({
+                where: {
+                    startDate: { lte: date },
+                    endDate: { gt: date },
+                    room: { property: propertyFilter }
+                },
+                select: {
+                    roomId: true
+                }
+            });
+
             const uniqueOccupiedRooms = new Set<string>();
             activeBookings.forEach(b => {
                 if (b.roomId) uniqueOccupiedRooms.add(b.roomId);
@@ -808,6 +1040,11 @@ export class ReportsService {
                     if (rb.roomId) uniqueOccupiedRooms.add(rb.roomId);
                 });
             });
+
+            activeBlocks.forEach(block => {
+                if (block.roomId) uniqueOccupiedRooms.add(block.roomId);
+            });
+
             const occupied = uniqueOccupiedRooms.size;
 
             report.push({
@@ -1340,17 +1577,21 @@ export class ReportsService {
                         { text: 'BOOKINGS DETAILS', style: 'sectionHeader' },
                         {
                             table: {
-                                headerRows: 1, widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto'],
+                                headerRows: 1, widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto'],
                                 body: [
-                                    [ { text: 'BOOKING #', style: 'tableHeader' }, { text: 'DATE', style: 'tableHeader' }, { text: 'DATES', style: 'tableHeader' }, { text: 'GUEST', style: 'tableHeader' }, { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }, { text: 'STATUS', style: 'tableHeader', alignment: 'center' } ],
-                                    ...details.bookings.map((b: any) => [
-                                        { text: `#${b.bookingNumber}`, style: 'tableCellBold' },
-                                        { text: new Date(b.createdAt).toLocaleDateString(), style: 'tableCell' },
-                                        { text: `${new Date(b.checkInDate).toLocaleDateString()} - ${new Date(b.checkOutDate).toLocaleDateString()}`, style: 'tableCell' },
-                                        { text: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'N/A', style: 'tableCell' },
-                                        { text: `₹${Number(b.totalAmount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right' },
-                                        { text: b.status, style: 'tableCell', alignment: 'center' }
-                                    ])
+                                    [ { text: 'BOOKING #', style: 'tableHeader' }, { text: 'DATE', style: 'tableHeader' }, { text: 'DATES', style: 'tableHeader' }, { text: 'GUEST', style: 'tableHeader' }, { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }, { text: 'TAC', style: 'tableHeader', alignment: 'right' }, { text: 'STATUS', style: 'tableHeader', alignment: 'center' } ],
+                                    ...details.bookings.map((b: any) => {
+                                        const tac = Number(b.cpCommission || b.offlineCpCommission || 0);
+                                        return [
+                                            { text: `#${b.bookingNumber}`, style: 'tableCellBold' },
+                                            { text: new Date(b.createdAt).toLocaleDateString(), style: 'tableCell' },
+                                            { text: `${new Date(b.checkInDate).toLocaleDateString()} - ${new Date(b.checkOutDate).toLocaleDateString()}`, style: 'tableCell' },
+                                            { text: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'N/A', style: 'tableCell' },
+                                            { text: `₹${Number(b.totalAmount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right' },
+                                            { text: tac > 0 ? `₹${tac.toLocaleString()}` : '—', style: 'tableCell', alignment: 'right' },
+                                            { text: b.status, style: 'tableCell', alignment: 'center' }
+                                        ];
+                                    })
                                 ]
                             },
                             layout: {
@@ -1681,7 +1922,7 @@ export class ReportsService {
                                 { text: 'GUEST NAME', style: 'tableHeader' },
                                 { text: 'GUEST GST', style: 'tableHeader' },
                                 { text: 'TAXABLE', style: 'tableHeader', alignment: 'right' },
-                                { text: 'GST (12%)', style: 'tableHeader', alignment: 'right' },
+                                { text: 'GST', style: 'tableHeader', alignment: 'right' },
                                 { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }
                             ],
                             ...report.details.map(item => [

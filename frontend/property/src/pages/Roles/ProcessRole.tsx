@@ -245,7 +245,7 @@ export default function ProcessRole() {
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="font-bold truncate">{(perm.description || perm.name).replace(/^Permission for /i, '')}</span>
+                                                    <span className="font-bold truncate">{(perm.description || perm.name || '').replace(/^Permission for /i, '')}</span>
                                                     <span className={clsx("text-[10px] font-normal truncate", selectedPermissions?.includes(perm.name) ? "text-white/80" : "text-gray-400")}>{perm.name}</span>
                                                 </div>
                                             </div>

@@ -23,7 +23,47 @@ export interface DashboardStats {
     roomsList?: Room[];
 }
 
+export interface UnifiedDashboardStats {
+    date: string;
+    checkIns: number;
+    checkOuts: number;
+    occupancy: {
+        total: number;
+        occupied: number;
+        percentage: number;
+    };
+    revenue: number;
+    todayFees?: number;
+    bookingsCreated: number;
+    statusSummary: {
+        AVAILABLE: number;
+        OUT_TODAY: number;
+        RESERVED: number;
+        OCCUPIED: number;
+        MAINTENANCE: number;
+        BLOCKED: number;
+        TOTAL: number;
+    };
+    roomsList: (Room & {
+        guestName?: string | null;
+        blockDetails?: {
+            id: string;
+            reason: string;
+            notes?: string;
+            startDate: string;
+            endDate: string;
+        } | null;
+        _activeBooking?: any;
+        _checkoutBooking?: any;
+    })[];
+}
+
 export const reportsService = {
+    getDashboardUnified: async (params?: { propertyId?: string; date?: string; month?: string }): Promise<UnifiedDashboardStats> => {
+        const { data } = await api.get<UnifiedDashboardStats>('/reports/dashboard-unified', { params });
+        return data;
+    },
+
     getDashboardStats: async (propertyId?: string): Promise<DashboardStats> => {
         const { data } = await api.get<DashboardStats>('/reports/dashboard', {
             params: propertyId ? { propertyId } : undefined,

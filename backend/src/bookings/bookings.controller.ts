@@ -106,7 +106,13 @@ export class BookingsController {
                     name: r.name,
                     roomNumber: r.roomNumber,
                     roomType: type.name,
-                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))
+                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0)),
+                    maxAdults: type.maxAdults,
+                    maxChildren: type.maxChildren || 0,
+                    baseAdults: type.baseAdults ?? type.maxAdults ?? 2,
+                    baseChildren: type.baseChildren ?? type.maxChildren ?? 1,
+                    maxPhysicalAdults: type.maxPhysicalAdults ?? 4,
+                    maxPhysicalChildren: type.maxPhysicalChildren ?? 2,
                 })));
             }
 
@@ -115,7 +121,8 @@ export class BookingsController {
                 groupUnavailableReason = hasPool ? 'CAPACITY_EXCEEDED' : 'NO_POOL_CONFIGURED';
             }
         } else if (!dto.isGroupBooking && dto.roomTypeId) {
-            // For standard bookings, return the list of available rooms
+            // For standard bookings, return the list of available rooms.
+            // getAvailableRooms() returns rooms pre-sorted by consolidation score (most booked first).
             const availableRooms = await this.availabilityService.getAvailableRooms(
                 dto.roomTypeId,
                 new Date(dto.checkInDate),
@@ -126,14 +133,24 @@ export class BookingsController {
             const roomType = await (this.availabilityService as any).prisma.roomType.findUnique({
                 where: { id: dto.roomTypeId }
             });
-            roomList = availableRooms.map(r => ({
+            roomList = availableRooms.map((r, idx) => ({
                 id: r.id,
                 name: r.name,
                 roomNumber: r.roomNumber,
                 roomType: roomType?.name || 'N/A',
-                capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0
+                capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0,
+                maxAdults: roomType?.maxAdults || 0,
+                maxChildren: roomType?.maxChildren || 0,
+                baseAdults: roomType?.baseAdults ?? roomType?.maxAdults ?? 2,
+                baseChildren: roomType?.baseChildren ?? roomType?.maxChildren ?? 1,
+                maxPhysicalAdults: roomType?.maxPhysicalAdults ?? 4,
+                maxPhysicalChildren: roomType?.maxPhysicalChildren ?? 2,
+                // Consolidation metadata for the PMS UI
+                consolidationScore: r.consolidationScore ?? 0,
+                isRecommended: idx === 0, // First room = highest score = recommended
             }));
         }
+
 
         return {
             available: isAvailable,
@@ -195,10 +212,12 @@ export class BookingsController {
             dto.currency,
             dto.isGroupBooking,
             dto.groupSize,
-            dto.roomCount,
+            dto.roomCount || dto.roomsCount,
             dto.generalCode,
             dto.overrideTotal,
             dto.isOverrideInclusive ?? true,
+            dto.extraAdultsCount,
+            dto.extraChildrenCount,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {
@@ -274,6 +293,9 @@ export class BookingsController {
     @ApiQuery({ name: 'status', required: false })
     @ApiQuery({ name: 'roomTypeId', required: false })
     @ApiQuery({ name: 'propertyId', required: false })
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
+    @ApiQuery({ name: 'search', required: false })
     findAll(
         @Request() req,
         @Query('status') status?: string,
@@ -282,6 +304,9 @@ export class BookingsController {
         @Query('hasSettlement') hasSettlement?: string,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('search') search?: string,
     ) {
         const start = startDate ? new Date(startDate) : undefined;
         if (start) start.setHours(0, 0, 0, 0);
@@ -296,6 +321,9 @@ export class BookingsController {
             hasSettlement: hasSettlement === 'true' ? true : (hasSettlement === 'false' ? false : undefined),
             checkInDateStart: start,
             checkInDateEnd: end,
+            page: page ? parseInt(page, 10) : undefined,
+            limit: limit ? parseInt(limit, 10) : undefined,
+            search,
         });
     }
 
@@ -432,6 +460,10 @@ export class BookingsController {
         @Body() dto: RescheduleBookingDto,
         @Request() req
     ) {
+        const body = req.body || {};
+        if (body.specialRequests !== undefined && dto.specialRequests === undefined) {
+            dto.specialRequests = body.specialRequests;
+        }
         return this.bookingsService.reschedule(id, dto, req.user);
     }
 

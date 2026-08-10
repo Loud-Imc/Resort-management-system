@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { bookingsService } from '../../services/bookings';
+import type { Booking } from '../../types/booking';
 import {
     ChevronLeft,
     Calendar,
@@ -18,13 +19,14 @@ import {
     House,
     X,
     Receipt,
-    Pencil
+    Pencil,
+    Briefcase,
+    AlertCircle
 } from 'lucide-react';
 import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
-import type { Booking } from '../../types/booking';
-
+import { CheckInVerificationModal } from '../../components/bookings/CheckInVerificationModal';
 
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
@@ -39,18 +41,19 @@ const BookingDetails = () => {
     }) as { data: Booking | undefined, isLoading: boolean, error: any };
 
     const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
-
-    const checkInMutation = useMutation({
-        mutationFn: (bookingId: string) => bookingsService.checkIn({ id: bookingId, data: { guestVerification: [] } }),
-        onSuccess: () => {
-            toast.success('Guest checked in successfully');
-            queryClient.invalidateQueries({ queryKey: ['booking', id] });
-        },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.message || 'Failed to check-in');
-        },
-    });
-
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    // Check-In & Warning Modal States
+    const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
+    const [warningModal, setWarningModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'BLOCK' | 'WARNING';
+        onConfirm: () => void;
+        confirmText: string;
+        onCancel: () => void;
+        cancelText: string;
+    } | null>(null);
     const checkOutMutation = useMutation({
         mutationFn: (bookingId: string) => bookingsService.checkOut({ id: bookingId, data: {} }),
         onSuccess: () => {
@@ -86,7 +89,52 @@ const BookingDetails = () => {
     const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
     const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
     const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
+    const handleOpenCheckIn = (b: Booking) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkInDate = new Date(b.checkInDate);
+        checkInDate.setHours(0, 0, 0, 0);
 
+        const openCheckInModal = () => {
+            setCheckInBooking(b);
+        };
+
+        if (checkInDate.getTime() > today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Invalid Check-In Date",
+                message: "You have to reschedule the booking to today to do a check-in today.",
+                type: 'BLOCK',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    navigate(`/bookings/${b.id}/reschedule`);
+                },
+                confirmText: "Reschedule Now",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        if (checkInDate.getTime() < today.getTime()) {
+            setWarningModal({
+                isOpen: true,
+                title: "Late Check-In Warning",
+                message: "The scheduled check-in date is in the past. Are you sure you want to proceed with checking in now?",
+                type: 'WARNING',
+                onConfirm: () => {
+                    setWarningModal(null);
+                    openCheckInModal();
+                },
+                confirmText: "Proceed Anyway",
+                onCancel: () => setWarningModal(null),
+                cancelText: "Cancel"
+            });
+            return;
+        }
+
+        openCheckInModal();
+    };
     const handleDownloadBackendPDF = async () => {
         try {
             setIsDownloading(true);
@@ -119,7 +167,13 @@ const BookingDetails = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-4">
                     <button
-                        onClick={() => navigate('/bookings')}
+                        onClick={() => {
+                            if (window.history.length > 1) {
+                                navigate(-1);
+                            } else {
+                                navigate('/bookings');
+                            }
+                        }}
                         className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-primary font-bold transition-colors"
                     >
                         <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
@@ -139,11 +193,15 @@ const BookingDetails = () => {
                                     {booking.status.replace('_', ' ')}
                                 </span>
                             </h1>
-                            <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex flex-wrap items-center gap-3 mt-1">
                                 <p className="text-muted-foreground font-medium flex items-center gap-2">
                                     <Clock className="h-3.5 w-3.5" />
                                     Created on {format(new Date(booking.createdAt), 'PPP')} at {format(new Date(booking.createdAt), 'p')}
                                 </p>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-[11px] font-black uppercase tracking-wider">
+                                    <Briefcase className="h-3.5 w-3.5" />
+                                    Source: {booking.channelName || (booking as any).bookingSource?.name || 'RouteGuide PMS'}
+                                </span>
                                 {booking.createdBy && (
                                     <p className="text-primary font-bold text-[11px] flex items-center gap-2 uppercase tracking-wider">
                                         <ShieldCheck className="h-3.5 w-3.5" />
@@ -166,15 +224,10 @@ const BookingDetails = () => {
                     </button>
                     {['CONFIRMED', 'RESERVED'].includes(booking.status) && (
                         <button
-                            onClick={() => {
-                                if (window.confirm("Are you sure you want to check-in this guest?")) {
-                                    checkInMutation.mutate(booking.id);
-                                }
-                            }}
-                            disabled={checkInMutation.isPending}
-                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                            onClick={() => handleOpenCheckIn(booking)}
+                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest cursor-pointer"
                         >
-                            {checkInMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                            <ShieldCheck className="h-4 w-4" />
                             Check In
                         </button>
                     )}
@@ -201,7 +254,16 @@ const BookingDetails = () => {
                             Update Booking
                         </button>
                     )}
-                    {booking.isManualBooking && (
+                    {(booking as any).auditLogs && (booking as any).auditLogs.length > 0 && (
+                        <button
+                            onClick={() => setIsHistoryModalOpen(true)}
+                            className="inline-flex items-center gap-2 border border-amber-600/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10 hover:shadow-xl hover:shadow-amber-500/5 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest"
+                        >
+                            <Clock className="h-4 w-4" />
+                            Reschedule History
+                        </button>
+                    )}
+                    {booking.isManualBooking && booking.status !== 'CHECKED_IN' && booking.status !== 'CHECKED_OUT' && (
                         <button
                             onClick={() => navigate(`/bookings/${booking.id}/edit`)}
                             className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-xl hover:shadow-indigo-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest"
@@ -269,10 +331,17 @@ const BookingDetails = () => {
 
                     {/* Guests List */}
                     <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 shadow-sm">
-                        <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-8 flex items-center gap-3">
-                            <User className="h-4 w-4 text-primary" />
-                            Registered Guests
-                        </h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                            <h3 className="text-sm font-black text-foreground uppercase tracking-widest flex items-center gap-3">
+                                <User className="h-4 w-4 text-primary" />
+                                Registered Guests ({booking.adultsCount} Adult{booking.adultsCount > 1 ? 's' : ''}, {booking.childrenCount} Child{booking.childrenCount !== 1 ? 'ren' : ''})
+                            </h3>
+                            {((booking as any).extraAdultsCount > 0 || (booking as any).extraChildrenCount > 0) && (
+                                <span className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                                    +{(booking as any).extraAdultsCount || 0} Extra Adult(s), +{(booking as any).extraChildrenCount || 0} Extra Child(ren)
+                                </span>
+                            )}
+                        </div>
                         <div className="space-y-4">
                             {/* Primary Booker */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-primary/5 rounded-3xl border border-primary/20">
@@ -311,6 +380,25 @@ const BookingDetails = () => {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Special Requests Card */}
+                    <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 shadow-sm">
+                        <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-4 flex items-center gap-3">
+                            <Mail className="h-4 w-4 text-primary" />
+                            Special Requests / Notes
+                        </h3>
+                        <div className="p-5 bg-muted/20 border border-border/30 rounded-3xl">
+                            {booking.specialRequests ? (
+                                <p className="text-xs font-semibold text-foreground leading-relaxed whitespace-pre-line italic">
+                                    "{booking.specialRequests}"
+                                </p>
+                            ) : (
+                                <p className="text-xs font-semibold text-muted-foreground italic leading-relaxed">
+                                    No special requests or notes added. Click "Update Booking" to add notes.
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -393,20 +481,32 @@ const BookingDetails = () => {
                                     <span className="text-muted-foreground font-bold">Base Rate</span>
                                     <span className="font-black text-foreground">₹{Number(booking.baseAmount).toLocaleString()}</span>
                                 </div>
+                                {Number(booking.offerDiscountAmount) > 0 && (
+                                    <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
+                                        <span className="font-bold">Offer Discount</span>
+                                        <span className="font-black">-₹{Number(booking.offerDiscountAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-sm items-center">
                                     <span className="text-muted-foreground font-bold">Extra Charges</span>
-                                    <span className="font-black text-foreground">₹{(Number(booking.extraAdultAmount) + Number(booking.extraChildAmount)).toLocaleString()}</span>
+                                    <span className="font-black text-foreground">₹{(Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)).toLocaleString()}</span>
                                 </div>
+                                {Number(booking.couponDiscountAmount) > 0 && (
+                                    <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
+                                        <span className="font-bold">Coupon Discount</span>
+                                        <span className="font-black">-₹{Number(booking.couponDiscountAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {Number(booking.discountAmount) > 0 && Number(booking.offerDiscountAmount || 0) === 0 && Number(booking.couponDiscountAmount || 0) === 0 && (
+                                    <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
+                                        <span className="font-bold">Special Discount</span>
+                                        <span className="font-black">-₹{Number(booking.discountAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-sm items-center">
                                     <span className="text-muted-foreground font-bold">Taxes & Fees</span>
                                     <span className="font-black text-foreground">₹{Number(booking.taxAmount).toLocaleString()}</span>
                                 </div>
-                                {Number(booking.couponDiscountAmount) > 0 && (
-                                    <div className="flex justify-between text-sm items-center text-emerald-600">
-                                        <span className="font-bold">Discount</span>
-                                        <span className="font-black">-₹{Number(booking.couponDiscountAmount).toLocaleString()}</span>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="pt-6 border-t border-border/50 space-y-6">
@@ -432,6 +532,27 @@ const BookingDetails = () => {
                                             <span className="text-[9px] text-amber-500 font-bold uppercase italic">At Resort</span>
                                         </div>
                                         <span className="text-xl font-black text-amber-600">₹{balanceDue.toLocaleString()}</span>
+                                    </div>
+                                )}
+
+                                {((booking as any).offlineCp || Number((booking as any).offlineCpCommission) > 0) && (
+                                    <div className="p-6 bg-purple-50 dark:bg-purple-950/20 rounded-3xl border border-purple-200 dark:border-purple-800/40 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest flex items-center gap-1.5">
+                                                <Briefcase className="h-3.5 w-3.5" /> Offline Agent Payout
+                                            </span>
+                                            <span className="text-lg font-black text-purple-700 dark:text-purple-300">
+                                                ₹{Number((booking as any).offlineCpCommission || 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        {(booking as any).offlineCp && (
+                                            <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/30 text-xs">
+                                                <p className="font-bold text-foreground font-sans">{(booking as any).offlineCp.name}</p>
+                                                {(booking as any).offlineCp.phone && (
+                                                    <p className="text-[11px] text-muted-foreground">Phone: {(booking as any).offlineCp.phone}</p>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -524,6 +645,211 @@ const BookingDetails = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Reschedule History Modal */}
+            {isHistoryModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-card w-full max-w-4xl rounded-[2.5rem] border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-8 border-b border-border flex items-center justify-between bg-muted/30">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl">
+                                    <Clock className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Reschedule History</h2>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Stay modification history for Booking #{booking.bookingNumber}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="p-2 hover:bg-muted rounded-xl transition-colors"
+                            >
+                                <X className="h-6 w-6 text-muted-foreground" />
+                            </button>
+                        </div>
+                        <div className="p-8 max-h-[60vh] overflow-y-auto space-y-6">
+                            {!(booking as any).auditLogs || (booking as any).auditLogs.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <Clock className="h-12 w-12 text-muted/30 mx-auto mb-4" />
+                                    <p className="text-muted-foreground font-bold">No reschedule history found.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-8 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-border/60">
+                                    {(booking as any).auditLogs.map((log: any, idx: number) => {
+                                        const oldValue = log.oldValue || {};
+                                        const newValue = log.newValue || {};
+                                        const staffName = log.user ? `${log.user.firstName || ''} ${log.user.lastName || ''}`.trim() : 'System';
+
+                                        return (
+                                            <div key={log.id} className="relative pl-8 animate-in fade-in duration-300">
+                                                {/* Timeline node */}
+                                                <div className="absolute left-0 top-1.5 -translate-x-[7px] w-4.5 h-4.5 rounded-full bg-amber-500 border-4 border-card shadow-sm" />
+                                                
+                                                <div className="space-y-4">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <h4 className="text-xs font-black text-foreground uppercase tracking-wider bg-amber-500/10 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-xl w-fit">
+                                                            Reschedule Event #{(booking as any).auditLogs.length - idx}
+                                                        </h4>
+                                                        <span className="text-[10px] text-muted-foreground font-bold flex items-center gap-1.5">
+                                                            <Clock className="h-3.5 w-3.5" />
+                                                            {format(new Date(log.createdAt), 'PPp')} • By {staffName}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {/* Stay Dates */}
+                                                        {(oldValue.checkInDate || oldValue.checkOutDate) && (
+                                                            <div className="p-5 bg-muted/20 border border-border/50 rounded-3xl space-y-2">
+                                                                <div className="text-[10px] font-black text-primary uppercase tracking-widest">Stay Dates</div>
+                                                                <div className="text-xs font-bold text-muted-foreground flex items-center gap-3 flex-wrap">
+                                                                    <span className="line-through opacity-70">
+                                                                        {oldValue.checkInDate ? format(new Date(oldValue.checkInDate), 'dd MMM yyyy') : 'N/A'} – {oldValue.checkOutDate ? format(new Date(oldValue.checkOutDate), 'dd MMM yyyy') : 'N/A'}
+                                                                    </span>
+                                                                    <ArrowRight className="h-3.5 w-3.5 text-foreground shrink-0" />
+                                                                    <span className="text-foreground bg-primary/10 text-primary px-2.5 py-0.5 rounded-lg">
+                                                                        {newValue.checkInDate ? format(new Date(newValue.checkInDate), 'dd MMM yyyy') : 'N/A'} – {newValue.checkOutDate ? format(new Date(newValue.checkOutDate), 'dd MMM yyyy') : 'N/A'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Total Amount */}
+                                                        {oldValue.totalAmount !== undefined && (
+                                                            <div className="p-5 bg-muted/20 border border-border/50 rounded-3xl space-y-2">
+                                                                <div className="text-[10px] font-black text-primary uppercase tracking-widest">Total Price</div>
+                                                                <div className="text-xs font-bold text-muted-foreground flex items-center gap-3">
+                                                                    <span className="line-through opacity-70">₹{Number(oldValue.totalAmount).toLocaleString()}</span>
+                                                                    <ArrowRight className="h-3.5 w-3.5 text-foreground" />
+                                                                    <span className="text-foreground font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-lg">
+                                                                        ₹{Number(newValue.totalAmount).toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Booker details */}
+                                                        {oldValue.bookerName && (oldValue.bookerName !== newValue.bookerName || oldValue.bookerPhone !== newValue.bookerPhone || oldValue.bookerEmail !== newValue.bookerEmail || oldValue.bookerWhatsapp !== newValue.bookerWhatsapp) && (
+                                                            <div className="p-5 bg-muted/20 border border-border/50 rounded-3xl space-y-3 col-span-1 md:col-span-2">
+                                                                <div className="text-[10px] font-black text-primary uppercase tracking-widest">Booker / Contact Details Changes</div>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                                                    <div className="p-4 bg-background border border-border/30 rounded-2xl text-muted-foreground space-y-1">
+                                                                        <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Previous State</p>
+                                                                        <p className="font-bold text-foreground">{oldValue.bookerName || 'N/A'}</p>
+                                                                        {oldValue.bookerPhone && <p>Phone: {oldValue.bookerPhone}</p>}
+                                                                        {oldValue.bookerEmail && <p>Email: {oldValue.bookerEmail}</p>}
+                                                                        {oldValue.bookerWhatsapp && <p>WhatsApp: {oldValue.bookerWhatsapp}</p>}
+                                                                    </div>
+                                                                    <div className="p-4 bg-background border border-border/30 rounded-2xl text-foreground space-y-1">
+                                                                        <p className="text-[9px] font-black uppercase tracking-wider text-primary">New State</p>
+                                                                        <p className="font-black text-foreground">{newValue.bookerName || 'N/A'}</p>
+                                                                        {newValue.bookerPhone && <p>Phone: {newValue.bookerPhone}</p>}
+                                                                        {newValue.bookerEmail && <p>Email: {newValue.bookerEmail}</p>}
+                                                                        {newValue.bookerWhatsapp && <p>WhatsApp: {newValue.whatsappNumber || newValue.bookerWhatsapp || 'N/A'}</p>}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Guest details */}
+                                                        {oldValue.guestName && (oldValue.guestName !== newValue.guestName || oldValue.guestPhone !== newValue.guestPhone || oldValue.guestEmail !== newValue.guestEmail || oldValue.guestWhatsapp !== newValue.guestWhatsapp) && (
+                                                            <div className="p-5 bg-muted/20 border border-border/50 rounded-3xl space-y-3 col-span-1 md:col-span-2">
+                                                                <div className="text-[10px] font-black text-primary uppercase tracking-widest">Primary Guest Details Changes</div>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                                                    <div className="p-4 bg-background border border-border/30 rounded-2xl text-muted-foreground space-y-1">
+                                                                        <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Previous State</p>
+                                                                        <p className="font-bold text-foreground">{oldValue.guestName || 'N/A'}</p>
+                                                                        {oldValue.guestPhone && <p>Phone: {oldValue.guestPhone}</p>}
+                                                                        {oldValue.guestEmail && <p>Email: {oldValue.guestEmail}</p>}
+                                                                        {oldValue.guestWhatsapp && <p>WhatsApp: {oldValue.guestWhatsapp}</p>}
+                                                                    </div>
+                                                                    <div className="p-4 bg-background border border-border/30 rounded-2xl text-foreground space-y-1">
+                                                                        <p className="text-[9px] font-black uppercase tracking-wider text-primary">New State</p>
+                                                                        <p className="font-black text-foreground">{newValue.guestName || 'N/A'}</p>
+                                                                        {newValue.guestPhone && <p>Phone: {newValue.guestPhone}</p>}
+                                                                        {newValue.guestEmail && <p>Email: {newValue.guestEmail}</p>}
+                                                                        {newValue.guestWhatsapp && <p>WhatsApp: {newValue.guestWhatsapp || 'N/A'}</p>}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Special Requests Changes */}
+                                                        {oldValue.specialRequests !== newValue.specialRequests && (
+                                                            <div className="p-5 bg-muted/20 border border-border/50 rounded-3xl space-y-3 col-span-1 md:col-span-2">
+                                                                <div className="text-[10px] font-black text-primary uppercase tracking-widest">Special Requests / Notes Changes</div>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                                                    <div className="p-4 bg-background border border-border/30 rounded-2xl text-muted-foreground space-y-1">
+                                                                        <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Previous Notes</p>
+                                                                        <p className="italic">"{oldValue.specialRequests || 'No notes'}"</p>
+                                                                    </div>
+                                                                    <div className="p-4 bg-background border border-border/30 rounded-2xl text-foreground space-y-1">
+                                                                        <p className="text-[9px] font-black uppercase tracking-wider text-primary">New State Notes</p>
+                                                                        <p className="italic font-bold text-foreground">"{newValue.specialRequests || 'No notes'}"</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 bg-muted/30 border-t border-border flex justify-end">
+                            <button
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="px-8 py-3 bg-foreground text-background rounded-2xl font-black uppercase tracking-widest text-[10px] hover:shadow-lg transition-all active:scale-95"
+                            >
+                                Close History
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Warning / Validation Modal */}
+            {warningModal && warningModal.isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-card w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border border-border/50 text-center space-y-6 animate-in zoom-in-95 duration-200">
+                        <div className={`mx-auto w-16 h-16 rounded-3xl flex items-center justify-center ${warningModal.type === 'BLOCK' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-500'}`}>
+                            <AlertCircle className="h-8 w-8" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-black text-foreground tracking-tight">{warningModal.title}</h3>
+                            <p className="text-sm text-muted-foreground font-medium leading-relaxed">{warningModal.message}</p>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={warningModal.onCancel}
+                                className="flex-1 py-3.5 px-4 bg-muted hover:bg-muted/80 text-muted-foreground rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                            >
+                                {warningModal.cancelText}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={warningModal.onConfirm}
+                                className={`flex-1 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all text-white shadow-lg ${warningModal.type === 'BLOCK' ? 'bg-primary hover:bg-primary/90' : 'bg-amber-500 hover:bg-amber-600'}`}
+                            >
+                                {warningModal.confirmText}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Check-In Verification Modal */}
+            {checkInBooking && (
+                <CheckInVerificationModal
+                    booking={checkInBooking}
+                    onClose={() => setCheckInBooking(null)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ['booking', id] });
+                    }}
+                />
             )}
 
         </div>

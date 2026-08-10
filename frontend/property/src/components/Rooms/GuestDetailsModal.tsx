@@ -48,8 +48,9 @@ export default function GuestDetailsModal({ roomId, isOpen, onClose }: GuestDeta
     const activeBooking = activeBookingRoom?.booking;
 
     const handleViewBooking = () => {
-        if (activeBooking) {
-            navigate(`/bookings/${activeBooking.id}`);
+        const targetId = activeBooking?.id || activeBookingRoom?.bookingId;
+        if (targetId) {
+            navigate(`/bookings/${targetId}`);
             onClose();
         }
     };

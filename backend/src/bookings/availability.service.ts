@@ -3,7 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PropertyStatus } from '@prisma/client';
 import { PricingService } from './pricing.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
-import { format, eachDayOfInterval } from 'date-fns';
+import { format, eachDayOfInterval, differenceInDays } from 'date-fns';
+import { DateUtils } from '../common/utils/date.utils';
 @Injectable()
 export class AvailabilityService {
     constructor(
@@ -135,6 +136,30 @@ export class AvailabilityService {
             checkOut.setHours(23, 59, 59, 999);
         }
 
+        // Fetch propertyId for this room type to evaluate stop-sell restrictions
+        const roomType = await this.prisma.roomType.findUnique({
+            where: { id: roomTypeId },
+            select: { propertyId: true }
+        });
+
+        if (!includeAllStatus && roomType) {
+            const stopSell = await this.prisma.stopSellRestriction.findFirst({
+                where: {
+                    propertyId: roomType.propertyId,
+                    isActive: true,
+                    OR: [
+                        { roomTypeId: null },
+                        { roomTypeId }
+                    ],
+                    startDate: { lte: checkOut },
+                    endDate: { gte: checkIn }
+                }
+            });
+            if (stopSell) {
+                return [];
+            }
+        }
+
         // Get all enabled rooms of this type
         const allRooms = await this.prisma.room.findMany({
             where: {
@@ -163,6 +188,86 @@ export class AvailabilityService {
                 availableRooms.push(room);
             }
         }
+
+        // ─── SOLUTION A: Consolidation Sorting ──────────────────────────────────
+        // Sort available rooms by "booking density" (most booked first) so that
+        // the system fills up heavily-used rooms before touching clean ones.
+        // This prevents room fragmentation and preserves long availability windows
+        // on underused rooms for future long-stay bookings.
+        //
+        // Window is self-adaptive per property:
+        //   - Query the farthest confirmed booking on this property to understand
+        //     how far ahead this property actually takes bookings.
+        //   - Floor: 90 days  (ensures even quiet properties score correctly)
+        //   - Cap:   730 days (2 years, prevents unbounded queries)
+        if (availableRooms.length > 1) {
+            try {
+                // Look up the property via the room type (zero schema change)
+                const roomType = await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId },
+                    select: { propertyId: true },
+                });
+                const propertyId = roomType?.propertyId;
+
+                // Determine adaptive scoring window
+                let windowDays = 90; // floor
+                if (propertyId) {
+                    const farthestBooking = await this.prisma.booking.findFirst({
+                        where: {
+                            propertyId,
+                            status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
+                            checkOutDate: { gte: checkIn },
+                        },
+                        orderBy: { checkOutDate: 'desc' },
+                        select: { checkOutDate: true },
+                    });
+
+                    if (farthestBooking) {
+                        const daysToFarthest = differenceInDays(
+                            new Date(farthestBooking.checkOutDate),
+                            checkIn,
+                        );
+                        // max(farthestDays, 90) ensures floor, min(..., 730) ensures cap
+                        windowDays = Math.min(Math.max(daysToFarthest, 90), 730);
+                    }
+                }
+
+                const windowEnd = new Date(checkIn);
+                windowEnd.setDate(windowEnd.getDate() + windowDays);
+
+                // Score each available room: count booking-nights within this adaptive window
+                for (const room of availableRooms) {
+                    const upcomingBookings = await this.prisma.booking.findMany({
+                        where: {
+                            OR: [
+                                { roomId: room.id },
+                                { bookingRooms: { some: { roomId: room.id } } },
+                            ],
+                            status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
+                            checkInDate: { lte: windowEnd },
+                            checkOutDate: { gte: checkIn },
+                        },
+                        select: { checkInDate: true, checkOutDate: true },
+                    });
+
+                    let bookedNights = 0;
+                    for (const b of upcomingBookings) {
+                        // Clamp each booking to the scoring window before counting nights
+                        const bIn = new Date(b.checkInDate) < checkIn ? checkIn : new Date(b.checkInDate);
+                        const bOut = new Date(b.checkOutDate) > windowEnd ? windowEnd : new Date(b.checkOutDate);
+                        bookedNights += Math.max(0, differenceInDays(bOut, bIn));
+                    }
+                    room.consolidationScore = bookedNights;
+                }
+
+                // Sort descending: most booked room first (fill it up before using cleaner rooms)
+                availableRooms.sort((a, b) => (b.consolidationScore ?? 0) - (a.consolidationScore ?? 0));
+            } catch (err) {
+                // Non-critical: if scoring fails for any reason, fall through with original order
+                console.warn('[ConsolidationSort] Scoring failed, using default order:', err?.message);
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────────
 
         return availableRooms;
     }
@@ -216,8 +321,10 @@ export class AvailabilityService {
 
         if (!room || !room.isEnabled) return false;
 
-        // Strict Status Blocks: If room is Maintenance or Blocked, it cannot be booked at all.
-        if (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') {
+        // Strict Status Blocks: If room is Maintenance, it cannot be booked at all.
+        // We do NOT check for 'BLOCKED' here because blocks have specific start/end dates.
+        // The RoomBlock overlap query below will accurately determine if it is blocked for the requested dates.
+        if (room.status === 'MAINTENANCE') {
             return false;
         }
 
@@ -231,8 +338,8 @@ export class AvailabilityService {
         }
 
         // Time-aware Smart Today check
-        const todayStr = new Date().toISOString().split('T')[0];
-        const checkInStr = checkInDate.toISOString().split('T')[0];
+        const todayStr = DateUtils.getTodayStr();
+        const checkInStr = DateUtils.toCalendarDateStr(checkInDate);
         
         if (checkInStr <= todayStr && room.status === 'OCCUPIED') {
             const checkOutTimeStr = room.property?.defaultCheckOutTime || '11:00';
@@ -284,7 +391,10 @@ export class AvailabilityService {
 
         const overlappingBookings = await db.booking.findMany({
             where: {
-                roomId,
+                OR: [
+                    { roomId },
+                    { bookingRooms: { some: { roomId } } }
+                ],
                 AND: [
                     {
                         OR: [
@@ -389,7 +499,10 @@ export class AvailabilityService {
 
         if (!room || !room.isEnabled) return false;
 
-        if (room.status === 'MAINTENANCE' || room.status === 'BLOCKED') {
+        // Strict Status Blocks: If room is Maintenance, it cannot be booked at all.
+        // We do NOT check for 'BLOCKED' here because blocks have specific start/end dates.
+        // The RoomBlock overlap query below will accurately determine if it is blocked for the requested dates.
+        if (room.status === 'MAINTENANCE') {
             return false;
         }
 
@@ -403,8 +516,8 @@ export class AvailabilityService {
         }
 
         // Time-aware Smart Today check
-        const todayStr = new Date().toISOString().split('T')[0];
-        const checkInStr = checkInDate.toISOString().split('T')[0];
+        const todayStr = DateUtils.getTodayStr();
+        const checkInStr = DateUtils.toCalendarDateStr(checkInDate);
         
         if (checkInStr <= todayStr && room.status === 'OCCUPIED') {
             const checkOutTimeStr = room.property?.defaultCheckOutTime || '11:00';
@@ -553,6 +666,56 @@ export class AvailabilityService {
             }
         });
 
+        // Load active stop sell restrictions for the range
+        const stopSells = await this.prisma.stopSellRestriction.findMany({
+            where: {
+                propertyId,
+                isActive: true,
+                startDate: { lte: end },
+                endDate: { gte: start }
+            }
+        });
+
+        // Load active room blocks for the range
+        const blocksWhere: any = {};
+        if (isGroupBooking) {
+            blocksWhere.room = {
+                propertyId,
+                roomTypeId: { in: groupPoolRoomTypeIds },
+                isEnabled: true
+            };
+        } else if (roomTypeId) {
+            blocksWhere.room = {
+                propertyId,
+                roomTypeId,
+                isEnabled: true
+            };
+        } else {
+            blocksWhere.room = {
+                propertyId,
+                isEnabled: true
+            };
+        }
+
+        blocksWhere.AND = [
+            { startDate: { lte: end } },
+            { endDate: { gte: start } }
+        ];
+
+        if (excludeBookingId) {
+            blocksWhere.NOT = { bookingId: excludeBookingId };
+        }
+
+        const roomBlocks = await this.prisma.roomBlock.findMany({
+            where: blocksWhere,
+            select: {
+                id: true,
+                startDate: true,
+                endDate: true,
+                roomId: true
+            }
+        });
+
         const calendarDays = eachDayOfInterval({ start, end });
         const result: Record<string, { available: number, total: number, isFull: boolean }> = {};
 
@@ -584,7 +747,34 @@ export class AvailabilityService {
                 }
             }
 
-            const availableCount = Math.max(0, totalRoomsOfType - occupiedRooms);
+            let blockedRooms = 0;
+            for (const blk of roomBlocks) {
+                const blkStart = new Date(blk.startDate);
+                blkStart.setHours(0, 0, 0, 0);
+                const blkEnd = new Date(blk.endDate);
+                blkEnd.setHours(0, 0, 0, 0);
+
+                if (day >= blkStart && day < blkEnd) {
+                    blockedRooms++;
+                }
+            }
+
+            const dayStart = new Date(day);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(day);
+            dayEnd.setHours(23, 59, 59, 999);
+
+            const hasStopSell = stopSells.some(ss => {
+                const ssStart = new Date(ss.startDate);
+                ssStart.setHours(0, 0, 0, 0);
+                const ssEnd = new Date(ss.endDate);
+                ssEnd.setHours(23, 59, 59, 999);
+
+                const matchesRoomType = !ss.roomTypeId || (roomTypeId && ss.roomTypeId === roomTypeId) || (isGroupBooking && groupPoolRoomTypeIds.includes(ss.roomTypeId));
+                return matchesRoomType && dayStart <= ssEnd && dayEnd >= ssStart;
+            });
+
+            const availableCount = hasStopSell ? 0 : Math.max(0, totalRoomsOfType - occupiedRooms - blockedRooms);
             result[dateStr] = {
                 available: availableCount,
                 total: totalRoomsOfType,
@@ -914,6 +1104,12 @@ export class AvailabilityService {
                     numberOfNights: pricing.numberOfNights,
                     isSoldOut: availableCount < rooms,
                     isGstInclusive: pricing.isGstInclusive,
+                    offerName: pricing.offerName,
+                    offerDescription: pricing.offerDescription,
+                    offerStartDate: pricing.offerStartDate,
+                    offerEndDate: pricing.offerEndDate,
+                    offerDiscountType: pricing.offerDiscountType,
+                    offerDiscountValue: pricing.offerDiscountValue,
                 });
             }
         }

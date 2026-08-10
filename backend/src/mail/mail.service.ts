@@ -1,22 +1,84 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import axios from 'axios';
 
 @Injectable()
 export class MailService {
     private transporter: nodemailer.Transporter;
+    private emailProvider: 'SMTP' | 'MSG91';
+    private readonly logger = new Logger(MailService.name);
 
     constructor(private configService: ConfigService) {
+        this.emailProvider = (this.configService.get('EMAIL_PROVIDER') || 'SMTP').toUpperCase() as 'SMTP' | 'MSG91';
+        this.logger.log(`[MailService] Email provider: ${this.emailProvider}`);
+
         this.transporter = nodemailer.createTransport({
             pool: true,
             host: this.configService.get('SMTP_HOST'),
             port: Number(this.configService.get('SMTP_PORT')),
-            secure: false, // true for 465, false for other ports
+            secure: false, // true for 465, false for 587
             auth: {
                 user: this.configService.get('SMTP_USER'),
                 pass: this.configService.get('SMTP_PASSWORD'),
             },
+            tls: {
+                rejectUnauthorized: false,
+                ciphers: 'SSLv3',
+            },
         });
+    }
+
+    /**
+     * Send email via MSG91 template API.
+     * Templates must be created in the MSG91 dashboard at control.msg91.com → Email
+     * Each template has a template_id and uses {{variable}} placeholders.
+     *
+     * @param to         Recipient email address
+     * @param toName     Recipient display name
+     * @param templateId MSG91 template ID (set in .env per email type)
+     * @param variables  Key-value pairs to inject into the template
+     */
+    private async sendEmailViaMSG91(
+        to: string,
+        toName: string,
+        templateId: string,
+        variables: Record<string, string> = {},
+    ): Promise<void> {
+        const authKey = this.configService.get('MSG91_AUTH_KEY');
+        const domain = this.configService.get('MSG91_EMAIL_DOMAIN');   // e.g. mail.routeguide.in
+        const fromEmail = this.configService.get('MSG91_EMAIL_FROM');   // e.g. noreply@routeguide.in
+        const fromName = this.configService.get('MSG91_EMAIL_FROM_NAME') || 'Route Guide';
+
+        if (!authKey || !domain || !fromEmail) {
+            this.logger.warn(`[MailService] MSG91 email not configured (MSG91_AUTH_KEY / MSG91_EMAIL_DOMAIN / MSG91_EMAIL_FROM missing). Skipping email to ${to}.`);
+            return;
+        }
+
+        const payload = {
+            recipients: [
+                {
+                    to: [{ name: toName, email: to }],
+                    variables,
+                }
+            ],
+            from: { name: fromName, email: fromEmail },
+            domain,
+            template_id: templateId,
+        };
+
+        try {
+            await axios.post('https://control.msg91.com/api/v5/email/send', payload, {
+                headers: {
+                    authkey: authKey,
+                    'Content-Type': 'application/json',
+                },
+            });
+            this.logger.log(`[MailService] Email sent via MSG91 to ${to} (template: ${templateId})`);
+        } catch (error: any) {
+            this.logger.error(`[MailService] MSG91 email failed to ${to}:`, error.response?.data || error.message);
+            throw error;
+        }
     }
 
     async sendBookingConfirmation(booking: any, attachment?: { filename: string, content: Buffer }) {
@@ -1128,6 +1190,242 @@ export class MailService {
             await this.transporter.sendMail({ from, to: adminEmail, subject, html });
         } catch (error) {
             console.error('[MailService] Error sending admin CP alert:', error);
+        }
+    }
+
+    async sendPropertyRegistrationConfirmation(propertyEmail: string, ownerEmail: string, request: any) {
+        const from = this.configService.get('EMAIL_FROM');
+        const subject = `🏨 Property Registration Received - ${request.name}`;
+        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.routeguide.in';
+        const loginUrl = `${propertyUrl.replace(/\/$/, '')}/login`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; }
+              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
+              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
+              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
+              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header">
+                  <h1>Registration Received! 🏨</h1>
+              </div>
+              <div class="content">
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
+                      Thank you for registering <strong>${request.name}</strong> on our platform. We have received your request, and our administrative team is currently reviewing the details.
+                  </p>
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
+                      Here are the registration details we received:
+                  </p>
+                  
+                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${request.name}</span></div>
+                  <div class="detail-row"><span class="label">Location</span><span class="value">${request.location}</span></div>
+                  <div class="detail-row"><span class="label">Owner Phone</span><span class="value">${request.ownerPhone}</span></div>
+                  <div class="detail-row"><span class="label">Status</span><span class="value" style="color: #eab308; font-weight: 800;">PENDING APPROVAL</span></div>
+                  
+                  <p style="color: #475569; font-size: 14px; margin-top: 30px; line-height: 1.6;">
+                      Once our team approves your property, you will receive a notification, and your property will become publicly visible on the platform. If we require any additional information or documentation, we will reach out to you directly.
+                  </p>
+
+                  <a href="${loginUrl}" class="btn">Log In to Your Account</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            if (this.emailProvider === 'MSG91') {
+                const templateId = this.configService.get('MSG91_TPL_EMAIL_PROPERTY_REGISTRATION');
+                if (!templateId) { this.logger.warn('[MailService] MSG91_TPL_EMAIL_PROPERTY_REGISTRATION not set in .env'); return; }
+                const variables = {
+                    property_name: request.name,
+                    location: request.location || '',
+                    owner_phone: request.ownerPhone || '',
+                    login_url: loginUrl,
+                };
+                // Send to property email
+                await this.sendEmailViaMSG91(propertyEmail, request.name, templateId, variables);
+                // Send to owner if different
+                if (ownerEmail && ownerEmail !== propertyEmail) {
+                    await this.sendEmailViaMSG91(ownerEmail, ownerEmail, templateId, variables);
+                }
+            } else {
+                const from = this.configService.get('EMAIL_FROM');
+                // Always send to property email
+                await this.transporter.sendMail({ from, to: propertyEmail, subject, html });
+                this.logger.log(`[MailService] Property registration email sent to property address: ${propertyEmail}`);
+                // If owner email is different, send a separate copy to the owner too
+                if (ownerEmail && ownerEmail !== propertyEmail) {
+                    await this.transporter.sendMail({ from, to: ownerEmail, subject, html });
+                    this.logger.log(`[MailService] Property registration email sent to owner address: ${ownerEmail}`);
+                }
+            }
+        } catch (error) {
+            this.logger.error('[MailService] Error sending property registration confirmation email:', error);
+        }
+    }
+
+    /**
+     * Send email to owner (and property email) when their property is APPROVED or REJECTED
+     */
+    async sendPropertyApprovalEmail(recipientEmail: string, request: any, isApproved: boolean) {
+        const from = this.configService.get('EMAIL_FROM');
+        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.routeguide.in';
+        const loginUrl = `${propertyUrl.replace(/\/$/, '')}/login`;
+        const subject = isApproved
+            ? `🎉 Your Property "${request.name}" Has Been Approved!`
+            : `📋 Update on Your Property Registration — "${request.name}"`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: ${isApproved ? '#065f46' : '#7c3aed'}; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; }
+              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
+              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
+              .status-badge { display: inline-block; padding: 8px 20px; border-radius: 25px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; background: ${isApproved ? '#d1fae5' : '#ede9fe'}; color: ${isApproved ? '#065f46' : '#7c3aed'}; margin-bottom: 25px; }
+              .btn { display: inline-block; background: ${isApproved ? '#065f46' : '#7c3aed'}; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
+              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header">
+                  <h1>${isApproved ? '🎉 You\'re Live!' : '📋 Registration Update'}</h1>
+              </div>
+              <div class="content">
+                  <span class="status-badge">${isApproved ? '✅ APPROVED' : '⚠️ NEEDS ATTENTION'}</span>
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
+                      ${isApproved
+                          ? `Congratulations! Your property <strong>${request.name}</strong> has been reviewed and <strong>approved</strong> by our team. It is now live on the platform and visible to guests.`
+                          : `We have reviewed the registration for <strong>${request.name}</strong>. Our team requires some additional information or changes before we can approve your property. Please log in to your account to check the details or contact our support team.`
+                      }
+                  </p>
+
+                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${request.name}</span></div>
+                  <div class="detail-row"><span class="label">Location</span><span class="value">${request.location || 'N/A'}</span></div>
+                  <div class="detail-row"><span class="label">Status</span><span class="value" style="color: ${isApproved ? '#065f46' : '#7c3aed'}; font-weight: 800;">${isApproved ? 'APPROVED & LIVE' : 'PENDING ADDITIONAL INFO'}</span></div>
+
+                  ${isApproved ? `
+                  <p style="color: #475569; font-size: 14px; margin-top: 25px; line-height: 1.6;">
+                      You can now log in to your Property Dashboard to set up room types, pricing, availability, and connect to online travel agencies (OTAs).
+                  </p>` : `
+                  <p style="color: #475569; font-size: 14px; margin-top: 25px; line-height: 1.6;">
+                      If you have any questions or need assistance, please contact us directly. We are here to help you get set up as quickly as possible.
+                  </p>`}
+
+                  <a href="${loginUrl}" class="btn">${isApproved ? 'Go to Your Dashboard' : 'Log In to Your Account'}</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            if (this.emailProvider === 'MSG91') {
+                const templateId = isApproved
+                    ? this.configService.get('MSG91_TPL_EMAIL_PROPERTY_APPROVED')
+                    : this.configService.get('MSG91_TPL_EMAIL_PROPERTY_REJECTED');
+                if (!templateId) { this.logger.warn(`[MailService] MSG91_TPL_EMAIL_PROPERTY_${isApproved ? 'APPROVED' : 'REJECTED'} not set in .env`); return; }
+                await this.sendEmailViaMSG91(recipientEmail, recipientEmail, templateId, {
+                    property_name: request.name,
+                    location: request.location || '',
+                    status: isApproved ? 'APPROVED & LIVE' : 'PENDING ADDITIONAL INFO',
+                    login_url: loginUrl,
+                });
+            } else {
+                const from = this.configService.get('EMAIL_FROM');
+                await this.transporter.sendMail({ from, to: recipientEmail, subject, html });
+                this.logger.log(`[MailService] Property ${isApproved ? 'approval' : 'rejection'} email sent to ${recipientEmail}`);
+            }
+        } catch (error) {
+            this.logger.error(`[MailService] Error sending property ${isApproved ? 'approval' : 'rejection'} email:`, error);
+        }
+    }
+
+    /**
+     * Send email alert to admin when a new property self-registers
+     */
+    async sendAdminPropertyRegistrationRequest(adminEmail: string, request: any) {
+        const from = this.configService.get('EMAIL_FROM');
+        const adminUrl = this.configService.get('ADMIN_URL') || 'https://admin.routeguide.in';
+        const subject = `🏨 New Property Registration: "${request.name}" — Pending Your Approval`;
+
+        const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
+              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
+              .content { padding: 40px; }
+              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
+              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
+              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
+              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
+          </style>
+      </head>
+      <body>
+          <div class="main">
+              <div class="header"><h1>New Property Registration 🏨</h1></div>
+              <div class="content">
+                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
+                      A new property has self-registered on the platform and is awaiting your review and approval.
+                  </p>
+                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${request.name}</span></div>
+                  <div class="detail-row"><span class="label">Location</span><span class="value">${request.location || 'N/A'}</span></div>
+                  <div class="detail-row"><span class="label">Owner Email</span><span class="value">${request.ownerEmail}</span></div>
+                  <div class="detail-row"><span class="label">Owner Phone</span><span class="value">${request.ownerPhone || 'N/A'}</span></div>
+                  <div class="detail-row"><span class="label">Status</span><span class="value" style="color: #d97706; font-weight: 800;">PENDING APPROVAL</span></div>
+                  <a href="${adminUrl}/properties" class="btn">Review Registration in Admin Panel</a>
+              </div>
+              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+          </div>
+      </body>
+      </html>
+    `;
+
+        try {
+            if (this.emailProvider === 'MSG91') {
+                const templateId = this.configService.get('MSG91_TPL_EMAIL_ADMIN_PROPERTY_ALERT');
+                if (!templateId) { this.logger.warn('[MailService] MSG91_TPL_EMAIL_ADMIN_PROPERTY_ALERT not set in .env'); return; }
+                await this.sendEmailViaMSG91(adminEmail, 'Admin', templateId, {
+                    property_name: request.name,
+                    location: request.location || '',
+                    owner_email: request.ownerEmail,
+                    owner_phone: request.ownerPhone || '',
+                    review_url: `${this.configService.get('ADMIN_URL') || 'https://admin.routeguide.in'}/properties`,
+                });
+            } else {
+                const from = this.configService.get('EMAIL_FROM');
+                await this.transporter.sendMail({ from, to: adminEmail, subject, html });
+                this.logger.log(`[MailService] Admin property registration alert sent to ${adminEmail}`);
+            }
+        } catch (error) {
+            this.logger.error('[MailService] Error sending admin property registration alert:', error);
         }
     }
 }

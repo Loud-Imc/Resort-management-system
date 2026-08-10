@@ -95,8 +95,29 @@ const InlineBookingPage: React.FC = () => {
     const [checkOut, setCheckOut] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
     const [adults, setAdults] = useState(2);
     const [children, setChildren] = useState(0);
+    const [rooms, setRooms] = useState(1);
     const [isGroupBooking, setIsGroupBooking] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+
+    // Temp search states for inline editing on Step 2 and Step 3
+    const [isEditingSearch, setIsEditingSearch] = useState(false);
+    const [tempCheckIn, setTempCheckIn] = useState(checkIn);
+    const [tempCheckOut, setTempCheckOut] = useState(checkOut);
+    const [tempAdults, setTempAdults] = useState(adults);
+    const [tempChildren, setTempChildren] = useState(children);
+    const [tempRooms, setTempRooms] = useState(rooms);
+    const [tempIsGroupBooking, setTempIsGroupBooking] = useState(isGroupBooking);
+
+    useEffect(() => {
+        if (isEditingSearch) {
+            setTempCheckIn(checkIn);
+            setTempCheckOut(checkOut);
+            setTempAdults(adults);
+            setTempChildren(children);
+            setTempRooms(rooms);
+            setTempIsGroupBooking(isGroupBooking);
+        }
+    }, [isEditingSearch, checkIn, checkOut, adults, children, rooms, isGroupBooking]);
 
     // Step 2 Rooms
     const [availableRoomsMap, setAvailableRoomsMap] = useState<Record<string, RoomType[]>>({});
@@ -118,6 +139,7 @@ const InlineBookingPage: React.FC = () => {
     // Server-side pricing
     const [pricing, setPricing] = useState<any>(null);
     const [isPricingLoading, setIsPricingLoading] = useState(false);
+    const [idWarnings, setIdWarnings] = useState<Record<string, string>>({});
 
     // Step 3
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
@@ -125,7 +147,20 @@ const InlineBookingPage: React.FC = () => {
     const [cpStats, setCpStats] = useState<CPStats | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [booking, setBooking] = useState<any>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [error, _setError] = useState<string | null>(null);
+    const setError = (msg: string | null) => {
+        _setError(msg);
+        if (msg) {
+            setTimeout(() => {
+                const errorBanner = document.getElementById('booking-error-banner');
+                if (errorBanner) {
+                    errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }, 50);
+        }
+    };
     const [isTopUpOpen, setIsTopUpOpen] = useState(false);
 
     const [showPreview, setShowPreview] = useState(false);
@@ -307,8 +342,21 @@ const InlineBookingPage: React.FC = () => {
     };
 
     // Search properties with availability
-    const performSearch = async () => {
-        if (!checkIn || !checkOut) {
+    const performSearch = async (
+        overrideCheckIn?: string,
+        overrideCheckOut?: string,
+        overrideAdults?: number,
+        overrideChildren?: number,
+        overrideRooms?: number,
+        keepSelection = false
+    ) => {
+        const cIn = overrideCheckIn !== undefined ? overrideCheckIn : checkIn;
+        const cOut = overrideCheckOut !== undefined ? overrideCheckOut : checkOut;
+        const ad = overrideAdults !== undefined ? overrideAdults : adults;
+        const ch = overrideChildren !== undefined ? overrideChildren : children;
+        const rm = overrideRooms !== undefined ? overrideRooms : rooms;
+
+        if (!cIn || !cOut) {
             setError('Please select check-in and check-out dates');
             return;
         }
@@ -316,13 +364,14 @@ const InlineBookingPage: React.FC = () => {
         setIsSearching(true);
         try {
             const res: any = await api.post('/bookings/search', {
-                checkInDate: checkIn,
-                checkOutDate: checkOut,
-                adults: adults,
-                children: children,
+                checkInDate: cIn,
+                checkOutDate: cOut,
+                adults: ad,
+                children: ch,
+                rooms: rm,
                 location: searchQuery.trim() || undefined,
                 isGroupBooking,
-                groupSize: isGroupBooking ? (adults + children) : undefined,
+                groupSize: isGroupBooking ? (ad + ch) : undefined,
                 currency: 'INR',
             });
 
@@ -350,7 +399,14 @@ const InlineBookingPage: React.FC = () => {
                 setError('No properties available for these dates/criteria.');
             } else {
                 setStep(2);
-                setSelectedProperty(null); // Reset selection
+                if (!keepSelection) {
+                    setSelectedProperty(null); // Reset selection
+                } else if (selectedProperty) {
+                    const stillAvailable = props.some(p => p.id === selectedProperty.id);
+                    if (!stillAvailable) {
+                        setSelectedProperty(null);
+                    }
+                }
             }
         } catch (e: any) {
             setError(e?.message || 'Search failed. Please try again.');
@@ -417,20 +473,36 @@ const InlineBookingPage: React.FC = () => {
         : (paymentOption === 'PARTIAL' ? advanceAmount : afterDiscount);
 
     // Fetch server-side pricing when a room is selected
-    const fetchPricing = async (room: any) => {
-        if (!checkIn || !checkOut) return;
+    const fetchPricing = async (
+        room: any,
+        overrideCheckIn?: string,
+        overrideCheckOut?: string,
+        overrideAdults?: number,
+        overrideChildren?: number,
+        overrideRooms?: number,
+        overrideIsGroupBooking?: boolean
+    ) => {
+        const cIn = overrideCheckIn !== undefined ? overrideCheckIn : checkIn;
+        const cOut = overrideCheckOut !== undefined ? overrideCheckOut : checkOut;
+        const ad = overrideAdults !== undefined ? overrideAdults : adults;
+        const ch = overrideChildren !== undefined ? overrideChildren : children;
+        const rm = overrideRooms !== undefined ? overrideRooms : rooms;
+        const isGb = overrideIsGroupBooking !== undefined ? overrideIsGroupBooking : isGroupBooking;
+
+        if (!cIn || !cOut) return;
         setIsPricingLoading(true);
         try {
             const res: any = await api.post('/bookings/calculate-price', {
                 roomTypeId: room.id,
-                checkInDate: checkIn,
-                checkOutDate: checkOut,
-                adultsCount: adults,
-                childrenCount: children,
+                checkInDate: cIn,
+                checkOutDate: cOut,
+                adultsCount: ad,
+                childrenCount: ch,
+                roomsCount: rm,
                 referralCode: cpStats?.referralCode,
                 currency: selectedProperty?.currency || 'INR',
-                isGroupBooking,
-                groupSize: isGroupBooking ? (adults + children) : undefined,
+                isGroupBooking: isGb,
+                groupSize: isGb ? (ad + ch) : undefined,
             });
             setPricing(res.data || res);
         } catch (e) {
@@ -438,6 +510,100 @@ const InlineBookingPage: React.FC = () => {
             setPricing(null);
         } finally {
             setIsPricingLoading(false);
+        }
+    };
+
+    const handleUpdateSearch = async () => {
+        if (!tempCheckIn || !tempCheckOut) {
+            setError('Please select check-in and check-out dates');
+            return;
+        }
+        if (new Date(tempCheckOut) <= new Date(tempCheckIn)) {
+            setError('Check-out date must be after check-in date');
+            return;
+        }
+
+        setIsSearching(true);
+        setError(null);
+
+        try {
+            // 1. Fetch updated availability
+            const res: any = await api.post('/bookings/search', {
+                checkInDate: tempCheckIn,
+                checkOutDate: tempCheckOut,
+                adults: tempAdults,
+                children: tempChildren,
+                rooms: tempRooms,
+                location: searchQuery.trim() || undefined,
+                isGroupBooking: tempIsGroupBooking,
+                groupSize: tempIsGroupBooking ? (tempAdults + tempChildren) : undefined,
+                currency: 'INR',
+            });
+
+            const all: any[] = res?.availableRoomTypes || [];
+            const pMap: Record<string, RoomType[]> = {};
+            const props: Property[] = [];
+            const propIds = new Set();
+
+            all.forEach((rt: any) => {
+                if (!pMap[rt.propertyId]) pMap[rt.propertyId] = [];
+                pMap[rt.propertyId].push(rt);
+
+                if (!propIds.has(rt.propertyId)) {
+                    props.push(rt.property);
+                    propIds.add(rt.propertyId);
+                }
+            });
+
+            setAvailableRoomsMap(pMap);
+            setProperties(props);
+
+            // Sync main state
+            setCheckIn(tempCheckIn);
+            setCheckOut(tempCheckOut);
+            setAdults(tempAdults);
+            setChildren(tempChildren);
+            setRooms(tempRooms);
+            setIsGroupBooking(tempIsGroupBooking);
+
+            // Handle step-specific behavior
+            if (step === 3 && selectedProperty && selectedRoom) {
+                // Check if the selected room is still available in the new search results
+                const availableRoomsForProperty = pMap[selectedProperty.id] || [];
+                const updatedRoom = availableRoomsForProperty.find(r => r.id === selectedRoom.id);
+
+                if (updatedRoom) {
+                    // Still available! Fetch new pricing
+                    setSelectedRoom(updatedRoom);
+                    await fetchPricing(updatedRoom, tempCheckIn, tempCheckOut, tempAdults, tempChildren, tempRooms, tempIsGroupBooking);
+                } else {
+                    // Not available anymore! Go back to selection
+                    setSelectedRoom(null);
+                    const propertyStillAvailable = props.some(p => p.id === selectedProperty.id);
+                    if (propertyStillAvailable) {
+                        setError(`The room "${selectedRoom.name}" is not available for the new criteria. Please select a different room.`);
+                    } else {
+                        setSelectedProperty(null);
+                        setError(`The property "${selectedProperty.name}" is not available for the new criteria.`);
+                    }
+                    setStep(2);
+                }
+            } else if (step === 2) {
+                // If on Step 2
+                if (selectedProperty) {
+                    const propertyStillAvailable = props.some(p => p.id === selectedProperty.id);
+                    if (!propertyStillAvailable) {
+                        setSelectedProperty(null);
+                        setError(`The property "${selectedProperty.name}" is not available for the new criteria.`);
+                    }
+                }
+            }
+
+            setIsEditingSearch(false);
+        } catch (e: any) {
+            setError(e?.message || 'Failed to update search. Please try again.');
+        } finally {
+            setIsSearching(false);
         }
     };
 
@@ -470,6 +636,7 @@ const InlineBookingPage: React.FC = () => {
                 checkOutDate: checkOut,
                 adultsCount: adults,
                 childrenCount: children,
+                roomsCount: rooms,
                 isGroupBooking,
                 groupSize: isGroupBooking ? (adults + children) : undefined,
                 guests: guests.map(g => ({
@@ -546,14 +713,27 @@ const InlineBookingPage: React.FC = () => {
             gap: 'var(--section-padding)',
             width: '100%',
         }}>
+            {isSubmitting && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 9999,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: 'blur(8px)',
+                    animation: 'fadeIn 0.2s ease'
+                }}>
+                    <Loader2 size={48} className="animate-spin" style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }} />
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.15em', margin: 0 }}>Finalizing Luxury Stay...</h2>
+                    <p style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-dim)', marginTop: '0.5rem', margin: 0 }}>Please wait, do not close or refresh this page.</p>
+                </div>
+            )}
 
-            {/* Sticky Header Container */}
-            <div className="booking-sticky-header" style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 100,
-                background: 'rgba(255, 255, 255, 0.7)',
-                backdropFilter: 'blur(20px)',
+            {/* Page Header (Non-sticky) */}
+            <div className="booking-page-header" style={{
                 padding: '1rem 0 1.5rem 0',
                 borderBottom: '1px solid var(--border-glass)',
                 display: 'flex',
@@ -562,7 +742,7 @@ const InlineBookingPage: React.FC = () => {
             }}>
                 <style>{`
                     @media (max-width: 768px) {
-                        .booking-sticky-header {
+                        .booking-page-header {
                             margin-left: calc(-1 * var(--section-padding));
                             margin-right: calc(-1 * var(--section-padding));
                             padding-left: var(--section-padding) !important;
@@ -622,11 +802,265 @@ const InlineBookingPage: React.FC = () => {
 
                 {/* Error Banner */}
                 {error && (
-                    <div style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-md)', color: '#ef4444', fontWeight: 600, fontSize: '0.9rem', boxShadow: '0 4px 12px rgba(239,68,68,0.1)' }}>
+                    <div id="booking-error-banner" style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-md)', color: '#ef4444', fontWeight: 600, fontSize: '0.9rem', boxShadow: '0 4px 12px rgba(239,68,68,0.1)' }}>
                         {error}
                     </div>
                 )}
             </div>
+
+            {/* Sticky Search Summary (sticky only on Step 2 & 3) */}
+            {step > 1 && step < 4 && !booking && (
+                <div className="booking-sticky-summary" style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 100,
+                    background: 'rgba(248, 250, 252, 0.85)',
+                    backdropFilter: 'blur(20px)',
+                    padding: '0.75rem 0',
+                    borderBottom: '1px solid var(--border-glass)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
+                }}>
+                    <style>{`
+                        @media (max-width: 768px) {
+                            .booking-sticky-summary {
+                                margin-left: calc(-1 * var(--section-padding));
+                                margin-right: calc(-1 * var(--section-padding));
+                                padding-left: var(--section-padding) !important;
+                                padding-right: var(--section-padding) !important;
+                            }
+                        }
+                    `}</style>
+                    {!isEditingSearch ? (
+                        <div style={{
+                            background: 'rgba(255, 255, 255, 0.6)',
+                            border: '1px solid var(--border-glass)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '0.75rem 1.25rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '1rem',
+                            marginTop: '0.25rem'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                {/* Mini Back Button */}
+                                <button onClick={() => {
+                                    if (viewingRoomDetails) {
+                                        setViewingRoomDetails(null);
+                                    } else if (step === 2 && selectedProperty) {
+                                        setSelectedProperty(null);
+                                    } else {
+                                        setStep((s) => (s - 1) as Step);
+                                    }
+                                }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', padding: '0.2rem', marginRight: '-0.5rem' }}>
+                                    <ArrowLeft size={18} />
+                                </button>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                                    <Calendar size={16} color="var(--primary-teal)" />
+                                    <span>
+                                        {(() => {
+                                            const formatDate = (dateStr: string) => {
+                                                if (!dateStr) return '';
+                                                const date = new Date(dateStr);
+                                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                            };
+                                            return `${formatDate(checkIn)} → ${formatDate(checkOut)}`;
+                                        })()}
+                                        {` (${nights} ${nights > 1 ? 'nights' : 'night'})`}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                                    <Users size={16} color="var(--primary-teal)" />
+                                    <span>{adults} Adults, {children} Children</span>
+                                </div>
+                                {!isGroupBooking && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                                        <Building2 size={16} color="var(--primary-teal)" />
+                                        <span>{rooms} Room{rooms > 1 ? 's' : ''}</span>
+                                    </div>
+                                )}
+                                <div style={{ fontSize: '0.8rem', background: 'var(--primary-teal-glow)', color: 'var(--primary-teal)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', fontWeight: 700 }}>
+                                    {isGroupBooking ? 'Group Stay' : 'Individual Stay'}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsEditingSearch(true)}
+                                style={{
+                                    padding: '0.5rem 1rem',
+                                    background: 'var(--primary-teal)',
+                                    color: '#fff',
+                                    fontWeight: 700,
+                                    fontSize: '0.85rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    boxShadow: '0 2px 6px rgba(8, 71, 78, 0.15)',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                Change Details
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="glass-pane animate-fade-in" style={{
+                            padding: '1.25rem',
+                            background: '#ffffff',
+                            border: '1px solid var(--border-glass)',
+                            borderRadius: 'var(--radius-md)',
+                            marginTop: '0.25rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1rem',
+                            boxShadow: '0 10px 25px rgba(0,0,0,0.05)'
+                        }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)' }}>
+                                        <Calendar size={12} /> Check-In
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={tempCheckIn}
+                                        min={new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setTempCheckIn(val);
+                                            if (val) {
+                                                const nextDay = new Date(new Date(val).getTime() + 86400000).toISOString().split('T')[0];
+                                                setTempCheckOut(nextDay);
+                                            }
+                                        }}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 600 }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)' }}>
+                                        <Calendar size={12} /> Check-Out
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={tempCheckOut}
+                                        min={tempCheckIn || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setTempCheckOut(e.target.value)}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 600 }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)' }}>
+                                        <Users size={12} /> Adults
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={tempAdults}
+                                        onChange={(e) => setTempAdults(Number(e.target.value))}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 700 }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>Children</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={tempChildren}
+                                        onChange={(e) => setTempChildren(Number(e.target.value))}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 700 }}
+                                    />
+                                </div>
+                                {!tempIsGroupBooking && (
+                                    <div>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)' }}>
+                                            <Building2 size={12} /> Rooms
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={tempRooms}
+                                            onChange={(e) => setTempRooms(Math.max(1, Number(e.target.value) || 1))}
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 700 }}
+                                        />
+                                    </div>
+                                )}
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)' }}>
+                                        <Users size={12} /> Stay Type
+                                    </label>
+                                    <div style={{ display: 'flex', background: 'rgba(0,0,0,0.04)', padding: '0.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)', height: '38px', boxSizing: 'border-box', alignItems: 'center' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTempIsGroupBooking(false)}
+                                            style={{
+                                                flex: 1, height: '100%', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+                                                background: !tempIsGroupBooking ? '#fff' : 'transparent',
+                                                color: !tempIsGroupBooking ? 'var(--primary-teal)' : 'var(--text-dim)',
+                                                boxShadow: !tempIsGroupBooking ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                            }}
+                                        >
+                                            Individual
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTempIsGroupBooking(true)}
+                                            style={{
+                                                flex: 1, height: '100%', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+                                                background: tempIsGroupBooking ? '#fff' : 'transparent',
+                                                color: tempIsGroupBooking ? 'var(--primary-teal)' : 'var(--text-dim)',
+                                                boxShadow: tempIsGroupBooking ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                            }}
+                                        >
+                                            Group
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                                <button
+                                    onClick={() => setIsEditingSearch(false)}
+                                    style={{
+                                        padding: '0.5rem 1.25rem',
+                                        background: 'transparent',
+                                        border: '1px solid var(--border-glass)',
+                                        color: 'var(--text-dim)',
+                                        fontWeight: 700,
+                                        fontSize: '0.85rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleUpdateSearch}
+                                    disabled={isSearching}
+                                    style={{
+                                        padding: '0.5rem 1.5rem',
+                                        background: 'var(--primary-teal)',
+                                        color: '#fff',
+                                        fontWeight: 700,
+                                        fontSize: '0.85rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        boxShadow: '0 2px 8px rgba(8, 71, 78, 0.2)'
+                                    }}
+                                >
+                                    {isSearching ? <Loader2 size={14} className="animate-spin" /> : 'Update'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ===== STEP 1: SEARCH CRITERIA ===== */}
             {step === 1 && (
@@ -664,7 +1098,14 @@ const InlineBookingPage: React.FC = () => {
                                     type="date"
                                     value={checkIn}
                                     min={new Date().toISOString().split('T')[0]}
-                                    onChange={(e) => setCheckIn(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCheckIn(val);
+                                        if (val) {
+                                            const nextDay = new Date(new Date(val).getTime() + 86400000).toISOString().split('T')[0];
+                                            setCheckOut(nextDay);
+                                        }
+                                    }}
                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box' }}
                                 />
                             </div>
@@ -682,7 +1123,7 @@ const InlineBookingPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: !isGroupBooking ? '1fr 1fr 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
                                     <Users size={14} /> Adults (13+)
@@ -705,6 +1146,20 @@ const InlineBookingPage: React.FC = () => {
                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box', fontWeight: 700 }}
                                 />
                             </div>
+                            {!isGroupBooking && (
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
+                                        <Building2 size={14} /> Rooms
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={rooms}
+                                        onChange={(e) => setRooms(Math.max(1, Number(e.target.value) || 1))}
+                                        style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box', fontWeight: 700 }}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.4)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)' }}>
@@ -741,7 +1196,7 @@ const InlineBookingPage: React.FC = () => {
                         </div>
 
                         <button
-                            onClick={performSearch}
+                            onClick={() => performSearch()}
                             disabled={isSearching}
                             style={{
                                 width: '100%', padding: '1.1rem', background: 'linear-gradient(135deg, var(--primary-teal) 0%, #0c6a75 100%)',
@@ -832,6 +1287,7 @@ const InlineBookingPage: React.FC = () => {
                                                 guests={adults + children}
                                                 isGroupBooking={isGroupBooking}
                                                 currency={selectedProperty.currency}
+                                                roomsCount={rooms}
                                             />
                                         ))
                                     )}
@@ -956,9 +1412,19 @@ const InlineBookingPage: React.FC = () => {
                                                 <select
                                                     value={g.idType || ''}
                                                     onChange={(e) => {
+                                                        const val = e.target.value;
                                                         const newGuests = [...guests];
-                                                        newGuests[idx].idType = e.target.value;
+                                                        newGuests[idx].idType = val;
                                                         setGuests(newGuests);
+                                                        if (val) {
+                                                            setIdWarnings(prev => {
+                                                                const next = { ...prev };
+                                                                delete next[`${idx}-idNumber`];
+                                                                delete next[`${idx}-idImage`];
+                                                                delete next[`${idx}-idImageBack`];
+                                                                return next;
+                                                            });
+                                                        }
                                                     }}
                                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: '#1a1a1a', color: '#fff', outline: 'none' }}
                                                 >
@@ -971,33 +1437,79 @@ const InlineBookingPage: React.FC = () => {
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Number</label>
-                                                <input
-                                                    type="text"
-                                                    value={g.idNumber || ''}
-                                                    onChange={(e) => {
-                                                        const newGuests = [...guests];
-                                                        newGuests[idx].idNumber = e.target.value;
-                                                        setGuests(newGuests);
+                                                <div
+                                                    onClick={() => {
+                                                        if (!g.idType) {
+                                                            setIdWarnings(prev => ({ ...prev, [`${idx}-idNumber`]: 'Please select the ID type first' }));
+                                                        }
                                                     }}
-                                                    placeholder="Identification Number"
-                                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', outline: 'none' }}
-                                                />
+                                                    style={{ width: '100%', cursor: g.idType ? 'default' : 'not-allowed' }}
+                                                >
+                                                    <input
+                                                        type="text"
+                                                        value={g.idNumber || ''}
+                                                        disabled={!g.idType}
+                                                        onChange={(e) => {
+                                                            const newGuests = [...guests];
+                                                            newGuests[idx].idNumber = e.target.value;
+                                                            setGuests(newGuests);
+                                                        }}
+                                                        placeholder="Identification Number"
+                                                        style={{ 
+                                                            width: '100%', 
+                                                            padding: '0.75rem', 
+                                                            border: '1px solid var(--border-glass)', 
+                                                            borderRadius: 'var(--radius-sm)', 
+                                                            background: g.idType ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)', 
+                                                            color: g.idType ? 'var(--text-main)' : 'rgba(255,255,255,0.3)', 
+                                                            outline: 'none',
+                                                            cursor: g.idType ? 'text' : 'not-allowed',
+                                                            pointerEvents: g.idType ? 'auto' : 'none'
+                                                        }}
+                                                    />
+                                                </div>
+                                                {idWarnings[`${idx}-idNumber`] && (
+                                                    <p style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                                                        {idWarnings[`${idx}-idNumber`]}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Scan (Front)</label>
-                                                <div style={{ position: 'relative', border: '1px dashed var(--border-glass)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', textAlign: 'center', background: g.idImage ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', minHeight: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*,application/pdf"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) handleGuestIdUpload(idx, file, false);
-                                                        }}
-                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-                                                    />
+                                                <div 
+                                                    onClick={() => {
+                                                        if (!g.idType) {
+                                                            setIdWarnings(prev => ({ ...prev, [`${idx}-idImage`]: 'Please select the ID type first' }));
+                                                        }
+                                                    }}
+                                                    style={{ 
+                                                        position: 'relative', 
+                                                        border: '1px dashed var(--border-glass)', 
+                                                        borderRadius: 'var(--radius-sm)', 
+                                                        padding: '0.75rem', 
+                                                        textAlign: 'center', 
+                                                        background: g.idType ? (g.idImage ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)') : 'rgba(255,255,255,0.01)', 
+                                                        cursor: g.idType ? 'pointer' : 'not-allowed', 
+                                                        minHeight: '52px', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center' 
+                                                    }}
+                                                >
+                                                    {g.idType && (
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*,application/pdf"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleGuestIdUpload(idx, file, false);
+                                                            }}
+                                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+                                                        />
+                                                    )}
                                                     {g.isUploading ? (
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--primary-teal)', fontWeight: 700 }}>Uploading...</span>
                                                     ) : g.idImage ? (
@@ -1022,19 +1534,45 @@ const InlineBookingPage: React.FC = () => {
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Upload Front Side</span>
                                                     )}
                                                 </div>
+                                                {idWarnings[`${idx}-idImage`] && (
+                                                    <p style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                                                        {idWarnings[`${idx}-idImage`]}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>ID Scan (Back - Optional)</label>
-                                                <div style={{ position: 'relative', border: '1px dashed var(--border-glass)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', textAlign: 'center', background: g.idImageBack ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', minHeight: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*,application/pdf"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) handleGuestIdUpload(idx, file, true);
-                                                        }}
-                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-                                                    />
+                                                <div 
+                                                    onClick={() => {
+                                                        if (!g.idType) {
+                                                            setIdWarnings(prev => ({ ...prev, [`${idx}-idImageBack`]: 'Please select the ID type first' }));
+                                                        }
+                                                    }}
+                                                    style={{ 
+                                                        position: 'relative', 
+                                                        border: '1px dashed var(--border-glass)', 
+                                                        borderRadius: 'var(--radius-sm)', 
+                                                        padding: '0.75rem', 
+                                                        textAlign: 'center', 
+                                                        background: g.idType ? (g.idImageBack ? 'rgba(8, 71, 78, 0.1)' : 'rgba(255,255,255,0.02)') : 'rgba(255,255,255,0.01)', 
+                                                        cursor: g.idType ? 'pointer' : 'not-allowed', 
+                                                        minHeight: '52px', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center' 
+                                                    }}
+                                                >
+                                                    {g.idType && (
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*,application/pdf"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleGuestIdUpload(idx, file, true);
+                                                            }}
+                                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+                                                        />
+                                                    )}
                                                     {g.isUploadingBack ? (
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--primary-teal)', fontWeight: 700 }}>Uploading...</span>
                                                     ) : g.idImageBack ? (
@@ -1059,6 +1597,11 @@ const InlineBookingPage: React.FC = () => {
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Upload Back Side</span>
                                                     )}
                                                 </div>
+                                                {idWarnings[`${idx}-idImageBack`] && (
+                                                    <p style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                                                        {idWarnings[`${idx}-idImageBack`]}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1297,55 +1840,83 @@ const InlineBookingPage: React.FC = () => {
                                 <div style={{ marginBottom: '0.5rem' }}>
                                     <p style={{ fontWeight: 900, color: 'var(--text-main)', fontSize: '1.1rem' }}>{selectedProperty?.name}</p>
                                     <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>{selectedRoom?.name}</p>
+                                    <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-teal)', marginTop: '0.2rem' }}>
+                                        {!isGroupBooking && `${rooms} Room${rooms > 1 ? 's' : ''} • `}{adults + children} Guest{adults + children > 1 ? 's' : ''}
+                                    </p>
                                 </div>
 
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
-                                    <span>Accommodation ({nights} {nights > 1 ? 'nights' : 'night'})</span>
-                                    <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatPrice(serverBase, selectedProperty?.currency || 'INR')}</span>
-                                </div>
+                                {(() => {
+                                    const isInclusive = pricing?.isGstInclusive;
+                                    const taxFactor = 1 + ((pricing?.taxRate || 5) / 100);
+                                    const roomChargesDisplay = isInclusive
+                                        ? (pricing?.originalTotal || (serverBase + serverTax))
+                                        : serverBase;
+                                    const offerDiscountDisplay = isInclusive && serverOfferDiscount > 0
+                                        ? Number((serverOfferDiscount * taxFactor).toFixed(2))
+                                        : serverOfferDiscount;
+                                    const referralDiscountDisplay = isInclusive && serverReferralDiscount > 0
+                                        ? Number((serverReferralDiscount * taxFactor).toFixed(2))
+                                        : serverReferralDiscount;
 
-                                {(serverExtraAdult > 0 || serverExtraChild > 0) && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
-                                        <span>Extra Guest Services</span>
-                                        <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatPrice(serverExtraAdult + serverExtraChild, selectedProperty?.currency || 'INR')}</span>
-                                    </div>
-                                )}
+                                    return (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
+                                                <span>Accommodation ({nights} {nights > 1 ? 'nights' : 'night'}) {isInclusive && <span style={{ fontSize: '0.7rem', fontWeight: 800 }}>(GST Inc.)</span>}</span>
+                                                <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatPrice(roomChargesDisplay, selectedProperty?.currency || 'INR')}</span>
+                                            </div>
 
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
-                                    <span>Government Tax & GST</span>
-                                    <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatPrice(serverTax, selectedProperty?.currency || 'INR')}</span>
-                                </div>
+                                            {(serverExtraAdult > 0 || serverExtraChild > 0) && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
+                                                    <span>Extra Guest Services</span>
+                                                    <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatPrice(serverExtraAdult + serverExtraChild, selectedProperty?.currency || 'INR')}</span>
+                                                </div>
+                                            )}
 
-                                {serverOfferDiscount > 0 && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 700 }}>
-                                        <span>Exclusive Offer Applied</span>
-                                        <span>-{formatPrice(serverOfferDiscount, selectedProperty?.currency || 'INR')}</span>
-                                    </div>
-                                )}
+                                            {offerDiscountDisplay > 0 && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 700 }}>
+                                                    <span>Exclusive Offer Applied</span>
+                                                    <span>-{formatPrice(offerDiscountDisplay, selectedProperty?.currency || 'INR')}</span>
+                                                </div>
+                                            )}
 
-                                {serverReferralDiscount > 0 && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 700 }}>
-                                        <span>Guest Discount({discountRate}%)</span>
-                                        <span>-{formatPrice(serverReferralDiscount, selectedProperty?.currency || 'INR')}</span>
-                                    </div>
-                                )}
+                                            {referralDiscountDisplay > 0 && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 700 }}>
+                                                    <span>Guest Discount({discountRate}%)</span>
+                                                    <span>-{formatPrice(referralDiscountDisplay, selectedProperty?.currency || 'INR')}</span>
+                                                </div>
+                                            )}
 
-                                {paymentMethod === 'WALLET' && paymentOption === 'FULL' && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f59e0b', fontWeight: 700, padding: '0.5rem 0', borderTop: '1px dashed var(--border-glass)', borderBottom: '1px dashed var(--border-glass)' }}>
-                                        <span>Instant Commission ({commissionRate}%)</span>
-                                        <span>-{formatPrice(commission, selectedProperty?.currency || 'INR')}</span>
-                                    </div>
-                                )}
+                                            {!isInclusive && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
+                                                    <span>Government Tax & GST ({pricing?.taxRate || 5}%)</span>
+                                                    <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>+{formatPrice(serverTax, selectedProperty?.currency || 'INR')}</span>
+                                                </div>
+                                            )}
 
-                                <div style={{ borderTop: '1px solid var(--border-glass)', marginTop: '0.75rem', paddingTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                    <div>
-                                        <p style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-dim)' }}>Grand Total</p>
-                                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-teal)' }}>{paymentOption === 'PARTIAL' ? 'Advance Deposit' : 'Net Investment'}</span>
-                                    </div>
-                                    <span style={{ fontWeight: 900, fontSize: '1.8rem', color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
-                                        {formatPrice(amountToPay, selectedProperty?.currency || 'INR')}
-                                    </span>
-                                </div>
+                                            {paymentMethod === 'WALLET' && paymentOption === 'FULL' && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f59e0b', fontWeight: 700, padding: '0.5rem 0', borderTop: '1px dashed var(--border-glass)', borderBottom: '1px dashed var(--border-glass)' }}>
+                                                    <span>Instant Commission ({commissionRate}%)</span>
+                                                    <span>-{formatPrice(commission, selectedProperty?.currency || 'INR')}</span>
+                                                </div>
+                                            )}
+
+                                            <div style={{ borderTop: '1px solid var(--border-glass)', marginTop: '0.75rem', paddingTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                                <div>
+                                                    <p style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-dim)' }}>Grand Total</p>
+                                                    <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-teal)', display: 'block' }}>{paymentOption === 'PARTIAL' ? 'Advance Deposit' : 'Net Investment'}</span>
+                                                    {isInclusive && serverTax > 0 && (
+                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#10b981', display: 'block', marginTop: '0.15rem' }}>
+                                                            Includes {formatPrice(serverTax, selectedProperty?.currency || 'INR')} GST ({pricing?.taxRate || 5}%)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span style={{ fontWeight: 900, fontSize: '1.8rem', color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
+                                                    {formatPrice(amountToPay, selectedProperty?.currency || 'INR')}
+                                                </span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
 

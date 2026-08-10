@@ -544,15 +544,41 @@ export class NotificationsService {
   }
 
   /**
-   * Notify admins when a new property onboarding request is initiated
+   * Notify admins when a new property onboarding request is initiated (self-registration or marketing)
    */
   async notifyPropertyRequest(request: any) {
-    await this.notifyAdmins({
-      title: 'New Property Onboarding Request 🏨',
-      message: `A marketing-led request for "${request.name}" is pending review.`,
-      type: 'PROPERTY_REQUEST',
-      data: { requestId: request.id }
+    // Step 1: Fetch all admins with their emails
+    const admins = await this.prisma.user.findMany({
+      where: {
+        roles: {
+          some: { role: { name: { in: ['SuperAdmin', 'Admin'] } } }
+        }
+      },
+      select: { id: true, email: true }
     });
+
+    for (const admin of admins) {
+      // In-app dashboard bell notification
+      await this.createNotification({
+        userId: admin.id,
+        title: 'New Property Registration 🏨',
+        message: `"${request.name}" has self-registered and is pending your review.`,
+        type: 'PROPERTY_REQUEST',
+        data: { requestId: request.id }
+      });
+
+      // Email alert to admin
+      if (admin.email) {
+        try {
+          await this.mailService.sendAdminPropertyRegistrationRequest(admin.email, request);
+        } catch (err) {
+          this.logger.error(`[notifyPropertyRequest] Admin email failed to ${admin.email}:`, err);
+        }
+      }
+    }
+
+    // Also broadcast to the admin websocket room for real-time dashboard alert
+    this.gateway.sendToRoom('admins', 'PROPERTY_REQUEST', { requestId: request.id, name: request.name });
   }
 
   /**
@@ -580,20 +606,45 @@ export class NotificationsService {
   }
 
   /**
-   * Notify property owner when property is Approved/Rejected
+   * Notify property owner (and property email) when property is Approved/Rejected
    */
   async notifyPropertyStatusUpdate(property: any, status: string) {
     const isApproved = status === 'APPROVED';
-    await this.createNotification({
-      userId: property.ownerId,
-      title: isApproved ? 'Property Approved! 🎉' : 'Property Update',
-      message: isApproved
-        ? `Your property "${property.name}" has been approved and is now live.`
-        : `There is an update regarding your property "${property.name}".`,
-      type: 'PROPERTY_STATUS_UPDATE',
-      targetRole: 'PropertyOwner',
-      data: { propertyId: property.id, status }
-    });
+
+    // 1. In-app dashboard notification to the owner
+    if (property.ownerId) {
+      await this.createNotification({
+        userId: property.ownerId,
+        title: isApproved ? 'Property Approved! 🎉' : 'Property Registration Update',
+        message: isApproved
+          ? `Your property "${property.name}" has been approved and is now live.`
+          : `There is an update regarding your property "${property.name}". Please check your email.`,
+        type: 'PROPERTY_STATUS_UPDATE',
+        targetRole: 'PropertyOwner',
+        data: { propertyId: property.id, status }
+      });
+    }
+
+    // 2. Fetch the property request to get ownerEmail and propertyEmail
+    //    property may be a full Property or a PropertyRequest
+    const ownerEmail: string | null = property.ownerEmail
+      || property.owner?.email
+      || property.requestedBy?.email
+      || null;
+
+    const propertyEmail: string | null = property.email || property.details?.propertyEmail || null;
+
+    // Build unique list of recipients — send once if both addresses are the same
+    const recipients = Array.from(new Set([ownerEmail, propertyEmail].filter(Boolean))) as string[];
+
+    // 3. Send approval/rejection email
+    for (const recipient of recipients) {
+      try {
+        await this.mailService.sendPropertyApprovalEmail(recipient, property, isApproved);
+      } catch (err) {
+        this.logger.error(`[notifyPropertyStatusUpdate] Approval email failed to ${recipient}:`, err);
+      }
+    }
   }
 
   /**

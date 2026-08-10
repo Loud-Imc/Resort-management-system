@@ -96,6 +96,17 @@ export class ExpensesController {
         res.end(buffer);
     }
 
+    @Get('alterations/logs')
+    @Permissions(PERMISSIONS.EXPENSES.READ)
+    @ApiOperation({ summary: 'Get all expense alteration histories' })
+    @ApiQuery({ name: 'propertyId', required: false })
+    findAllHistory(
+        @Request() req,
+        @Query('propertyId') propertyId?: string
+    ) {
+        return this.expensesService.findAllHistory(req.user, propertyId);
+    }
+
     @Get(':id')
     @Permissions(PERMISSIONS.EXPENSES.READ)
     @ApiOperation({ summary: 'Get expense by ID' })
@@ -117,8 +128,13 @@ export class ExpensesController {
     @Delete(':id')
     @Permissions(PERMISSIONS.EXPENSES.DELETE)
     @ApiOperation({ summary: 'Delete expense' })
-    remove(@Param('id') id: string, @Request() req) {
-        return this.expensesService.remove(id, req.user);
+    @ApiQuery({ name: 'reason', required: false })
+    remove(
+        @Param('id') id: string,
+        @Query('reason') reason: string,
+        @Request() req
+    ) {
+        return this.expensesService.remove(id, req.user, reason);
     }
 
     // ===== Categories =====

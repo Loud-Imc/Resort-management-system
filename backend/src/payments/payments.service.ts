@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
@@ -10,6 +10,7 @@ import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 import { RequestStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
+import { ChannelsService } from '../channels/channels.service';
 
 @Injectable()
 export class PaymentsService {
@@ -23,6 +24,7 @@ export class PaymentsService {
         private notificationsService: NotificationsService,
         private audit: AuditService,
         private systemSettings: SystemSettingsService,
+        @Optional() @Inject(forwardRef(() => ChannelsService)) private channelsService?: ChannelsService,
     ) {
         const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
         const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -33,6 +35,31 @@ export class PaymentsService {
             key_id: keyId,
             key_secret: keySecret,
         });
+    }
+
+    private triggerChannexSync(
+        propertyId?: string | null,
+        bookingDetails?: {
+            roomTypeId: string;
+            startDate: Date;
+            endDate: Date;
+        }
+    ) {
+        if (!this.channelsService || !propertyId) return;
+        if (bookingDetails) {
+            this.channelsService.pushAvailabilityForDates(
+                propertyId,
+                bookingDetails.roomTypeId,
+                bookingDetails.startDate,
+                bookingDetails.endDate
+            ).catch(err => {
+                console.error(`[Channex ARI Sync] Payment confirmation push failed for property ${propertyId}:`, err);
+            });
+        } else {
+            this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+                console.error(`[Channex ARI Sync] Payment confirmation push failed for property ${propertyId}:`, err);
+            });
+        }
     }
 
     /**
@@ -462,6 +489,11 @@ export class PaymentsService {
 
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
+                this.triggerChannexSync(refreshedBooking.propertyId, {
+                    roomTypeId: refreshedBooking.roomTypeId,
+                    startDate: refreshedBooking.checkInDate,
+                    endDate: refreshedBooking.checkOutDate,
+                });
 
                 // Delayed Commission Trigger
                 // If already checked in and now fully paid, trigger payout

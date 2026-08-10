@@ -1,13 +1,18 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomDto, UpdateRoomDto, BlockRoomDto } from './dto/room.dto';
 import { AuditService } from '../audit/audit.service';
+import { ChannelsService } from '../channels/channels.service';
+import { DateUtils } from '../common/utils/date.utils';
 
 @Injectable()
 export class RoomsService {
+    private readonly logger = new Logger(RoomsService.name);
+
     constructor(
         private prisma: PrismaService,
         private auditService: AuditService,
+        @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
     ) { }
 
     /**
@@ -72,6 +77,7 @@ export class RoomsService {
         status?: string;
         isEnabled?: boolean;
         propertyId?: string;
+        date?: string;
     }) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
@@ -85,8 +91,11 @@ export class RoomsService {
             ];
         }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0);
+        
+        const targetDate = filters?.date ? new Date(filters.date) : new Date();
+        targetDate.setHours(0, 0, 0, 0);
 
         const rooms = await this.prisma.room.findMany({
             where: {
@@ -103,13 +112,13 @@ export class RoomsService {
                     where: {
                         booking: {
                             status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
-                            checkInDate: { lte: today },
-                            checkOutDate: { gte: today },
+                            checkOutDate: { gte: currentDate },
                         }
                     },
                     include: {
                         booking: {
                             select: { 
+                                id: true,
                                 status: true, 
                                 checkInDate: true, 
                                 checkOutDate: true, 
@@ -130,6 +139,11 @@ export class RoomsService {
                         }
                     },
                 },
+                blocks: {
+                    where: {
+                        endDate: { gte: currentDate }
+                    }
+                }
             },
             orderBy: [
                 { floor: 'asc' },
@@ -139,34 +153,44 @@ export class RoomsService {
 
         // Dynamic status adjustment for dashboard/listing consistency using Phase 6 BookingRoom logic
         let computedRooms = rooms.map((room: any) => {
-            if (['MAINTENANCE', 'CLEANING', 'BLOCKED'].includes(room.status)) {
+            if (['MAINTENANCE', 'CLEANING'].includes(room.status)) {
                 return room;
+            }
+
+            // Determine if there is actually an active block on targetDate
+            const hasActiveBlock = room.blocks && room.blocks.some((b: any) => {
+                const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
+                const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
+                return targetDate >= blockStart && targetDate < blockEnd;
+            });
+            if (hasActiveBlock) {
+                return { ...room, status: 'BLOCKED' };
             }
 
             const bookingRoomsList = room.bookingRooms || [];
 
-            // Find active booking for tonight
-            const activeBookingForTonight = bookingRoomsList.find((br: any) => {
+            // Find active booking for targetDate
+            const activeBookingForTarget = bookingRoomsList.find((br: any) => {
                 const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
                 const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
-                return today >= checkIn && today < checkOut;
+                return targetDate >= checkIn && targetDate < checkOut;
             })?.booking;
 
-            // Find checkout today
-            const checkoutBookingToday = bookingRoomsList.find((br: any) => {
+            // Find checkout on targetDate
+            const checkoutBookingTarget = bookingRoomsList.find((br: any) => {
                 const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
-                return today.getTime() === checkOut.getTime();
+                return targetDate.getTime() === checkOut.getTime();
             })?.booking;
 
             let dynamicStatus = 'AVAILABLE';
 
-            if (activeBookingForTonight) {
-                if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTonight.status)) {
+            if (activeBookingForTarget) {
+                if (['CHECKED_IN', 'CHECKED_OUT'].includes(activeBookingForTarget.status)) {
                     dynamicStatus = 'OCCUPIED';
                 } else {
                     dynamicStatus = 'RESERVED';
                 }
-            } else if (checkoutBookingToday) {
+            } else if (checkoutBookingTarget) {
                 dynamicStatus = 'OUT_TODAY';
             }
 
@@ -222,6 +246,15 @@ export class RoomsService {
                         }
                     },
                 },
+                blocks: {
+                    where: {
+                        // fetch all current and future blocks
+                        endDate: { gte: DateUtils.parseCalendarDate(new Date()) }
+                    },
+                    orderBy: {
+                        startDate: 'asc'
+                    }
+                }
             },
         });
 
@@ -378,7 +411,9 @@ export class RoomsService {
         const room = await this.findOne(roomId, user);
 
         const startDate = new Date(blockRoomDto.startDate);
+        startDate.setHours(0, 0, 0, 0);
         const endDate = new Date(blockRoomDto.endDate);
+        endDate.setHours(0, 0, 0, 0);
 
         if (endDate <= startDate) {
             throw new BadRequestException('End date must be after start date');
@@ -415,33 +450,44 @@ export class RoomsService {
             throw new ConflictException('Room is already blocked for this period');
         }
 
-        // Check for overlapping bookings
+        // Check for overlapping bookings (checking both direct roomId and bookingRooms)
         const overlappingBookings = await this.prisma.booking.findMany({
             where: {
-                roomId,
-                status: {
-                    in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
-                },
-                OR: [
+                AND: [
                     {
-                        AND: [
-                            { checkInDate: { lte: startDate } },
-                            { checkOutDate: { gt: startDate } },
-                        ],
+                        OR: [
+                            { roomId },
+                            { bookingRooms: { some: { roomId } } }
+                        ]
                     },
                     {
-                        AND: [
-                            { checkInDate: { lt: endDate } },
-                            { checkOutDate: { gte: endDate } },
-                        ],
+                        status: {
+                            in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
+                        }
                     },
                     {
-                        AND: [
-                            { checkInDate: { gte: startDate } },
-                            { checkOutDate: { lte: endDate } },
-                        ],
-                    },
-                ],
+                        OR: [
+                            {
+                                AND: [
+                                    { checkInDate: { lte: startDate } },
+                                    { checkOutDate: { gt: startDate } },
+                                ],
+                            },
+                            {
+                                AND: [
+                                    { checkInDate: { lt: endDate } },
+                                    { checkOutDate: { gte: endDate } },
+                                ],
+                            },
+                            {
+                                AND: [
+                                    { checkInDate: { gte: startDate } },
+                                    { checkOutDate: { lte: endDate } },
+                                ],
+                            },
+                        ]
+                    }
+                ]
             },
         });
 
@@ -490,6 +536,18 @@ export class RoomsService {
             newValue: block,
         });
 
+        // [PRC-01] Auto-sync with Channex since room availability changed
+        if (block.room.propertyId) {
+            this.channelsService.pushAvailabilityForDates(
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            ).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${block.room.propertyId} after room block: ${err.message}`, err.stack);
+            });
+        }
+
         return block;
     }
 
@@ -533,6 +591,18 @@ export class RoomsService {
             userId: user.id,
             oldValue: block,
         });
+
+        // [PRC-01] Auto-sync with Channex since room availability changed
+        if (block.room.propertyId) {
+            this.channelsService.pushAvailabilityForDates(
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            ).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${block.room.propertyId} after room unblock: ${err.message}`, err.stack);
+            });
+        }
 
         return { message: 'Block removed successfully' };
     }

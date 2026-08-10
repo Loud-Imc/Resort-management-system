@@ -58,6 +58,7 @@ export interface Booking {
     status: BookingStatus;
     specialRequests?: string;
     whatsappNumber?: string;
+    channelName?: string;
     isManualBooking: boolean;
     roomId: string;
     roomTypeId: string;
@@ -87,6 +88,16 @@ export interface Booking {
         whatsappNumber?: string;
     };
     bookingSourceId?: string;
+    offlineCpId?: string;
+    offlineCpCommission?: number;
+    offlineCp?: {
+        id: string;
+        name: string;
+        phone?: string;
+        email?: string;
+        companyName?: string;
+        defaultCommission?: number;
+    };
     agentId?: string;
     commissionAmount: number;
     guests: BookingGuest[];
@@ -109,6 +120,7 @@ export interface Booking {
             id: string;
             roomNumber: string;
             roomType: {
+                id?: string;
                 name: string;
                 images?: string[];
                 property?: any;
@@ -193,6 +205,8 @@ export interface PriceCalculationDto {
     checkOutDate: string;
     adultsCount: number;
     childrenCount: number;
+    extraAdultsCount?: number;
+    extraChildrenCount?: number;
     couponCode?: string;
     referralCode?: string;
     generalCode?: string;
@@ -206,14 +220,22 @@ export interface PriceCalculationDto {
 
 export interface PriceCalculationResult {
     baseAmount: number;
+    grossBaseAmount?: number;
     extraAdultAmount: number;
+    grossExtraAdultAmount?: number;
     extraChildAmount: number;
+    grossExtraChildAmount?: number;
     taxAmount: number;
     offerDiscountAmount: number;
+    grossOfferDiscountAmount?: number;
     couponDiscountAmount: number;
+    grossCouponDiscountAmount?: number;
     referralDiscountAmount: number;
+    grossReferralDiscountAmount?: number;
     discountAmount: number;
     totalAmount: number;
+    originalTotal?: number;
+    isGstInclusive?: boolean;
     targetCurrency?: string;
     convertedTotal?: number;
     exchangeRate?: number;

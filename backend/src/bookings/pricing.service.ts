@@ -1,14 +1,22 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { format } from 'date-fns';
+import { DateUtils } from '../common/utils/date.utils';
 
 export interface PricingBreakdown {
     baseAmount: number;
+    grossBaseAmount: number;
     extraAdultAmount: number;
+    grossExtraAdultAmount: number;
     extraChildAmount: number;
+    grossExtraChildAmount: number;
     taxAmount: number;
     offerDiscountAmount: number;
+    grossOfferDiscountAmount: number;
     couponDiscountAmount: number;
+    grossCouponDiscountAmount: number;
     referralDiscountAmount: number;
+    grossReferralDiscountAmount: number;
     discountAmount: number;
     totalAmount: number;
     originalTotal: number;
@@ -28,6 +36,45 @@ export interface PricingBreakdown {
     referralPartnerId?: string;
     partialPaymentPct?: number;
     isGstInclusive?: boolean;
+    offerName?: string;
+    offerDescription?: string;
+    offerStartDate?: string;
+    offerEndDate?: string;
+    offerDiscountType?: string;
+    offerDiscountValue?: number;
+}
+
+export interface PublishedRateBreakdown {
+    originalBasePrice: number;
+    basePrice: number;
+    effectivePriceBeforeTax: number;
+    taxAmount: number;
+    taxRate: number;
+    isGstInclusive: boolean;
+    gstMode: 'INCLUSIVE' | 'EXCLUSIVE';
+    appliedPricingRule?: {
+        id: string;
+        name: string;
+        adjustmentType: string;
+        adjustmentValue: number;
+    };
+    appliedOffer?: {
+        id: string;
+        name: string;
+        discountType: string;
+        discountValue: number;
+    };
+}
+
+export interface PublishedDailyRateQuote {
+    date: string;
+    roomTypeId: string;
+    publishedPrice: number;
+    convertedPublishedPrice: number;
+    baseCurrency: string;
+    targetCurrency: string;
+    exchangeRate: number;
+    breakdown: PublishedRateBreakdown;
 }
 
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -65,6 +112,8 @@ export class PricingService {
         generalCode?: string,
         overrideTotal?: number,
         isOverrideInclusive: boolean = true,
+        extraAdultsCount?: number,
+        extraChildrenCount?: number,
     ): Promise<PricingBreakdown> {
         console.log(`[PricingService] calculatePrice inputs - gen: ${generalCode} (${typeof generalCode}), coup: ${couponCode} (${typeof couponCode}), ref: ${referralCode} (${typeof referralCode})`);
         // Resolve generalCode if provided
@@ -157,6 +206,8 @@ export class PricingService {
         let baseAmount = 0;
         let extraAdultAmount = 0;
         let extraChildAmount = 0;
+        let extraAdults = 0;
+        let extraChildren = 0;
         let basePricePerNight = 0;
         let isGroupInclusive = false;
         
@@ -237,14 +288,18 @@ export class PricingService {
             baseAmount = basePricePerNight * Math.max(1, numberOfNights);
 
             // 4. Calculate extra adult charges
-            // Extra adults are charged when guest count exceeds combined rooms' maxAdults capacity
-            const totalMaxAdults = Number(roomType.maxAdults) * rooms;
-            const extraAdults = Math.max(0, adultsCount - totalMaxAdults);
+            // Use explicit extraAdultsCount if provided, else fallback to total guest count minus base capacity
+            const effectiveBaseAdults = Number(roomType.baseAdults ?? roomType.maxAdults ?? 2) * rooms;
+            extraAdults = extraAdultsCount !== undefined && extraAdultsCount !== null
+                ? Math.max(0, Number(extraAdultsCount))
+                : Math.max(0, adultsCount - effectiveBaseAdults);
             extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
 
             // 5. Calculate extra child charges
-            const totalMaxChildren = Number(roomType.maxChildren) * rooms;
-            const extraChildren = Math.max(0, childrenCount - totalMaxChildren);
+            const effectiveBaseChildren = Number(roomType.baseChildren ?? roomType.maxChildren ?? 1) * rooms;
+            extraChildren = extraChildrenCount !== undefined && extraChildrenCount !== null
+                ? Math.max(0, Number(extraChildrenCount))
+                : Math.max(0, childrenCount - effectiveBaseChildren);
             extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
         }
 
@@ -289,22 +344,24 @@ export class PricingService {
         const originalTotal = subtotalBeforeDiscounts + originalTaxAmount;
 
         // 7. Check for active Room Type Offers (Direct Discounts)
-        const activeOffer = await this.prisma.offer.findFirst({
+        const allOffers = await this.prisma.offer.findMany({
             where: {
                 roomTypes: { some: { id: roomTypeId } },
                 isActive: true,
-                startDate: { lte: checkOutDate },
-                endDate: { gte: checkInDate },
             },
         });
+
+        const activeOffer = allOffers.find(offer =>
+            DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, offer.startDate, offer.endDate)
+        );
 
         let offerDiscountAmount = 0;
         if (activeOffer) {
             const offer = activeOffer as any;
             if (offer.discountType === 'PERCENTAGE') {
-                offerDiscountAmount = (subtotal * Number(offer.discountValue)) / 100;
+                offerDiscountAmount = Math.round((subtotal * Number(offer.discountValue)) / 100);
             } else {
-                offerDiscountAmount = Number(offer.discountValue);
+                offerDiscountAmount = Math.round(Number(offer.discountValue));
             }
             subtotal -= offerDiscountAmount;
         }
@@ -414,32 +471,89 @@ export class PricingService {
         // The consolidated roomCount used for pricing/tax logic
         const roomCount = finalRoomCount;
 
+        const cleanFloat = (val: number) => {
+            const rounded = Math.round(val);
+            if (Math.abs(val - rounded) < 0.05) return rounded;
+            return Number(val.toFixed(2));
+        };
+
+        const isGstInc = isGroupBooking ? !!isGroupInclusive : !!roomType.isGstInclusive;
+        const taxMultiplier = 1 + (taxRate / 100);
+
+        const grossBaseAmount = isGstInc
+            ? cleanFloat((Number(roomType.basePrice) || 0) * roomCount * Math.max(1, numberOfNights))
+            : cleanFloat(baseAmount);
+
+        const grossExtraAdultAmount = isGstInc
+            ? cleanFloat((Number(roomType.extraAdultPrice) || 0) * (extraAdults || 0) * Math.max(1, numberOfNights))
+            : cleanFloat(extraAdultAmount);
+
+        const grossExtraChildAmount = isGstInc
+            ? cleanFloat((Number(roomType.extraChildPrice) || 0) * (extraChildren || 0) * Math.max(1, numberOfNights))
+            : cleanFloat(extraChildAmount);
+
+        const grossOfferDiscountAmount = isGstInc
+            ? Math.round(offerDiscountAmount * taxMultiplier)
+            : Math.round(offerDiscountAmount);
+
+        const grossCouponDiscountAmount = isGstInc
+            ? cleanFloat(couponDiscountAmount * taxMultiplier)
+            : cleanFloat(couponDiscountAmount);
+
+        const grossReferralDiscountAmount = isGstInc
+            ? cleanFloat(referralDiscountAmount * taxMultiplier)
+            : cleanFloat(referralDiscountAmount);
+
+        const finalTotalAmount = isGstInc
+            ? Math.max(0, Math.round(grossBaseAmount + grossExtraAdultAmount + grossExtraChildAmount - grossOfferDiscountAmount - grossCouponDiscountAmount - grossReferralDiscountAmount))
+            : cleanFloat(totalAmount);
+
+        const finalTaxAmount = isGstInc && taxRate > 0
+            ? cleanFloat(finalTotalAmount * (taxRate / (100 + taxRate)))
+            : cleanFloat(totalTaxAmount);
+
         const result = {
-            baseAmount: Number(baseAmount.toFixed(2)),
-            extraAdultAmount: Number(extraAdultAmount.toFixed(2)),
-            extraChildAmount: Number(extraChildAmount.toFixed(2)),
-            taxAmount: Number(totalTaxAmount.toFixed(2)),
-            offerDiscountAmount: Number(offerDiscountAmount.toFixed(2)),
-            couponDiscountAmount: Number(couponDiscountAmount.toFixed(2)),
-            referralDiscountAmount: Number(referralDiscountAmount.toFixed(2)),
-            discountAmount: Number((offerDiscountAmount + couponDiscountAmount + referralDiscountAmount).toFixed(2)),
-            totalAmount: Number(totalAmount.toFixed(2)),
-            originalTotal: Number(originalTotal.toFixed(2)),
+            baseAmount: isGstInc ? cleanFloat(finalTotalAmount - finalTaxAmount) : cleanFloat(baseAmount),
+            grossBaseAmount,
+            extraAdultAmount: cleanFloat(extraAdultAmount),
+            grossExtraAdultAmount,
+            extraChildAmount: cleanFloat(extraChildAmount),
+            grossExtraChildAmount,
+            taxAmount: finalTaxAmount,
+            offerDiscountAmount: Math.round(offerDiscountAmount),
+            grossOfferDiscountAmount,
+            couponDiscountAmount: cleanFloat(couponDiscountAmount),
+            grossCouponDiscountAmount,
+            referralDiscountAmount: cleanFloat(referralDiscountAmount),
+            grossReferralDiscountAmount,
+            discountAmount: cleanFloat(offerDiscountAmount + couponDiscountAmount + referralDiscountAmount),
+            totalAmount: finalTotalAmount,
+            originalTotal: cleanFloat(originalTotal),
             numberOfNights,
             pricePerNight: basePricePerNight,
             taxRate: Math.round(taxRate),
             baseCurrency,
             targetCurrency,
             exchangeRate,
-            convertedTotal: Number((totalAmount * exchangeRate).toFixed(2)),
-            originalConvertedTotal: Number((originalTotal * exchangeRate).toFixed(2)),
+            convertedTotal: isGstInc && exchangeRate === 1.0 ? finalTotalAmount : cleanFloat(finalTotalAmount * exchangeRate),
+            originalConvertedTotal: cleanFloat(originalTotal * exchangeRate),
             roomCount,
+            baseAdults: Number(roomType.baseAdults ?? roomType.maxAdults ?? 2),
+            baseChildren: Number(roomType.baseChildren ?? roomType.maxChildren ?? 1),
+            maxPhysicalAdults: Number(roomType.maxPhysicalAdults ?? 4),
+            maxPhysicalChildren: Number(roomType.maxPhysicalChildren ?? 2),
             // Transparency: inform the consumer whether the cap was enforced
             ...(capApplied && { discountCapApplied: true, discountCapPct: maxDiscountFraction * 100 }),
             appliedCodeType: referralCode ? 'REFERRAL' : (couponCode ? 'COUPON' : 'NONE') as 'REFERRAL' | 'COUPON' | 'NONE',
             referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode } }))?.id : undefined,
             partialPaymentPct: Number(await this.systemSettingsService.getSetting('PARTIAL_PAYMENT_PCT') || 33.33),
-            isGstInclusive: isGroupBooking ? !!isGroupInclusive : !!roomType.isGstInclusive,
+            isGstInclusive: isGstInc,
+            offerName: (offerDiscountAmount > 0 && activeOffer) ? activeOffer.name : undefined,
+            offerDescription: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.description ?? undefined) : undefined,
+            offerStartDate: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.startDate ? activeOffer.startDate.toISOString() : undefined) : undefined,
+            offerEndDate: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.endDate ? activeOffer.endDate.toISOString() : undefined) : undefined,
+            offerDiscountType: (offerDiscountAmount > 0 && activeOffer) ? activeOffer.discountType : undefined,
+            offerDiscountValue: (offerDiscountAmount > 0 && activeOffer) ? Number(activeOffer.discountValue) : undefined,
         };
 
         // --- MANAGE OVERRIDES ---
@@ -464,16 +578,22 @@ export class PricingService {
             }
 
             result.baseAmount = finalOverrideBreakdown.baseAmount;
+            result.grossBaseAmount = isOverrideInclusive ? overrideTotal : finalOverrideBreakdown.baseAmount;
             result.taxAmount = finalOverrideBreakdown.taxAmount;
             result.totalAmount = result.baseAmount + result.taxAmount;
             result.convertedTotal = Number((result.totalAmount * exchangeRate).toFixed(2));
 
             // Zero out other components to keep breakdown clean for overrides
             result.extraAdultAmount = 0;
+            result.grossExtraAdultAmount = 0;
             result.extraChildAmount = 0;
+            result.grossExtraChildAmount = 0;
             result.offerDiscountAmount = 0;
+            result.grossOfferDiscountAmount = 0;
             result.couponDiscountAmount = 0;
+            result.grossCouponDiscountAmount = 0;
             result.referralDiscountAmount = 0;
+            result.grossReferralDiscountAmount = 0;
             result.discountAmount = 0;
         }
 
@@ -499,13 +619,25 @@ export class PricingService {
 
         let targetTaxRate = 0.12; // default fallback
 
-        if (gstTiers && Array.isArray(gstTiers)) {
+        if (gstTiers && Array.isArray(gstTiers) && gstTiers.length > 0) {
             // Find which tier this base price falls into
             for (const tier of gstTiers) {
                 if (basePerUnitPerNight >= tier.min && (tier.max === null || tier.max === undefined || basePerUnitPerNight <= tier.max)) {
                     targetTaxRate = tier.rate / 100;
                     break;
                 }
+            }
+        } else {
+            // Fallback tax rate brackets:
+            // 0 - 1000: 0%
+            // 1001 - 7500: 5%
+            // 7501+: 18%
+            if (basePerUnitPerNight <= 1000) {
+                targetTaxRate = 0.0;
+            } else if (basePerUnitPerNight <= 7500) {
+                targetTaxRate = 0.05;
+            } else {
+                targetTaxRate = 0.18;
             }
         }
 
@@ -603,14 +735,26 @@ export class PricingService {
      * Calculate tax for a single tariff unit (one room for one night)
      */
     private calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
-        let taxRate = 0.12; // Default fallback 12%
-        if (gstTiers && Array.isArray(gstTiers)) {
+        let taxRate = 0.12; // Default fallback
+        if (gstTiers && Array.isArray(gstTiers) && gstTiers.length > 0) {
             const applicableTier = gstTiers.find(tier =>
                 tariff >= tier.min &&
                 (tier.max === null || tier.max === undefined || tariff <= tier.max)
             );
             if (applicableTier) {
                 taxRate = applicableTier.rate / 100;
+            }
+        } else {
+            // Fallback tax rate brackets:
+            // 0 - 1000: 0%
+            // 1001 - 7500: 5%
+            // 7501+: 18%
+            if (tariff <= 1000) {
+                taxRate = 0.0;
+            } else if (tariff <= 7500) {
+                taxRate = 0.05;
+            } else {
+                taxRate = 0.18;
             }
         }
         return tariff * taxRate;
@@ -668,9 +812,25 @@ export class PricingService {
         }
 
         // If no tier matched (should not happen with default 0-1000, 1000-7500, etc)
-        // Fallback to 12% reverse calculation
+        // Fallback to dynamic reverse calculation brackets
         if (!validTariff) {
-            targetTaxRate = 0.12;
+            // Test 18% rate (Tariff > 7500)
+            const testTariff18 = totalPerUnitPerNight / (1 + 0.18);
+            if (testTariff18 > 7500) {
+                targetTaxRate = 0.18;
+                validTariff = testTariff18;
+            } else {
+                // Test 5% rate (1001 <= Tariff <= 7500)
+                const testTariff5 = totalPerUnitPerNight / (1 + 0.05);
+                if (testTariff5 > 1000 && testTariff5 <= 7500) {
+                    targetTaxRate = 0.05;
+                    validTariff = testTariff5;
+                } else {
+                    // Default to 0% rate (Tariff <= 1000)
+                    targetTaxRate = 0.0;
+                    validTariff = totalPerUnitPerNight;
+                }
+            }
         }
 
         // Calculate precise tax and base using the selected rate
@@ -682,5 +842,189 @@ export class PricingService {
             baseAmount: Number(exactBaseAmount.toFixed(2)),
             taxAmount: Number(exactTaxAmount.toFixed(2))
         };
+    }
+
+    /**
+     * Single Source of Truth for Published Room Prices across the entire PMS ecosystem.
+     * Evaluates daily published selling rates cleanly without requiring dummy or fake booking parameters.
+     */
+    async getPublishedDailyRates(
+        roomTypeId: string,
+        startDate: Date | string,
+        endDate: Date | string,
+        targetCurrency?: string,
+        ratePlanId?: string,
+    ): Promise<PublishedDailyRateQuote[]> {
+        const roomType = await this.prisma.roomType.findUnique({
+            where: { id: roomTypeId },
+            include: { property: true },
+        }) as any;
+
+        if (!roomType) {
+            throw new NotFoundException(`Room type not found: ${roomTypeId}`);
+        }
+        if (!roomType.property) {
+            throw new BadRequestException('Property information missing for this room type');
+        }
+
+        const baseCurrency = (roomType.property as any).baseCurrency || 'INR';
+        let exchangeRate = 1.0;
+        const targetCurr = targetCurrency || baseCurrency;
+        if (targetCurr !== baseCurrency) {
+            exchangeRate = await this.currenciesService.convert(1, baseCurrency, targetCurr);
+        }
+
+        const checkIn = new Date(startDate);
+        checkIn.setHours(0, 0, 0, 0);
+        const checkOut = new Date(endDate);
+        checkOut.setHours(0, 0, 0, 0);
+
+        // Load GST tiers exactly once
+        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+
+        const results: PublishedDailyRateQuote[] = [];
+        const current = new Date(checkIn);
+
+        while (current < checkOut) {
+            const year = current.getFullYear();
+            const month = String(current.getMonth() + 1).padStart(2, '0');
+            const day = String(current.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            
+            const nextDate = new Date(current);
+            nextDate.setDate(nextDate.getDate() + 1);
+
+            const originalBasePrice = Number(roomType.basePrice);
+            let effectiveBasePrice = originalBasePrice;
+            const isGstInclusive = Boolean(roomType.isGstInclusive);
+            const gstMode: 'INCLUSIVE' | 'EXCLUSIVE' = isGstInclusive ? 'INCLUSIVE' : 'EXCLUSIVE';
+
+            // Reverse-calculate GST if room type is GST inclusive
+            if (isGstInclusive) {
+                const normalized = await this.calculateReverseGST(effectiveBasePrice, 1, 1);
+                effectiveBasePrice = normalized.baseAmount;
+            }
+
+            // Apply seasonal pricing rules if any
+            const pricingRule = await this.getApplicablePricingRule(
+                roomTypeId,
+                current,
+                nextDate,
+            );
+
+            let subtotal = effectiveBasePrice;
+            let appliedPricingRule: { id: string; name: string; adjustmentType: string; adjustmentValue: number } | undefined = undefined;
+
+            if (pricingRule) {
+                if (pricingRule.adjustmentType === 'PERCENTAGE') {
+                    const adjustment = (subtotal * Number(pricingRule.adjustmentValue)) / 100;
+                    subtotal += adjustment;
+                } else {
+                    subtotal += Number(pricingRule.adjustmentValue);
+                }
+                appliedPricingRule = {
+                    id: pricingRule.id,
+                    name: pricingRule.name || 'Seasonal Pricing Rule',
+                    adjustmentType: pricingRule.adjustmentType,
+                    adjustmentValue: Number(pricingRule.adjustmentValue),
+                };
+            }
+
+            // Check for active Room Type Offers (Direct Discounts)
+            const allDailyOffers = await this.prisma.offer.findMany({
+                where: {
+                    roomTypes: { some: { id: roomTypeId } },
+                    isActive: true,
+                },
+            });
+
+            const activeOffer = allDailyOffers.find(offer =>
+                DateUtils.isNightInOfferRange(dateStr, offer.startDate, offer.endDate)
+            );
+
+            let appliedOffer: {
+                id: string;
+                name: string;
+                description?: string;
+                startDate?: Date;
+                endDate?: Date;
+                discountType: string;
+                discountValue: number;
+            } | undefined = undefined;
+
+            if (activeOffer) {
+                const offer = activeOffer as any;
+                let offerDiscountAmount = 0;
+                if (offer.discountType === 'PERCENTAGE') {
+                    offerDiscountAmount = (subtotal * Number(offer.discountValue)) / 100;
+                } else {
+                    offerDiscountAmount = Number(offer.discountValue);
+                }
+                subtotal -= offerDiscountAmount;
+                appliedOffer = {
+                    id: offer.id,
+                    name: offer.title || offer.name || 'Promotional Offer',
+                    description: offer.description ?? undefined,
+                    startDate: offer.startDate ?? undefined,
+                    endDate: offer.endDate ?? undefined,
+                    discountType: offer.discountType,
+                    discountValue: Number(offer.discountValue),
+                };
+            }
+
+            subtotal = Math.max(0, subtotal);
+            const effectivePriceBeforeTax = Number(subtotal.toFixed(2));
+
+            // Calculate GST based on dynamic GST tiers for 1 room
+            const taxAmountRaw = this.calculateTaxForTariff(effectivePriceBeforeTax, gstTiers);
+            const taxAmount = Number(taxAmountRaw.toFixed(2));
+            const taxRate = effectivePriceBeforeTax > 0 ? Math.round((taxAmountRaw / effectivePriceBeforeTax) * 100) : 0;
+
+            const publishedPrice = Number((effectivePriceBeforeTax + taxAmount).toFixed(2));
+            const convertedPublishedPrice = Number((publishedPrice * exchangeRate).toFixed(2));
+
+            results.push({
+                date: dateStr,
+                roomTypeId,
+                publishedPrice,
+                convertedPublishedPrice,
+                baseCurrency,
+                targetCurrency: targetCurr,
+                exchangeRate,
+                breakdown: {
+                    originalBasePrice,
+                    basePrice: Number(effectiveBasePrice.toFixed(2)),
+                    effectivePriceBeforeTax,
+                    taxAmount,
+                    taxRate,
+                    isGstInclusive,
+                    gstMode,
+                    appliedPricingRule,
+                    appliedOffer,
+                },
+            });
+
+            current.setDate(current.getDate() + 1);
+        }
+
+        return results;
+    }
+
+    async getPublishedDailyRate(
+        roomTypeId: string,
+        date: Date | string,
+        targetCurrency?: string,
+        ratePlanId?: string,
+    ): Promise<PublishedDailyRateQuote> {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        const nextD = new Date(d);
+        nextD.setDate(nextD.getDate() + 1);
+
+        const rates = await this.getPublishedDailyRates(roomTypeId, d, nextD, targetCurrency, ratePlanId);
+        if (!rates || rates.length === 0) {
+            throw new NotFoundException(`Could not determine published rate for date ${date}`);
+        }
+        return rates[0];
     }
 }

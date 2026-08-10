@@ -30,6 +30,20 @@ export class CalculatePriceDto {
     @Type(() => Number)
     childrenCount: number;
 
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraAdultsCount?: number;
+
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraChildrenCount?: number;
+
     @ApiProperty({ example: 'SUMMER2026', required: false })
     @IsString()
     @IsOptional()
@@ -68,6 +82,13 @@ export class CalculatePriceDto {
     @IsOptional()
     @Type(() => Number)
     roomCount?: number;
+
+    @ApiProperty({ example: 1, required: false })
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    @Type(() => Number)
+    roomsCount?: number;
 
     @ApiProperty({ example: 5000, required: false })
     @IsOptional()

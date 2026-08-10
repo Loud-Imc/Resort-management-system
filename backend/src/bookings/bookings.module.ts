@@ -14,6 +14,6 @@ import { ChannelsModule } from '../channels/channels.module';
     imports: [AuditModule, ChannelPartnersModule, PaymentsModule, SystemSettingsModule, NotificationsModule, forwardRef(() => ChannelsModule)],
     controllers: [BookingsController],
     providers: [BookingsService, AvailabilityService, PricingService],
-    exports: [BookingsService, AvailabilityService],
+    exports: [BookingsService, AvailabilityService, PricingService],
 })
 export class BookingsModule { }

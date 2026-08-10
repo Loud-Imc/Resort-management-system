@@ -200,12 +200,13 @@ export class ExpensesService {
      * Update expense
      */
     async update(id: string, updateExpenseDto: UpdateExpenseDto, user: any) {
+        const { reason, ...updateData } = updateExpenseDto;
         const expense = await this.findOne(id, user);
 
         // Verify category if changing
-        if (updateExpenseDto.categoryId) {
+        if (updateData.categoryId) {
             const category = await this.prisma.expenseCategory.findUnique({
-                where: { id: updateExpenseDto.categoryId },
+                where: { id: updateData.categoryId },
             });
 
             if (!category) {
@@ -213,19 +214,33 @@ export class ExpensesService {
             }
         }
 
+        // Record log to expenseHistory
+        await (this.prisma as any).expenseHistory.create({
+            data: {
+                expenseId: id,
+                action: 'UPDATE',
+                amount: expense.amount,
+                description: expense.description,
+                categoryId: expense.categoryId,
+                propertyId: expense.propertyId,
+                reason: reason || 'Not specified',
+                changedBy: `${user.firstName || ''} ${user.lastName || ''} (${user.email || ''})`.trim() || 'Unknown User',
+            }
+        });
+
         const updated = await this.prisma.expense.update({
             where: { id },
             data: {
-                amount: updateExpenseDto.amount,
-                description: updateExpenseDto.description,
-                categoryId: updateExpenseDto.categoryId,
-                date: updateExpenseDto.date ? new Date(updateExpenseDto.date) : undefined,
-                receipts: updateExpenseDto.receipts,
-                isPaid: updateExpenseDto.isPaid,
-                paymentMethod: updateExpenseDto.paymentMethod,
-                ...(updateExpenseDto.bookingIds && {
+                amount: updateData.amount,
+                description: updateData.description,
+                categoryId: updateData.categoryId,
+                date: updateData.date ? new Date(updateData.date) : undefined,
+                receipts: updateData.receipts,
+                isPaid: updateData.isPaid,
+                paymentMethod: updateData.paymentMethod,
+                ...(updateData.bookingIds && {
                     bookings: {
-                        set: updateExpenseDto.bookingIds.map(id => ({ id }))
+                        set: updateData.bookingIds.map(id => ({ id }))
                     }
                 })
             },
@@ -256,8 +271,22 @@ export class ExpensesService {
     /**
      * Delete expense
      */
-    async remove(id: string, user: any) {
+    async remove(id: string, user: any, reason?: string) {
         const expense = await this.findOne(id, user);
+
+        // Record log to expenseHistory before deleting
+        await (this.prisma as any).expenseHistory.create({
+            data: {
+                expenseId: id,
+                action: 'DELETE',
+                amount: expense.amount,
+                description: expense.description,
+                categoryId: expense.categoryId,
+                propertyId: expense.propertyId,
+                reason: reason || 'Not specified',
+                changedBy: `${user.firstName || ''} ${user.lastName || ''} (${user.email || ''})`.trim() || 'Unknown User',
+            }
+        });
 
         await this.prisma.expense.delete({
             where: { id },
@@ -455,5 +484,42 @@ export class ExpensesService {
         });
 
         return { message: 'Category deleted successfully' };
+    }
+
+    /**
+     * Get all alteration histories for a property
+     */
+    async findAllHistory(user: any, propertyId?: string) {
+        const roles = user.roles || [];
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+
+        const propertyFilter: any = {};
+        if (!isGlobalAdmin) {
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
+        }
+
+        if (!isGlobalAdmin && propertyId) {
+            const allowedProperty = await this.prisma.property.findFirst({
+                where: {
+                    id: propertyId,
+                    ...propertyFilter
+                }
+            });
+            if (!allowedProperty) {
+                throw new NotFoundException('Property not found or access denied');
+            }
+        }
+
+        return (this.prisma as any).expenseHistory.findMany({
+            where: {
+                propertyId: propertyId || undefined,
+            },
+            orderBy: {
+                changedAt: 'desc',
+            },
+        });
     }
 }

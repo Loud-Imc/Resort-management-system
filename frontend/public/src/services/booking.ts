@@ -61,6 +61,8 @@ export const bookingService = {
         checkOutDate: string;
         adultsCount: number;
         childrenCount: number;
+        roomsCount?: number;
+        roomCount?: number;
         couponCode?: string;
         referralCode?: string;
         currency?: string;

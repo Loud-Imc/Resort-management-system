@@ -41,6 +41,7 @@ export class RoomsController {
     @ApiQuery({ name: 'floor', required: false, type: Number })
     @ApiQuery({ name: 'status', required: false })
     @ApiQuery({ name: 'isEnabled', required: false, type: Boolean })
+    @ApiQuery({ name: 'date', required: false })
     findAll(
         @Request() req,
         @Query('roomTypeId') roomTypeId?: string,
@@ -48,13 +49,15 @@ export class RoomsController {
         @Query('status') status?: string,
         @Query('isEnabled') isEnabled?: string,
         @Query('propertyId') propertyId?: string,
+        @Query('date') date?: string,
     ) {
         return this.roomsService.findAll(req.user, {
             roomTypeId,
-            floor: floor ? parseInt(floor) : undefined,
+            floor: floor ? parseInt(floor, 10) : undefined,
             status,
-            isEnabled: isEnabled ? isEnabled === 'true' : undefined,
+            isEnabled: isEnabled === 'true' ? true : isEnabled === 'false' ? false : undefined,
             propertyId,
+            date,
         });
     }
 
