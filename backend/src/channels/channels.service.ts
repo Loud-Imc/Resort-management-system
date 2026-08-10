@@ -871,9 +871,21 @@ export class ChannelsService {
         });
         this.logger.log(`Revised existing external booking ${res.externalBookingId} with new stay dates/amounts`);
         if (existingBooking.propertyId) {
+          let newRoomTypeId = existingBooking.roomTypeId;
+          if (res.externalRoomTypeId) {
+            const roomMapRecord = await this.prisma.channelRoomTypeMapping.findFirst({
+              where: {
+                externalRoomTypeId: res.externalRoomTypeId,
+                propertyMapping: { propertyId: existingBooking.propertyId }
+              }
+            });
+            if (roomMapRecord) {
+              newRoomTypeId = roomMapRecord.roomTypeId;
+            }
+          }
           await this.pushAvailabilityForDates(
             existingBooking.propertyId,
-            res.roomTypeId || existingBooking.roomTypeId,
+            newRoomTypeId,
             res.checkInDate,
             res.checkOutDate,
             existingBooking.checkInDate,
