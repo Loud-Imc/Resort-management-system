@@ -852,7 +852,12 @@ export class ChannelsService {
         this.logger.log(`Cancelled existing external booking ${res.externalBookingId}`);
         // Push new available inventory outward across all channels
         if (existingBooking.propertyId) {
-          await this.pushAriForProperty(existingBooking.propertyId, 60);
+          await this.pushAvailabilityForDates(
+            existingBooking.propertyId,
+            existingBooking.roomTypeId,
+            existingBooking.checkInDate,
+            existingBooking.checkOutDate
+          );
         }
       } else if (res.status === 'MODIFIED' || (res.checkInDate && res.checkOutDate && (res.checkInDate.getTime() !== existingBooking.checkInDate.getTime() || res.checkOutDate.getTime() !== existingBooking.checkOutDate.getTime() || res.totalAmount !== Number(existingBooking.totalAmount)))) {
         await this.prisma.booking.update({
@@ -866,7 +871,15 @@ export class ChannelsService {
         });
         this.logger.log(`Revised existing external booking ${res.externalBookingId} with new stay dates/amounts`);
         if (existingBooking.propertyId) {
-          await this.pushAriForProperty(existingBooking.propertyId, 60);
+          await this.pushAvailabilityForDates(
+            existingBooking.propertyId,
+            res.roomTypeId || existingBooking.roomTypeId,
+            res.checkInDate,
+            res.checkOutDate,
+            existingBooking.checkInDate,
+            existingBooking.checkOutDate,
+            existingBooking.roomTypeId
+          );
         }
       }
 
@@ -1105,7 +1118,12 @@ export class ChannelsService {
     await adapter.acknowledgeReservation(roomMapping.propertyMapping, ackId, newBooking.bookingNumber);
 
     // Push updated inventory outward to block all other OTAs instantly
-    await this.pushAriForProperty(propertyId, 60);
+    await this.pushAvailabilityForDates(
+      propertyId,
+      newBooking.roomTypeId,
+      newBooking.checkInDate,
+      newBooking.checkOutDate
+    );
 
     return { success: true, action: 'CREATED', bookingNumber: newBooking.bookingNumber };
   }

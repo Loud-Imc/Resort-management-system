@@ -37,11 +37,29 @@ export class PaymentsService {
         });
     }
 
-    private triggerChannexSync(propertyId?: string | null) {
+    private triggerChannexSync(
+        propertyId?: string | null,
+        bookingDetails?: {
+            roomTypeId: string;
+            startDate: Date;
+            endDate: Date;
+        }
+    ) {
         if (!this.channelsService || !propertyId) return;
-        this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
-            console.error(`[Channex ARI Sync] Payment confirmation push failed for property ${propertyId}:`, err);
-        });
+        if (bookingDetails) {
+            this.channelsService.pushAvailabilityForDates(
+                propertyId,
+                bookingDetails.roomTypeId,
+                bookingDetails.startDate,
+                bookingDetails.endDate
+            ).catch(err => {
+                console.error(`[Channex ARI Sync] Payment confirmation push failed for property ${propertyId}:`, err);
+            });
+        } else {
+            this.channelsService.pushAriForProperty(propertyId, 60).catch(err => {
+                console.error(`[Channex ARI Sync] Payment confirmation push failed for property ${propertyId}:`, err);
+            });
+        }
     }
 
     /**
@@ -471,7 +489,11 @@ export class PaymentsService {
 
             if (refreshedBooking) {
                 await this.notificationsService.broadcastNewBooking(refreshedBooking);
-                this.triggerChannexSync(refreshedBooking.propertyId);
+                this.triggerChannexSync(refreshedBooking.propertyId, {
+                    roomTypeId: refreshedBooking.roomTypeId,
+                    startDate: refreshedBooking.checkInDate,
+                    endDate: refreshedBooking.checkOutDate,
+                });
 
                 // Delayed Commission Trigger
                 // If already checked in and now fully paid, trigger payout

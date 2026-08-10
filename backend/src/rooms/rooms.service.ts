@@ -538,7 +538,12 @@ export class RoomsService {
 
         // [PRC-01] Auto-sync with Channex since room availability changed
         if (block.room.propertyId) {
-            this.channelsService.pushAriForProperty(block.room.propertyId, 60).catch(err => {
+            this.channelsService.pushAvailabilityForDates(
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            ).catch(err => {
                 this.logger.error(`Auto-sync failed for property ${block.room.propertyId} after room block: ${err.message}`, err.stack);
             });
         }
@@ -589,7 +594,12 @@ export class RoomsService {
 
         // [PRC-01] Auto-sync with Channex since room availability changed
         if (block.room.propertyId) {
-            this.channelsService.pushAriForProperty(block.room.propertyId, 60).catch(err => {
+            this.channelsService.pushAvailabilityForDates(
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            ).catch(err => {
                 this.logger.error(`Auto-sync failed for property ${block.room.propertyId} after room unblock: ${err.message}`, err.stack);
             });
         }
