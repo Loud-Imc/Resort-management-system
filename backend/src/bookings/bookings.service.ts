@@ -3184,8 +3184,8 @@ export class BookingsService {
      */
     async getDashboardCalendar(user: any, propertyId?: string, startDate?: string, endDate?: string) {
         const where: any = {
-            // Excluding CANCELLED and PENDING_PAYMENT to keep payload minimal
-            status: { notIn: ['CANCELLED', 'PENDING_PAYMENT'] }
+            // Excluding CANCELLED, PENDING_PAYMENT, and NO_SHOW to keep payload minimal
+            status: { notIn: ['CANCELLED', 'PENDING_PAYMENT', 'NO_SHOW'] }
         };
 
         if (propertyId) {

@@ -171,6 +171,7 @@ export class RoomsService {
 
             // Find active booking for targetDate
             const activeBookingForTarget = bookingRoomsList.find((br: any) => {
+                if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking.status)) return false;
                 const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
                 const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
                 return targetDate >= checkIn && targetDate < checkOut;
@@ -178,6 +179,7 @@ export class RoomsService {
 
             // Find checkout on targetDate
             const checkoutBookingTarget = bookingRoomsList.find((br: any) => {
+                if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking.status)) return false;
                 const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
                 return targetDate.getTime() === checkOut.getTime();
             })?.booking;
