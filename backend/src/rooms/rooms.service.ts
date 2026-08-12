@@ -161,7 +161,7 @@ export class RoomsService {
             const hasActiveBlock = room.blocks && room.blocks.some((b: any) => {
                 const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
                 const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
-                return targetDate >= blockStart && targetDate < blockEnd;
+                return targetDate >= blockStart && targetDate < blockEnd && !b.bookingId;
             });
             if (hasActiveBlock) {
                 return { ...room, status: 'BLOCKED' };

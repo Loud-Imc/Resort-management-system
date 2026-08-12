@@ -1593,7 +1593,11 @@ export class BookingsService {
             });
 
             // Update room status
-            const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+            const roomIds = Array.from(new Set([
+                booking.roomId,
+                ...(booking.bookingRooms?.map((br: any) => br.roomId) || []),
+                ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])
+            ])).filter(Boolean);
             await tx.room.updateMany({
                 where: { id: { in: roomIds } },
                 data: { status: 'OCCUPIED' },
@@ -1664,7 +1668,11 @@ export class BookingsService {
         });
 
         // Update room status
-        const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+        const roomIds = Array.from(new Set([
+            booking.roomId,
+            ...(booking.bookingRooms?.map((br: any) => br.roomId) || []),
+            ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])
+        ])).filter(Boolean);
         
         // Check for incoming bookings today
         const todayMidnight = new Date();
@@ -1754,7 +1762,11 @@ export class BookingsService {
         });
 
         // Update room status to AVAILABLE
-        const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+        const roomIds = Array.from(new Set([
+            booking.roomId,
+            ...(booking.bookingRooms?.map((br: any) => br.roomId) || []),
+            ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])
+        ])).filter(Boolean);
         await this.prisma.room.updateMany({
             where: { id: { in: roomIds } },
             data: { status: 'AVAILABLE' },
@@ -1941,7 +1953,11 @@ export class BookingsService {
             }
 
             // Release ALL room blocks for this booking (including group booking extra rooms)
-            const roomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+            const roomIds = Array.from(new Set([
+                booking.roomId,
+                ...(booking.bookingRooms?.map((br: any) => br.roomId) || []),
+                ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])
+            ])).filter(Boolean);
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id },
             });
@@ -2157,32 +2173,29 @@ export class BookingsService {
 
         // Update stay details & rooms
         const result = await this.prisma.$transaction(async (tx) => {
-            // Delete old room blocks
+            // Delete old room blocks and booking rooms
             await tx.roomBlock.deleteMany({
                 where: { bookingId: id }
             });
+            if ((tx as any).bookingRoom) {
+                await (tx as any).bookingRoom.deleteMany({
+                    where: { bookingId: id }
+                });
+            }
             await tx.room.updateMany({
                 where: { id: { in: currentRoomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
                 data: { status: 'AVAILABLE' },
             });
 
-            // Re-allocate blocks for any extra rooms
             const primaryRoomId = newRoomIds[0];
-            const extraRooms = newRoomIds.slice(1);
 
-            const newBlocksData = extraRooms.map(roomId => ({
-                bookingId: id,
-                roomId,
-                startDate: checkIn,
-                endDate: checkOut,
-                reason: booking.isGroupBooking ? `Group Booking ${booking.bookingNumber}` : `Multi-Room Booking ${booking.bookingNumber}`,
-                createdById: user.id || booking.userId,
-                notes: 'Updated stay details'
-            }));
-
-            if (newBlocksData.length > 0) {
-                await tx.roomBlock.createMany({
-                    data: newBlocksData
+            // Re-allocate bookingRooms mapping
+            if ((tx as any).bookingRoom) {
+                await tx.bookingRoom.createMany({
+                    data: newRoomIds.map(roomId => ({
+                        bookingId: id,
+                        roomId
+                    }))
                 });
             }
 
@@ -2434,7 +2447,11 @@ export class BookingsService {
             }
         } else {
             // Check if current rooms are of the same type and are available
-            const originalRoomIds = [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+            const originalRoomIds = Array.from(new Set([
+                booking.roomId,
+                ...(booking.bookingRooms?.map((br: any) => br.roomId) || []),
+                ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])
+            ])).filter(Boolean);
             let originalRoomsAvailable = booking.roomTypeId === targetRoomTypeId;
             if (originalRoomsAvailable) {
                 for (const roomId of originalRoomIds) {
@@ -2624,23 +2641,15 @@ export class BookingsService {
                 data: { status: 'AVAILABLE' },
             });
 
-            // Re-allocate primary and blocks
             const primaryRoomId = roomsToAllocate[0].id;
-            const extraRooms = roomsToAllocate.slice(1);
 
-            const newBlocksData = extraRooms.map(room => ({
-                bookingId: id,
-                roomId: room.id,
-                startDate: newCheckIn,
-                endDate: newCheckOut,
-                reason: `Rescheduled Booking: ${booking.bookingNumber}`,
-                createdById: user.id,
-                notes: 'Rescheduled'
-            }));
-
-            if (newBlocksData.length > 0) {
-                await tx.roomBlock.createMany({
-                    data: newBlocksData
+            // Re-allocate bookingRooms mapping
+            if ((tx as any).bookingRoom) {
+                await tx.bookingRoom.createMany({
+                    data: roomsToAllocate.map(r => ({
+                        bookingId: id,
+                        roomId: r.id
+                    }))
                 });
             }
 
@@ -2801,7 +2810,11 @@ export class BookingsService {
             throw new ForbiddenException('Only manual bookings can be deleted');
         }
 
-        const roomIds = [booking.roomId, ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])];
+        const roomIds = Array.from(new Set([
+            booking.roomId,
+            ...(booking.bookingRooms?.map((br: any) => br.roomId) || []),
+            ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])
+        ])).filter(Boolean);
         return this.prisma.$transaction(async (tx) => {
             // Delete related records in specific order to avoid constraint issues
             await tx.propertySettlement.deleteMany({ where: { bookingId: id } });
@@ -3235,7 +3248,9 @@ export class BookingsService {
         });
 
         // Fetch room blocks for the same query scope
-        const blocksWhere: any = {};
+        const blocksWhere: any = {
+            bookingId: null // Only fetch manual blocks
+        };
         if (propertyId) {
             blocksWhere.room = { propertyId };
         }

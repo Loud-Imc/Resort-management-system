@@ -363,7 +363,10 @@ export class ChannelsService {
     }
 
     const token = await adapter.getIframeSessionToken(mapping.externalPropertyId);
-    const iframeUrl = `https://staging.channex.io/auth/exchange?oauth_session_key=${token}&app_mode=headless&redirect_to=/channels&property_id=${mapping.externalPropertyId}`;
+    const channexDomain = (process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1')
+      .replace('/api/v1', '')
+      .replace('/api/v2', '');
+    const iframeUrl = `${channexDomain}/auth/exchange?oauth_session_key=${token}&app_mode=headless&redirect_to=/channels&property_id=${mapping.externalPropertyId}`;
     return { url: iframeUrl };
   }
 
@@ -1164,7 +1167,7 @@ export class ChannelsService {
     }
 
     const userApiKey = process.env.CHANNEX_USER_API_KEY || 'u5wpOi89Mo9NPXiGg03sDppzK6cYX1oUu3jDPx8K8MT10PdikVNXrvcFy4mtAhqF';
-    const baseUrl = 'https://staging.channex.io/api/v1';
+    const baseUrl = process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1';
 
     try {
       const response = await fetch(`${baseUrl}/channels?filter[property_id]=${mapping.externalPropertyId}`, {
