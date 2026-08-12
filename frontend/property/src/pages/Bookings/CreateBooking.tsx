@@ -603,7 +603,7 @@ export default function CreateBooking() {
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
                 <div className="xl:col-span-5 space-y-6">
-                    <form onSubmit={handleSubmit(onSubmit, (errs) => {
+                    <form id="create-booking-form" onSubmit={handleSubmit(onSubmit, (errs) => {
                         console.log('Form Errors:', errs);
                         const fieldNames = Object.keys(errs).map(key => {
                             if (key === 'guests') return 'Guest Details (ID mandatory for historical stays)';
@@ -826,7 +826,6 @@ export default function CreateBooking() {
                                             </span>
                                         )}
                                     </div>
-
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {(() => {
                                             const roomCount = Math.max((watch('selectedRoomIds') || []).length, 1);
@@ -840,18 +839,18 @@ export default function CreateBooking() {
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-foreground">
                                                                 <Users className="h-4 w-4 text-primary" />
-                                                                <span>Standard Included Guests</span>
+                                                                <span>{isGroupMode ? 'Total Group Guests' : 'Standard Included Guests'}</span>
                                                             </div>
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">
-                                                                    Adults {selectedRoomType ? `(Max ${baseAdultsCap})` : ''}
+                                                                    Adults {selectedRoomType && !isGroupMode ? `(Max ${baseAdultsCap})` : ''}
                                                                 </label>
                                                                 <input
                                                                     type="number"
                                                                     min="1"
-                                                                    max={baseAdultsCap}
+                                                                    max={isGroupMode ? undefined : baseAdultsCap}
                                                                     {...register('adultsCount', {
                                                                         valueAsNumber: true,
                                                                         onChange: (e) => {
@@ -863,12 +862,12 @@ export default function CreateBooking() {
                                                             </div>
                                                             <div>
                                                                 <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">
-                                                                    Children {selectedRoomType ? `(Max ${baseChildrenCap})` : ''}
+                                                                    Children {selectedRoomType && !isGroupMode ? `(Max ${baseChildrenCap})` : ''}
                                                                 </label>
                                                                 <input
                                                                     type="number"
                                                                     min="0"
-                                                                    max={baseChildrenCap}
+                                                                    max={isGroupMode ? undefined : baseChildrenCap}
                                                                     {...register('childrenCount', {
                                                                         valueAsNumber: true,
                                                                         onChange: (e) => {
@@ -1862,15 +1861,7 @@ export default function CreateBooking() {
                             )
                         }
 
-                        <div className="flex justify-end pt-4">
-                            <button 
-                                type="submit" 
-                                disabled={!availability?.available || createBookingMutation.isPending}
-                                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base font-bold shadow-md hover:shadow-lg transition-all active:scale-95 duration-200"
-                            >
-                                {createBookingMutation.isPending ? (<><Loader2 className="h-5 w-5 animate-spin" /> Processing...</>) : 'Confirm Booking'}
-                            </button>
-                        </div>
+
 
 
                     </form >
@@ -2100,6 +2091,14 @@ export default function CreateBooking() {
                                 )}
                             </div>
                         )}
+                        <button 
+                            type="submit" 
+                            form="create-booking-form"
+                            disabled={!availability?.available || createBookingMutation.isPending}
+                            className="w-full mt-6 bg-primary hover:bg-primary/90 text-primary-foreground py-3.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base font-bold shadow-md hover:shadow-lg transition-all active:scale-95 duration-200"
+                        >
+                            {createBookingMutation.isPending ? (<><Loader2 className="h-5 w-5 animate-spin" /> Processing...</>) : 'Confirm Booking'}
+                        </button>
                     </div>
                 </div>
             </div >
