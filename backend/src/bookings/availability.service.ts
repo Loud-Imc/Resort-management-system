@@ -471,7 +471,37 @@ export class AvailabilityService {
             },
         });
 
+        let validBlocks = overlappingBlocks;
         if (overlappingBlocks.length > 0) {
+            // Find active bookings for this room that overlap with the blocks
+            const activeBookings = await db.booking.findMany({
+                where: {
+                    OR: [
+                        { roomId },
+                        { bookingRooms: { some: { roomId } } }
+                    ],
+                    status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
+                    ...(excludeBookingId ? { NOT: { id: excludeBookingId } } : {}),
+                },
+                select: { checkInDate: true, checkOutDate: true },
+            });
+
+            validBlocks = overlappingBlocks.filter((b: any) => {
+                const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
+                const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
+
+                const overlapsWithBooking = activeBookings.some((bk: any) => {
+                    const checkIn = new Date(bk.checkInDate); checkIn.setHours(0, 0, 0, 0);
+                    const checkOut = new Date(bk.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                    // Check overlap: checkIn < blockEnd && checkOut > blockStart
+                    return checkIn < blockEnd && checkOut > blockStart;
+                });
+
+                return !overlapsWithBooking;
+            });
+        }
+
+        if (validBlocks.length > 0) {
             return false;
         }
 
