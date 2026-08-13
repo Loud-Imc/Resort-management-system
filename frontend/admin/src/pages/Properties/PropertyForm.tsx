@@ -3,11 +3,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
+import categoryService from '../../services/category';
 import { PropertyType, CreatePropertyDto } from '../../types/property';
 import { User } from '../../types/user';
 import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
-// import { PropertyCategory } from '../../types/category';
+
+const mapSlugToPropertyType = (slug: string): PropertyType => {
+    const s = slug.toUpperCase();
+    if (s === 'RESORT') return 'RESORT';
+    if (s === 'HOTEL') return 'HOTEL';
+    if (s === 'HOMESTAY') return 'HOMESTAY';
+    if (s === 'VILLA') return 'VILLA';
+    return 'OTHER';
+};
 import SearchableSelect from '../../components/SearchableSelect';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
@@ -38,6 +47,8 @@ export default function PropertyForm() {
     const [error, setError] = useState<string | null>(null);
     const [marketingUsers, setMarketingUsers] = useState<User[]>([]);
     const [propertyOwners, setPropertyOwners] = useState<User[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
+    const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
 
     // Check roles
     const isAdmin = user?.roles?.some(r => r === 'SuperAdmin' || r === 'Admin');
@@ -104,6 +115,21 @@ export default function PropertyForm() {
             }
         }
     }, [id, isEdit, isAdmin, isMarketing, isPropertyOwner, user]);
+
+    useEffect(() => {
+        const fetchCategories = async () => {
+            setIsCategoriesLoading(true);
+            try {
+                const cats = await categoryService.getAll();
+                setCategories(cats || []);
+            } catch (err) {
+                console.error('Failed to load categories', err);
+            } finally {
+                setIsCategoriesLoading(false);
+            }
+        };
+        fetchCategories();
+    }, []);
 
 
     const loadUsers = async () => {
@@ -216,6 +242,17 @@ export default function PropertyForm() {
         const { name, value, type } = e.target;
         const finalValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
         setFormData(prev => ({ ...prev, [name]: finalValue }));
+    };
+
+    const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const catId = e.target.value;
+        const selectedCat = categories.find(c => c.id === catId);
+        const mappedType = selectedCat ? mapSlugToPropertyType(selectedCat.slug) : 'OTHER';
+        setFormData(prev => ({
+            ...prev,
+            categoryId: catId,
+            type: mappedType
+        }));
     };
 
     const toggleAmenity = (amenity: string) => {
@@ -392,6 +429,31 @@ export default function PropertyForm() {
                                 className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                                 placeholder="e.g., Nature Haven Resort"
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                Property Category *
+                            </label>
+                            {isCategoriesLoading ? (
+                                <div className="w-full px-4 py-2 bg-muted text-muted-foreground border border-border rounded-lg flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    <span className="text-sm">Loading categories...</span>
+                                </div>
+                            ) : (
+                                <select
+                                    name="categoryId"
+                                    value={formData.categoryId || ''}
+                                    onChange={handleCategoryChange}
+                                    required
+                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                >
+                                    <option value="">-- Select Category --</option>
+                                    {categories.map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            )}
                         </div>
 
                         <div>
