@@ -1492,6 +1492,10 @@ export class BookingsService {
             });
         }
 
+        if (booking && (!booking.bookingRooms || booking.bookingRooms.length === 0)) {
+            console.error(`[BOOKING_ROOMS_ERROR] Booking ${id} has no bookingRooms assigned! (Primary Room ID: ${booking.roomId})`);
+        }
+
         return booking;
     }
 
@@ -2699,7 +2703,9 @@ export class BookingsService {
                     overrideReason: dto.overrideTotal !== undefined && dto.overrideTotal !== null ? (dto.overrideReason || 'Rescheduled Price Override') : booking.overrideReason,
                     rescheduleCount: { increment: 1 },
                     // Phase 3: Dual write new rooms to BookingRoom schema
-                    ...({ bookingRooms: { create: roomsToAllocate.map(r => ({ roomId: r.id })) } } as any),
+                    ...(!(tx as any).bookingRoom
+                        ? ({ bookingRooms: { create: roomsToAllocate.map(r => ({ roomId: r.id })) } } as any)
+                        : {}),
                 },
                 include: {
                     room: true,

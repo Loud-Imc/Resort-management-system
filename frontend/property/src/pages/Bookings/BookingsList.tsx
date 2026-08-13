@@ -968,16 +968,31 @@ export default function BookingsList() {
                                     </p>
                                     
                                     <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 space-y-2">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="font-bold text-muted-foreground">Unit:</span>
-                                            <span className="font-black text-foreground">{checkOutBooking.room?.roomNumber} ({checkOutBooking.room?.roomType?.name})</span>
-                                        </div>
-                                        {checkOutBooking.roomBlocks && checkOutBooking.roomBlocks.length > 0 && checkOutBooking.roomBlocks.map((block, idx) => (
-                                            <div key={idx} className="flex justify-between text-xs">
-                                                <span className="font-bold text-muted-foreground">Unit {idx + 2}:</span>
-                                                <span className="font-black text-foreground">{block.room.roomNumber} ({block.room.roomType.name})</span>
-                                            </div>
-                                        ))}
+                                        {(() => {
+                                            const hasBookingRooms = checkOutBooking.bookingRooms && checkOutBooking.bookingRooms.length > 0;
+                                            if (!hasBookingRooms) {
+                                                console.error(`[BOOKING_ROOMS_ERROR] Booking ${checkOutBooking.id} has no bookingRooms assigned! Fallback to primary room.`);
+                                                return (
+                                                    <div className="flex justify-between text-xs">
+                                                        <span className="font-bold text-muted-foreground">Unit:</span>
+                                                        <span className="font-black text-foreground">
+                                                            {checkOutBooking.room?.roomNumber} ({checkOutBooking.room?.roomType?.name})
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return checkOutBooking.bookingRooms?.map((br: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between text-xs">
+                                                    <span className="font-bold text-muted-foreground">
+                                                        {(checkOutBooking.bookingRooms?.length || 0) > 1 ? `Unit ${idx + 1}:` : 'Unit:'}
+                                                    </span>
+                                                    <span className="font-black text-foreground">
+                                                        {br.room?.roomNumber} ({br.room?.roomType?.name})
+                                                    </span>
+                                                </div>
+                                            ));
+                                        })()}
                                         <div className="flex justify-between text-xs pt-2 border-t border-border/30">
                                             <span className="font-bold text-muted-foreground">Stay:</span>
                                             <span className="font-black text-foreground">{format(new Date(checkOutBooking.checkInDate), 'MMM d')} - {format(new Date(checkOutBooking.checkOutDate), 'MMM d')}</span>

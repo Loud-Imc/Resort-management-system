@@ -25,6 +25,10 @@ export function RescheduleBookingModal({
 }: RescheduleBookingModalProps) {
     const queryClient = useQueryClient();
 
+    const roomCount = booking.bookingRooms && booking.bookingRooms.length > 0
+        ? booking.bookingRooms.length
+        : 1 + (booking.roomBlocks?.length || 0);
+
     const [newCheckInDate, setNewCheckInDate] = useState<string>(() => format(new Date(booking.checkInDate), 'yyyy-MM-dd'));
     const [newCheckOutDate, setNewCheckOutDate] = useState<string>(() => format(new Date(booking.checkOutDate), 'yyyy-MM-dd'));
     const [newPricePreview, setNewPricePreview] = useState<any>(null);
@@ -34,7 +38,13 @@ export function RescheduleBookingModal({
     const [rescheduleOverrideTotal, setRescheduleOverrideTotal] = useState<string>(booking.isPriceOverridden ? Number(booking.totalAmount).toString() : '');
     const [rescheduleOverrideReason, setRescheduleOverrideReason] = useState<string>(booking.overrideReason || '');
     const [availableRooms, setAvailableRooms] = useState<any[]>([]);
-    const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(() => [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])]);
+    const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(() => {
+        if (booking.bookingRooms && booking.bookingRooms.length > 0) {
+            return booking.bookingRooms.map((br: any) => br.roomId);
+        }
+        console.error(`[BOOKING_ROOMS_ERROR] Booking ${booking.id} has no bookingRooms assigned! Fallback to primary roomId.`);
+        return [booking.roomId, ...(booking.roomBlocks?.map(rb => rb.roomId) || [])];
+    });
     const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
     const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string>(booking.roomTypeId || '');
 
@@ -123,7 +133,6 @@ export function RescheduleBookingModal({
         const fetchPreview = async () => {
             try {
                 setIsCalculatingPreview(true);
-                const roomCount = 1 + (booking.roomBlocks?.length || 0);
                 const preview = await bookingsService.calculatePrice({
                     roomTypeId: rescheduleRoomTypeId,
                     checkInDate: newCheckInDate,
@@ -185,7 +194,6 @@ export function RescheduleBookingModal({
 
     useEffect(() => {
         if (availableRooms.length > 0) {
-            const roomCount = 1 + (booking.roomBlocks?.length || 0);
             const allSelectedValid = selectedRoomIds.every(id => availableRooms.some(r => r.id === id));
             if (!allSelectedValid || selectedRoomIds.length !== roomCount) {
                 const autoSelect = availableRooms.slice(0, roomCount).map(r => r.id);
@@ -195,7 +203,6 @@ export function RescheduleBookingModal({
     }, [availableRooms, booking]);
 
     const toggleRoomSelection = (roomId: string) => {
-        const roomCount = 1 + (booking.roomBlocks?.length || 0);
         setSelectedRoomIds(prev => {
             if (prev.includes(roomId)) {
                 return prev.filter(id => id !== roomId);
@@ -251,7 +258,6 @@ export function RescheduleBookingModal({
             return;
         }
 
-        const roomCount = 1 + (booking.roomBlocks?.length || 0);
         if (selectedRoomIds.length !== roomCount) {
             toast.error(`Please select exactly ${roomCount} room(s). Currently selected: ${selectedRoomIds.length}`);
             return;
@@ -651,7 +657,7 @@ export function RescheduleBookingModal({
                                     Select Room(s)
                                 </label>
                                 <span className="text-xs font-black text-muted-foreground uppercase tracking-wide">
-                                    Select {1 + (booking.roomBlocks?.length || 0)} Unit(s)
+                                    Select {roomCount} Unit(s)
                                 </span>
                             </div>
 

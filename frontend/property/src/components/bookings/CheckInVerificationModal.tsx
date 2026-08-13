@@ -241,20 +241,29 @@ export const CheckInVerificationModal: React.FC<CheckInVerificationModalProps> =
                                 </div>
                                 <div className="flex justify-between items-end">
                                     <div className="space-y-4">
-                                        <div>
-                                            <div className="text-lg font-black text-primary">Unit {booking.room?.roomNumber}</div>
-                                            <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{booking.room?.roomType?.name}</div>
-                                        </div>
-                                        {booking.roomBlocks && booking.roomBlocks.length > 0 && (
-                                            <div className="pt-3 border-t border-border/30 space-y-3">
-                                                {booking.roomBlocks.map((block: any, idx: number) => (
-                                                    <div key={idx}>
-                                                        <div className="text-lg font-black text-primary">Unit {block.room?.roomNumber}</div>
-                                                        <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{block.room?.roomType?.name}</div>
+                                        {(() => {
+                                            const hasBookingRooms = booking.bookingRooms && booking.bookingRooms.length > 0;
+                                            if (!hasBookingRooms) {
+                                                console.error(`[BOOKING_ROOMS_ERROR] Booking ${booking.id} has no bookingRooms assigned! Fallback to primary room.`);
+                                                return (
+                                                    <div>
+                                                        <div className="text-lg font-black text-primary">Unit {booking.room?.roomNumber}</div>
+                                                        <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{booking.room?.roomType?.name}</div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="space-y-3">
+                                                    {booking.bookingRooms?.map((br: any, idx: number) => (
+                                                        <div key={idx} className={idx > 0 ? "pt-3 border-t border-border/30" : ""}>
+                                                            <div className="text-lg font-black text-primary">Unit {br.room?.roomNumber}</div>
+                                                            <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{br.room?.roomType?.name}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                     <div className="text-right">
                                         <div className="text-xs font-bold">{booking.checkInDate ? format(new Date(booking.checkInDate), 'MMM d') : ''} - {booking.checkOutDate ? format(new Date(booking.checkOutDate), 'MMM d') : ''}</div>

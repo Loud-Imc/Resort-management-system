@@ -10,6 +10,15 @@ import type { ConfirmationResult } from 'firebase/auth';
 import api from '../services/api';
 import logo from '../assets/logo.svg';
 
+const mapSlugToPropertyType = (slug: string): string => {
+    const s = slug.toUpperCase();
+    if (s === 'RESORT') return 'RESORT';
+    if (s === 'HOTEL') return 'HOTEL';
+    if (s === 'HOMESTAY') return 'HOMESTAY';
+    if (s === 'VILLA') return 'VILLA';
+    return 'OTHER';
+};
+
 export default function Register() {
     const { registerProperty } = useAuth();
     const navigate = useNavigate();
@@ -45,6 +54,10 @@ export default function Register() {
     const [selectedExistingOwner, setSelectedExistingOwner] = useState<any | null>(null);
     const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
+    // Categories state
+    const [categories, setCategories] = useState<any[]>([]);
+    const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+
     const [formData, setFormData] = useState({
         // Owner fields
         ownerFirstName: '',
@@ -62,6 +75,7 @@ export default function Register() {
         propertyName: '',
         propertyDescription: '',
         propertyType: 'RESORT',
+        categoryId: '',
         address: '',
         city: '',
         state: '',
@@ -111,6 +125,32 @@ export default function Register() {
             }
         };
         fetchSettings();
+    }, []);
+
+    // Fetch Property Categories
+    useEffect(() => {
+        const fetchCategories = async () => {
+            setIsCategoriesLoading(true);
+            try {
+                const res = await api.get('/property-categories');
+                if (res.data && Array.isArray(res.data)) {
+                    setCategories(res.data);
+                    if (res.data.length > 0) {
+                        const defaultCat = res.data[0];
+                        setFormData(prev => ({
+                            ...prev,
+                            categoryId: defaultCat.id,
+                            propertyType: mapSlugToPropertyType(defaultCat.slug)
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch property categories:', error);
+            } finally {
+                setIsCategoriesLoading(false);
+            }
+        };
+        fetchCategories();
     }, []);
 
     // Lookup existing property owner by verified phone
@@ -364,6 +404,17 @@ export default function Register() {
             }));
             toast.success('Coordinates extracted!');
         }
+    };
+
+    const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const catId = e.target.value;
+        const selectedCat = categories.find(c => c.id === catId);
+        const mappedType = selectedCat ? mapSlugToPropertyType(selectedCat.slug) : 'OTHER';
+        setFormData(prev => ({
+            ...prev,
+            categoryId: catId,
+            propertyType: mappedType
+        }));
     };
 
     const nextStep = async () => {
@@ -769,20 +820,34 @@ export default function Register() {
                                         </div>
                                     </div>
                                     <div className="col-span-2 md:col-span-1">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Type</label>
-                                        <select
-                                            name="propertyType"
-                                            required
-                                            value={formData.propertyType}
-                                            onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm appearance-none text-gray-900 bg-white"
-                                        >
-                                            <option value="RESORT">Resort</option>
-                                            <option value="HOTEL">Hotel</option>
-                                            <option value="HOMESTAY">Homestay</option>
-                                            <option value="VILLA">Villa</option>
-                                            <option value="OTHER">Other</option>
-                                        </select>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Category</label>
+                                        {isCategoriesLoading ? (
+                                            <div className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 flex items-center gap-2">
+                                                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                                <span className="text-sm text-gray-500">Loading categories...</span>
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <select
+                                                    name="categoryId"
+                                                    required
+                                                    value={formData.categoryId}
+                                                    onChange={handleCategoryChange}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm appearance-none text-gray-900 bg-white pr-10"
+                                                >
+                                                    {categories.map((cat) => (
+                                                        <option key={cat.id} value={cat.id}>
+                                                            {cat.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
