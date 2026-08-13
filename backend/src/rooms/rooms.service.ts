@@ -157,16 +157,6 @@ export class RoomsService {
                 return room;
             }
 
-            // Determine if there is actually an active block on targetDate
-            const hasActiveBlock = room.blocks && room.blocks.some((b: any) => {
-                const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
-                const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
-                return targetDate >= blockStart && targetDate < blockEnd && !b.bookingId;
-            });
-            if (hasActiveBlock) {
-                return { ...room, status: 'BLOCKED' };
-            }
-
             const bookingRoomsList = room.bookingRooms || [];
 
             // Find active booking for targetDate
@@ -184,6 +174,30 @@ export class RoomsService {
                 return targetDate.getTime() === checkOut.getTime();
             })?.booking;
 
+            // Dynamically filter room.blocks to ignore any blocks that overlap with active bookings
+            if (room.blocks && room.blocks.length > 0) {
+                room.blocks = room.blocks.filter((b: any) => {
+                    // Check if this block overlaps with any active booking in bookingRoomsList
+                    const overlapsWithActiveBooking = bookingRoomsList.some((br: any) => {
+                        if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking.status)) return false;
+                        const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
+                        const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                        const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
+                        const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
+                        // Check overlap: checkIn < blockEnd && checkOut > blockStart
+                        return checkIn < blockEnd && checkOut > blockStart;
+                    });
+                    return !overlapsWithActiveBooking;
+                });
+            }
+
+            // Determine if there is actually an active block on targetDate
+            const hasActiveBlock = room.blocks && room.blocks.some((b: any) => {
+                const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
+                const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
+                return targetDate >= blockStart && targetDate < blockEnd && !b.bookingId;
+            });
+
             let dynamicStatus = 'AVAILABLE';
 
             if (activeBookingForTarget) {
@@ -192,6 +206,8 @@ export class RoomsService {
                 } else {
                     dynamicStatus = 'RESERVED';
                 }
+            } else if (hasActiveBlock) {
+                dynamicStatus = 'BLOCKED';
             } else if (checkoutBookingTarget) {
                 dynamicStatus = 'OUT_TODAY';
             }
