@@ -28,6 +28,14 @@ import { extname } from 'path';
                     'image/gif',
                     'image/avif',
                     'application/pdf',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'text/plain',
+                    'application/zip',
+                    'application/x-zip-compressed',
+                    'application/x-rar-compressed',
                 ];
                 if (allowedMimetypes.includes(file.mimetype)) {
                     cb(null, true);
