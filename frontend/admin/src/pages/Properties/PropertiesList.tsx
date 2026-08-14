@@ -64,6 +64,7 @@ export default function PropertiesList() {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [properties, setProperties] = useState<Property[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
@@ -95,6 +96,7 @@ export default function PropertiesList() {
                 ? await propertyService.getAllAdmin(params)
                 : await propertyService.getAll(params);
             setProperties(response.data);
+            setTotalCount(response.meta?.total ?? response.data.length);
         } catch (err: any) {
             setError(err.message || 'Failed to load properties');
         } finally {
@@ -154,7 +156,7 @@ export default function PropertiesList() {
                     <p className="text-muted-foreground">Platform-wide overview of all properties</p>
                 </div>
                 <span className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-lg font-medium">
-                    {properties.length} result{properties.length !== 1 ? 's' : ''}
+                    {totalCount} result{totalCount !== 1 ? 's' : ''}
                 </span>
             </div>
 

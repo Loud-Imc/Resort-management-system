@@ -871,9 +871,10 @@ export default function PropertyForm() {
                                 images={formData.licenceImage ? [formData.licenceImage] : []}
                                 onChange={(urls) => setFormData(prev => ({ ...prev, licenceImage: urls[0] || '' }))}
                                 maxImages={1}
+                                allowAllFiles={true}
                             />
                             <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                Upload a clear image or scan of the property's business licence.
+                                Upload a clear image, scan or document of the property's business licence.
                             </p>
                         </div>
 
@@ -885,9 +886,10 @@ export default function PropertyForm() {
                                 images={formData.ownerAadhaarImage ? [formData.ownerAadhaarImage] : []}
                                 onChange={(urls) => setFormData(prev => ({ ...prev, ownerAadhaarImage: urls[0] || '' }))}
                                 maxImages={1}
+                                allowAllFiles={true}
                             />
                             <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                Upload the front side of owner's Aadhaar card.
+                                Upload the front side of owner's Aadhaar card / document.
                             </p>
 
                             <div className="mt-4">
@@ -898,9 +900,10 @@ export default function PropertyForm() {
                                     images={formData.ownerAadhaarImageBack ? [formData.ownerAadhaarImageBack] : []}
                                     onChange={(urls) => setFormData(prev => ({ ...prev, ownerAadhaarImageBack: urls[0] || '' }))}
                                     maxImages={1}
+                                    allowAllFiles={true}
                                 />
                                 <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                    Upload the back side of owner's Aadhaar card.
+                                    Upload the back side of owner's Aadhaar card / document.
                                 </p>
                             </div>
 
