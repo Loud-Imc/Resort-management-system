@@ -70,6 +70,7 @@ export default function Register() {
         ownerAadhaarImage: '',
         ownerAadhaarImageBack: '',
         licenceImage: '',
+        documents: [] as string[],
         gstNumber: '',
         // Property fields
         propertyName: '',
@@ -1178,6 +1179,13 @@ export default function Register() {
                                                     required
                                                 />
                                             </div>
+                                            <div className="md:col-span-2">
+                                                <MultipleDocumentUpload
+                                                    label="Additional Property Documents (Optional)"
+                                                    values={formData.documents || []}
+                                                    onUploads={(urls) => setFormData(prev => ({ ...prev, documents: urls }))}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1307,6 +1315,113 @@ function DocumentUpload({ label, id, value, onUpload, required }: { label: strin
                         </>
                     )}
                 </label>
+            </div>
+        </div>
+    );
+}
+
+function MultipleDocumentUpload({ 
+    label, 
+    values, 
+    onUploads, 
+    required 
+}: { 
+    label: string; 
+    values: string[]; 
+    onUploads: (urls: string[]) => void; 
+    required?: boolean 
+}) {
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setIsUploading(true);
+        const uploadedUrls = [...values];
+
+        try {
+            const api = await import('../services/api').then(m => m.default);
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.size > 5 * 1024 * 1024) {
+                    toast.error(`File ${file.name} is too large (max 5MB)`);
+                    continue;
+                }
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const { data } = await api.post('/uploads', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                uploadedUrls.push(data.url);
+            }
+            onUploads(uploadedUrls);
+            toast.success(`Documents uploaded successfully`);
+        } catch (error) {
+            console.error('Upload error:', error);
+            toast.error(`Failed to upload files`);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const removeFile = (indexToRemove: number) => {
+        onUploads(values.filter((_, idx) => idx !== indexToRemove));
+    };
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{label} {required && <span className="text-red-500">*</span>}</label>
+            <div className="space-y-3">
+                <div className="relative border-2 border-dashed border-gray-200 rounded-xl p-4 transition-all hover:bg-gray-50/50">
+                    <input
+                        type="file"
+                        id="multi-doc-upload"
+                        className="hidden"
+                        accept="image/*,application/pdf"
+                        multiple
+                        onChange={handleFileChange}
+                    />
+                    <label
+                        htmlFor="multi-doc-upload"
+                        className="flex flex-col items-center justify-center cursor-pointer py-2"
+                    >
+                        {isUploading ? (
+                            <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+                        ) : (
+                            <>
+                                <ClipboardList className="h-6 w-6 text-gray-400 mb-2" />
+                                <span className="text-xs text-gray-500 font-medium">Click to upload multiple documents</span>
+                            </>
+                        )}
+                    </label>
+                </div>
+
+                {values.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                        {values.map((url, idx) => {
+                            const isPdf = url.toLowerCase().split('?')[0].endsWith('.pdf');
+                            return (
+                                <div key={idx} className="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <FileText className="h-4 w-4 text-primary-600 shrink-0" />
+                                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 font-medium underline truncate hover:text-primary-800">
+                                            {isPdf ? `Document ${idx + 1} (PDF)` : `Document ${idx + 1}`}
+                                        </a>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeFile(idx)}
+                                        className="text-xs text-red-500 font-bold hover:text-red-700 ml-2"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );

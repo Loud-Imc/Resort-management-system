@@ -143,7 +143,17 @@ export default function PropertyRequestsList() {
                     </div>
                 ) : (
                     filteredRequests.map((request) => {
-                        const details = request.details || {};
+                        const details = {
+                            ...request.details,
+                            ...(request.property ? {
+                                licenceImage: request.property.licenceImage,
+                                gstNumber: request.property.gstNumber,
+                                ownerAadhaarNumber: request.property.ownerAadhaarNumber,
+                                ownerAadhaarImage: request.property.ownerAadhaarImage,
+                                ownerAadhaarImageBack: request.property.ownerAadhaarImageBack,
+                                documents: request.property.documents,
+                            } : {})
+                        };
                         const isExpanded = expandedId === request.id;
 
                         return (
@@ -391,6 +401,24 @@ export default function PropertyRequestsList() {
                                                         : <span className="text-muted-foreground italic text-sm">Not provided</span>
                                                     }
                                                 </div>
+                                                {details.documents && details.documents.length > 0 && (
+                                                    <div className="col-span-1 sm:col-span-2 lg:col-span-5 bg-muted/20 rounded-lg p-4 border border-border/50 mt-2">
+                                                        <p className="text-xs text-muted-foreground mb-3 font-bold uppercase tracking-wider">Additional Uploaded Documents ({details.documents.length})</p>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                            {details.documents.map((doc: string, idx: number) => {
+                                                                const isPdf = doc.toLowerCase().split('?')[0].endsWith('.pdf');
+                                                                return (
+                                                                    <div key={idx} className="flex items-center gap-2 p-2 bg-background border border-border rounded-lg shadow-sm">
+                                                                        <FileText className="h-4 w-4 text-primary shrink-0" />
+                                                                        <a href={doc} target="_blank" rel="noopener noreferrer" className="text-xs text-primary font-semibold underline truncate hover:text-primary/80">
+                                                                            {isPdf ? `Document ${idx + 1} (PDF)` : `Document ${idx + 1}`}
+                                                                        </a>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 

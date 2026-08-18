@@ -20,6 +20,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
         const errorStack = exception instanceof Error ? exception.stack : '';
 
+        // Silently handle favicon.ico requests to prevent logs pollution
+        if (request.url.includes('favicon.ico')) {
+            const responseMessage = typeof message === 'object' && (message as any).message
+                ? (message as any).message
+                : message;
+
+            return response
+                .status(status)
+                .json({
+                    statusCode: status,
+                    timestamp: new Date().toISOString(),
+                    path: request.url,
+                    message: responseMessage,
+                });
+        }
+
         this.logger.error(
             `\n--------------------------------------------------------------------------------\n` +
             `🛑 Status: ${status}\n` +

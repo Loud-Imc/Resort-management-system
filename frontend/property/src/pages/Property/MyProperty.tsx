@@ -1221,6 +1221,28 @@ export default function MyProperty() {
                         </div>
                     </div>
                 </div>
+
+                {/* Additional Compliance Documents */}
+                {property?.documents && property.documents.length > 0 && (
+                    <div className="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-6">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Additional Uploaded Documents ({property.documents.length})</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            {property.documents.map((doc, idx) => {
+                                const isPdf = doc.toLowerCase().split('?')[0].endsWith('.pdf');
+                                return (
+                                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <FileText className="h-4 w-4 text-primary shrink-0" />
+                                            <a href={doc} target="_blank" rel="noopener noreferrer" className="text-xs text-primary font-semibold underline truncate hover:text-primary-800 dark:hover:text-primary-400">
+                                                {isPdf ? `Document ${idx + 1} (PDF)` : `Document ${idx + 1}`}
+                                            </a>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </div>
 
         </div>

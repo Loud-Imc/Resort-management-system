@@ -31,6 +31,19 @@ async function main() {
     } else {
       console.log("images column already exists.");
     }
+
+    const documentsExists = await prisma.$queryRawUnsafe(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name='properties' and column_name='documents';
+    `);
+
+    if (documentsExists.length === 0) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "properties" ADD COLUMN "documents" TEXT[] DEFAULT ARRAY[]::TEXT[];`);
+      console.log("Added documents column to properties table.");
+    } else {
+      console.log("documents column in properties table already exists.");
+    }
     
     console.log("Migration applied successfully!");
   } catch (error) {

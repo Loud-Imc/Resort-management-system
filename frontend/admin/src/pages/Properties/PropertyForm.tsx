@@ -23,13 +23,7 @@ import 'react-phone-input-2/lib/style.css';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
-const propertyTypes: { value: PropertyType; label: string }[] = [
-    { value: 'RESORT', label: 'Resort' },
-    { value: 'HOMESTAY', label: 'Homestay' },
-    { value: 'HOTEL', label: 'Hotel' },
-    { value: 'VILLA', label: 'Villa' },
-    { value: 'OTHER', label: 'Other' },
-];
+
 
 const defaultAmenities = [
     'WiFi', 'Pool', 'Restaurant', 'Spa', 'Gym', 'Parking',
@@ -85,6 +79,7 @@ export default function PropertyForm() {
         groupPriceAdult: 500,
         groupPriceChild: 300,
         licenceImage: '',
+        documents: [],
         ownerAadhaarImage: '',
         ownerAadhaarImageBack: '',
         ownerAadhaarNumber: '',
@@ -187,6 +182,7 @@ export default function PropertyForm() {
                 groupPriceAdult: property.groupPriceAdult ? Number(property.groupPriceAdult) : 0,
                 groupPriceChild: property.groupPriceChild ? Number(property.groupPriceChild) : 0,
                 licenceImage: property.licenceImage || '',
+                documents: property.documents || [],
                 ownerAadhaarImage: property.ownerAadhaarImage || '',
                 ownerAadhaarImageBack: property.ownerAadhaarImageBack || '',
                 ownerAadhaarNumber: property.ownerAadhaarNumber || '',
@@ -454,23 +450,6 @@ export default function PropertyForm() {
                                     ))}
                                 </select>
                             )}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-muted-foreground mb-1">
-                                Property Type *
-                            </label>
-                            <select
-                                name="type"
-                                value={formData.type}
-                                onChange={handleChange}
-                                required
-                                className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-                            >
-                                {propertyTypes.map(type => (
-                                    <option key={type.value} value={type.value}>{type.label}</option>
-                                ))}
-                            </select>
                         </div>
 
 
@@ -875,6 +854,21 @@ export default function PropertyForm() {
                             />
                             <p className="text-xs text-muted-foreground mt-2 font-medium">
                                 Upload a clear image, scan or document of the property's business licence.
+                            </p>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-bold text-muted-foreground mb-2">
+                                Additional Compliance Documents
+                            </label>
+                            <ImageUpload
+                                images={formData.documents || []}
+                                onChange={(urls) => setFormData(prev => ({ ...prev, documents: urls }))}
+                                maxImages={10}
+                                allowAllFiles={true}
+                            />
+                            <p className="text-xs text-muted-foreground mt-2 font-medium">
+                                Upload any other supporting compliance or legal documents (e.g. lease agreements, tax certificates, etc.).
                             </p>
                         </div>
 
