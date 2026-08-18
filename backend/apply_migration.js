@@ -44,6 +44,32 @@ async function main() {
     } else {
       console.log("documents column in properties table already exists.");
     }
+
+    const isPmsActiveExists = await prisma.$queryRawUnsafe(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name='properties' and column_name='isPmsActive';
+    `);
+
+    if (isPmsActiveExists.length === 0) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "properties" ADD COLUMN "isPmsActive" BOOLEAN DEFAULT false;`);
+      console.log("Added isPmsActive column to properties table.");
+    } else {
+      console.log("isPmsActive column already exists.");
+    }
+
+    const ownerAadhaarImageBackExists = await prisma.$queryRawUnsafe(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name='properties' and column_name='ownerAadhaarImageBack';
+    `);
+
+    if (ownerAadhaarImageBackExists.length === 0) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "properties" ADD COLUMN "ownerAadhaarImageBack" TEXT;`);
+      console.log("Added ownerAadhaarImageBack column to properties table.");
+    } else {
+      console.log("ownerAadhaarImageBack column already exists.");
+    }
     
     console.log("Migration applied successfully!");
   } catch (error) {
