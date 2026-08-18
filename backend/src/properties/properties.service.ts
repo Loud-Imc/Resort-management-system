@@ -1322,6 +1322,47 @@ export class PropertiesService {
         });
     }
 
+    // Admin: Toggle PMS active status
+    async togglePms(id: string, isPmsActive: boolean) {
+        return this.prisma.property.update({
+            where: { id },
+            data: { isPmsActive },
+        });
+    }
+
+    // Admin: Reset owner password
+    async resetOwnerPassword(id: string, email: string, password?: string) {
+        const property = await this.prisma.property.findUnique({
+            where: { id },
+            include: { owner: true }
+        });
+
+        if (!property) {
+            throw new NotFoundException('Property not found');
+        }
+
+        const targetEmail = property.owner?.email || property.email;
+        if (targetEmail.toLowerCase() !== email.toLowerCase()) {
+            throw new BadRequestException('Confirmation email address does not match the property owner email');
+        }
+
+        if (!password || password.trim().length < 6) {
+            throw new BadRequestException('A valid password of at least 6 characters must be provided');
+        }
+
+        const hashedPassword = await bcrypt.hash(password.trim(), 10);
+
+        await this.prisma.user.update({
+            where: { id: property.ownerId },
+            data: { password: hashedPassword }
+        });
+
+        return {
+            success: true,
+            message: `Password updated successfully for owner ${targetEmail}.`
+        };
+    }
+
     // Google Places Autocomplete proxy — keeps API key server-side
     async getPlaceAutocomplete(input: string) {
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
