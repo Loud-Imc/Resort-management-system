@@ -539,6 +539,7 @@ model Property {
   reviewCount                 Int                  @default(0)
   isActive                    Boolean              @default(true)
   isVerified                  Boolean              @default(false)
+  isPmsActive                 Boolean              @default(false)
   ownerId                     String
   createdAt                   DateTime             @default(now())
   updatedAt                   DateTime             @updatedAt
@@ -558,6 +559,7 @@ model Property {
   defaultCancellationPolicyId String?
   gstNumber                   String?
   licenceImage                String?
+  documents                   String[]             @default([])
   ownerAadhaarImage           String?
   ownerAadhaarImageBack       String?
   ownerAadhaarNumber          String?

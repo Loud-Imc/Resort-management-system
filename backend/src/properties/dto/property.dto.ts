@@ -170,6 +170,12 @@ export class CreatePropertyDto {
     @IsString()
     licenceImage?: string;
 
+    @ApiProperty({ description: 'Property compliance/KYC documents list' })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    documents?: string[];
+
     @ApiProperty({ description: 'Owner Aadhaar card image URL' })
     @IsOptional()
     @IsString()
@@ -337,6 +343,11 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
     licenceImage?: string;
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    documents?: string[];
 
     @IsOptional()
     @IsString()

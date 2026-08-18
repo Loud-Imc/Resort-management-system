@@ -41,6 +41,7 @@ export interface Property {
     isActive: boolean;
     isVerified: boolean;
     isFeatured: boolean;
+    isPmsActive?: boolean;
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     ownerId: string;
     owner?: {
@@ -75,6 +76,7 @@ export interface Property {
     location?: string;
     details?: any;
     licenceImage?: string;
+    documents?: string[];
     ownerAadhaarImage?: string;
     ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;

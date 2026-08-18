@@ -35,6 +35,7 @@ export interface Property {
     isVerified: boolean;
     isFeatured: boolean;
     isSponsored: boolean;
+    isPmsActive?: boolean;
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     ownerId: string;
     owner?: {
@@ -69,6 +70,7 @@ export interface Property {
     groupPriceAdult?: number;
     groupPriceChild?: number;
     licenceImage?: string;
+    documents?: string[];
     ownerAadhaarImage?: string;
     ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;
@@ -105,6 +107,7 @@ export interface CreatePropertyDto {
     groupPriceAdult?: number;
     groupPriceChild?: number;
     licenceImage?: string;
+    documents?: string[];
     ownerAadhaarImage?: string;
     ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;

@@ -94,6 +94,11 @@ export class RegisterPropertyDto {
     licenceImage?: string;
 
     @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    documents?: string[];
+
+    @IsOptional()
     @IsString()
     gstNumber?: string;
 

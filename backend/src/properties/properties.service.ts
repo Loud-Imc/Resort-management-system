@@ -224,6 +224,7 @@ export class PropertiesService {
                     images: details.images || [],
                     amenities: details.amenities || [],
                     licenceImage: details.licenceImage || null,
+                    documents: details.documents || [],
                     gstNumber: details.gstNumber || null,
                     ownerAadhaarNumber: details.ownerAadhaarNumber || null,
                     ownerAadhaarImage: details.ownerAadhaarImage || null,
@@ -389,6 +390,12 @@ export class PropertiesService {
                         id: true, 
                         name: true, 
                         slug: true,
+                        licenceImage: true,
+                        gstNumber: true,
+                        ownerAadhaarNumber: true,
+                        ownerAadhaarImage: true,
+                        ownerAadhaarImageBack: true,
+                        documents: true,
                         addedBy: { select: { id: true, firstName: true, lastName: true, email: true } }
                     } 
                 }
