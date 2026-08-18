@@ -62,6 +62,18 @@ export const propertyService = {
         return response.data;
     },
 
+    // Admin: Toggle property PMS status
+    async togglePms(id: string, isPmsActive: boolean): Promise<Property> {
+        const response = await api.put(`/properties/${id}/toggle-pms`, { isPmsActive });
+        return response.data;
+    },
+
+    // Admin: Reset property owner password
+    async resetOwnerPassword(id: string, email: string, password?: string): Promise<{ success: boolean; message: string }> {
+        const response = await api.post(`/properties/${id}/reset-owner-password`, { email, password });
+        return response.data;
+    },
+
     // Admin: Update property status (Approve/Reject)
     async updateStatus(id: string, status: 'APPROVED' | 'REJECTED' | 'INACTIVE'): Promise<Property> {
         const response = await api.patch(`/properties/${id}/status`, { status });

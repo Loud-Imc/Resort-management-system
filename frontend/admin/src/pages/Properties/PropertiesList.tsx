@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { useAuth } from '../../context/AuthContext';
@@ -115,6 +115,46 @@ export default function PropertiesList() {
             toast.success(`Property ${!isActive ? 'enabled' : 'disabled'} successfully`);
         } catch (err: any) {
             toast.error(err.message || 'Failed to update property status');
+        }
+    };
+
+    const handleTogglePms = async (id: string, isPmsActive: boolean) => {
+        try {
+            await propertyService.togglePms(id, !isPmsActive);
+            setProperties(properties.map(p =>
+                p.id === id ? { ...p, isPmsActive: !isPmsActive } : p
+            ));
+            toast.success(`PMS ${!isPmsActive ? 'enabled' : 'disabled'} successfully`);
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to update property PMS status');
+        }
+    };
+
+    const handleResetOwnerPassword = async (property: Property) => {
+        const ownerEmail = property.owner?.email || property.email;
+        const confirmEmail = window.prompt(`To change the owner password for "${property.name}", confirm by typing the owner's email address (${ownerEmail}):`);
+        
+        if (confirmEmail === null) return; // Cancelled
+        
+        if (confirmEmail.trim().toLowerCase() !== ownerEmail.toLowerCase()) {
+            toast.error('The email address typed does not match. Action cancelled.');
+            return;
+        }
+
+        const newPassword = window.prompt(`Enter the new password you want to assign to this property owner (minimum 6 characters):`);
+        if (newPassword === null) return; // Cancelled
+        
+        const trimmedPassword = newPassword.trim();
+        if (trimmedPassword.length < 6) {
+            toast.error('Password must be at least 6 characters long.');
+            return;
+        }
+
+        try {
+            await propertyService.resetOwnerPassword(property.id, confirmEmail.trim(), trimmedPassword);
+            toast.success(`Password successfully updated to your chosen password!`);
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to update password');
         }
     };
 
@@ -271,6 +311,14 @@ export default function PropertiesList() {
                                     )}>
                                         {property.status}
                                     </span>
+                                    {property.status === 'APPROVED' && (
+                                        <span className={clsx(
+                                            "px-2 py-1 text-xs rounded font-bold shadow-sm",
+                                            property.isPmsActive ? 'bg-indigo-600 text-white' : 'bg-slate-650 text-white'
+                                        )}>
+                                            {property.isPmsActive ? 'PMS Active' : 'OTA Only'}
+                                        </span>
+                                    )}
                                     {!property.isActive && property.status === 'APPROVED' && (
                                         <span className="bg-red-600 text-white px-2 py-1 text-xs rounded font-bold">
                                             Disabled
@@ -324,15 +372,39 @@ export default function PropertiesList() {
                                             Impersonate Property Dashboard
                                         </button>
 
+                                        {/* PMS Toggle Action */}
+                                        {property.status === 'APPROVED' && (
+                                            <button
+                                                onClick={() => handleTogglePms(property.id, !!property.isPmsActive)}
+                                                className={clsx(
+                                                    "w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all border border-border/50 cursor-pointer",
+                                                    property.isPmsActive
+                                                        ? "text-amber-600 hover:bg-amber-50 hover:border-amber-100"
+                                                        : "text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100"
+                                                )}
+                                            >
+                                                <ShieldCheck className="h-4 w-4" />
+                                                {property.isPmsActive ? 'Switch to OTA Only' : 'Activate PMS Mode'}
+                                            </button>
+                                        )}
+
                                         {/* Secondary Actions */}
                                         <div className="flex gap-2.5">
                                             <button
                                                 onClick={() => navigate(`/properties/${property.id}/edit`)}
                                                 title="Edit Property Details"
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-border/50"
+                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-border/50 cursor-pointer"
                                             >
                                                 <Edit className="h-3.5 w-3.5" />
                                                 Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleResetOwnerPassword(property)}
+                                                title="Reset Owner Password"
+                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:border-rose-100 rounded-lg transition-all border border-border/50 cursor-pointer"
+                                            >
+                                                <Key className="h-3.5 w-3.5" />
+                                                Reset PW
                                             </button>
                                             <button
                                                 onClick={() => handleToggleActive(property.id, property.isActive)}

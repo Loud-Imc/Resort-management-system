@@ -363,6 +363,28 @@ export class PropertiesController {
         return this.propertiesService.toggleActive(id, isActive);
     }
 
+    @Put(':id/toggle-pms')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Toggle property PMS active status (Admin)' })
+    togglePms(@Param('id') id: string, @Body('isPmsActive') isPmsActive: boolean) {
+        return this.propertiesService.togglePms(id, isPmsActive);
+    }
+
+    @Post(':id/reset-owner-password')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Reset owner password (Admin)' })
+    resetOwnerPassword(
+        @Param('id') id: string,
+        @Body('email') email: string,
+        @Body('password') password?: string,
+    ) {
+        return this.propertiesService.resetOwnerPassword(id, email, password);
+    }
+
     // ============================================
     // INTELLIGENCE (IMPERSONATION)
     // ============================================
