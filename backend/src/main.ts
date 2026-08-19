@@ -22,6 +22,9 @@ async function bootstrap() {
       process.env.PUBLIC_URL || 'http://localhost:5174',
       process.env.CHANNEL_PARTNER_URL || 'http://localhost:5174',
       process.env.PROPERTY_URL || 'http://localhost:5176',
+      process.env.OPP_URL || 'http://localhost:5176',
+      'https://opp.routeguide.in',
+      'https://staging-opp.routeguide.in',
     ],
     credentials: true,
   });
