@@ -15,7 +15,6 @@ async function bootstrap() {
   // Global prefix for all API endpoints
   app.setGlobalPrefix('api');
 
-  // CORS
   app.enableCors({
     origin: [
       process.env.ADMIN_URL || 'http://localhost:5174',
@@ -23,8 +22,6 @@ async function bootstrap() {
       process.env.CHANNEL_PARTNER_URL || 'http://localhost:5176',
       process.env.PROPERTY_URL || 'http://localhost:5175',
       process.env.OPP_URL || 'http://localhost:5177',
-      'https://opp.routeguide.in',
-      'https://staging-opp.routeguide.in',
     ],
     credentials: true,
   });
