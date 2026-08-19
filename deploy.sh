@@ -59,6 +59,7 @@ fi
 
 # 3. Deploy Frontends in Parallel
 FRONTENDS=("admin" "public" "channel-partner" "property")
+OPP_APP="ota-property-portal"
 BUILD_PIDS=()
 CHANGED_FRONTENDS=()
 
@@ -91,6 +92,18 @@ if [ ${#CHANGED_FRONTENDS[@]} -gt 0 ]; then
     done
 else
     echo "⏭️ No frontend changes detected. Skipping all frontend builds."
+fi
+
+# Deploy OTA Property Portal (uses build:production mode for correct env)
+if has_changes "frontend/$OPP_APP/"; then
+    echo "🏗️ OPP changes detected. Building $OPP_APP (production mode)..."
+    cd "frontend/$OPP_APP"
+    npm install > /dev/null 2>&1
+    npm run build:production > /dev/null 2>&1
+    echo "  ✨ $OPP_APP build complete."
+    cd ..
+else
+    echo "⏭️ No changes in $OPP_APP. Skipping."
 fi
 
 END_TIME=$(date +%s)

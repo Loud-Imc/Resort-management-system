@@ -73,6 +73,7 @@ fi
 
 # 3. Deploy Frontends
 FRONTENDS=("admin" "public" "channel-partner" "property")
+OPP_APP="ota-property-portal"
 
 for APP in "${FRONTENDS[@]}"; do
     if has_changes "frontend/$APP/"; then
@@ -91,5 +92,22 @@ for APP in "${FRONTENDS[@]}"; do
         echo "⏩ No changes in $APP Frontend. Skipping."
     fi
 done
+
+# Deploy OTA Property Portal (uses build:staging mode for correct env)
+if has_changes "frontend/$OPP_APP/"; then
+    echo "🏗️ Changes detected in $OPP_APP Frontend. Building..."
+    cd "frontend/$OPP_APP"
+
+    if has_changes "frontend/$OPP_APP/package" || [ "$FORCE_BUILD" = true ]; then
+        echo "📦 Package changes for $OPP_APP. Running npm install..."
+        npm install
+    fi
+
+    echo "⚙️ Building $OPP_APP (staging mode)..."
+    npm run build:staging
+    cd ../..
+else
+    echo "⏩ No changes in $OPP_APP Frontend. Skipping."
+fi
 
 echo "✅ Optimized Staging Deployment Complete!"
