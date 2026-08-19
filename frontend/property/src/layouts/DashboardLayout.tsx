@@ -69,7 +69,7 @@ export default function DashboardLayout() {
 
     const handleRedirectToOta = () => {
         logout();
-        window.location.href = 'http://localhost:5176/login';
+        window.location.href = `${import.meta.env.VITE_OTA_PORTAL_URL || 'http://localhost:5177'}/login`;
     };
 
     useEffect(() => {
