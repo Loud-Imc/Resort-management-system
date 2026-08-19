@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key, X } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { useAuth } from '../../context/AuthContext';
@@ -71,6 +71,11 @@ export default function PropertiesList() {
     const [typeFilter, setTypeFilter] = useState<PropertyType | ''>('');
     const [flagFilter, setFlagFilter] = useState<FlagFilter>('');
 
+    const [resetPwProperty, setResetPwProperty] = useState<Property | null>(null);
+    const [confirmEmailInput, setConfirmEmailInput] = useState('');
+    const [newPasswordInput, setNewPasswordInput] = useState('');
+    const [isSubmittingReset, setIsSubmittingReset] = useState(false);
+
     // Auto-fetch on mount and whenever dropdown filters change
     useEffect(() => {
         loadProperties();
@@ -130,31 +135,36 @@ export default function PropertiesList() {
         }
     };
 
-    const handleResetOwnerPassword = async (property: Property) => {
-        const ownerEmail = property.owner?.email || property.email;
-        const confirmEmail = window.prompt(`To change the owner password for "${property.name}", confirm by typing the owner's email address (${ownerEmail}):`);
-        
-        if (confirmEmail === null) return; // Cancelled
-        
-        if (confirmEmail.trim().toLowerCase() !== ownerEmail.toLowerCase()) {
+    const handleResetOwnerPassword = (property: Property) => {
+        setResetPwProperty(property);
+        setConfirmEmailInput('');
+        setNewPasswordInput('');
+    };
+
+    const handleSubmitResetPassword = async () => {
+        if (!resetPwProperty) return;
+        const ownerEmail = resetPwProperty.owner?.email || resetPwProperty.email;
+
+        if (confirmEmailInput.trim().toLowerCase() !== ownerEmail.toLowerCase()) {
             toast.error('The email address typed does not match. Action cancelled.');
             return;
         }
 
-        const newPassword = window.prompt(`Enter the new password you want to assign to this property owner (minimum 6 characters):`);
-        if (newPassword === null) return; // Cancelled
-        
-        const trimmedPassword = newPassword.trim();
+        const trimmedPassword = newPasswordInput.trim();
         if (trimmedPassword.length < 6) {
             toast.error('Password must be at least 6 characters long.');
             return;
         }
 
         try {
-            await propertyService.resetOwnerPassword(property.id, confirmEmail.trim(), trimmedPassword);
+            setIsSubmittingReset(true);
+            await propertyService.resetOwnerPassword(resetPwProperty.id, confirmEmailInput.trim(), trimmedPassword);
             toast.success(`Password successfully updated to your chosen password!`);
+            setResetPwProperty(null);
         } catch (err: any) {
             toast.error(err.message || 'Failed to update password');
+        } finally {
+            setIsSubmittingReset(false);
         }
     };
 
@@ -424,6 +434,86 @@ export default function PropertiesList() {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+            {/* Custom React Modal for Reset Password */}
+            {resetPwProperty && (
+                <div 
+                    className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
+                    onClick={() => setResetPwProperty(null)}
+                >
+                    <div 
+                        className="bg-card border border-border shadow-2xl rounded-3xl w-full max-w-md overflow-hidden animate-in scale-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="p-5 border-b border-border flex items-center justify-between bg-muted/30">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-rose-500/10 text-rose-500 p-2 rounded-xl">
+                                    <Key className="h-5 w-5 animate-pulse" />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-black text-foreground tracking-tight text-left">Reset Owner Password</h2>
+                                    <p className="text-[10px] text-muted-foreground font-semibold truncate max-w-[280px] text-left">
+                                        {resetPwProperty.name}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setResetPwProperty(null)}
+                                className="p-1.5 hover:bg-muted rounded-xl text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Form Body */}
+                        <div className="p-5 space-y-4 text-left">
+                            <div>
+                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 text-left">
+                                    Confirm Owner Email Address ({resetPwProperty.owner?.email || resetPwProperty.email})
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Type owner's email to confirm..."
+                                    className="w-full px-3.5 py-2 bg-background border border-border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all text-foreground"
+                                    value={confirmEmailInput}
+                                    onChange={(e) => setConfirmEmailInput(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 text-left">
+                                    New Custom Password (Min. 6 Characters)
+                                </label>
+                                <input
+                                    type="password"
+                                    placeholder="Type new custom password..."
+                                    className="w-full px-3.5 py-2 bg-background border border-border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all text-foreground"
+                                    value={newPasswordInput}
+                                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="p-4 bg-muted/20 border-t border-border flex items-center justify-end gap-2">
+                            <button
+                                onClick={() => setResetPwProperty(null)}
+                                className="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmitResetPassword}
+                                disabled={isSubmittingReset || !confirmEmailInput || !newPasswordInput}
+                                className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 rounded-xl transition-all shadow-sm shadow-rose-600/20 cursor-pointer"
+                            >
+                                {isSubmittingReset ? 'Updating...' : 'Confirm Reset'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

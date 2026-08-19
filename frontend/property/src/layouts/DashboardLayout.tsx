@@ -16,11 +16,16 @@ import {
     Search,
     MapPin,
     Building2,
-    CheckCircle2
+    CheckCircle2,
+    ShieldCheck,
+    Zap,
+    LayoutDashboard
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import NotificationBell from '../components/NotificationBell';
+import api from '../services/api';
+import { toast } from 'react-hot-toast';
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '../context/SocketContext';
@@ -41,7 +46,32 @@ export default function DashboardLayout() {
     const [isPropertyModalOpen, setIsPropertyModalOpen] = useState(false);
     const [propertySearch, setPropertySearch] = useState('');
 
-    // Real-time update for unread count
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+    useEffect(() => {
+        if (selectedProperty && !selectedProperty.isRequest && selectedProperty.status === 'APPROVED' && !selectedProperty.isPmsActive) {
+            setShowUpgradeModal(true);
+        } else {
+            setShowUpgradeModal(false);
+        }
+    }, [selectedProperty]);
+
+    const handleActivatePms = async () => {
+        try {
+            await api.post('/ota-portal/dashboard/activate-pms');
+            toast.success('RouteGuide PMS Package Activated successfully!');
+            setShowUpgradeModal(false);
+            window.location.reload();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Activation failed');
+        }
+    };
+
+    const handleRedirectToOta = () => {
+        logout();
+        window.location.href = 'http://localhost:5176/login';
+    };
+
     useEffect(() => {
         if (socket) {
             socket.on('NEW_BOOKING', () => {
@@ -611,6 +641,60 @@ export default function DashboardLayout() {
                                 className="text-primary hover:underline font-bold flex items-center gap-1"
                             >
                                 + Register New Listing
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Beautiful Theme-Colored PMS Package Modal */}
+            {showUpgradeModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all">
+                    <div className="bg-card border border-border max-w-lg w-full rounded-2xl shadow-2xl p-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Teal Glowing Decorative Element */}
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
+                        
+                        <div className="flex flex-col items-center text-center mt-4">
+                            <div className="p-4 bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-full mb-4 border border-teal-500/20">
+                                <ShieldCheck className="h-10 w-10" />
+                            </div>
+                            
+                            <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                                PMS Package Required
+                            </h2>
+                            <p className="text-sm font-semibold text-muted-foreground mt-2 max-w-md">
+                                You are attempting to access the legacy frontdesk Property Management System (PMS) for <span className="text-teal-600 dark:text-teal-400">{selectedProperty?.name}</span>. 
+                                <br />
+                                This feature requires an active PMS Package Subscription.
+                            </p>
+                        </div>
+
+                        <div className="mt-8 space-y-3">
+                            <button
+                                onClick={handleActivatePms}
+                                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 text-white font-bold hover:from-teal-500 hover:to-emerald-500 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <Zap className="h-4 w-4" />
+                                Activate PMS Package (Mock Payment)
+                            </button>
+                            
+                            <button
+                                onClick={handleRedirectToOta}
+                                className="w-full py-3 px-4 rounded-xl border border-border bg-muted/30 text-foreground font-bold hover:bg-muted/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <LayoutDashboard className="h-4 w-4" />
+                                Manage Listing on OTA Property Portal
+                            </button>
+                        </div>
+
+                        <div className="mt-6 text-center">
+                            <button
+                                onClick={() => {
+                                    logout();
+                                    navigate('/login');
+                                }}
+                                className="text-xs text-muted-foreground hover:text-red-500 font-bold transition-all cursor-pointer"
+                            >
+                                Sign Out / Change Account
                             </button>
                         </div>
                     </div>

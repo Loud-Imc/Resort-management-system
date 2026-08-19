@@ -140,12 +140,15 @@ export class DiscountsService {
         return offer;
     }
 
-    async findAllOffers(user: any) {
+    async findAllOffers(user: any, propertyId?: string) {
         const roles = user.roles || [];
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
 
         if (isGlobalAdmin) {
             return this.prisma.offer.findMany({
+                where: propertyId ? {
+                    roomTypes: { some: { propertyId } }
+                } : {},
                 include: { roomTypes: { include: { property: true } } },
                 orderBy: { createdAt: 'desc' }
             });
@@ -153,7 +156,14 @@ export class DiscountsService {
 
         return this.prisma.offer.findMany({
             where: {
-                roomTypes: { some: { property: { ownerId: user.id } } }
+                roomTypes: {
+                    some: {
+                        property: {
+                            ownerId: user.id,
+                            ...(propertyId ? { id: propertyId } : {})
+                        }
+                    }
+                }
             },
             include: { roomTypes: { include: { property: true } } },
             orderBy: { createdAt: 'desc' }
