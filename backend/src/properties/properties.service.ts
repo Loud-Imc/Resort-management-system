@@ -991,6 +991,9 @@ export class PropertiesService {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
                     { city: { contains: search, mode: 'insensitive' } },
+                    { address: { contains: search, mode: 'insensitive' } },
+                    { state: { contains: search, mode: 'insensitive' } },
+                    { pincode: { contains: search, mode: 'insensitive' } },
                     { phone: { contains: search, mode: 'insensitive' } },
                     { email: { contains: search, mode: 'insensitive' } },
                     { description: { contains: search, mode: 'insensitive' } },
