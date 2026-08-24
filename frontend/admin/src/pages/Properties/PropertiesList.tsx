@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
@@ -211,7 +211,8 @@ export default function PropertiesList() {
             return;
         }
 
-        const propertyUrl = import.meta.env.VITE_PROPERTY_URL;
+        const rawPropertyUrl = import.meta.env.VITE_PROPERTY_URL || 'http://localhost:5175';
+        const propertyUrl = rawPropertyUrl.replace(/\/login\/?$/, '');
         const encodedUser = btoa(userData);
 
         const params = new URLSearchParams({
