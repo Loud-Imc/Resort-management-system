@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PropertyStatus } from '@prisma/client';
 import { PricingService } from './pricing.service';
@@ -1145,5 +1145,182 @@ export class AvailabilityService {
         }
 
         return results;
+    }
+
+    /**
+     * Centralized Evaluation Engine for Restrictions (Stop Sell, Min Stay, Max Stay, CTA, CTD).
+     * Applies resolution priority: RoomType-specific rule overrides Property-wide fallback.
+     * Evaluates overlapping rules using most restrictive parameters.
+     */
+    async evaluateRestrictions(
+        propertyId: string,
+        roomTypeId: string | null,
+        checkInDate: Date | string,
+        checkOutDate: Date | string,
+    ) {
+        const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
+        const checkOut = new Date(checkOutDate);
+        checkOut.setHours(0, 0, 0, 0);
+
+        const stopSells = await this.prisma.stopSellRestriction.findMany({
+            where: {
+                propertyId,
+                isActive: true,
+                ...(roomTypeId ? { OR: [{ roomTypeId: null }, { roomTypeId }] } : {}),
+                startDate: { lte: checkOut },
+                endDate: { gte: checkIn },
+            },
+        });
+
+        const restrictionRules = await (this.prisma as any).restrictionRule.findMany({
+            where: {
+                propertyId,
+                isActive: true,
+                ...(roomTypeId ? { OR: [{ roomTypeId: null }, { roomTypeId }] } : {}),
+                startDate: { lte: checkOut },
+                endDate: { gte: checkIn },
+            },
+        });
+
+        const current = new Date(checkIn);
+        const dailyEffectiveMap: Map<string, {
+            stopSell: boolean;
+            minStayArrival: number | null;
+            minStayThrough: number | null;
+            maxStay: number | null;
+            closedToArrival: boolean;
+            closedToDeparture: boolean;
+        }> = new Map();
+
+        while (current <= checkOut) {
+            const year = current.getFullYear();
+            const month = String(current.getMonth() + 1).padStart(2, '0');
+            const day = String(current.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            const dayStart = new Date(current);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(current);
+            dayEnd.setHours(23, 59, 59, 999);
+
+            const hasStopSell = stopSells.some((ss) => {
+                const ssStart = new Date(ss.startDate);
+                ssStart.setHours(0, 0, 0, 0);
+                const ssEnd = new Date(ss.endDate);
+                ssEnd.setHours(23, 59, 59, 999);
+                return (!ss.roomTypeId || !roomTypeId || ss.roomTypeId === roomTypeId) && dayStart <= ssEnd && dayEnd >= ssStart;
+            });
+
+            const matchingRules = restrictionRules.filter((rr: any) => {
+                const rrStart = new Date(rr.startDate);
+                rrStart.setHours(0, 0, 0, 0);
+                const rrEnd = new Date(rr.endDate);
+                rrEnd.setHours(23, 59, 59, 999);
+                return (!rr.roomTypeId || !roomTypeId || rr.roomTypeId === roomTypeId) && dayStart <= rrEnd && dayEnd >= rrStart;
+            });
+
+            const specificRules = matchingRules.filter((rr: any) => rr.roomTypeId && rr.roomTypeId === roomTypeId);
+            const rulesToEvaluate = specificRules.length > 0 ? specificRules : matchingRules;
+
+            let effMinStayArrival: number | null = null;
+            let effMinStayThrough: number | null = null;
+            let effMaxStay: number | null = null;
+            let effCTA = false;
+            let effCTD = false;
+
+            for (const r of rulesToEvaluate) {
+                if (r.minStayArrival !== null && r.minStayArrival !== undefined) {
+                    effMinStayArrival = effMinStayArrival === null ? Number(r.minStayArrival) : Math.max(effMinStayArrival, Number(r.minStayArrival));
+                }
+                if (r.minStayThrough !== null && r.minStayThrough !== undefined) {
+                    effMinStayThrough = effMinStayThrough === null ? Number(r.minStayThrough) : Math.max(effMinStayThrough, Number(r.minStayThrough));
+                }
+                if (r.maxStay !== null && r.maxStay !== undefined) {
+                    effMaxStay = effMaxStay === null ? Number(r.maxStay) : Math.min(effMaxStay, Number(r.maxStay));
+                }
+                if (r.closedToArrival) effCTA = true;
+                if (r.closedToDeparture) effCTD = true;
+            }
+
+            dailyEffectiveMap.set(dateStr, {
+                stopSell: hasStopSell,
+                minStayArrival: effMinStayArrival,
+                minStayThrough: effMinStayThrough,
+                maxStay: effMaxStay,
+                closedToArrival: effCTA,
+                closedToDeparture: effCTD,
+            });
+
+            current.setDate(current.getDate() + 1);
+        }
+
+        return dailyEffectiveMap;
+    }
+
+    /**
+     * Shared Business Validation Layer for Booking Creation.
+     * Validates Check-In/Check-Out against active Restrictions before transaction commit.
+     */
+    async validateBookingRestrictions(
+        propertyId: string,
+        roomTypeId: string,
+        checkInDate: Date | string,
+        checkOutDate: Date | string,
+    ): Promise<void> {
+        const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
+        const checkOut = new Date(checkOutDate);
+        checkOut.setHours(0, 0, 0, 0);
+
+        const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+        const dailyMap = await this.evaluateRestrictions(propertyId, roomTypeId, checkInDate, checkOutDate);
+
+        const yearIn = checkIn.getFullYear();
+        const monthIn = String(checkIn.getMonth() + 1).padStart(2, '0');
+        const dayIn = String(checkIn.getDate()).padStart(2, '0');
+        const checkInStr = `${yearIn}-${monthIn}-${dayIn}`;
+
+        const yearOut = checkOut.getFullYear();
+        const monthOut = String(checkOut.getMonth() + 1).padStart(2, '0');
+        const dayOut = String(checkOut.getDate()).padStart(2, '0');
+        const checkOutStr = `${yearOut}-${monthOut}-${dayOut}`;
+
+        const arrivalRules = dailyMap.get(checkInStr);
+        const departureRules = dailyMap.get(checkOutStr);
+
+        if (arrivalRules?.closedToArrival) {
+            throw new BadRequestException(`Check-in is closed on ${checkInStr} (CTA restriction)`);
+        }
+
+        if (departureRules?.closedToDeparture) {
+            throw new BadRequestException(`Check-out is closed on ${checkOutStr} (CTD restriction)`);
+        }
+
+        if (arrivalRules?.minStayArrival && nights < arrivalRules.minStayArrival) {
+            throw new BadRequestException(`Minimum stay requirement of ${arrivalRules.minStayArrival} night(s) not met for arrival on ${checkInStr}`);
+        }
+
+        const current = new Date(checkIn);
+        while (current < checkOut) {
+            const y = current.getFullYear();
+            const m = String(current.getMonth() + 1).padStart(2, '0');
+            const d = String(current.getDate()).padStart(2, '0');
+            const dateStr = `${y}-${m}-${d}`;
+
+            const dayRules = dailyMap.get(dateStr);
+            if (dayRules) {
+                if (dayRules.stopSell) {
+                    throw new BadRequestException(`Room is unavailable on ${dateStr} due to Stop Sell restriction`);
+                }
+                if (dayRules.minStayThrough && nights < dayRules.minStayThrough) {
+                    throw new BadRequestException(`Minimum stay requirement of ${dayRules.minStayThrough} night(s) not met for date ${dateStr}`);
+                }
+                if (dayRules.maxStay && nights > dayRules.maxStay) {
+                    throw new BadRequestException(`Maximum stay limit of ${dayRules.maxStay} night(s) exceeded for date ${dateStr}`);
+                }
+            }
+            current.setDate(current.getDate() + 1);
+        }
     }
 }

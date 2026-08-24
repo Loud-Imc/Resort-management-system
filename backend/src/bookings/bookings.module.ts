@@ -9,9 +9,18 @@ import { PaymentsModule } from '../payments/payments.module';
 import { SystemSettingsModule } from '../system-settings/system-settings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ChannelsModule } from '../channels/channels.module';
+import { ConnectivityModule } from '../connectivity/connectivity.module';
 
 @Module({
-    imports: [AuditModule, ChannelPartnersModule, PaymentsModule, SystemSettingsModule, NotificationsModule, forwardRef(() => ChannelsModule)],
+    imports: [
+        AuditModule,
+        ChannelPartnersModule,
+        PaymentsModule,
+        SystemSettingsModule,
+        NotificationsModule,
+        forwardRef(() => ChannelsModule),
+        forwardRef(() => ConnectivityModule),
+    ],
     controllers: [BookingsController],
     providers: [BookingsService, AvailabilityService, PricingService],
     exports: [BookingsService, AvailabilityService, PricingService],

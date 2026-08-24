@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 import { RegisterPropertyDto } from './dto/register-property.dto';
@@ -11,6 +11,8 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 import { PricingService } from '../bookings/pricing.service';
 import { MailService } from '../mail/mail.service';
 
+import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
+
 @Injectable()
 export class PropertiesService {
     private readonly logger = new Logger(PropertiesService.name);
@@ -22,6 +24,8 @@ export class PropertiesService {
         @Inject(forwardRef(() => PricingService))
         private readonly pricingService: PricingService,
         private readonly mailService: MailService,
+        @Optional() @Inject(forwardRef(() => ConnectivityOutboxService))
+        private readonly outboxService?: ConnectivityOutboxService,
     ) { }
 
     /**
@@ -1245,7 +1249,7 @@ export class PropertiesService {
             }
         }
 
-        return this.prisma.property.update({
+        const updated = await this.prisma.property.update({
             where: { id },
             data: {
                 ...updateData,
@@ -1254,6 +1258,16 @@ export class PropertiesService {
                 categoryId: data.categoryId !== undefined ? (data.categoryId || null) : undefined,
             },
         });
+
+        if (this.outboxService) {
+            await this.outboxService.createContentEventForProperty(
+                null,
+                updated.id,
+                'PROPERTY_DETAILS',
+            ).catch(err => this.logger.error(`Failed to produce CONTENT.CHANGED event: ${err.message}`));
+        }
+
+        return updated;
     }
 
     async delete(id: string, userId: string) {

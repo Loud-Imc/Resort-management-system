@@ -156,6 +156,7 @@ model RoomType {
   property                   Property            @relation(fields: [propertyId], references: [id])
   rooms                      Room[]
   channelMappings            ChannelRoomTypeMapping[]
+  connectivityMappings       ConnectivityRoomTypeMapping[]
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -312,6 +313,7 @@ model Booking {
   roomBlocks              RoomBlock[]
   bookingRooms            BookingRoom[]
   expenses                Expense[]
+  connectivityReservationMapping ConnectivityReservationMapping?
 
   @@index([propertyId])
   @@index([status])
@@ -594,6 +596,7 @@ model Property {
   channelMappings             ChannelPropertyMapping[]
   offlineChannelPartners      OfflineCP[]
   stopSellRestrictions        StopSellRestriction[]
+  connectivityConnections   ConnectivityPartnerConnection[]
 
   @@map("properties")
 }
@@ -1393,3 +1396,203 @@ model ExpenseHistory {
 
   @@map("expense_histories")
 }
+
+// ─── OTA CONNECTIVITY PLATFORM SCHEMA ──────────────────────────────────────────
+
+enum ConnectivityPartnerType {
+  PMS
+  CHANNEL_MANAGER
+  OTA
+  CUSTOM
+}
+
+enum ConnectivityPartnerStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum ConnectivityCredentialEnv {
+  PRODUCTION
+  SANDBOX
+}
+
+enum ConnectivityCredentialStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum ConnectivityConnectionStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  DISCONNECTED
+  DEGRADED
+}
+
+enum ConnectivityLogDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ConnectivityEventStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  RETRYING
+  FAILED_PERMANENT
+  FAILED_DEAD_LETTER
+}
+
+model ConnectivityPartner {
+  id           String                    @id @default(uuid())
+  name         String
+  code         String                    @unique
+  type         ConnectivityPartnerType   @default(PMS)
+  status       ConnectivityPartnerStatus @default(PENDING)
+  contactEmail String?
+  contactPhone String?
+  webhookUrl   String?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  credentials  ConnectivityPartnerCredential[]
+  connections  ConnectivityPartnerConnection[]
+  logs         ConnectivityLog[]
+  reservationMappings ConnectivityReservationMapping[]
+  outboxEvents ConnectivityOutbox[]
+
+  @@map("connectivity_partners")
+}
+
+model ConnectivityPartnerCredential {
+  id          String                       @id @default(uuid())
+  partnerId   String
+  name        String                       @default("Primary Key")
+  environment ConnectivityCredentialEnv    @default(PRODUCTION)
+  keyPrefix   String
+  apiKeyHash  String                       @unique
+  status      ConnectivityCredentialStatus @default(ACTIVE)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
+
+  partner     ConnectivityPartner          @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyHash])
+  @@index([partnerId, status])
+  @@map("connectivity_partner_credentials")
+}
+
+model ConnectivityPartnerConnection {
+  id                 String                       @id @default(uuid())
+  partnerId          String
+  propertyId         String
+  externalPropertyId String
+  webhookUrl         String?
+  status             ConnectivityConnectionStatus @default(PENDING)
+  lastSyncedAt       DateTime?
+  lastFailedAt       DateTime?
+  lastError          String?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  partner            ConnectivityPartner          @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  property           Property                     @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  roomMappings       ConnectivityRoomTypeMapping[]
+  logs               ConnectivityLog[]
+  reservationMappings ConnectivityReservationMapping[]
+  outboxEvents       ConnectivityOutbox[]
+
+  @@unique([partnerId, propertyId])
+  @@unique([partnerId, externalPropertyId])
+  @@map("connectivity_partner_connections")
+}
+
+model ConnectivityRoomTypeMapping {
+  id                 String                        @id @default(uuid())
+  connectionId       String
+  roomTypeId         String
+  externalRoomTypeId String
+  externalRatePlanId String?
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+
+  connection         ConnectivityPartnerConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  roomType           RoomType                      @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, roomTypeId])
+  @@unique([connectionId, externalRoomTypeId])
+  @@map("connectivity_room_type_mappings")
+}
+
+model ConnectivityReservationMapping {
+  id                    String                        @id @default(uuid())
+  bookingId             String                        @unique
+  partnerId             String
+  connectionId          String
+  externalReservationId String
+  externalPropertyId    String
+  externalRoomTypeId    String
+  externalRatePlanId    String?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+
+  booking               Booking                       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  partner               ConnectivityPartner           @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  connection            ConnectivityPartnerConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, externalReservationId])
+  @@index([partnerId, connectionId])
+  @@map("connectivity_reservation_mappings")
+}
+
+model ConnectivityLog {
+  id              String                         @id @default(uuid())
+  partnerId       String
+  connectionId    String?
+  direction       ConnectivityLogDirection       @default(INBOUND)
+  endpoint        String
+  method          String
+  statusCode      Int
+  requestPayload  Json?
+  responsePayload Json?
+  ipAddress       String?
+  createdAt       DateTime                       @default(now())
+
+  partner         ConnectivityPartner            @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  connection      ConnectivityPartnerConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId])
+  @@index([connectionId])
+  @@map("connectivity_logs")
+}
+
+model ConnectivityOutbox {
+  id                    String                  @id @default(uuid())
+  partnerId             String
+  connectionId          String
+  eventType             String
+  aggregateId           String?
+  sequenceNumber        BigInt                  @default(autoincrement())
+  payload               Json
+  status                ConnectivityEventStatus @default(PENDING)
+  retryCount            Int                     @default(0)
+  maxRetries            Int                     @default(5)
+  nextRetryAt           DateTime?
+  lastError             String?
+  deliveredAt           DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  partner               ConnectivityPartner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  connection            ConnectivityPartnerConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, status, nextRetryAt])
+  @@index([connectionId, sequenceNumber])
+  @@map("connectivity_outbox")
+}
+

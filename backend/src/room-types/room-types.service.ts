@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, ForbiddenException, BadRequestException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelsService } from '../channels/channels.service';
+import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 
@@ -11,6 +12,7 @@ export class RoomTypesService {
     constructor(
         private prisma: PrismaService,
         @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
+        @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private outboxService?: ConnectivityOutboxService,
     ) { }
 
 
@@ -199,6 +201,29 @@ export class RoomTypesService {
                 updateRoomTypeDto.groupMaxOccupancy !== undefined;
             if (poolChanged || existing.isAvailableForGroupBooking || updated.isAvailableForGroupBooking) {
                 await this.syncPropertyGroupCapacity(updated.propertyId);
+            }
+
+            // Produce Connectivity Outbox Events (RATE.CHANGED / CONTENT.CHANGED)
+            if (this.outboxService) {
+                if (updateRoomTypeDto.basePrice !== undefined && Number(updateRoomTypeDto.basePrice) !== Number(existing.basePrice)) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const nextYear = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+                    await this.outboxService.createRateEventForProperty(
+                        null,
+                        updated.propertyId,
+                        updated.id,
+                        today,
+                        nextYear,
+                        Number(updated.basePrice),
+                        'INR',
+                    ).catch(err => this.logger.error(`Failed to produce RATE.CHANGED event: ${err.message}`));
+                }
+
+                await this.outboxService.createContentEventForProperty(
+                    null,
+                    updated.propertyId,
+                    'ROOM_TYPE_DETAILS',
+                ).catch(err => this.logger.error(`Failed to produce CONTENT.CHANGED event: ${err.message}`));
             }
 
             // [PRC-01] Auto-sync with Channex in background
