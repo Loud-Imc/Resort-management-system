@@ -25,8 +25,10 @@ export const PropertyProvider = ({ children }: { children: ReactNode }) => {
         try {
             setIsLoading(true);
 
-            // 1. Try to fetch approved properties
-            const response = await api.get<any>('/properties/admin/all');
+            // 1. Try to fetch approved properties (pass limit=5000 so full portfolio is retrieved)
+            const response = await api.get<any>('/properties/admin/all', {
+                params: { limit: 5000 }
+            });
             let propertiesList = response.data.data || [];
 
             // 2. If no approved properties, check for pending/rejected requests
@@ -52,20 +54,31 @@ export const PropertyProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
 
+            const storedId = localStorage.getItem('property_selectedPropertyId');
+            let found = storedId
+                ? propertiesList.find((p: any) => p.id === storedId)
+                : null;
+
+            // Direct fallback lookup: If impersonating a specific property that was not in the initial list
+            if (storedId && !found && propertiesList.length > 0) {
+                try {
+                    const singleRes = await api.get<any>(`/properties/id/${storedId}`);
+                    if (singleRes.data) {
+                        found = singleRes.data;
+                        propertiesList = [found, ...propertiesList];
+                    }
+                } catch (singleErr) {
+                    console.error('Failed to fetch target property directly:', singleErr);
+                }
+            }
+
             setProperties(propertiesList);
 
-            if (propertiesList.length > 0) {
-                const storedId = localStorage.getItem('property_selectedPropertyId');
-                const found = storedId
-                    ? propertiesList.find((p: any) => p.id === storedId)
-                    : null;
-
-                if (found) {
-                    setSelectedProperty(found);
-                } else {
-                    // Auto-lock to first property/request
-                    setSelectedProperty(propertiesList[0]);
-                }
+            if (found) {
+                setSelectedProperty(found);
+            } else if (propertiesList.length > 0) {
+                // Auto-lock to first property/request if no stored property found
+                setSelectedProperty(propertiesList[0]);
             } else {
                 setSelectedProperty(null);
             }
