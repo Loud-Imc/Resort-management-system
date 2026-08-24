@@ -953,7 +953,9 @@ export class PropertiesService {
 
     async findAllAdmin(user: any, query: any) {
 
-        const { city, state, type, search, page = 1, limit = 100, status } = query;
+        const page = Number(query.page) || 1;
+        const limit = Number(query.limit) || 100;
+        const { city, state, type, search, status } = query;
         const skip = (page - 1) * limit;
 
         const roles = user.roles || [];
