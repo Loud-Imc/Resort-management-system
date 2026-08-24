@@ -31,6 +31,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // Sync/process session sync or impersonation parameters BEFORE reading localStorage
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const action = params.get('action');
+      const token = params.get('token');
+      const encodedUser = params.get('user');
+      const propertyId = params.get('propertyId');
+
+      if ((action === 'login_sync' || action === 'impersonate') && token && encodedUser) {
+        const userData = atob(encodedUser);
+        localStorage.setItem('property_token', token);
+        localStorage.setItem('property_user', userData);
+
+        if (propertyId) {
+          localStorage.setItem('property_selectedPropertyId', propertyId);
+        }
+
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {
+      console.error('Failed to parse synchronized session credentials from URL', e);
+    }
+
     const token = localStorage.getItem('property_token');
     const storedUser = localStorage.getItem('property_user');
 
