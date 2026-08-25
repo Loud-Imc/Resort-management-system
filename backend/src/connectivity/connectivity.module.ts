@@ -16,6 +16,7 @@ import { ConnectivityReservationService } from './services/connectivity-reservat
 import { ConnectivityOutboxService } from './services/connectivity-outbox.service';
 import { ConnectivityOutboxProcessorService } from './services/connectivity-outbox-processor.service';
 import { ConnectivityOutboxSchedulerService } from './services/connectivity-outbox-scheduler.service';
+import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
 
 import { PartnerApiKeyGuard } from './auth/partner-api-key.guard';
 import { PartnerRateLimitGuard } from './auth/partner-rate-limit.guard';
@@ -47,6 +48,7 @@ import { ConnectivityController } from './connectivity.controller';
     ConnectivityOutboxService,
     ConnectivityOutboxProcessorService,
     ConnectivityOutboxSchedulerService,
+    ConnectivitySandboxService,
     PartnerApiKeyGuard,
     PartnerRateLimitGuard,
   ],
@@ -63,6 +65,7 @@ import { ConnectivityController } from './connectivity.controller';
     ConnectivityOutboxService,
     ConnectivityOutboxProcessorService,
     ConnectivityOutboxSchedulerService,
+    ConnectivitySandboxService,
     PartnerApiKeyGuard,
     PartnerRateLimitGuard,
   ],

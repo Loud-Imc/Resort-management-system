@@ -20,7 +20,7 @@ export class ConnectivityRestrictionsService {
     private readonly outboxService?: ConnectivityOutboxService,
   ) {}
 
-  async getRestrictions(partnerId: string, dto: QueryRestrictionsDto) {
+  async getRestrictions(partnerId: string, dto: QueryRestrictionsDto, credentialEnv?: string) {
     // 1. Enforce central global capability switch
     const capabilities = await this.settingsService.getGlobalCapabilities();
     if (!capabilities.restrictionSync) {
@@ -31,6 +31,7 @@ export class ConnectivityRestrictionsService {
     const connection = await this.connectionService.getConnectionForPartnerAndProperty(
       partnerId,
       dto.propertyId,
+      credentialEnv,
     );
 
     const propertyId = connection.propertyId;
@@ -128,7 +129,7 @@ export class ConnectivityRestrictionsService {
     };
   }
 
-  async updateRestrictions(partnerIdOrPartner: string | any, dto: UpdateRestrictionsDto) {
+  async updateRestrictions(partnerIdOrPartner: string | any, dto: UpdateRestrictionsDto, credentialEnv?: string) {
     const partnerId = typeof partnerIdOrPartner === 'string' ? partnerIdOrPartner : partnerIdOrPartner.id;
 
     // 1. Enforce central global capability switch
@@ -141,6 +142,7 @@ export class ConnectivityRestrictionsService {
     const connection = await this.connectionService.getConnectionForPartnerAndProperty(
       partnerId,
       dto.propertyId,
+      credentialEnv,
     );
 
     const propertyId = connection.propertyId;

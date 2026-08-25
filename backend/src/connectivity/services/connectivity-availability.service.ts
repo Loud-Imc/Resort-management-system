@@ -17,7 +17,7 @@ export class ConnectivityAvailabilityService {
     private readonly logService: ConnectivityLogService,
   ) {}
 
-  async getAvailability(partnerId: string, dto: QueryAvailabilityDto) {
+  async getAvailability(partnerId: string, dto: QueryAvailabilityDto, credentialEnv?: string) {
     // 1. Enforce central global capability switch
     const capabilities = await this.settingsService.getGlobalCapabilities();
     if (!capabilities.availabilitySync) {
@@ -32,6 +32,7 @@ export class ConnectivityAvailabilityService {
       connection = await this.connectionService.getConnectionForPartnerAndProperty(
         partnerId,
         dto.propertyId,
+        credentialEnv,
       );
       propertyId = connection.propertyId;
     }

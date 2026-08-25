@@ -23,7 +23,7 @@ export class ConnectivityRatesService {
     private readonly outboxService?: ConnectivityOutboxService,
   ) {}
 
-  async getRates(partnerId: string, dto: QueryRatesDto) {
+  async getRates(partnerId: string, dto: QueryRatesDto, credentialEnv?: string) {
     // 1. Enforce central global capability switch
     const capabilities = await this.settingsService.getGlobalCapabilities();
     if (!capabilities.rateSync) {
@@ -34,6 +34,7 @@ export class ConnectivityRatesService {
     const connection = await this.connectionService.getConnectionForPartnerAndProperty(
       partnerId,
       dto.propertyId,
+      credentialEnv,
     );
 
     const propertyId = connection.propertyId;
@@ -113,7 +114,7 @@ export class ConnectivityRatesService {
     };
   }
 
-  async updateRates(partner: any, dto: UpdateRatesDto) {
+  async updateRates(partner: any, dto: UpdateRatesDto, credentialEnv?: string) {
     const partnerId = partner.id;
 
     // 1. Enforce central global capability switch
@@ -126,6 +127,7 @@ export class ConnectivityRatesService {
     const connection = await this.connectionService.getConnectionForPartnerAndProperty(
       partnerId,
       dto.propertyId,
+      credentialEnv,
     );
 
     const propertyId = connection.propertyId;

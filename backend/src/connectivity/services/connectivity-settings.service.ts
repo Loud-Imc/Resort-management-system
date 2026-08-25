@@ -54,4 +54,8 @@ export class ConnectivitySettingsService {
     const caps = await this.getGlobalCapabilities();
     return !!caps[key];
   }
+
+  getSandboxPropertyCode(): string {
+    return 'TEST-PROP-001';
+  }
 }

@@ -7,6 +7,7 @@ import { ConnectivityPartnerService } from './services/connectivity-partner.serv
 import { ConnectivitySettingsService } from './services/connectivity-settings.service';
 import { ConnectivityLogService } from './services/connectivity-log.service';
 import { ConnectivityOutboxProcessorService } from './services/connectivity-outbox-processor.service';
+import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { CreateCredentialDto } from './dto/create-credential.dto';
 import { UpdateGlobalCapabilitiesDto } from './dto/update-global-capabilities.dto';
@@ -23,6 +24,7 @@ export class AdminConnectivityController {
     private readonly settingsService: ConnectivitySettingsService,
     private readonly logService: ConnectivityLogService,
     private readonly outboxProcessorService: ConnectivityOutboxProcessorService,
+    private readonly sandboxService: ConnectivitySandboxService,
   ) {}
 
   @Post('partners')
@@ -96,5 +98,25 @@ export class AdminConnectivityController {
   @ApiOperation({ summary: 'Replay a dead-lettered outbox event (FAILED_DEAD_LETTER)' })
   async replayDeadLetterEvent(@Param('id') eventId: string) {
     return this.outboxProcessorService.replayDeadLetterEvent(eventId);
+  }
+
+  // ─── PHASE 7 SANDBOX MVP ADMIN APIs ───────────────────────────────────────
+
+  @Post('sandbox/test-webhook')
+  @ApiOperation({ summary: 'Staff Admin trigger for partner sandbox webhook signature & reachability testing' })
+  async adminTestWebhook(@Body('partnerId') partnerId: string) {
+    if (!partnerId) {
+      throw new BadRequestException('partnerId is required for admin sandbox test webhook trigger.');
+    }
+    return this.sandboxService.triggerTestWebhook(partnerId, false);
+  }
+
+  @Post('sandbox/reset')
+  @ApiOperation({ summary: 'Staff Admin trigger to reset mock sandbox data for a partner on TEST-PROP-001' })
+  async adminResetData(@Body('partnerId') partnerId: string) {
+    if (!partnerId) {
+      throw new BadRequestException('partnerId is required for admin sandbox reset.');
+    }
+    return this.sandboxService.resetSandboxData(partnerId, false);
   }
 }

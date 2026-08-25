@@ -1,14 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, ForbiddenException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConnectivitySandboxService } from './connectivity-sandbox.service';
 import { CreateConnectionDto } from '../dto/create-connection.dto';
 import { QueryContentDto } from '../dto/query-content.dto';
-import { ConnectivityConnectionStatus } from '@prisma/client';
+import { ConnectivityConnectionStatus, ConnectivityCredentialEnv } from '@prisma/client';
 
 @Injectable()
 export class ConnectivityConnectionService {
   private readonly logger = new Logger(ConnectivityConnectionService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(forwardRef(() => ConnectivitySandboxService))
+    private readonly sandboxService?: ConnectivitySandboxService,
+  ) {}
 
   /**
    * Validate RouteGuide property readiness using existing platform rules:
@@ -65,9 +70,26 @@ export class ConnectivityConnectionService {
     return property;
   }
 
-  async createConnection(partnerId: string, dto: CreateConnectionDto) {
+  private validateEnvironmentAccess(credentialEnv: string | undefined | null, propertyCode?: string) {
+    if (!credentialEnv || !propertyCode) return;
+    const sandboxCode = 'TEST-PROP-001';
+    const isSandboxEnv = credentialEnv === ConnectivityCredentialEnv.SANDBOX || credentialEnv === 'SANDBOX';
+    const isSandboxProperty = propertyCode === sandboxCode;
+
+    if (isSandboxEnv && !isSandboxProperty) {
+      throw new ForbiddenException('Sandbox API keys (rg_test_...) are restricted to Sandbox Test Properties only.');
+    }
+    if (!isSandboxEnv && isSandboxProperty) {
+      throw new ForbiddenException('Production API keys (rg_live_...) cannot access Sandbox Test Properties.');
+    }
+  }
+
+  async createConnection(partnerId: string, dto: CreateConnectionDto, credentialEnv?: string) {
     // 1. Verify property readiness using existing RG checklist
-    await this.validatePropertyReadiness(dto.propertyId);
+    const property = await this.validatePropertyReadiness(dto.propertyId);
+
+    // Enforce environment isolation
+    this.validateEnvironmentAccess(credentialEnv, property.slug || property.id);
 
     // 2. Check for duplicate connection or duplicate externalPropertyId under this partner
     const existingPropertyConn = await this.prisma.connectivityPartnerConnection.findUnique({
@@ -98,7 +120,7 @@ export class ConnectivityConnectionService {
       },
       include: {
         property: {
-          select: { id: true, name: true, city: true, state: true, baseCurrency: true },
+          select: { id: true, name: true, city: true, state: true, baseCurrency: true, slug: true },
         },
       },
     });
@@ -107,12 +129,24 @@ export class ConnectivityConnectionService {
     return connection;
   }
 
-  async getConnectionsForPartner(partnerId: string) {
+  async getConnectionsForPartner(partnerId: string, credentialEnv?: string) {
+    const isSandboxEnv = credentialEnv === ConnectivityCredentialEnv.SANDBOX || credentialEnv === 'SANDBOX';
+    const sandboxCode = 'TEST-PROP-001';
+
+    const whereClause: any = { partnerId };
+    if (credentialEnv) {
+      if (isSandboxEnv) {
+        whereClause.property = { OR: [{ id: sandboxCode }, { slug: sandboxCode }] };
+      } else {
+        whereClause.property = { NOT: { OR: [{ id: sandboxCode }, { slug: sandboxCode }] } };
+      }
+    }
+
     return this.prisma.connectivityPartnerConnection.findMany({
-      where: { partnerId },
+      where: whereClause,
       include: {
         property: {
-          select: { id: true, name: true, city: true, state: true, status: true, isActive: true },
+          select: { id: true, name: true, slug: true, city: true, state: true, status: true, isActive: true },
         },
         roomMappings: {
           include: {
@@ -124,14 +158,14 @@ export class ConnectivityConnectionService {
     });
   }
 
-  async getConnectionForPartnerAndProperty(partnerId: string, propertyId: string) {
+  async getConnectionForPartnerAndProperty(partnerId: string, propertyId: string, credentialEnv?: string) {
     const connection = await this.prisma.connectivityPartnerConnection.findUnique({
       where: {
         partnerId_propertyId: { partnerId, propertyId },
       },
       include: {
         property: {
-          select: { id: true, name: true, city: true, state: true, status: true, isActive: true, baseCurrency: true },
+          select: { id: true, name: true, slug: true, city: true, state: true, status: true, isActive: true, baseCurrency: true },
         },
         roomMappings: {
           include: {
@@ -144,6 +178,8 @@ export class ConnectivityConnectionService {
     if (!connection) {
       throw new NotFoundException(`No active connection found between partner ${partnerId} and property ${propertyId}`);
     }
+
+    this.validateEnvironmentAccess(credentialEnv, connection.property?.slug || connection.property?.id);
     return connection;
   }
 
@@ -163,7 +199,7 @@ export class ConnectivityConnectionService {
    * 3. BasePrice / pricing is EXCLUDED (pricing is isolated to /rates API).
    * 4. Owner PII, commission rates, GST/legal docs are EXCLUDED.
    */
-  async getContentForPartner(partnerId: string, dto: QueryContentDto) {
+  async getContentForPartner(partnerId: string, dto: QueryContentDto, credentialEnv?: string) {
     if (!dto.externalPropertyId && !dto.propertyId) {
       throw new BadRequestException('Either externalPropertyId or propertyId must be provided.');
     }
@@ -177,6 +213,7 @@ export class ConnectivityConnectionService {
           externalPropertyId: dto.externalPropertyId,
           status: { in: [ConnectivityConnectionStatus.ACTIVE, ConnectivityConnectionStatus.DEGRADED] },
         },
+        include: { property: { select: { slug: true } } },
       });
     } else if (dto.propertyId) {
       connection = await this.prisma.connectivityPartnerConnection.findFirst({
@@ -185,12 +222,15 @@ export class ConnectivityConnectionService {
           propertyId: dto.propertyId,
           status: { in: [ConnectivityConnectionStatus.ACTIVE, ConnectivityConnectionStatus.DEGRADED] },
         },
+        include: { property: { select: { slug: true } } },
       });
     }
 
     if (!connection) {
       throw new NotFoundException('No active connection found for the specified property mapping.');
     }
+
+    this.validateEnvironmentAccess(credentialEnv, connection.property?.slug);
 
     // Single optimized query omitting internal/sensitive fields and physical rooms
     const property = await this.prisma.property.findUnique({

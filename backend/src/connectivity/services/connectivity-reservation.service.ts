@@ -29,7 +29,7 @@ export class ConnectivityReservationService {
     private readonly connectivityAvailabilityService: ConnectivityAvailabilityService,
   ) {}
 
-  async createReservation(partner: any, dto: CreateConnectivityReservationDto) {
+  async createReservation(partner: any, dto: CreateConnectivityReservationDto, credentialEnv?: string) {
     const partnerId = partner.id;
 
     // 1. Enforce global capability switch
@@ -42,6 +42,7 @@ export class ConnectivityReservationService {
     const connection = await this.connectionService.getConnectionForPartnerAndProperty(
       partnerId,
       dto.propertyId,
+      credentialEnv,
     );
 
     const propertyId = connection.propertyId;
@@ -286,7 +287,7 @@ export class ConnectivityReservationService {
     };
   }
 
-  async getReservation(partner: any, reservationId: string) {
+  async getReservation(partner: any, reservationId: string, credentialEnv?: string) {
     const partnerId = partner.id;
 
     // Enforce global capability switch
@@ -313,12 +314,18 @@ export class ConnectivityReservationService {
             user: true,
           },
         },
-        connection: true,
+        connection: {
+          include: { property: { select: { slug: true } } },
+        },
       },
     });
 
     if (!mapping) {
       throw new NotFoundException(`Reservation ${reservationId} not found for partner connection`);
+    }
+
+    if (credentialEnv) {
+      this.connectionService['validateEnvironmentAccess'](credentialEnv, mapping.connection?.property?.slug);
     }
 
     const guestFullName = mapping.booking.user
@@ -354,7 +361,7 @@ export class ConnectivityReservationService {
     };
   }
 
-  async updateReservation(partner: any, reservationId: string, dto: UpdateConnectivityReservationDto) {
+  async updateReservation(partner: any, reservationId: string, dto: UpdateConnectivityReservationDto, credentialEnv?: string) {
     const partnerId = partner.id;
 
     // 1. Enforce global capability switch
@@ -381,12 +388,18 @@ export class ConnectivityReservationService {
             user: true,
           },
         },
-        connection: true,
+        connection: {
+          include: { property: { select: { slug: true } } },
+        },
       },
     });
 
     if (!mapping) {
       throw new NotFoundException(`Reservation ${reservationId} not found for partner connection`);
+    }
+
+    if (credentialEnv) {
+      this.connectionService['validateEnvironmentAccess'](credentialEnv, mapping.connection?.property?.slug);
     }
 
     if (mapping.booking.status === 'CANCELLED') {
@@ -574,7 +587,9 @@ export class ConnectivityReservationService {
                 user: true,
               },
             },
-            connection: true,
+            connection: {
+              include: { property: { select: { slug: true } } },
+            },
           },
         });
       }
@@ -650,7 +665,7 @@ export class ConnectivityReservationService {
     };
   }
 
-  async cancelReservation(partner: any, reservationId: string, dto?: CancelConnectivityReservationDto) {
+  async cancelReservation(partner: any, reservationId: string, dto?: CancelConnectivityReservationDto, credentialEnv?: string) {
     const partnerId = partner.id;
 
     // 1. Enforce global capability switch
@@ -676,12 +691,18 @@ export class ConnectivityReservationService {
             user: true,
           },
         },
-        connection: true,
+        connection: {
+          include: { property: { select: { slug: true } } },
+        },
       },
     });
 
     if (!mapping) {
       throw new NotFoundException(`Reservation ${reservationId} not found for partner connection`);
+    }
+
+    if (credentialEnv) {
+      this.connectionService['validateEnvironmentAccess'](credentialEnv, mapping.connection?.property?.slug);
     }
 
     // 3. Idempotency Check: Return success if already cancelled
