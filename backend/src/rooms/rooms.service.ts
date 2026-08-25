@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomDto, UpdateRoomDto, BlockRoomDto } from './dto/room.dto';
 import { AuditService } from '../audit/audit.service';
 import { ChannelsService } from '../channels/channels.service';
+import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 import { DateUtils } from '../common/utils/date.utils';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class RoomsService {
         private prisma: PrismaService,
         private auditService: AuditService,
         @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
+        @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private connectivityOutboxService?: ConnectivityOutboxService,
     ) { }
 
     /**
@@ -566,6 +568,16 @@ export class RoomsService {
             });
         }
 
+        if (this.connectivityOutboxService && block.room.propertyId && block.room.roomTypeId) {
+            await this.connectivityOutboxService.emitAvailabilityChange(
+                null,
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            );
+        }
+
         return block;
     }
 
@@ -620,6 +632,16 @@ export class RoomsService {
             ).catch(err => {
                 this.logger.error(`Auto-sync failed for property ${block.room.propertyId} after room unblock: ${err.message}`, err.stack);
             });
+        }
+
+        if (this.connectivityOutboxService && block.room.propertyId && block.room.roomTypeId) {
+            await this.connectivityOutboxService.emitAvailabilityChange(
+                null,
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            );
         }
 
         return { message: 'Block removed successfully' };

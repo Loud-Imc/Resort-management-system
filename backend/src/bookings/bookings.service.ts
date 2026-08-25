@@ -19,6 +19,7 @@ import { MailService } from '../mail/mail.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { ChannelsService } from '../channels/channels.service';
+import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 
 @Injectable()
 export class BookingsService {
@@ -35,6 +36,7 @@ export class BookingsService {
         private pdfService: PdfService,
         private mailService: MailService,
         @Optional() @Inject(forwardRef(() => ChannelsService)) private channelsService?: ChannelsService,
+        @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private connectivityOutboxService?: ConnectivityOutboxService,
     ) { }
 
     private triggerChannexSync(
@@ -352,7 +354,23 @@ export class BookingsService {
             isPriceOverridden = true;
         }
 
-        // 5. Get available room(s)
+        // 5. Validate active restrictions (Stop Sell, Min Stay, Max Stay, CTA, CTD)
+        let targetPropertyId = (createBookingDto as any).propertyId;
+        if (!targetPropertyId && roomTypeId) {
+            const rt = await this.prisma.roomType.findUnique({ where: { id: roomTypeId }, select: { propertyId: true } });
+            targetPropertyId = rt?.propertyId;
+        }
+
+        if (targetPropertyId && roomTypeId) {
+            await this.availabilityService.validateBookingRestrictions(
+                targetPropertyId,
+                roomTypeId,
+                checkIn,
+                checkOut,
+            );
+        }
+
+        // Get available room(s)
         let selectedRooms: any[] = [];
         if (isGroupBooking && allocatedRooms.length > 0) {
             selectedRooms = allocatedRooms;
@@ -1015,6 +1033,25 @@ export class BookingsService {
                         },
                     });
                 }
+            }
+
+            if (this.connectivityOutboxService) {
+                if (['CONFIRMED', 'RESERVED', 'CHECKED_IN'].includes(newBooking.status)) {
+                    await this.connectivityOutboxService.createReservationEventForBooking(
+                        tx,
+                        'RESERVATION.CREATED',
+                        newBooking.propertyId,
+                        newBooking,
+                        user
+                    );
+                }
+                await this.connectivityOutboxService.emitAvailabilityChange(
+                    tx,
+                    newBooking.propertyId,
+                    newBooking.roomTypeId,
+                    newBooking.checkInDate,
+                    newBooking.checkOutDate
+                );
             }
 
             return newBooking;
@@ -1980,6 +2017,23 @@ export class BookingsService {
                 bookingId: id,
             }, tx);
 
+            if (this.connectivityOutboxService) {
+                await this.connectivityOutboxService.createReservationEventForBooking(
+                    tx,
+                    'RESERVATION.CANCELLED',
+                    booking.propertyId,
+                    up,
+                    user
+                );
+                await this.connectivityOutboxService.emitAvailabilityChange(
+                    tx,
+                    booking.propertyId,
+                    booking.roomTypeId,
+                    booking.checkInDate,
+                    booking.checkOutDate
+                );
+            }
+
             return { updated: up, couponRestored: restored };
         });
 
@@ -2328,6 +2382,36 @@ export class BookingsService {
                 newValue: updated,
                 bookingId: id,
             }, tx);
+
+            if (this.connectivityOutboxService) {
+                await this.connectivityOutboxService.createReservationEventForBooking(
+                    tx,
+                    'RESERVATION.MODIFIED',
+                    booking.propertyId,
+                    updated,
+                    user
+                );
+                await this.connectivityOutboxService.emitAvailabilityChange(
+                    tx,
+                    booking.propertyId,
+                    updated.roomTypeId,
+                    updated.checkInDate,
+                    updated.checkOutDate
+                );
+                if (
+                    booking.checkInDate !== updated.checkInDate ||
+                    booking.checkOutDate !== updated.checkOutDate ||
+                    booking.roomTypeId !== updated.roomTypeId
+                ) {
+                    await this.connectivityOutboxService.emitAvailabilityChange(
+                        tx,
+                        booking.propertyId,
+                        booking.roomTypeId,
+                        booking.checkInDate,
+                        booking.checkOutDate
+                    );
+                }
+            }
 
             return updated;
         });
@@ -2758,6 +2842,36 @@ export class BookingsService {
                 },
                 bookingId: id
             }, tx);
+
+            if (this.connectivityOutboxService) {
+                await this.connectivityOutboxService.createReservationEventForBooking(
+                    tx,
+                    'RESERVATION.MODIFIED',
+                    booking.propertyId,
+                    updated,
+                    user
+                );
+                await this.connectivityOutboxService.emitAvailabilityChange(
+                    tx,
+                    booking.propertyId,
+                    updated.roomTypeId,
+                    updated.checkInDate,
+                    updated.checkOutDate
+                );
+                if (
+                    booking.checkInDate !== updated.checkInDate ||
+                    booking.checkOutDate !== updated.checkOutDate ||
+                    booking.roomTypeId !== updated.roomTypeId
+                ) {
+                    await this.connectivityOutboxService.emitAvailabilityChange(
+                        tx,
+                        booking.propertyId,
+                        booking.roomTypeId,
+                        booking.checkInDate,
+                        booking.checkOutDate
+                    );
+                }
+            }
 
             return updated;
         });
