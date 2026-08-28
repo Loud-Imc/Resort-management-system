@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { AvailabilityService } from '../bookings/availability.service';
-import { CreateRoomDto } from '../rooms/dto/room.dto';
+import { CreateRoomDto, UpdateRoomDto } from '../rooms/dto/room.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
 @Controller('ota-portal/rooms')
@@ -50,6 +50,31 @@ export class OtaRoomsController {
     }
 
     return this.roomsService.create(dto, req.user.id);
+  }
+
+  @Patch(':id')
+  async updateRoom(@Param('id') id: string, @Body() dto: UpdateRoomDto, @Request() req) {
+    const room = await this.prisma.room.findUnique({
+      where: { id },
+    });
+
+    if (!room) {
+      throw new NotFoundException('Room not found');
+    }
+
+    const headerPropertyId = req.headers['x-property-id'] as string;
+    const property = await this.prisma.property.findFirst({
+      where: {
+        ownerId: req.user.id,
+        ...(headerPropertyId ? { id: headerPropertyId } : {}),
+      },
+    });
+
+    if (!property || room.propertyId !== property.id) {
+      throw new ForbiddenException('You do not own this property');
+    }
+
+    return this.roomsService.update(id, dto, req.user);
   }
 
   @Delete(':id')

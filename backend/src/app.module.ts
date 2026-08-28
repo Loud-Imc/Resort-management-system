@@ -45,12 +45,14 @@ import { AssetsModule } from './assets/assets.module';
 import { ChannelsModule } from './channels/channels.module';
 import { OfflineCpsModule } from './offline-cps/offline-cps.module';
 import { OtaPortalModule } from './ota-portal/ota-portal.module';
+import { ConnectivityModule } from './connectivity/connectivity.module';
 
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
+    ConnectivityModule,
     OtaPortalModule,
     OfflineCpsModule,
     FinancialsModule,

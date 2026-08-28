@@ -90,6 +90,12 @@ export interface Room {
     floor?: number;
     status: RoomStatus;
     isEnabled: boolean;
+    hasHistory?: boolean;
+    _count?: {
+        bookingRooms?: number;
+        bookings?: number;
+        blocks?: number;
+    };
     notes?: string;
     roomTypeId: string;
     roomType: RoomType;

@@ -8,9 +8,17 @@ import { AuditModule } from '../audit/audit.module';
 import { SystemSettingsModule } from '../system-settings/system-settings.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { MailModule } from '../mail/mail.module';
+import { ConnectivityModule } from '../connectivity/connectivity.module';
 
 @Module({
-    imports: [PrismaModule, AuditModule, SystemSettingsModule, MailModule, forwardRef(() => BookingsModule)],
+    imports: [
+        PrismaModule,
+        AuditModule,
+        SystemSettingsModule,
+        MailModule,
+        forwardRef(() => BookingsModule),
+        forwardRef(() => ConnectivityModule),
+    ],
     controllers: [PropertiesController, PropertyStaffController],
     providers: [PropertiesService, PropertyStaffService],
     exports: [PropertiesService, PropertyStaffService],

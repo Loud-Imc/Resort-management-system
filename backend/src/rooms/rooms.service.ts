@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomDto, UpdateRoomDto, BlockRoomDto } from './dto/room.dto';
 import { AuditService } from '../audit/audit.service';
 import { ChannelsService } from '../channels/channels.service';
+import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 import { DateUtils } from '../common/utils/date.utils';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class RoomsService {
         private prisma: PrismaService,
         private auditService: AuditService,
         @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
+        @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private connectivityOutboxService?: ConnectivityOutboxService,
     ) { }
 
     /**
@@ -64,6 +66,30 @@ export class RoomsService {
             userId,
             newValue: room,
         });
+
+        if (room.propertyId && room.roomTypeId) {
+            const today = new Date();
+            const futureDate = new Date();
+            futureDate.setDate(today.getDate() + 30);
+            this.channelsService.pushAvailabilityForDates(
+                room.propertyId,
+                room.roomTypeId,
+                today,
+                futureDate
+            ).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${room.propertyId} after room creation: ${err.message}`, err.stack);
+            });
+
+            if (this.connectivityOutboxService) {
+                await this.connectivityOutboxService.emitAvailabilityChange(
+                    null,
+                    room.propertyId,
+                    room.roomTypeId,
+                    today,
+                    futureDate
+                );
+            }
+        }
 
         return room;
     }
@@ -143,6 +169,13 @@ export class RoomsService {
                     where: {
                         endDate: { gte: currentDate }
                     }
+                },
+                _count: {
+                    select: {
+                        bookingRooms: true,
+                        bookings: true,
+                        blocks: true,
+                    }
                 }
             },
             orderBy: [
@@ -153,8 +186,11 @@ export class RoomsService {
 
         // Dynamic status adjustment for dashboard/listing consistency using Phase 6 BookingRoom logic
         let computedRooms = rooms.map((room: any) => {
+            const historyCount = (room._count?.bookingRooms || 0) + (room._count?.bookings || 0) + (room._count?.blocks || 0);
+            const hasHistory = historyCount > 0;
+
             if (['MAINTENANCE', 'CLEANING'].includes(room.status)) {
-                return room;
+                return { ...room, hasHistory };
             }
 
             const bookingRoomsList = room.bookingRooms || [];
@@ -379,19 +415,46 @@ export class RoomsService {
             newValue: updated,
         });
 
+        if (updated.propertyId && updated.roomTypeId) {
+            const today = new Date();
+            const futureDate = new Date();
+            futureDate.setDate(today.getDate() + 30);
+            this.channelsService.pushAvailabilityForDates(
+                updated.propertyId,
+                updated.roomTypeId,
+                today,
+                futureDate
+            ).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${updated.propertyId} after room update: ${err.message}`, err.stack);
+            });
+
+            if (this.connectivityOutboxService) {
+                await this.connectivityOutboxService.emitAvailabilityChange(
+                    null,
+                    updated.propertyId,
+                    updated.roomTypeId,
+                    today,
+                    futureDate
+                );
+            }
+        }
+
         return updated;
     }
 
     /**
-     * Delete room (soft delete by disabling)
+     * Delete room (hard delete if no history, otherwise soft delete by disabling)
      */
     async remove(id: string, user: any) {
         const room = await this.findOne(id, user);
 
-        // Check if room has active bookings
+        // Check if room has active bookings (checking both direct roomId and bookingRooms junction)
         const activeBookings = await this.prisma.booking.count({
             where: {
-                roomId: id,
+                OR: [
+                    { roomId: id },
+                    { bookingRooms: { some: { roomId: id } } },
+                ],
                 status: {
                     in: ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'RESERVED'],
                 },
@@ -402,13 +465,35 @@ export class RoomsService {
             throw new BadRequestException('Cannot delete room with active bookings');
         }
 
-        const updated = await this.prisma.room.update({
-            where: { id },
-            data: {
-                isEnabled: false,
-                status: 'MAINTENANCE',
+        const totalBookings = await this.prisma.booking.count({
+            where: {
+                OR: [
+                    { roomId: id },
+                    { bookingRooms: { some: { roomId: id } } },
+                ],
             },
         });
+
+        const totalBlocks = await this.prisma.roomBlock.count({
+            where: { roomId: id },
+        });
+
+        let deletedOrUpdated: any;
+        let isHardDeleted = false;
+
+        if (totalBookings === 0 && totalBlocks === 0) {
+            deletedOrUpdated = await this.prisma.room.delete({
+                where: { id },
+            });
+            isHardDeleted = true;
+        } else {
+            deletedOrUpdated = await this.prisma.room.update({
+                where: { id },
+                data: {
+                    isEnabled: false,
+                },
+            });
+        }
 
         await this.auditService.createLog({
             action: 'DELETE',
@@ -416,10 +501,35 @@ export class RoomsService {
             entityId: id,
             userId: user.id,
             oldValue: room,
-            newValue: updated,
+            newValue: isHardDeleted ? { hardDeleted: true } : deletedOrUpdated,
         });
 
-        return { message: 'Room disabled successfully' };
+        // Trigger availability push for Channel / Outbox
+        if (room.propertyId && room.roomTypeId) {
+            const today = new Date();
+            const futureDate = new Date();
+            futureDate.setDate(today.getDate() + 30);
+            this.channelsService.pushAvailabilityForDates(
+                room.propertyId,
+                room.roomTypeId,
+                today,
+                futureDate
+            ).catch(err => {
+                this.logger.error(`Auto-sync failed for property ${room.propertyId} after room deletion: ${err.message}`, err.stack);
+            });
+
+            if (this.connectivityOutboxService) {
+                await this.connectivityOutboxService.emitAvailabilityChange(
+                    null,
+                    room.propertyId,
+                    room.roomTypeId,
+                    today,
+                    futureDate
+                );
+            }
+        }
+
+        return { message: isHardDeleted ? 'Room deleted successfully' : 'Room disabled successfully' };
     }
 
     /**
@@ -566,6 +676,16 @@ export class RoomsService {
             });
         }
 
+        if (this.connectivityOutboxService && block.room.propertyId && block.room.roomTypeId) {
+            await this.connectivityOutboxService.emitAvailabilityChange(
+                null,
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            );
+        }
+
         return block;
     }
 
@@ -620,6 +740,16 @@ export class RoomsService {
             ).catch(err => {
                 this.logger.error(`Auto-sync failed for property ${block.room.propertyId} after room unblock: ${err.message}`, err.stack);
             });
+        }
+
+        if (this.connectivityOutboxService && block.room.propertyId && block.room.roomTypeId) {
+            await this.connectivityOutboxService.emitAvailabilityChange(
+                null,
+                block.room.propertyId,
+                block.room.roomTypeId,
+                block.startDate,
+                block.endDate
+            );
         }
 
         return { message: 'Block removed successfully' };
