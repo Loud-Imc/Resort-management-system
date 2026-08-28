@@ -1173,15 +1173,17 @@ export class AvailabilityService {
             },
         });
 
-        const restrictionRules = await (this.prisma as any).restrictionRule.findMany({
-            where: {
-                propertyId,
-                isActive: true,
-                ...(roomTypeId ? { OR: [{ roomTypeId: null }, { roomTypeId }] } : {}),
-                startDate: { lte: checkOut },
-                endDate: { gte: checkIn },
-            },
-        });
+        const restrictionRules = (this.prisma as any).restrictionRule
+            ? await (this.prisma as any).restrictionRule.findMany({
+                where: {
+                    propertyId,
+                    isActive: true,
+                    ...(roomTypeId ? { OR: [{ roomTypeId: null }, { roomTypeId }] } : {}),
+                    startDate: { lte: checkOut },
+                    endDate: { gte: checkIn },
+                },
+            })
+            : [];
 
         const current = new Date(checkIn);
         const dailyEffectiveMap: Map<string, {

@@ -97,12 +97,14 @@ export class ConnectivityAvailabilityService {
     });
 
     // 7. Fetch external availability allocation overrides in date range
-    const overrides = await (this.prisma as any).connectivityAvailabilityOverride.findMany({
-      where: {
-        propertyId,
-        date: { gte: start, lte: end },
-      },
-    });
+    const overrides = (this.prisma as any).connectivityAvailabilityOverride
+      ? await (this.prisma as any).connectivityAvailabilityOverride.findMany({
+          where: {
+            propertyId,
+            date: { gte: start, lte: end },
+          },
+        })
+      : [];
 
     const availabilityResults: Array<{
       date: string;

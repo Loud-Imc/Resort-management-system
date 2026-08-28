@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { otaService } from '../services/otaService';
 import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../components/ConfirmModal';
 
 const COMMON_HIGHLIGHTS = [
   'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
@@ -201,14 +202,25 @@ export default function OtaRoomTypes() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this room category? All associated rooms and reservations might be impacted.')) return;
+  const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null);
+  const [isDeletingType, setIsDeletingType] = useState(false);
+
+  const handleDelete = (id: string) => {
+    setDeletingTypeId(id);
+  };
+
+  const confirmDeleteType = async () => {
+    if (!deletingTypeId) return;
+    setIsDeletingType(true);
     try {
-      await otaService.deleteRoomType(id);
+      await otaService.deleteRoomType(deletingTypeId);
       toast.success('Room type deleted successfully');
+      setDeletingTypeId(null);
       fetchInitialData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete room category');
+    } finally {
+      setIsDeletingType(false);
     }
   };
 
@@ -855,6 +867,17 @@ export default function OtaRoomTypes() {
           </div>
         )}
       </div>
+
+      {/* Custom Confirm Modal for Room Category Deletion */}
+      <ConfirmModal
+        isOpen={!!deletingTypeId}
+        onClose={() => setDeletingTypeId(null)}
+        onConfirm={confirmDeleteType}
+        isLoading={isDeletingType}
+        title="Delete Room Category?"
+        description="Are you sure you want to delete this room category? All associated rooms and availability will be impacted."
+        confirmText="Delete Category"
+      />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
 import type { RoomType } from '../../types/room';
@@ -7,17 +8,19 @@ import {
     Edit2,
     Trash2,
     Users,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Building2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Building2 } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function RoomTypesList() {
     const { selectedProperty } = useProperty();
     const propertyId = selectedProperty?.id;
     const queryClient = useQueryClient();
+    const [deletingType, setDeletingType] = useState<RoomType | null>(null);
 
     const { data: roomTypes, isLoading } = useQuery<RoomType[]>({
         queryKey: ['roomTypes', propertyId],
@@ -30,16 +33,15 @@ export default function RoomTypesList() {
         onSuccess: () => {
             toast.success('Room type deleted successfully');
             queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
+            setDeletingType(null);
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || 'Failed to delete room type');
         },
     });
 
-    const handleDelete = (id: string) => {
-        if (confirm('Are you sure you want to delete this room type? This action cannot be undone.')) {
-            deleteMutation.mutate(id);
-        }
+    const handleDelete = (type: RoomType) => {
+        setDeletingType(type);
     };
 
     if (isLoading) {
@@ -134,7 +136,7 @@ export default function RoomTypesList() {
                                     <Edit2 className="h-4 w-4" />
                                 </Link>
                                 <button
-                                    onClick={() => handleDelete(type.id)}
+                                    onClick={() => handleDelete(type)}
                                     className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
                                     title="Delete"
                                 >
@@ -152,6 +154,39 @@ export default function RoomTypesList() {
                     </div>
                 )}
             </div>
+
+            {/* Custom Confirm Modal for Room Type Deletion */}
+            {(() => {
+                const roomCount = deletingType?._count?.rooms || 0;
+                const hasRooms = roomCount > 0;
+                return (
+                    <ConfirmModal
+                        isOpen={!!deletingType}
+                        onClose={() => setDeletingType(null)}
+                        onConfirm={() => deletingType && deleteMutation.mutate(deletingType.id)}
+                        isLoading={deleteMutation.isPending}
+                        variant={hasRooms ? 'warning' : 'danger'}
+                        title={hasRooms ? `Delete ${deletingType?.name || 'Category'}?` : `Permanently Delete ${deletingType?.name || 'Category'}?`}
+                        description={
+                            hasRooms ? (
+                                <span>
+                                    <strong className="text-foreground font-bold">{deletingType?.name}</strong> has <strong className="text-amber-500 font-bold">{roomCount} physical room(s)</strong> assigned to it.
+                                    <br /><br />
+                                    Please delete or reassign the physical rooms first before deleting this category. System safety checks will prevent deletion while active physical rooms exist.
+                                </span>
+                            ) : (
+                                <span>
+                                    <strong className="text-foreground font-bold">{deletingType?.name}</strong> has zero associated physical rooms or active reservations.
+                                    <br /><br />
+                                    This room category will be <strong className="text-rose-500 font-bold uppercase">PERMANENTLY DELETED</strong> from the system database. This action cannot be undone.
+                                </span>
+                            )
+                        }
+                        confirmText={hasRooms ? "Attempt Delete" : "Permanently Delete"}
+                    />
+                );
+            })()}
         </div>
     );
 }
+

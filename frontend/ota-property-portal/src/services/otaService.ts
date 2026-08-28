@@ -62,6 +62,10 @@ export const otaService = {
     const { data } = await api.post('/ota-portal/rooms', dto);
     return data;
   },
+  updateRoom: async (id: string, dto: any) => {
+    const { data } = await api.patch(`/ota-portal/rooms/${id}`, dto);
+    return data;
+  },
   deleteRoom: async (id: string) => {
     const { data } = await api.delete(`/ota-portal/rooms/${id}`);
     return data;

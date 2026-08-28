@@ -17,7 +17,8 @@ import {
     Edit2,
     Trash2,
     Calendar,
-    CalendarDays
+    CalendarDays,
+    Archive
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -26,6 +27,7 @@ import { format, isAfter } from 'date-fns';
 import GuestDetailsModal from '../../components/Rooms/GuestDetailsModal';
 import RoomScheduleModal from '../../components/Rooms/RoomScheduleModal';
 import BlockRoomModal from '../../components/Rooms/BlockRoomModal';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function RoomsList() {
     const { selectedProperty } = useProperty();
@@ -39,37 +41,51 @@ export default function RoomsList() {
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
     const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-    // const [viewingBlocksRoom, setViewingBlocksRoom] = useState<Room | null>(null);
+    const [showDisabled, setShowDisabled] = useState<boolean>(false);
+    const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
 
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
     const { data: rooms, isLoading, error } = useQuery<Room[]>({
-        queryKey: ['rooms', statusFilter, propertyId, format(selectedDate, 'yyyy-MM-dd')],
+        queryKey: ['rooms', statusFilter, propertyId, format(selectedDate, 'yyyy-MM-dd'), showDisabled],
         queryFn: () => roomsService.getAll({
             status: statusFilter || undefined,
             propertyId: propertyId || undefined,
-            date: format(selectedDate, 'yyyy-MM-dd')
+            date: format(selectedDate, 'yyyy-MM-dd'),
+            isEnabled: showDisabled ? undefined : true,
         }),
         enabled: !!propertyId,
     });
 
     const deleteMutation = useMutation({
         mutationFn: roomsService.delete,
-        onSuccess: () => {
-            toast.success('Room deleted successfully');
+        onSuccess: (data: any) => {
+            toast.success(data?.message || 'Room deleted successfully');
             queryClient.invalidateQueries({ queryKey: ['rooms'] });
             setActiveMenuId(null);
+            setDeletingRoom(null);
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || 'Failed to delete room');
         },
     });
 
-    const handleDelete = (id: string, roomNumber: string) => {
-        if (confirm(`Are you sure you want to delete room ${roomNumber}? This action cannot be undone.`)) {
-            deleteMutation.mutate(id);
-        }
+    const restoreMutation = useMutation({
+        mutationFn: (id: string) => roomsService.update(id, { isEnabled: true, status: 'AVAILABLE', propertyId }),
+        onSuccess: () => {
+            toast.success('Room restored and re-enabled successfully!');
+            queryClient.invalidateQueries({ queryKey: ['rooms'] });
+            setActiveMenuId(null);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to restore room');
+        },
+    });
+
+    const handleDelete = (room: Room) => {
+        setDeletingRoom(room);
+        setActiveMenuId(null);
     };
 
     const getStatusColor = (status: RoomStatus) => {
@@ -186,6 +202,15 @@ export default function RoomsList() {
                             <option value="MAINTENANCE">Maintenance</option>
                             <option value="BLOCKED">Blocked</option>
                         </select>
+                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold cursor-pointer ml-2">
+                            <input
+                                type="checkbox"
+                                checked={showDisabled}
+                                onChange={(e) => setShowDisabled(e.target.checked)}
+                                className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                            />
+                            Show Disabled Rooms
+                        </label>
                     </div>
                 </div>
 
@@ -236,10 +261,10 @@ export default function RoomsList() {
                                 </span>
                                 <span className={clsx(
                                     "px-2.5 py-1 rounded-full text-xs font-bold transition-all shadow-sm flex items-center gap-1",
-                                    getStatusColor(room.status)
+                                    !room.isEnabled ? "bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/20" : getStatusColor(room.status)
                                 )}>
-                                    {getStatusIcon(room.status)}
-                                    {room.status}
+                                    {!room.isEnabled ? <Archive className="h-3.5 w-3.5 text-slate-500" /> : getStatusIcon(room.status)}
+                                    {!room.isEnabled ? 'DEACTIVATED' : room.status}
                                 </span>
                             </div>
 
@@ -299,12 +324,21 @@ export default function RoomsList() {
                                             >
                                                 <Lock className="h-3 w-3 text-amber-500" /> Block Room
                                             </button>
-                                            <button
-                                                onClick={() => handleDelete(room.id, room.roomNumber)}
-                                                className="w-full text-left px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 flex items-center gap-2 font-medium transition-colors"
-                                            >
-                                                <Trash2 className="h-3 w-3" /> Delete
-                                            </button>
+                                            {!room.isEnabled ? (
+                                                <button
+                                                    onClick={() => restoreMutation.mutate(room.id)}
+                                                    className="w-full text-left px-4 py-2.5 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-2 font-bold transition-colors"
+                                                >
+                                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-500" /> Restore Room
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleDelete(room)}
+                                                    className="w-full text-left px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 flex items-center gap-2 font-medium transition-colors"
+                                                >
+                                                    <Trash2 className="h-3 w-3" /> Delete
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -360,6 +394,37 @@ export default function RoomsList() {
                 isOpen={isGuestModalOpen}
                 onClose={() => setIsGuestModalOpen(false)}
             />
+
+            {/* Custom Confirm Modal for Room Deletion */}
+            {(() => {
+                const hasHistory = !!deletingRoom?.hasHistory || ((deletingRoom?._count?.bookingRooms || 0) + (deletingRoom?._count?.bookings || 0) + (deletingRoom?._count?.blocks || 0)) > 0;
+                return (
+                    <ConfirmModal
+                        isOpen={!!deletingRoom}
+                        onClose={() => setDeletingRoom(null)}
+                        onConfirm={() => deletingRoom && deleteMutation.mutate(deletingRoom.id)}
+                        isLoading={deleteMutation.isPending}
+                        variant={hasHistory ? 'warning' : 'danger'}
+                        title={hasHistory ? `Deactivate Room ${deletingRoom?.roomNumber || ''}?` : `Permanently Delete Room ${deletingRoom?.roomNumber || ''}?`}
+                        description={
+                            hasHistory ? (
+                                <span>
+                                    Room <strong className="text-foreground font-bold">{deletingRoom?.roomNumber}</strong> has historical booking or block records.
+                                    <br /><br />
+                                    To protect past financial reports and audit logs, this room will be <strong className="text-amber-500 font-bold uppercase">DEACTIVATED</strong>. It will no longer receive new bookings, but can be restored anytime by toggling <em>"Show Disabled Rooms"</em>.
+                                </span>
+                            ) : (
+                                <span>
+                                    Room <strong className="text-foreground font-bold">{deletingRoom?.roomNumber}</strong> has zero historical bookings or blocks.
+                                    <br /><br />
+                                    This room will be <strong className="text-rose-500 font-bold uppercase">PERMANENTLY DELETED</strong> from the system database. This action cannot be undone.
+                                </span>
+                            )
+                        }
+                        confirmText={hasHistory ? "Deactivate Room" : "Permanently Delete"}
+                    />
+                );
+            })()}
         </div>
     );
 }

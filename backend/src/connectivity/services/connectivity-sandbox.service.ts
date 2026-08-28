@@ -113,7 +113,7 @@ export class ConnectivitySandboxService {
       const mappingsDeleted = await tx.connectivityReservationMapping.deleteMany({
         where: {
           partnerId,
-          externalPropertyId: { in: [sandboxCode, 'EXT-PROP-001'] },
+          connection: { propertyId: sandboxProperty.id },
         },
       });
 
@@ -126,7 +126,7 @@ export class ConnectivitySandboxService {
       });
 
       // 3. Delete restriction rules created for TEST-PROP-001
-      const restrictionRulesDeleted = await (tx as any).restrictionRule.deleteMany({
+      const restrictionRulesDeleted = await tx.stopSellRestriction.deleteMany({
         where: { propertyId: sandboxProperty.id },
       });
 
