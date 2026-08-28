@@ -337,83 +337,88 @@ export class ConnectivityAvailabilityService {
     startDateStr: string,
     endDateStr: string,
   ) {
-    const capabilities = await this.settingsService.getGlobalCapabilities();
-    if (!capabilities.availabilitySync) {
-      return [];
-    }
+    try {
+      const capabilities = await this.settingsService.getGlobalCapabilities();
+      if (!capabilities.availabilitySync) {
+        return [];
+      }
 
-    const prismaTx = tx || this.prisma;
+      const prismaTx = tx || this.prisma;
 
-    // Find all active partner connections for propertyId
-    const connections = await prismaTx.connectivityPartnerConnection.findMany({
-      where: {
-        propertyId,
-        status: 'ACTIVE',
-      },
-      include: {
-        partner: true,
-        roomMappings: {
-          where: { roomTypeId },
+      // Find all active partner connections for propertyId
+      const connections = await prismaTx.connectivityPartnerConnection.findMany({
+        where: {
+          propertyId,
+          status: 'ACTIVE',
         },
-      },
-    });
-
-    if (!connections || connections.length === 0) {
-      return [];
-    }
-
-    // Calculate current availability for roomTypeId
-    const availResult = await this.getAvailability('SYSTEM', {
-      propertyId,
-      roomTypeId,
-      startDate: startDateStr,
-      endDate: endDateStr,
-    }).catch(() => null);
-
-    if (!availResult || !availResult.availability || availResult.availability.length === 0) {
-      return [];
-    }
-
-    const outboxRecords: any[] = [];
-
-    for (const conn of connections) {
-      const mapping = conn.roomMappings[0];
-      if (!mapping) continue;
-
-      const minAvailable = Math.min(...availResult.availability.map((a: any) => a.sellableQuantity));
-
-      const eventPayload = {
-        eventId: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-        eventType: 'AVAILABILITY.CHANGED',
-        apiVersion: 'v1',
-        timestamp: new Date().toISOString(),
-        partnerId: conn.partnerId,
-        connectionId: conn.id,
-        propertyId,
-        externalPropertyId: conn.externalPropertyId,
-        data: {
-          externalRoomTypeId: mapping.externalRoomTypeId,
-          roomTypeId,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          availableQuantity: minAvailable,
-        },
-      };
-
-      const outbox = await prismaTx.connectivityOutbox.create({
-        data: {
-          partnerId: conn.partnerId,
-          connectionId: conn.id,
-          eventType: 'AVAILABILITY.CHANGED',
-          aggregateId: `${propertyId}_${roomTypeId}`,
-          payload: eventPayload,
-          status: 'PENDING',
+        include: {
+          partner: true,
+          roomMappings: {
+            where: { roomTypeId },
+          },
         },
       });
 
-      outboxRecords.push(outbox);
-    }
+      if (!connections || connections.length === 0) {
+        return [];
+      }
 
-    return outboxRecords;
+      // Calculate current availability for roomTypeId
+      const availResult = await this.getAvailability('SYSTEM', {
+        propertyId,
+        roomTypeId,
+        startDate: startDateStr,
+        endDate: endDateStr,
+      }).catch(() => null);
+
+      if (!availResult || !availResult.availability || availResult.availability.length === 0) {
+        return [];
+      }
+
+      const outboxRecords: any[] = [];
+
+      for (const conn of connections) {
+        const mapping = conn.roomMappings[0];
+        if (!mapping) continue;
+
+        const minAvailable = Math.min(...availResult.availability.map((a: any) => a.sellableQuantity));
+
+        const eventPayload = {
+          eventId: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+          eventType: 'AVAILABILITY.CHANGED',
+          apiVersion: 'v1',
+          timestamp: new Date().toISOString(),
+          partnerId: conn.partnerId,
+          connectionId: conn.id,
+          propertyId,
+          externalPropertyId: conn.externalPropertyId,
+          data: {
+            externalRoomTypeId: mapping.externalRoomTypeId,
+            roomTypeId,
+            startDate: startDateStr,
+            endDate: endDateStr,
+            availableQuantity: minAvailable,
+          },
+        };
+
+        const outbox = await prismaTx.connectivityOutbox.create({
+          data: {
+            partnerId: conn.partnerId,
+            connectionId: conn.id,
+            eventType: 'AVAILABILITY.CHANGED',
+            aggregateId: `${propertyId}_${roomTypeId}`,
+            payload: eventPayload,
+            status: 'PENDING',
+          },
+        });
+
+        outboxRecords.push(outbox);
+      }
+
+      return outboxRecords;
+    } catch (err: any) {
+      // Gracefully prevent database/migration error from blocking core PMS operations
+      return [];
+    }
   }
 }
