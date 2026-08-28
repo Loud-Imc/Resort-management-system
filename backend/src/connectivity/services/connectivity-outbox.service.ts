@@ -1,10 +1,12 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConnectivitySettingsService } from './connectivity-settings.service';
 import { ConnectivityAvailabilityService } from './connectivity-availability.service';
 
 @Injectable()
 export class ConnectivityOutboxService {
+  private readonly logger = new Logger(ConnectivityOutboxService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly settingsService: ConnectivitySettingsService,
@@ -98,72 +100,79 @@ export class ConnectivityOutboxService {
       return [];
     }
 
-    const capabilities = await this.settingsService.getGlobalCapabilities();
-    if (!capabilities.reservationSync) {
-      return [];
-    }
+    try {
+      const capabilities = await this.settingsService.getGlobalCapabilities();
+      if (!capabilities.reservationSync) {
+        return [];
+      }
 
-    const prismaTx = tx || this.prisma;
+      const prismaTx = tx || this.prisma;
 
-    // Find all active partner connections for this property
-    const connections = await prismaTx.connectivityPartnerConnection.findMany({
-      where: { propertyId, status: 'ACTIVE' },
-      include: {
-        partner: true,
-        roomMappings: { where: { roomTypeId: booking.roomTypeId } },
-      },
-    });
-
-    if (!connections || connections.length === 0) {
-      return [];
-    }
-
-    const events: any[] = [];
-
-    for (const conn of connections) {
-      const roomMapping = conn.roomMappings[0];
-      const externalRoomTypeId = roomMapping?.externalRoomTypeId || booking.roomType?.name || 'DEFAULT';
-
-      // Find or create mapping for this booking & partner connection
-      let mapping = await prismaTx.connectivityReservationMapping.findFirst({
-        where: {
-          bookingId: booking.id,
-          partnerId: conn.partnerId,
+      // Find all active partner connections for this property
+      const connections = await prismaTx.connectivityPartnerConnection.findMany({
+        where: { propertyId, status: 'ACTIVE' },
+        include: {
+          partner: true,
+          roomMappings: { where: { roomTypeId: booking.roomTypeId } },
         },
       });
 
-      if (!mapping) {
-        mapping = await prismaTx.connectivityReservationMapping.create({
-          data: {
+      if (!connections || connections.length === 0) {
+        return [];
+      }
+
+      const events: any[] = [];
+
+      for (const conn of connections) {
+        const roomMapping = conn.roomMappings[0];
+        const externalRoomTypeId = roomMapping?.externalRoomTypeId || booking.roomType?.name || 'DEFAULT';
+
+        // Find or create mapping for this booking & partner connection
+        let mapping = await prismaTx.connectivityReservationMapping.findFirst({
+          where: {
             bookingId: booking.id,
             partnerId: conn.partnerId,
-            connectionId: conn.id,
-            externalReservationId: booking.bookingNumber,
-            externalPropertyId: conn.externalPropertyId,
-            externalRoomTypeId: externalRoomTypeId,
           },
         });
+
+        if (!mapping) {
+          mapping = await prismaTx.connectivityReservationMapping.create({
+            data: {
+              bookingId: booking.id,
+              partnerId: conn.partnerId,
+              connectionId: conn.id,
+              externalReservationId: booking.bookingNumber,
+              externalPropertyId: conn.externalPropertyId,
+              externalRoomTypeId: externalRoomTypeId,
+            },
+          });
+        }
+
+        const event = await this.createReservationEvent(
+          tx,
+          eventType,
+          conn.partnerId,
+          conn.id,
+          {
+            ...mapping,
+            connection: conn,
+          },
+          booking,
+          user,
+        );
+
+        if (event) {
+          events.push(event);
+        }
       }
 
-      const event = await this.createReservationEvent(
-        tx,
-        eventType,
-        conn.partnerId,
-        conn.id,
-        {
-          ...mapping,
-          connection: conn,
-        },
-        booking,
-        user,
+      return events;
+    } catch (err: any) {
+      this.logger.warn(
+        `[ConnectivityOutbox] Skipped outbox event generation for booking ${booking?.id || ''}: ${err?.message || err}`,
       );
-
-      if (event) {
-        events.push(event);
-      }
+      return [];
     }
-
-    return events;
   }
 
   async createAvailabilityEvent(
@@ -178,41 +187,46 @@ export class ConnectivityOutboxService {
     endDate: string,
     availableQuantity: number,
   ) {
-    const capabilities = await this.settingsService.getGlobalCapabilities();
-    if (!capabilities.availabilitySync) {
-      return null;
-    }
+    try {
+      const capabilities = await this.settingsService.getGlobalCapabilities();
+      if (!capabilities.availabilitySync) {
+        return null;
+      }
 
-    const prismaTx = tx || this.prisma;
+      const prismaTx = tx || this.prisma;
 
-    const payload = {
-      eventId: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-      eventType: 'AVAILABILITY.CHANGED',
-      apiVersion: 'v1',
-      timestamp: new Date().toISOString(),
-      partnerId,
-      connectionId,
-      propertyId,
-      externalPropertyId,
-      data: {
-        externalRoomTypeId,
-        roomTypeId,
-        startDate,
-        endDate,
-        availableQuantity,
-      },
-    };
-
-    return prismaTx.connectivityOutbox.create({
-      data: {
+      const payload = {
+        eventId: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        eventType: 'AVAILABILITY.CHANGED',
+        apiVersion: 'v1',
+        timestamp: new Date().toISOString(),
         partnerId,
         connectionId,
-        eventType: 'AVAILABILITY.CHANGED',
-        aggregateId: `${propertyId}_${roomTypeId}`,
-        payload,
-        status: 'PENDING',
-      },
-    });
+        propertyId,
+        externalPropertyId,
+        data: {
+          externalRoomTypeId,
+          roomTypeId,
+          startDate,
+          endDate,
+          availableQuantity,
+        },
+      };
+
+      return await prismaTx.connectivityOutbox.create({
+        data: {
+          partnerId,
+          connectionId,
+          eventType: 'AVAILABILITY.CHANGED',
+          aggregateId: `${propertyId}_${roomTypeId}`,
+          payload,
+          status: 'PENDING',
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`[ConnectivityOutbox] Skipped createAvailabilityEvent: ${err?.message || err}`);
+      return null;
+    }
   }
 
   async emitAvailabilityChange(
@@ -226,23 +240,28 @@ export class ConnectivityOutboxService {
       return [];
     }
 
-    const startDateStr: string =
-      typeof startDate === 'string'
-        ? startDate.slice(0, 10)
-        : startDate?.toISOString?.()?.slice(0, 10) || String(startDate);
+    try {
+      const startDateStr: string =
+        typeof startDate === 'string'
+          ? startDate.slice(0, 10)
+          : startDate?.toISOString?.()?.slice(0, 10) || String(startDate);
 
-    const endDateStr: string =
-      typeof endDate === 'string'
-        ? endDate.slice(0, 10)
-        : endDate?.toISOString?.()?.slice(0, 10) || String(endDate);
+      const endDateStr: string =
+        typeof endDate === 'string'
+          ? endDate.slice(0, 10)
+          : endDate?.toISOString?.()?.slice(0, 10) || String(endDate);
 
-    return this.availabilityService.recalculateAndEmitAvailability(
-      tx,
-      propertyId,
-      roomTypeId,
-      startDateStr,
-      endDateStr,
-    );
+      return await this.availabilityService.recalculateAndEmitAvailability(
+        tx,
+        propertyId,
+        roomTypeId,
+        startDateStr,
+        endDateStr,
+      );
+    } catch (err: any) {
+      this.logger.warn(`[ConnectivityOutbox] Skipped emitAvailabilityChange: ${err?.message || err}`);
+      return [];
+    }
   }
 
   async createRateEventForProperty(
