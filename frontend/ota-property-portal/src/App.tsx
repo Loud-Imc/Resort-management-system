@@ -10,6 +10,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Layout & pages
 import OtaDashboardLayout from './layouts/OtaDashboardLayout';
+import DeveloperPortalLayout from './layouts/DeveloperPortalLayout';
 import OtaDashboardHome from './pages/OtaDashboardHome';
 import OtaBookings from './pages/OtaBookings';
 import OtaGuests from './pages/OtaGuests';
@@ -18,6 +19,15 @@ import OtaRoomsAvailability from './pages/OtaRoomsAvailability';
 import OtaOffers from './pages/OtaOffers';
 import OtaPromotionalBoosters from './pages/OtaPromotionalBoosters';
 import OtaMyProperty from './pages/OtaMyProperty';
+import DeveloperPortalHome from './pages/DeveloperPortalHome';
+import DeveloperDocs from './pages/DeveloperDocs';
+import DeveloperSandboxDocs from './pages/DeveloperSandboxDocs';
+import DeveloperWebhooksDocs from './pages/DeveloperWebhooksDocs';
+import DeveloperProductionDocs from './pages/DeveloperProductionDocs';
+import DeveloperCertification from './pages/DeveloperCertification';
+import DeveloperRegister from './pages/DeveloperRegister';
+import DeveloperLogin from './pages/DeveloperLogin';
+import DeveloperDashboard from './pages/DeveloperDashboard';
 import Login from './pages/Login';
 
 const queryClient = new QueryClient({
@@ -40,6 +50,19 @@ export default function App() {
               {/* Public/Guest auth routes */}
               <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
 
+              {/* Public & Authenticated External Developer Portal */}
+              <Route path="/developers" element={<DeveloperPortalLayout />}>
+                <Route index element={<DeveloperPortalHome />} />
+                <Route path="docs" element={<DeveloperDocs />} />
+                <Route path="sandbox" element={<DeveloperSandboxDocs />} />
+                <Route path="webhooks" element={<DeveloperWebhooksDocs />} />
+                <Route path="certification" element={<DeveloperCertification />} />
+                <Route path="production" element={<DeveloperProductionDocs />} />
+                <Route path="register" element={<DeveloperRegister />} />
+                <Route path="login" element={<DeveloperLogin />} />
+                <Route path="dashboard" element={<DeveloperDashboard />} />
+              </Route>
+
               {/* Authenticated OTA dashboard routes */}
               <Route path="/" element={<ProtectedRoute><OtaDashboardLayout /></ProtectedRoute>}>
                 <Route index element={<OtaDashboardHome />} />
@@ -50,6 +73,7 @@ export default function App() {
                 <Route path="offers" element={<OtaOffers />} />
                 <Route path="boosters" element={<OtaPromotionalBoosters />} />
                 <Route path="my-property" element={<OtaMyProperty />} />
+                <Route path="developer-certification" element={<DeveloperCertification />} />
               </Route>
 
               {/* Fallback */}

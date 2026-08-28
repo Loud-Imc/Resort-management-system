@@ -1446,17 +1446,29 @@ enum ConnectivityEventStatus {
   FAILED_DEAD_LETTER
 }
 
+enum ConnectivityCertificationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PASSED
+  FAILED
+}
+
 model ConnectivityPartner {
-  id           String                    @id @default(uuid())
-  name         String
-  code         String                    @unique
-  type         ConnectivityPartnerType   @default(PMS)
-  status       ConnectivityPartnerStatus @default(PENDING)
-  contactEmail String?
-  contactPhone String?
-  webhookUrl   String?
-  createdAt    DateTime                  @default(now())
-  updatedAt    DateTime                  @updatedAt
+  id                   String                          @id @default(uuid())
+  name                 String
+  code                 String                          @unique
+  type                 ConnectivityPartnerType         @default(PMS)
+  status               ConnectivityPartnerStatus       @default(PENDING)
+  certificationStatus  ConnectivityCertificationStatus @default(NOT_STARTED)
+  certifiedAt          DateTime?
+  certificationDetails Json?
+  contactEmail         String?
+  contactPhone         String?
+  webhookUrl           String?
+  webhookSecret        String?
+  passwordHash         String?
+  createdAt            DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
 
   credentials  ConnectivityPartnerCredential[]
   connections  ConnectivityPartnerConnection[]

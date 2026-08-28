@@ -125,6 +125,7 @@ export default function OtaDashboardLayout() {
     { label: 'Offers & Marketing', path: '/offers', icon: Percent },
     { label: 'Promotional Boosters', path: '/boosters', icon: Sparkles },
     { label: 'My Property', path: '/my-property', icon: Home },
+    { label: 'Developer Certification', path: '/developer-certification', icon: ShieldCheck },
   ];
 
   const disabledNavItems = [
