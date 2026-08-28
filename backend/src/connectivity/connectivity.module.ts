@@ -1,4 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SystemSettingsModule } from '../system-settings/system-settings.module';
 import { BookingsModule } from '../bookings/bookings.module';
@@ -17,12 +19,15 @@ import { ConnectivityOutboxService } from './services/connectivity-outbox.servic
 import { ConnectivityOutboxProcessorService } from './services/connectivity-outbox-processor.service';
 import { ConnectivityOutboxSchedulerService } from './services/connectivity-outbox-scheduler.service';
 import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
+import { ConnectivityCertificationService } from './services/connectivity-certification.service';
 
 import { PartnerApiKeyGuard } from './auth/partner-api-key.guard';
 import { PartnerRateLimitGuard } from './auth/partner-rate-limit.guard';
+import { DeveloperJwtGuard } from './auth/developer-jwt.guard';
 
 import { AdminConnectivityController } from './admin-connectivity.controller';
 import { ConnectivityController } from './connectivity.controller';
+import { ConnectivityDeveloperController } from './connectivity-developer.controller';
 
 @Module({
   imports: [
@@ -30,10 +35,19 @@ import { ConnectivityController } from './connectivity.controller';
     SystemSettingsModule,
     forwardRef(() => BookingsModule),
     forwardRef(() => RoomsModule),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET') || 'secret',
+        signOptions: { expiresIn: '7d' },
+      }),
+      inject: [ConfigService],
+    }),
   ],
   controllers: [
     AdminConnectivityController,
     ConnectivityController,
+    ConnectivityDeveloperController,
   ],
   providers: [
     ConnectivityPartnerService,
@@ -49,8 +63,10 @@ import { ConnectivityController } from './connectivity.controller';
     ConnectivityOutboxProcessorService,
     ConnectivityOutboxSchedulerService,
     ConnectivitySandboxService,
+    ConnectivityCertificationService,
     PartnerApiKeyGuard,
     PartnerRateLimitGuard,
+    DeveloperJwtGuard,
   ],
   exports: [
     ConnectivityPartnerService,
@@ -66,8 +82,7 @@ import { ConnectivityController } from './connectivity.controller';
     ConnectivityOutboxProcessorService,
     ConnectivityOutboxSchedulerService,
     ConnectivitySandboxService,
-    PartnerApiKeyGuard,
-    PartnerRateLimitGuard,
+    ConnectivityCertificationService,
   ],
 })
 export class ConnectivityModule {}

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -8,6 +8,7 @@ import { ConnectivitySettingsService } from './services/connectivity-settings.se
 import { ConnectivityLogService } from './services/connectivity-log.service';
 import { ConnectivityOutboxProcessorService } from './services/connectivity-outbox-processor.service';
 import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
+import { ConnectivityCertificationService } from './services/connectivity-certification.service';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { CreateCredentialDto } from './dto/create-credential.dto';
 import { UpdateGlobalCapabilitiesDto } from './dto/update-global-capabilities.dto';
@@ -25,6 +26,7 @@ export class AdminConnectivityController {
     private readonly logService: ConnectivityLogService,
     private readonly outboxProcessorService: ConnectivityOutboxProcessorService,
     private readonly sandboxService: ConnectivitySandboxService,
+    private readonly certificationService: ConnectivityCertificationService,
   ) {}
 
   @Post('partners')
@@ -118,5 +120,31 @@ export class AdminConnectivityController {
       throw new BadRequestException('partnerId is required for admin sandbox reset.');
     }
     return this.sandboxService.resetSandboxData(partnerId, false);
+  }
+
+  // ─── PHASE 8 PARTNER SELF-CERTIFICATION ADMIN APIs ────────────────────────
+
+  @Patch('partners/:id/certification/override')
+  @Roles('SuperAdmin')
+  @ApiOperation({ summary: 'SuperAdmin manual override for partner certification status' })
+  async overrideCertification(
+    @Param('id') partnerId: string,
+    @Body('status') status: 'PASSED' | 'FAILED',
+    @Body('reason') reason: string,
+    @Req() req: any,
+  ) {
+    const userRole = req.user?.role || (req.user?.roles && req.user.roles[0]);
+    if (userRole !== 'SuperAdmin' && (!req.user?.roles || !req.user.roles.includes('SuperAdmin'))) {
+      throw new ForbiddenException('Only SuperAdmin users are authorized to override partner certification status.');
+    }
+    if (!status || !['PASSED', 'FAILED'].includes(status)) {
+      throw new BadRequestException('Valid status (PASSED or FAILED) is required.');
+    }
+    return this.certificationService.overrideCertification(
+      partnerId,
+      status,
+      reason,
+      req.user?.id || 'admin',
+    );
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePartnerDto } from '../dto/create-partner.dto';
 import { CreateCredentialDto } from '../dto/create-credential.dto';
@@ -35,7 +35,8 @@ export class ConnectivityPartnerService {
     const initialCredential = await this.createCredential(partner.id, {
       name: 'Initial Key',
       environment: ConnectivityCredentialEnv.PRODUCTION,
-    });
+      adminBypass: true,
+    } as any);
 
     return {
       partner,
@@ -114,7 +115,16 @@ export class ConnectivityPartnerService {
       throw new NotFoundException(`Partner with ID ${partnerId} not found`);
     }
 
-    const envPrefix = dto.environment === ConnectivityCredentialEnv.SANDBOX ? 'rg_test_' : 'rg_live_';
+    const targetEnv = dto.environment || ConnectivityCredentialEnv.PRODUCTION;
+    if (targetEnv === ConnectivityCredentialEnv.PRODUCTION) {
+      if (partner.certificationStatus !== ('PASSED' as any) && !(dto as any).adminBypass) {
+        throw new ForbiddenException(
+          'PRODUCTION credentials (rg_live_...) cannot be issued until the partner has successfully completed Sandbox Self-Certification.',
+        );
+      }
+    }
+
+    const envPrefix = targetEnv === ConnectivityCredentialEnv.SANDBOX ? 'rg_test_' : 'rg_live_';
     const randomBytes = crypto.randomBytes(24).toString('hex');
     const plainApiKey = `${envPrefix}${randomBytes}`;
     const keyPrefix = plainApiKey.substring(0, 12);
