@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck, CheckCircle2, XCircle, Clock, RefreshCw, AlertTriangle, UserCheck } from 'lucide-react';
+import { ShieldCheck, RefreshCw, UserCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Partner {
