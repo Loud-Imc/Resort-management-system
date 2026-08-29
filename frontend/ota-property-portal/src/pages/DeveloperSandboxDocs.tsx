@@ -63,7 +63,7 @@ export default function DeveloperSandboxDocs() {
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sandbox API Key Format</span>
           <p className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">rg_test_&lt;random_hex&gt;</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Issued via Partner Portal or Admin API.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Issued upon Developer Registration or via Dashboard.</p>
         </div>
 
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">

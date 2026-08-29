@@ -166,22 +166,22 @@ export default function DeveloperPortalHome() {
         <div className="space-y-2 max-w-xl">
           <h2 className="text-2xl font-extrabold text-white">Ready to integrate your system?</h2>
           <p className="text-sm text-slate-300">
-            Sign in to your RouteGuide Partner Portal to issue Sandbox credentials, track your certification progress, and unlock live Production API access.
+            Create your Developer account, receive Sandbox credentials, complete certification, and unlock Production API access.
           </p>
         </div>
 
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           <Link
-            to="/login"
-            className="px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all"
+            to="/developers/register"
+            className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-1.5"
           >
-            Partner Sign In
+            Get Sandbox Access <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            to="/developers/sandbox"
+            to="/developers/login"
             className="px-6 py-3.5 rounded-2xl border border-slate-700 bg-slate-800/80 text-white font-semibold text-sm hover:bg-slate-800 transition-all"
           >
-            Explore Sandbox
+            Developer Sign In
           </Link>
         </div>
       </section>

@@ -322,38 +322,74 @@ x-api-key: rg_test_1234567890abcdef12345678  # Example only`}</pre>
         </section>
 
         {/* Section 7: RoomType & RatePlan Mapping */}
-        <section id="mapping" className="space-y-4 scroll-mt-24">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            7. RoomType & RatePlan Mapping Architecture
-          </h2>
-          <p>
-            RouteGuide maintains a strict separation between <strong>external PMS identifiers</strong> and <strong>internal RouteGuide UUIDs</strong>:
-          </p>
+        <section id="mapping" className="space-y-6 scroll-mt-24">
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              7. Property Connection & Room Mapping
+            </h2>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Establish property connections and bind external PMS room/rate codes to RouteGuide entities.
+            </p>
+          </div>
 
-          <div className="p-4 rounded-2xl bg-slate-900 text-white border border-slate-800 space-y-3 text-xs font-mono">
-            <div className="flex items-center justify-between text-slate-400 border-b border-slate-800 pb-2 font-sans font-bold">
-              <span>External PMS / Channel Manager</span>
-              <span></span>
-              <span>RouteGuide Platform Entity</span>
+          {/* 7.1 Initial Connection */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs">POST</span>
+              <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">/api/connectivity/v1/connections</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-amber-400">externalRoomTypeId ("EXT-DLX-ROOM")</span>
-              <span className="text-slate-500">─────►</span>
-              <span className="text-emerald-400">roomTypeId ("roomtype-dlx-uuid")</span>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Initializes an active connection between your developer partner account and a RouteGuide property (e.g. <code className="font-mono">TEST-PROP-001</code> in Sandbox).
+            </p>
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Request Body (CreateConnectionDto)</span>
+              <pre className="p-3 rounded-xl bg-slate-950 font-mono text-xs text-slate-200 border border-slate-800">
+{`{
+  "propertyId": "TEST-PROP-001",              // Required: RouteGuide propertyId or Sandbox code
+  "externalPropertyId": "PMS-HOTEL-101"       // Required: Your external PMS property code
+}`}
+              </pre>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-amber-400">externalRatePlanId ("STD-BAR")</span>
-              <span className="text-slate-500">─────►</span>
-              <span className="text-emerald-400">Rate Plan / Flexible Pricing Rule</span>
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Response (HTTP 201 Created)</span>
+              <pre className="p-3 rounded-xl bg-slate-950 font-mono text-xs text-emerald-400 border border-slate-800">
+{`{
+  "id": "conn-8f92a101-382a-4a25",
+  "partnerId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "propertyId": "c39b81f2-53a9-40ea-92b0-681b37b42021",
+  "externalPropertyId": "PMS-HOTEL-101",
+  "status": "ACTIVE",
+  "createdAt": "2026-08-29T10:00:00.000Z"
+}`}
+              </pre>
             </div>
           </div>
 
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            Register or update mapping via <code className="font-mono text-emerald-600 dark:text-emerald-400">POST /connections/:propertyId/mappings/room-types</code>:
-          </p>
+          {/* 7.2 Mapping Flow */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
+            <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">Identifier Mapping Architecture</span>
+            <div className="p-4 rounded-xl bg-slate-950 text-white border border-slate-800 space-y-3 text-xs font-mono">
+              <div className="flex items-center justify-between text-slate-400 border-b border-slate-800 pb-2 font-sans font-bold">
+                <span>External PMS / Channel Manager</span>
+                <span></span>
+                <span>RouteGuide Platform Entity</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-amber-400">externalRoomTypeId ("EXT-DLX-ROOM")</span>
+                <span className="text-slate-500">─────►</span>
+                <span className="text-emerald-400">roomTypeId ("roomtype-dlx-uuid")</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-amber-400">externalRatePlanId ("STD-BAR")</span>
+                <span className="text-slate-500">─────►</span>
+                <span className="text-emerald-400">Rate Plan / Pricing Rule</span>
+              </div>
+            </div>
 
-          <div className="relative rounded-2xl bg-slate-900 p-4 border border-slate-800 font-mono text-xs text-slate-200">
-            <pre>{`POST /api/connectivity/v1/connections/TEST-PROP-001/mappings/room-types HTTP/1.1
+            <div className="space-y-1 pt-2">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Register Room Mapping (POST /connections/:propertyId/mappings/room-types)</span>
+              <pre className="p-3 rounded-xl bg-slate-950 font-mono text-xs text-slate-200 border border-slate-800">
+{`POST /api/connectivity/v1/connections/TEST-PROP-001/mappings/room-types HTTP/1.1
 x-api-key: rg_test_1234567890abcdef12345678  # Example only
 Content-Type: application/json
 
@@ -361,7 +397,9 @@ Content-Type: application/json
   "roomTypeId": "roomtype-dlx-uuid",
   "externalRoomTypeId": "EXT-DLX-ROOM",
   "externalRatePlanId": "STD-BAR"
-}`}</pre>
+}`}
+              </pre>
+            </div>
           </div>
         </section>
 
