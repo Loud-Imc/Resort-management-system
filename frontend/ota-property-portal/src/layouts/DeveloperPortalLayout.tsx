@@ -1,18 +1,37 @@
-import { NavLink, Outlet, Link } from 'react-router-dom';
-import { Terminal, BookOpen, Cpu, ShieldCheck, Zap, Key, Sun, Moon, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
+import { Terminal, BookOpen, Cpu, ShieldCheck, Zap, Key, Sun, Moon, ArrowRight, CheckCircle2, LayoutDashboard, LogOut } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import toast from 'react-hot-toast';
 
 export default function DeveloperPortalLayout() {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const isLoggedIn = !!localStorage.getItem('developer_token');
 
-  const navItems = [
+  const handleLogout = () => {
+    localStorage.removeItem('developer_token');
+    localStorage.removeItem('developer_partner');
+    toast.success('Signed out of Developer Portal');
+    navigate('/developers/login');
+  };
+
+  const publicNavItems = [
     { label: 'Overview', path: '/developers', icon: Terminal, end: true },
     { label: 'API Reference', path: '/developers/docs', icon: BookOpen },
-    { label: 'Sandbox (TEST-PROP-001)', path: '/developers/sandbox', icon: Cpu },
+    { label: 'Sandbox Guide', path: '/developers/sandbox', icon: Cpu },
     { label: 'Webhooks & HMAC', path: '/developers/webhooks', icon: Zap },
-    { label: 'Self-Certification', path: '/developers/certification', icon: ShieldCheck },
-    { label: 'Production Access', path: '/developers/production', icon: Key },
+    { label: 'Certification Rules', path: '/developers/certification', icon: ShieldCheck },
+    { label: 'Production Rules', path: '/developers/production', icon: Key },
   ];
+
+  const authenticatedNavItems = [
+    { label: 'Overview', path: '/developers', icon: Terminal, end: true },
+    { label: 'API Reference', path: '/developers/docs', icon: BookOpen },
+    { label: 'Webhooks Guide', path: '/developers/webhooks', icon: Zap },
+    { label: 'Developer Dashboard', path: '/developers/dashboard', icon: LayoutDashboard },
+  ];
+
+  const currentNavItems = isLoggedIn ? authenticatedNavItems : publicNavItems;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 selection:bg-emerald-500 selection:text-white">
@@ -46,7 +65,7 @@ export default function DeveloperPortalLayout() {
 
           {/* Desktop Nav Links */}
           <nav className="hidden lg:flex items-center gap-1">
-            {navItems.map((item) => (
+            {currentNavItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
@@ -75,14 +94,24 @@ export default function DeveloperPortalLayout() {
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
             </button>
 
-            {localStorage.getItem('developer_token') ? (
-              <Link
-                to="/developers/dashboard"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/20 transition-all"
-              >
-                Developer Dashboard
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/developers/dashboard"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/20 transition-all"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  Dashboard
+                </Link>
+
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4 text-rose-500" />
+                </button>
+              </div>
             ) : (
               <>
                 <Link
@@ -106,7 +135,7 @@ export default function DeveloperPortalLayout() {
 
         {/* Mobile Navigation Row */}
         <div className="lg:hidden flex items-center gap-1 px-4 py-2 overflow-x-auto border-t border-slate-200 dark:border-slate-800/60 no-scrollbar">
-          {navItems.map((item) => (
+          {currentNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

@@ -1,272 +1,171 @@
-import { useState, useEffect } from 'react';
-import { ShieldCheck, CheckCircle2, XCircle, Clock, RefreshCw, KeyRound } from 'lucide-react';
-import toast from 'react-hot-toast';
-
-interface Milestone {
-  key: string;
-  title: string;
-  status: 'PASSED' | 'FAILED' | 'NOT_STARTED';
-  details: string;
-}
-
-interface Checklist {
-  sandboxConnection: Milestone;
-  roomTypeMapping: Milestone;
-  ratesAndRestrictions: Milestone;
-  reservationLifecycle: Milestone;
-  idempotency: Milestone;
-  webhookAndHmac: Milestone;
-}
+import { Link } from 'react-router-dom';
+import { ShieldCheck, CheckCircle2, ArrowRight, Lock, Terminal, Cpu, Zap, Key } from 'lucide-react';
 
 export default function DeveloperCertification() {
-  const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [customKey, setCustomKey] = useState('');
-  const [certificationStatus, setCertificationStatus] = useState<string>('NOT_STARTED');
-  const [certifiedAt, setCertifiedAt] = useState<string | null>(null);
-  const [partnerCode, setPartnerCode] = useState<string>('');
-  const [checklist, setChecklist] = useState<Checklist | null>(null);
+  const isLoggedIn = !!localStorage.getItem('developer_token');
 
-  const getHeaders = () => {
-    const key = customKey.trim() || localStorage.getItem('ota_partner_api_key') || '';
-    return {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-    };
-  };
-
-  const fetchStatus = async () => {
-    const key = customKey.trim() || localStorage.getItem('ota_partner_api_key');
-    if (!key) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/connectivity/v1/sandbox/certification/status', {
-        headers: getHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCertificationStatus(data.certificationStatus || 'NOT_STARTED');
-        setCertifiedAt(data.certifiedAt || null);
-        setPartnerCode(data.partnerCode || '');
-        setChecklist(data.checklist || null);
-      }
-    } catch (e) {
-      console.error('Error fetching certification status:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (localStorage.getItem('ota_partner_api_key')) {
-      fetchStatus();
-    }
-  }, []);
-
-  const handleVerify = async () => {
-    const key = customKey.trim() || localStorage.getItem('ota_partner_api_key');
-    if (!key) {
-      toast.error('Please enter your Sandbox API Key (rg_test_...) to evaluate certification.');
-      return;
-    }
-
-    setVerifying(true);
-    try {
-      const res = await fetch('/api/connectivity/v1/sandbox/certification/verify', {
-        method: 'POST',
-        headers: getHeaders(),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCertificationStatus(data.certificationStatus);
-        setCertifiedAt(data.certifiedAt);
-        setChecklist(data.checklist);
-        if (data.certificationStatus === 'PASSED') {
-          toast.success('🎉 Partner Certification PASSED! Production credential access authorized.');
-        } else {
-          toast.error('Certification evaluation failed. Please review missing milestones.');
-        }
-      } else {
-        toast.error(data.message || 'Certification verification failed');
-      }
-    } catch (e: any) {
-      toast.error('Network error during verification');
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleReset = async () => {
-    const key = customKey.trim() || localStorage.getItem('ota_partner_api_key');
-    if (!key) {
-      toast.error('Please enter your Sandbox API Key (rg_test_...) to reset sandbox data.');
-      return;
-    }
-
-    setResetting(true);
-    try {
-      const res = await fetch('/api/connectivity/v1/sandbox/reset', {
-        method: 'POST',
-        headers: getHeaders(),
-      });
-      if (res.ok) {
-        toast.success('Sandbox test data reset cleanly on TEST-PROP-001');
-        await fetchStatus();
-      } else {
-        toast.error('Failed to reset sandbox data');
-      }
-    } catch (e) {
-      toast.error('Error resetting sandbox');
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  const milestonesList: Milestone[] = checklist
-    ? Object.values(checklist)
-    : [
-        { key: 'sandboxConnection', title: '1. Sandbox Connection Setup', status: 'NOT_STARTED', details: 'Connect partner to TEST-PROP-001' },
-        { key: 'roomTypeMapping', title: '2. RoomType Mapping Configuration', status: 'NOT_STARTED', details: 'Map external room code to RouteGuide RoomType' },
-        { key: 'ratesAndRestrictions', title: '3. Rates & Restrictions Push/Query', status: 'NOT_STARTED', details: 'Execute PUT/GET rates and restrictions' },
-        { key: 'reservationLifecycle', title: '4. Full Reservation Lifecycle', status: 'NOT_STARTED', details: 'Create, Read, Modify, and Cancel test booking' },
-        { key: 'idempotency', title: '5. Reservation Ingestion Idempotency', status: 'NOT_STARTED', details: 'Re-send duplicate reservation request' },
-        { key: 'webhookAndHmac', title: '6. Webhook Delivery & HMAC Verification', status: 'NOT_STARTED', details: 'Receive PING webhook and return signatureVerified: true' },
-      ];
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PASSED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            <CheckCircle2 className="w-3.5 h-3.5" /> PASSED — CERTIFIED
-          </span>
-        );
-      case 'FAILED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-            <XCircle className="w-3.5 h-3.5" /> FAILED — INCOMPLETE
-          </span>
-        );
-      case 'IN_PROGRESS':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-            <Clock className="w-3.5 h-3.5" /> IN PROGRESS
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
-            <Clock className="w-3.5 h-3.5" /> NOT STARTED
-          </span>
-        );
-    }
-  };
+  const staticMilestones = [
+    {
+      step: '01',
+      title: '1. Sandbox Connection Setup',
+      key: 'sandboxConnection',
+      details: 'Connect partner account to test resort TEST-PROP-001 and perform initial HTTP GET /ping or GET /content request with valid x-api-key.',
+      criteria: 'At least 1 successful HTTP 200 GET call recorded against TEST-PROP-001.',
+    },
+    {
+      step: '02',
+      title: '2. RoomType & RatePlan Mapping Configuration',
+      key: 'roomTypeMapping',
+      details: 'Map external PMS room code (e.g. DELUXE, SUITE) and rate plan code (e.g. BAR_EP) to RouteGuide internal entity IDs.',
+      criteria: 'Valid active mapping record present in connectivity matrix for TEST-PROP-001.',
+    },
+    {
+      step: '03',
+      title: '3. Rates & Restrictions Push / Query',
+      key: 'ratesAndRestrictions',
+      details: 'Execute PUT/PATCH rate plan updates or restriction updates (MinLOS, ClosedToArrival, StopSell) for TEST-PROP-001.',
+      criteria: 'At least 1 rate update and 1 restriction update successfully processed.',
+    },
+    {
+      step: '04',
+      title: '4. Full Reservation Lifecycle (4 APIs)',
+      key: 'reservationLifecycle',
+      details: 'Execute complete booking lifecycle on TEST-PROP-001: Create reservation (POST), Retrieve (GET), Modify (PUT), and Cancel (POST /cancel).',
+      criteria: 'Successful creation, retrieval, modification, and cancellation of a test reservation.',
+    },
+    {
+      step: '05',
+      title: '5. Reservation Ingestion Idempotency',
+      key: 'idempotency',
+      details: 'Re-send identical reservation payload with duplicate externalReservationId / idempotency-key within short window.',
+      criteria: 'Second duplicate request returns HTTP 200/209 with duplicateDetected: true without creating double booking.',
+    },
+    {
+      step: '06',
+      title: '6. Webhook Delivery & HMAC Verification',
+      key: 'webhookAndHmac',
+      details: 'Configure valid HTTPS destination webhook URL, receive RouteGuide signed PING webhook event, and verify X-RouteGuide-Signature header.',
+      criteria: 'Outbound webhook request delivered with HTTP 200/204 response from partner receiver.',
+    },
+  ];
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
+    <div className="space-y-12 py-4 font-sans max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Partner Self-Certification Console</h1>
-            {getStatusBadge(certificationStatus)}
-            {partnerCode && (
-              <span className="px-2 py-0.5 rounded font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                Partner: {partnerCode}
-              </span>
-            )}
+      <div className="space-y-3 pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20 uppercase tracking-wider">
+          <ShieldCheck className="w-3.5 h-3.5" /> Automated Security Gate
+        </div>
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          Partner Self-Certification Guide
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400 text-sm max-w-3xl leading-relaxed">
+          Self-Certification is RouteGuide’s automated quality assurance process. Completing all 6 milestones on <code className="font-mono text-teal-600 dark:text-teal-400">TEST-PROP-001</code> verifies that your PMS or Channel Manager integration handles inventory sync, bookings, idempotency, and HMAC webhooks securely before unlocking Production access.
+        </p>
+      </div>
+
+      {/* Action CTA Banner */}
+      <div className="p-6 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+            <ShieldCheck className="w-4 h-4" /> Ready to Run Certification Audit?
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Complete the 6-milestone integration checklist on Sandbox property <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-emerald-600 dark:text-emerald-400">TEST-PROP-001</code> to unlock Production credentials.
-            {certifiedAt && <span className="ml-2 text-emerald-500 font-medium">(Certified on {new Date(certifiedAt).toLocaleDateString()})</span>}
+          <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+            {isLoggedIn
+              ? 'Access the Self-Certification Auditor inside your Developer Dashboard to run instant automated evaluation against your active Sandbox activity.'
+              : 'Sign in to your Developer Dashboard to evaluate your 6 integration milestones and unlock live Production credentials.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleReset}
-            disabled={resetting}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+        {isLoggedIn ? (
+          <Link
+            to="/developers/dashboard#certification"
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all shrink-0 flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 ${resetting ? 'animate-spin' : ''}`} />
-            Reset Sandbox
-          </button>
-
-          <button
-            onClick={handleVerify}
-            disabled={verifying}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm hover:shadow transition-all disabled:opacity-50"
-          >
-            <ShieldCheck className="w-4 h-4" />
-            {verifying ? 'Evaluating...' : 'Verify Certification'}
-          </button>
-        </div>
-      </div>
-
-      {/* Optional API Key Input for Unauthenticated Visitors */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-emerald-500" /> Enter Partner Sandbox API Key (<code className="text-emerald-500 font-mono">x-api-key</code>)
-        </label>
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            value={customKey}
-            onChange={(e) => setCustomKey(e.target.value)}
-            placeholder="e.g. rg_test_1234567890abcdef12345678"
-            className="flex-1 px-4 py-2.5 text-sm font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-          />
-          <button
-            onClick={fetchStatus}
-            disabled={loading}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 text-white text-xs font-bold hover:bg-slate-700 disabled:opacity-50 transition-colors"
-          >
-            Check Checklist Status
-          </button>
-        </div>
-      </div>
-
-      {/* Checklist Grid */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-6">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Six-Milestone Certification Checklist</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            RouteGuide automatically observes API calls, mappings, and webhook signatures recorded for your partner account.
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="py-12 text-center text-slate-400">Loading certification checklist...</div>
+            Go to Certification Auditor
+            <ArrowRight className="w-4 h-4" />
+          </Link>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {milestonesList.map((m) => (
-              <div
-                key={m.key}
-                className={`p-4 rounded-xl border transition-all ${
-                  m.status === 'PASSED'
-                    ? 'border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10'
-                    : m.status === 'FAILED'
-                    ? 'border-rose-500/20 bg-rose-500/5 dark:bg-rose-500/10'
-                    : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <h3 className="font-semibold text-slate-900 dark:text-white text-sm">{m.title}</h3>
-                  {m.status === 'PASSED' ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  ) : m.status === 'FAILED' ? (
-                    <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
-                  ) : (
-                    <Clock className="w-5 h-5 text-slate-400 shrink-0" />
-                  )}
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{m.details}</p>
-              </div>
-            ))}
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Link
+              to="/developers/login"
+              className="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-all"
+            >
+              Developer Sign In
+            </Link>
+            <Link
+              to="/developers/register"
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5"
+            >
+              Get Sandbox Access <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         )}
+      </div>
+
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
+          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider">
+            <Cpu className="w-4 h-4" /> Automated Audit
+          </div>
+          <p className="font-bold text-sm text-slate-900 dark:text-white">Zero Manual Waiting</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            RouteGuide automatically records API traffic, idempotency checks, and webhook receipts in real time.
+          </p>
+        </div>
+
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
+          <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 font-bold text-xs uppercase tracking-wider">
+            <ShieldCheck className="w-4 h-4" /> 6 Core Milestones
+          </div>
+          <p className="font-bold text-sm text-slate-900 dark:text-white">100% Pass Threshold</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            All 6 milestones must evaluate to PASSED status to qualify for Production credential issuance.
+          </p>
+        </div>
+
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-purple-500/30 space-y-2 shadow-sm">
+          <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
+            <Lock className="w-4 h-4" /> Security Gate Rule
+          </div>
+          <p className="font-bold text-sm text-slate-900 dark:text-white">Strict Security Gate</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Attempting to issue production keys (<code className="font-mono text-purple-600 dark:text-purple-400">rg_live_...</code>) before passing certification returns HTTP 403 Forbidden.
+          </p>
+        </div>
+      </div>
+
+      {/* 6 Milestone Specifications Grid */}
+      <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            The Six Certification Milestones
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Detailed requirements for each milestone evaluated by the RouteGuide automated auditor:
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {staticMilestones.map((m) => (
+            <div key={m.key} className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  MILESTONE {m.step}
+                </span>
+                <span className="text-[11px] font-bold text-slate-400 font-mono">Status: Evaluated on Audit</span>
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-sm">{m.title}</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{m.details}</p>
+              <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px]">
+                <span className="font-bold text-slate-700 dark:text-slate-300 block mb-0.5">Pass Criteria:</span>
+                <span className="text-slate-500 dark:text-slate-400">{m.criteria}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

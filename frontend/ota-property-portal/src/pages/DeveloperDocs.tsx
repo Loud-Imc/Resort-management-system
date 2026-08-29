@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 
 export default function DeveloperDocs() {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState<boolean>(false);
   const [activeSection, setActiveSection] = useState<string>('overview');
 
   const copyToClipboard = (text: string, sectionId: string) => {
@@ -26,6 +27,17 @@ export default function DeveloperDocs() {
     setCopiedSection(sectionId);
     toast.success('Copied to clipboard!');
     setTimeout(() => setCopiedSection(null), 2000);
+  };
+
+  const handleCopyAll = () => {
+    const el = document.getElementById('docs-main-content');
+    if (el) {
+      const text = el.innerText;
+      navigator.clipboard.writeText(text);
+      setCopiedAll(true);
+      toast.success('Copied full V1 API Reference & Integration Guide to clipboard!');
+      setTimeout(() => setCopiedAll(false), 2500);
+    }
   };
 
   const sections = [
@@ -72,9 +84,19 @@ export default function DeveloperDocs() {
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 font-sans">
       {/* Sidebar Table of Contents */}
       <aside className="lg:col-span-1 hidden lg:block sticky top-24 h-[calc(100vh-8rem)] overflow-y-auto pr-2 space-y-4 text-xs">
-        <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm pb-2 border-b border-slate-200 dark:border-slate-800">
-          <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          API Guide Contents
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm">
+            <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            API Guide Contents
+          </div>
+          <button
+            onClick={handleCopyAll}
+            title="Copy entire V1 API Reference & Integration Guide"
+            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+          >
+            {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copiedAll ? 'Copied' : 'Copy All'}
+          </button>
         </div>
 
         <nav className="space-y-1">
@@ -112,11 +134,20 @@ export default function DeveloperDocs() {
       </aside>
 
       {/* Documentation Main Column */}
-      <div className="lg:col-span-3 space-y-14 text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+      <div id="docs-main-content" className="lg:col-span-3 space-y-14 text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
         {/* Top Header Banner */}
         <div className="space-y-4 pb-6 border-b border-slate-200 dark:border-slate-800">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20">
-            <Terminal className="w-3.5 h-3.5" /> RouteGuide OTA Connectivity V1 Technical Specification
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20">
+              <Terminal className="w-3.5 h-3.5" /> RouteGuide OTA Connectivity V1 Technical Specification
+            </div>
+            <button
+              onClick={handleCopyAll}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-emerald-400 text-xs font-bold border border-slate-700 transition-all shadow-md shrink-0 cursor-pointer"
+            >
+              {copiedAll ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-emerald-400" />}
+              {copiedAll ? 'Copied Entire API Guide!' : 'Copy Entire V1 API Reference'}
+            </button>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             V1 API Reference & Integration Guide

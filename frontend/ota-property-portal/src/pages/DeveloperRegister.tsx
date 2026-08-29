@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, ArrowRight, Copy, Check, Lock, Sparkles, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export default function DeveloperRegister() {
   const navigate = useNavigate();
 
@@ -39,7 +41,7 @@ export default function DeveloperRegister() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/connectivity/v1/developer/register', {
+      const res = await fetch(`${API_URL}/api/connectivity/v1/developer/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

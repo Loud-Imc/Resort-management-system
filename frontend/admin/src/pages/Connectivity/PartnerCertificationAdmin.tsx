@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { ShieldCheck, RefreshCw, UserCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 interface Partner {
   id: string;
   name: string;
@@ -30,7 +32,7 @@ export default function PartnerCertificationAdmin() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/admin/connectivity/partners', {
+      const res = await fetch(`${API_URL}/api/admin/connectivity/partners`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -56,7 +58,7 @@ export default function PartnerCertificationAdmin() {
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/admin/connectivity/partners/${selectedPartner.id}/certification/override`, {
+      const res = await fetch(`${API_URL}/api/admin/connectivity/partners/${selectedPartner.id}/certification/override`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

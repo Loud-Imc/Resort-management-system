@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Key, Cpu, Zap, Lock, RefreshCw, Copy, Check, Play, CheckCircle2, XCircle, AlertCircle, LogOut } from 'lucide-react';
+import { ShieldCheck, Key, Cpu, Zap, Lock, RefreshCw, Copy, Check, Play, CheckCircle2, XCircle, AlertCircle, LogOut, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export default function DeveloperDashboard() {
   const navigate = useNavigate();
@@ -34,7 +36,7 @@ export default function DeveloperDashboard() {
     }
 
     try {
-      const res = await fetch('/api/connectivity/v1/developer/me', {
+      const res = await fetch(`${API_URL}/api/connectivity/v1/developer/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -72,7 +74,7 @@ export default function DeveloperDashboard() {
     const token = localStorage.getItem('developer_token');
     setNewKeyLoading(true);
     try {
-      const res = await fetch('/api/connectivity/v1/developer/credentials', {
+      const res = await fetch(`${API_URL}/api/connectivity/v1/developer/credentials`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +105,7 @@ export default function DeveloperDashboard() {
     const token = localStorage.getItem('developer_token');
     setWebhookLoading(true);
     try {
-      const res = await fetch('/api/connectivity/v1/developer/webhook-config', {
+      const res = await fetch(`${API_URL}/api/connectivity/v1/developer/webhook-config`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -138,7 +140,7 @@ export default function DeveloperDashboard() {
     const token = localStorage.getItem('developer_token');
     setCertLoading(true);
     try {
-      const res = await fetch('/api/connectivity/v1/developer/certification/verify', {
+      const res = await fetch(`${API_URL}/api/connectivity/v1/developer/certification/verify`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -206,9 +208,9 @@ export default function DeveloperDashboard() {
   const productionCredentials = profile.credentials?.filter((c: any) => c.environment === 'PRODUCTION') || [];
 
   return (
-    <div className="space-y-12 py-4 font-sans">
+    <div className="space-y-10 py-4 font-sans">
       {/* Top Profile Header Banner */}
-      <div className="p-8 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div id="overview" className="p-8 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 scroll-mt-24">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-extrabold tracking-tight">{profile.name}</h1>
@@ -243,6 +245,28 @@ export default function DeveloperDashboard() {
         </div>
       </div>
 
+      {/* Sticky Dashboard Operational Sub-Navigation Bar */}
+      <div className="sticky top-20 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-2 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-1 overflow-x-auto no-scrollbar shadow-md text-xs font-semibold">
+        <a href="#overview" className="px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5 shrink-0">
+          <Building2 className="w-3.5 h-3.5 text-emerald-500" /> Partner Profile
+        </a>
+        <a href="#credentials" className="px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5 shrink-0">
+          <Key className="w-3.5 h-3.5 text-emerald-500" /> API Credentials
+        </a>
+        <a href="#webhooks" className="px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5 shrink-0">
+          <Zap className="w-3.5 h-3.5 text-indigo-500" /> Webhooks & HMAC
+        </a>
+        <a href="#sandbox" className="px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5 shrink-0">
+          <Cpu className="w-3.5 h-3.5 text-teal-500" /> Sandbox Console
+        </a>
+        <a href="#certification" className="px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5 shrink-0">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Self-Certification
+        </a>
+        <a href="#production" className="px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5 shrink-0">
+          <Lock className="w-3.5 h-3.5 text-purple-500" /> Production Gate
+        </a>
+      </div>
+
       {/* New Key Generated Output Box */}
       {newKeyData && (
         <div className="p-6 rounded-2xl bg-slate-900 border border-emerald-500/50 space-y-3 shadow-2xl">
@@ -268,7 +292,7 @@ export default function DeveloperDashboard() {
         {/* Left Column (2 Cols wide) */}
         <div className="lg:col-span-2 space-y-8">
           {/* Sandbox API Keys Section */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div id="credentials" className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm scroll-mt-36">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -306,7 +330,7 @@ export default function DeveloperDashboard() {
           </div>
 
           {/* Webhook & HMAC Signature Console */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div id="webhooks" className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm scroll-mt-36">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -369,7 +393,7 @@ export default function DeveloperDashboard() {
           </div>
 
           {/* TEST-PROP-001 Test Console */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div id="sandbox" className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm scroll-mt-36">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Cpu className="w-5 h-5 text-teal-600 dark:text-teal-400" />
               Sandbox Test Runner (<code className="text-teal-600 dark:text-teal-400 font-mono">TEST-PROP-001</code>)
@@ -377,21 +401,21 @@ export default function DeveloperDashboard() {
 
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => handleTestApi('/api/connectivity/v1/ping')}
+                onClick={() => handleTestApi(`${API_URL}/api/connectivity/v1/ping`)}
                 disabled={apiTesting}
                 className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-xs font-bold text-white border border-slate-700 flex items-center gap-1.5"
               >
                 <Play className="w-3.5 h-3.5 text-emerald-400" /> GET /ping
               </button>
               <button
-                onClick={() => handleTestApi('/api/connectivity/v1/content?propertyId=TEST-PROP-001')}
+                onClick={() => handleTestApi(`${API_URL}/api/connectivity/v1/content?propertyId=TEST-PROP-001`)}
                 disabled={apiTesting}
                 className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-xs font-bold text-white border border-slate-700 flex items-center gap-1.5"
               >
                 <Play className="w-3.5 h-3.5 text-teal-400" /> GET /content (TEST-PROP-001)
               </button>
               <button
-                onClick={() => handleTestApi('/api/connectivity/v1/sandbox/reset', 'POST')}
+                onClick={() => handleTestApi(`${API_URL}/api/connectivity/v1/sandbox/reset`, 'POST')}
                 disabled={apiTesting}
                 className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-xs font-bold text-white border border-slate-700 flex items-center gap-1.5"
               >
@@ -410,7 +434,7 @@ export default function DeveloperDashboard() {
         {/* Right Column (1 Col wide) */}
         <div className="space-y-8">
           {/* 6-Milestone Certification Tracker */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+          <div id="certification" className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm scroll-mt-36">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -447,7 +471,7 @@ export default function DeveloperDashboard() {
           </div>
 
           {/* Production Credential Security Gate */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-purple-500/30 space-y-4 shadow-xl">
+          <div id="production" className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-purple-500/30 space-y-4 shadow-xl scroll-mt-36">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                 <Lock className="w-5 h-5" />
