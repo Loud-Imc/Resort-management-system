@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiSecurity } from '@nestjs/swagger';
 import { PartnerApiKeyGuard } from './auth/partner-api-key.guard';
 import { PartnerRateLimitGuard } from './auth/partner-rate-limit.guard';
@@ -11,6 +11,7 @@ import { ConnectivityRatesService } from './services/connectivity-rates.service'
 import { ConnectivityRestrictionsService } from './services/connectivity-restrictions.service';
 import { ConnectivityReservationService } from './services/connectivity-reservation.service';
 import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
+import { ConnectivityCertificationService } from './services/connectivity-certification.service';
 import { CreateConnectionDto } from './dto/create-connection.dto';
 import { CreateRoomMappingDto } from './dto/create-room-mapping.dto';
 import { QueryAvailabilityDto } from './dto/query-availability.dto';
@@ -38,6 +39,7 @@ export class ConnectivityController {
     private readonly restrictionsService: ConnectivityRestrictionsService,
     private readonly reservationService: ConnectivityReservationService,
     private readonly sandboxService: ConnectivitySandboxService,
+    private readonly certificationService: ConnectivityCertificationService,
   ) {}
 
   @Get('ping')
@@ -251,5 +253,31 @@ export class ConnectivityController {
     @CurrentCredential() credential: any,
   ) {
     return this.sandboxService.resetSandboxData(partner.id, true, credential?.environment);
+  }
+
+  // ─── PHASE 8 PARTNER SELF-CERTIFICATION APIs ──────────────────────────────
+
+  @Post('sandbox/certification/verify')
+  @ApiOperation({ summary: 'Partner self-service trigger for certification checklist evaluation (SANDBOX key only)' })
+  async verifyCertification(
+    @CurrentPartner() partner: any,
+    @CurrentCredential() credential: any,
+  ) {
+    if (credential?.environment !== 'SANDBOX') {
+      throw new ForbiddenException('Sandbox certification endpoints require a SANDBOX API credential.');
+    }
+    return this.certificationService.verifyAndEvaluate(partner.id);
+  }
+
+  @Get('sandbox/certification/status')
+  @ApiOperation({ summary: 'Partner self-service check for current certification checklist status (SANDBOX key only)' })
+  async getCertificationStatus(
+    @CurrentPartner() partner: any,
+    @CurrentCredential() credential: any,
+  ) {
+    if (credential?.environment !== 'SANDBOX') {
+      throw new ForbiddenException('Sandbox certification endpoints require a SANDBOX API credential.');
+    }
+    return this.certificationService.getStatus(partner.id);
   }
 }

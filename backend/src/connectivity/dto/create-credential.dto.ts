@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 import { ConnectivityCredentialEnv } from '@prisma/client';
 
 export class CreateCredentialDto {
@@ -13,4 +13,8 @@ export class CreateCredentialDto {
   @IsDateString()
   @IsOptional()
   expiresAt?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  adminBypass?: boolean;
 }

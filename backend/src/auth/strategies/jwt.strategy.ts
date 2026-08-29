@@ -19,6 +19,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     async validate(payload: any) {
+        if (payload?.type === 'DEVELOPER_PARTNER' || payload?.partnerId) {
+            throw new UnauthorizedException('Invalid token type for property owner authentication');
+        }
+
         // Optimized: Uses lightweight lookup and returns null instead of throwing NotFoundException
         const user = await this.usersService.findByIdForAuth(payload.sub);
 

@@ -342,10 +342,10 @@ export default function OtaRoomTypes() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Room Size (sq.ft) <span className="text-red-500">*</span></label>
+                <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Room Size (sq.ft)</label>
                 <input
                   type="number"
-                  required
+
                   placeholder="e.g. 280"
                   className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
                   value={size}
