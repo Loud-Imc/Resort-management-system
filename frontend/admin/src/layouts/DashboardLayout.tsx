@@ -28,7 +28,8 @@ import {
     Image as ImageIcon,
     Type,
     LayoutGrid,
-    Search
+    Search,
+    PlugZap
 } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/routeguide.svg';
@@ -98,6 +99,9 @@ export default function DashboardLayout() {
         // PILLAR 3: CHANNEL PARTNERS
         ...(hasPermission('channelPartners.read') ? [
             { icon: Users, label: 'CP Onboarding', path: '/channel-partners', badgePath: '/channel-partners' },
+        ] : []),
+        ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [
+            { icon: PlugZap, label: 'PMS / CM Partners', path: '/connectivity/partners' },
         ] : []),
         ...(hasPermission('payments.read') ? [
             { icon: IndianRupee, label: 'CP Redemptions', path: '/financials/redemptions', badgePath: '/financials/redemptions' },

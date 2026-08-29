@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Terminal, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export default function DeveloperLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -19,7 +21,7 @@ export default function DeveloperLogin() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/connectivity/v1/developer/login', {
+      const res = await fetch(`${API_URL}/api/connectivity/v1/developer/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

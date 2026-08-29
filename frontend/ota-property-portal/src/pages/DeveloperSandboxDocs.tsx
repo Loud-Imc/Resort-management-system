@@ -1,153 +1,164 @@
-import { useState } from 'react';
-import { Cpu, Terminal, RefreshCw, Play } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Link } from 'react-router-dom';
+import { Cpu, Terminal, ArrowRight, ShieldCheck, RefreshCw, Key, Layers, Lock } from 'lucide-react';
 
 export default function DeveloperSandboxDocs() {
-  const [apiKey, setApiKey] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [apiResult, setApiResult] = useState<any>(null);
-  const [activeEndpoint, setActiveEndpoint] = useState<string | null>(null);
-
-  const executeApiTest = async (endpoint: string, method: string = 'GET', body?: any) => {
-    if (!apiKey || apiKey.trim().length === 0) {
-      toast.error('Please enter your Sandbox API Key (rg_test_...) to test.');
-      return;
-    }
-
-    setLoading(true);
-    setActiveEndpoint(endpoint);
-    try {
-      const options: RequestInit = {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey.trim(),
-        },
-      };
-
-      if (body) {
-        options.body = JSON.stringify(body);
-      }
-
-      const res = await fetch(endpoint, options);
-      const data = await res.json();
-      setApiResult({ status: res.status, ok: res.ok, data });
-      if (res.ok) {
-        toast.success(`Request ${method} ${endpoint} succeeded!`);
-      } else {
-        toast.error(`Request returned HTTP ${res.status}`);
-      }
-    } catch (e: any) {
-      setApiResult({ error: 'Network failure or server un-reachable' });
-      toast.error('Network failure executing API call');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const isLoggedIn = !!localStorage.getItem('developer_token');
 
   return (
-    <div className="space-y-12 py-4">
+    <div className="space-y-12 py-4 font-sans">
       {/* Header */}
       <div className="space-y-3 pb-6 border-b border-slate-200 dark:border-slate-800">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400 text-xs font-bold border border-teal-500/20">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400 text-xs font-bold border border-teal-500/20 uppercase tracking-wider">
           <Cpu className="w-3.5 h-3.5" /> Isolated Testing Environment
         </div>
-        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Sandbox Environment Guide (<code className="text-emerald-600 dark:text-emerald-400 font-mono">TEST-PROP-001</code>)</h1>
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          Test all B2B connectivity features safely against a dedicated test resort without affecting live hotel inventory or production data.
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          Sandbox Environment Guide (<code className="text-emerald-600 dark:text-emerald-400 font-mono">TEST-PROP-001</code>)
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400 text-sm max-w-3xl leading-relaxed">
+          The RouteGuide Sandbox is an isolated testing environment that mirrors production API contracts, allowing external Property Management Systems (PMS) and Channel Managers to test inventory sync, pricing, restrictions, and bookings safely.
         </p>
+      </div>
+
+      {/* Action CTA Banner */}
+      <div className="p-6 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+            <Terminal className="w-4 h-4" /> Ready to Run Live Tests?
+          </div>
+          <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+            {isLoggedIn
+              ? 'You are signed in! Access the interactive Sandbox Console in your Developer Dashboard to issue test requests and reset mock data.'
+              : 'Sign in to your Developer Dashboard to generate Sandbox API keys, run endpoint tests, and track self-certification milestones.'}
+          </p>
+        </div>
+
+        {isLoggedIn ? (
+          <Link
+            to="/developers/dashboard#sandbox"
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all shrink-0 flex items-center gap-2"
+          >
+            Go to Sandbox Console
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Link
+              to="/developers/login"
+              className="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-all"
+            >
+              Developer Sign In
+            </Link>
+            <Link
+              to="/developers/register"
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5"
+            >
+              Get Sandbox Access <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Sandbox Specification Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sandbox API Key Format</span>
-          <p className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">rg_test_&lt;random_hex&gt;</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Issued upon Developer Registration or via Dashboard.</p>
+          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider">
+            <Key className="w-4 h-4" /> Key Format
+          </div>
+          <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">rg_test_&lt;random_hex&gt;</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Issued upon registration or from your Developer Dashboard credentials panel.
+          </p>
         </div>
 
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Dedicated Test Property</span>
-          <p className="font-mono text-sm font-bold text-teal-600 dark:text-teal-400">TEST-PROP-001</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Pre-configured with Deluxe Room & Executive Suite.</p>
+          <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 font-bold text-xs uppercase tracking-wider">
+            <Layers className="w-4 h-4" /> Dedicated Test Property
+          </div>
+          <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">TEST-PROP-001</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Pre-configured test resort with Deluxe Room (<code className="font-mono text-teal-600 dark:text-teal-400">DELUXE</code>) and Executive Suite (<code className="font-mono text-teal-600 dark:text-teal-400">SUITE</code>).
+          </p>
         </div>
 
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Side-Effect Boundary</span>
-          <p className="font-mono text-sm font-bold text-indigo-600 dark:text-indigo-400">ZERO Production Side-Effects</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Keys attempting live property access receive HTTP 403.</p>
+          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
+            <Lock className="w-4 h-4" /> Side-Effect Boundary
+          </div>
+          <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">ZERO Live Side-Effects</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Keys attempting live property access return HTTP 403 Forbidden automatically.
+          </p>
         </div>
       </div>
 
-      {/* Interactive Sandbox API Tester Console */}
-      <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Terminal className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              Interactive Sandbox API Console
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Enter your Sandbox API key to test live connectivity endpoints against <code className="text-emerald-600 dark:text-emerald-400 font-mono">TEST-PROP-001</code>.
-            </p>
+      {/* Detailed Technical Specification Sections */}
+      <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-8 shadow-sm text-sm">
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            1. Base URLs & Authentication
+          </h2>
+          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+            All Sandbox requests must include your issued Sandbox API key (<code className="font-mono text-emerald-600 dark:text-emerald-400">rg_test_...</code>) in the <code className="font-mono text-emerald-600 dark:text-emerald-400">x-api-key</code> HTTP request header.
+          </p>
+          <div className="p-4 rounded-xl bg-slate-950 font-mono text-xs text-emerald-400 border border-slate-800 space-y-1">
+            <div>Staging / Sandbox Base URL: https://staging-api.routeguide.in/api/connectivity/v1</div>
+            <div>Local Development Base URL: http://localhost:3000/api/connectivity/v1</div>
           </div>
-        </div>
+        </section>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-              Sandbox API Key (<code className="text-emerald-600 dark:text-emerald-400 font-mono">x-api-key</code>)
-            </label>
-            <input
-              type="text"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="e.g. rg_test_1234567890abcdef12345678"
-              className="w-full px-4 py-3 text-sm font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors"
-            />
+        <section className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Layers className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+            2. Available Test Property Details (<code className="font-mono text-teal-600 dark:text-teal-400">TEST-PROP-001</code>)
+          </h2>
+          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+            The Sandbox environment provisions a standard resort instance for every partner with fixed room types and rate plans for deterministic testing:
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs font-mono">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans uppercase">
+                  <th className="p-2.5">Room Code</th>
+                  <th className="p-2.5">Room Name</th>
+                  <th className="p-2.5">Max Occupancy</th>
+                  <th className="p-2.5">Base Rate Plan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tr>
+                  <td className="p-2.5 text-emerald-600 dark:text-emerald-400 font-bold">DELUXE</td>
+                  <td className="p-2.5 text-slate-900 dark:text-white font-sans">Deluxe Ocean Room</td>
+                  <td className="p-2.5">2 Adults, 1 Child</td>
+                  <td className="p-2.5 text-teal-600 dark:text-teal-400">BAR_EP (Room Only)</td>
+                </tr>
+                <tr>
+                  <td className="p-2.5 text-emerald-600 dark:text-emerald-400 font-bold">SUITE</td>
+                  <td className="p-2.5 text-slate-900 dark:text-white font-sans">Executive Luxury Suite</td>
+                  <td className="p-2.5">4 Adults, 2 Children</td>
+                  <td className="p-2.5 text-teal-600 dark:text-teal-400">BAR_MAP (Breakfast & Dinner)</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+        </section>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => executeApiTest('/api/connectivity/v1/ping')}
-              disabled={loading}
-              className="px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-white flex items-center gap-2 border border-slate-700 disabled:opacity-50 transition-all shadow-sm"
-            >
-              <Play className="w-3.5 h-3.5 text-emerald-400" /> Test GET /ping
-            </button>
-
-            <button
-              onClick={() => executeApiTest('/api/connectivity/v1/content?propertyId=TEST-PROP-001')}
-              disabled={loading}
-              className="px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-white flex items-center gap-2 border border-slate-700 disabled:opacity-50 transition-all shadow-sm"
-            >
-              <Play className="w-3.5 h-3.5 text-teal-400" /> Test GET /content (TEST-PROP-001)
-            </button>
-
-            <button
-              onClick={() => executeApiTest('/api/connectivity/v1/sandbox/reset', 'POST')}
-              disabled={loading}
-              className="px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-white flex items-center gap-2 border border-slate-700 disabled:opacity-50 transition-all shadow-sm"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${loading ? 'animate-spin' : ''}`} /> Test POST /sandbox/reset
-            </button>
+        <section className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <RefreshCw className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            3. Deterministic Sandbox Reset (`POST /sandbox/reset`)
+          </h2>
+          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+            During integration testing, partners can execute a reset call to restore <code className="font-mono text-teal-600 dark:text-teal-400">TEST-PROP-001</code> to its initial baseline state. This wipes test bookings, resets room availability caps to 10 rooms/day, and clears test rate overrides.
+          </p>
+          <div className="p-4 rounded-xl bg-slate-950 font-mono text-xs text-indigo-300 border border-slate-800">
+            POST /api/connectivity/v1/sandbox/reset HTTP/1.1
+            <br />
+            Host: staging-api.routeguide.in
+            <br />
+            x-api-key: rg_test_your_sandbox_key
           </div>
-        </div>
-
-        {/* API Result Display Box */}
-        {apiResult && (
-          <div className="space-y-2 pt-4 border-t border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-600 dark:text-slate-400">Response Output ({activeEndpoint}):</span>
-              <span className={apiResult.ok ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-rose-600 dark:text-rose-400 font-bold'}>
-                HTTP {apiResult.status || 'ERROR'}
-              </span>
-            </div>
-            <pre className="p-4 rounded-xl bg-slate-900 dark:bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-400 overflow-x-auto max-h-80 shadow-sm">
-              {JSON.stringify(apiResult, null, 2)}
-            </pre>
-          </div>
-        )}
+        </section>
       </div>
     </div>
   );

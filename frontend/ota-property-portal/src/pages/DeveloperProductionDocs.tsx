@@ -1,7 +1,9 @@
-import { Key, ShieldCheck, Lock, CheckCircle2 } from 'lucide-react';
+import { Key, ShieldCheck, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function DeveloperProductionDocs() {
+  const isLoggedIn = !!localStorage.getItem('developer_token');
+
   return (
     <div className="space-y-12 py-4">
       {/* Header */}
@@ -13,6 +15,45 @@ export default function DeveloperProductionDocs() {
         <p className="text-slate-600 dark:text-slate-400 text-sm">
           Production API credentials (<code className="text-purple-600 dark:text-purple-400 font-mono">rg_live_...</code>) allow live hotel property distribution and are issued strictly after completing automated self-certification.
         </p>
+      </div>
+
+      {/* Action CTA Banner */}
+      <div className="p-6 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-purple-400 font-bold text-xs">
+            <Lock className="w-4 h-4" /> Ready for Live Production Key Issuance?
+          </div>
+          <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+            {isLoggedIn
+              ? 'Check your partner certification status and issue live production keys (rg_live_...) inside your Developer Dashboard once certified.'
+              : 'Complete your 6 self-certification milestones on TEST-PROP-001 to unlock live Production credentials.'}
+          </p>
+        </div>
+
+        {isLoggedIn ? (
+          <Link
+            to="/developers/dashboard#production"
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-600/20 transition-all shrink-0 flex items-center gap-2"
+          >
+            Go to Production Gate
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Link
+              to="/developers/login"
+              className="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-all"
+            >
+              Developer Sign In
+            </Link>
+            <Link
+              to="/developers/register"
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5"
+            >
+              Get Sandbox Access <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Security Gate Enforcement Box */}

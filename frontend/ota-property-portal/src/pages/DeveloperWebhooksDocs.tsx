@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Zap, Copy, Check, ShieldCheck, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Zap, Copy, Check, ShieldCheck, Clock, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function DeveloperWebhooksDocs() {
   const [copied, setCopied] = useState(false);
+  const isLoggedIn = !!localStorage.getItem('developer_token');
 
   const nodeSnippet = `const crypto = require('crypto');
 
@@ -67,6 +69,45 @@ function verifyRouteGuideWebhook(rawHttpBody, signatureHeader, partnerWebhookSec
         <p className="text-slate-600 dark:text-slate-400 text-sm">
           Receive real-time reservation and inventory event notifications with cryptographically signed HMAC-SHA256 headers.
         </p>
+      </div>
+
+      {/* Action CTA Banner */}
+      <div className="p-6 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs">
+            <Zap className="w-4 h-4" /> Ready to Configure Your Endpoint?
+          </div>
+          <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+            {isLoggedIn
+              ? 'Configure your live destination Webhook URL and rotate your HMAC-SHA256 signing secret inside your Developer Dashboard.'
+              : 'Sign in to your Developer Dashboard to set your HTTPS Webhook URL, copy your secret, and test event deliveries.'}
+          </p>
+        </div>
+
+        {isLoggedIn ? (
+          <Link
+            to="/developers/dashboard#webhooks"
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 text-white font-bold text-xs shadow-lg shadow-indigo-500/20 transition-all shrink-0 flex items-center gap-2"
+          >
+            Configure Webhooks in Dashboard
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Link
+              to="/developers/login"
+              className="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-all"
+            >
+              Developer Sign In
+            </Link>
+            <Link
+              to="/developers/register"
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5"
+            >
+              Get Sandbox Access <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Signature Specification Card */}
