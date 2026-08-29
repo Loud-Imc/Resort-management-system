@@ -53,7 +53,12 @@ if has_changes "backend/"; then
     if has_changes "backend/prisma/" || [ "$FORCE_BUILD" = true ]; then
         echo "🗄️ Database schema changes detected..."
         npx prisma generate
-        npx prisma migrate deploy
+        npx prisma migrate resolve --rolled-back "20260828150500_add_partner_certification_status" || true
+        npx prisma migrate deploy || (
+            echo "⚠️ Migration failed or trapped in P3009. Attempting automatic recovery..."
+            npx prisma migrate resolve --rolled-back "20260828150500_add_partner_certification_status" || true
+            npx prisma migrate deploy
+        )
     fi
 
     echo "⚙️ Building Backend..."

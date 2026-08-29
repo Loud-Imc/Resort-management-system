@@ -40,7 +40,12 @@ if has_changes "backend/"; then
     cd backend
     npm install
     npx prisma generate
-    npx prisma migrate deploy
+    npx prisma migrate resolve --rolled-back "20260828150500_add_partner_certification_status" || true
+    npx prisma migrate deploy || (
+        echo "⚠️ Migration failed or trapped in P3009. Attempting automatic recovery..."
+        npx prisma migrate resolve --rolled-back "20260828150500_add_partner_certification_status" || true
+        npx prisma migrate deploy
+    )
     npm run build
     
     echo "🔄 Restarting Backend Service..."
