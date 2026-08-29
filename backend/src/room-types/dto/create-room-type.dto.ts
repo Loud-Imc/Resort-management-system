@@ -13,12 +13,12 @@ export class CreateRoomTypeDto {
     @IsNotEmpty()
     description: string;
     
-    @ApiProperty({ example: 280 })
+    @ApiProperty({ example: 280, required: false })
     @IsNumber()
-    @IsNotEmpty()
+    @IsOptional()
     @Min(1)
     @Type(() => Number)
-    size: number;
+    size?: number | null;
 
     @ApiProperty({ example: ['WiFi', 'AC', 'TV', 'Mini Bar'], type: [String] })
     @IsArray()
