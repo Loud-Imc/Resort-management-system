@@ -69,25 +69,25 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
   });
 
   describe('1. Public Developer Registration (POST /developer/register)', () => {
-    it('successfully registers developer company, issues Sandbox key (rg_test_...), and returns JWT token', async () => {
+    it('successfully registers developer company without code, auto-generates partner code, issues Sandbox key (rg_test_...), and returns JWT token', async () => {
       mockPrisma.connectivityPartner.findUnique.mockResolvedValue(null);
       mockPrisma.connectivityPartner.findFirst.mockResolvedValue(null);
 
-      const createdPartner = {
-        id: 'partner-uuid-1',
-        name: 'Nexus PMS',
-        code: 'NEXUS_PMS',
-        type: ConnectivityPartnerType.PMS,
-        status: ConnectivityPartnerStatus.ACTIVE,
-        certificationStatus: ConnectivityCertificationStatus.NOT_STARTED,
-        contactEmail: 'dev@nexuspms.com',
-        webhookUrl: 'https://webhook.nexuspms.com',
-        webhookSecret: 'mock_webhook_secret_hex',
-        passwordHash: 'hashed_password',
-        createdAt: new Date(),
-      };
+      mockPrisma.connectivityPartner.create.mockImplementation((args: any) => {
+        return Promise.resolve({
+          id: 'partner-uuid-1',
+          name: args.data.name,
+          code: args.data.code,
+          type: args.data.type,
+          status: ConnectivityPartnerStatus.ACTIVE,
+          certificationStatus: ConnectivityCertificationStatus.NOT_STARTED,
+          contactEmail: args.data.contactEmail,
+          webhookSecret: args.data.webhookSecret,
+          passwordHash: args.data.passwordHash,
+          createdAt: new Date(),
+        });
+      });
 
-      mockPrisma.connectivityPartner.create.mockResolvedValue(createdPartner);
       mockPartnerService.createCredential.mockResolvedValue({
         credential: { id: 'cred-1', environment: ConnectivityCredentialEnv.SANDBOX, keyPrefix: 'rg_test_1234' },
         plainApiKey: 'rg_test_1234567890abcdef12345678',
@@ -95,16 +95,15 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
 
       const result = await controller.register(
         {
-          name: 'Nexus PMS',
-          code: 'NEXUS_PMS',
+          name: 'QMR PMS',
           type: ConnectivityPartnerType.PMS,
-          contactEmail: 'dev@nexuspms.com',
+          contactEmail: 'dev@qmrpms.com',
           password: 'SecurePassword123!',
         },
         { ip: '127.0.0.1' },
       );
 
-      expect(result.partner.code).toBe('NEXUS_PMS');
+      expect(result.partner.code).toMatch(/^QMR_PMS_[A-Z0-9]{4}$/);
       expect(result.accessToken).toBe('mock_developer_jwt_token');
       expect(result.initialApiKey).toContain('rg_test_');
       expect(mockPartnerService.createCredential).toHaveBeenCalledWith('partner-uuid-1', expect.objectContaining({
@@ -112,16 +111,61 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
       }));
     });
 
-    it('rejects duplicate partner code with ConflictException', async () => {
-      mockPrisma.connectivityPartner.findUnique.mockResolvedValue({ id: 'existing-id' });
+    it('auto-generates unique collision-resistant codes for two registering companies without manual coordination', async () => {
+      mockPrisma.connectivityPartner.findFirst.mockResolvedValue(null);
+      mockPrisma.connectivityPartner.findUnique.mockResolvedValue(null);
+
+      mockPrisma.connectivityPartner.create.mockImplementation((args: any) => {
+        return Promise.resolve({
+          id: 'partner-uuid-2',
+          name: args.data.name,
+          code: args.data.code,
+          type: args.data.type,
+          status: ConnectivityPartnerStatus.ACTIVE,
+          certificationStatus: ConnectivityCertificationStatus.NOT_STARTED,
+          contactEmail: args.data.contactEmail,
+          createdAt: new Date(),
+        });
+      });
+
+      mockPartnerService.createCredential.mockResolvedValue({
+        credential: { id: 'cred-2', environment: ConnectivityCredentialEnv.SANDBOX, keyPrefix: 'rg_test_5678' },
+        plainApiKey: 'rg_test_999988887777666655554444',
+      });
+
+      const res1 = await controller.register(
+        {
+          name: 'Acme Systems',
+          type: ConnectivityPartnerType.CHANNEL_MANAGER,
+          contactEmail: 'dev1@acme.com',
+          password: 'SecurePassword123!',
+        },
+        { ip: '127.0.0.1' },
+      );
+
+      const res2 = await controller.register(
+        {
+          name: 'Acme Systems',
+          type: ConnectivityPartnerType.CHANNEL_MANAGER,
+          contactEmail: 'dev2@acme.com',
+          password: 'SecurePassword123!',
+        },
+        { ip: '127.0.0.1' },
+      );
+
+      expect(res1.partner.code).toMatch(/^ACME_SYSTEMS_/);
+      expect(res2.partner.code).toMatch(/^ACME_SYSTEMS_/);
+    });
+
+    it('rejects duplicate contact email with ConflictException', async () => {
+      mockPrisma.connectivityPartner.findFirst.mockResolvedValue({ id: 'existing-id' });
 
       await expect(
         controller.register(
           {
             name: 'Duplicate PMS',
-            code: 'EXISTING_CODE',
             type: ConnectivityPartnerType.PMS,
-            contactEmail: 'unique@example.com',
+            contactEmail: 'duplicate@example.com',
             password: 'SecurePassword123!',
           },
           { ip: '127.0.0.1' },

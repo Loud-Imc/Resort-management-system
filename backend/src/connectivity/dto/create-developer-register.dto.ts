@@ -9,12 +9,12 @@ export class CreateDeveloperRegisterDto {
   @MinLength(3, { message: 'Company name must be at least 3 characters long' })
   name: string;
 
-  @ApiProperty({ example: 'ACME_PMS', description: 'Unique partner code (uppercase alphanumeric)' })
+  @ApiPropertyOptional({ example: 'ACME_PMS_4A8F', description: 'Optional custom partner code (auto-generated if omitted)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MinLength(3, { message: 'Partner code must be at least 3 characters long' })
   @Matches(/^[A-Za-z0-9_-]+$/, { message: 'Partner code can only contain letters, numbers, underscores, and hyphens' })
-  code: string;
+  code?: string;
 
   @ApiProperty({ enum: ConnectivityPartnerType, example: ConnectivityPartnerType.PMS, description: 'Type of connectivity integration' })
   @IsEnum(ConnectivityPartnerType)

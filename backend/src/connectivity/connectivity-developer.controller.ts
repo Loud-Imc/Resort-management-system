@@ -63,22 +63,50 @@ export class ConnectivityDeveloperController {
     );
   }
 
+  private async generateUniquePartnerCode(companyName: string, type: string, requestedCode?: string): Promise<string> {
+    if (requestedCode && requestedCode.trim()) {
+      const sanitized = requestedCode.toUpperCase().replace(/[^A-Z0-9_-]/g, '').trim();
+      if (sanitized.length >= 3) {
+        const existing = await this.prisma.connectivityPartner.findUnique({
+          where: { code: sanitized },
+        });
+        if (existing) {
+          throw new ConflictException(`Partner code '${sanitized}' is already registered.`);
+        }
+        return sanitized;
+      }
+    }
+
+    const cleanName = (companyName || 'PARTNER')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 18);
+
+    const basePrefix = cleanName || 'PARTNER';
+
+    for (let i = 0; i < 5; i++) {
+      const hex = crypto.randomBytes(2).toString('hex').toUpperCase();
+      const candidate = `${basePrefix}_${hex}`;
+      const existing = await this.prisma.connectivityPartner.findUnique({
+        where: { code: candidate },
+      });
+      if (!existing) {
+        return candidate;
+      }
+    }
+
+    return `${basePrefix}_${Date.now().toString(36).toUpperCase()}`;
+  }
+
   @Post('register')
   @ApiOperation({ summary: 'Register external PMS / Channel Manager company for RouteGuide Connectivity' })
   async register(@Body() dto: CreateDeveloperRegisterDto, @Req() req: any) {
     const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
     checkRateLimit(`register_${clientIp}`, 5, 60000);
 
-    const partnerCode = dto.code.toUpperCase().trim();
     const contactEmail = dto.contactEmail.toLowerCase().trim();
-
-    // Check code uniqueness
-    const existingCode = await this.prisma.connectivityPartner.findUnique({
-      where: { code: partnerCode },
-    });
-    if (existingCode) {
-      throw new ConflictException(`Partner code '${partnerCode}' is already registered.`);
-    }
 
     // Check contact email uniqueness
     const existingEmail = await this.prisma.connectivityPartner.findFirst({
@@ -87,6 +115,8 @@ export class ConnectivityDeveloperController {
     if (existingEmail) {
       throw new ConflictException(`An account with contact email '${contactEmail}' is already registered.`);
     }
+
+    const partnerCode = await this.generateUniquePartnerCode(dto.name, dto.type, dto.code);
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     const initialWebhookSecret = crypto.randomBytes(32).toString('hex');
