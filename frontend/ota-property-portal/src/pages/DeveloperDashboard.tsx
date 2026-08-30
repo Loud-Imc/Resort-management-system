@@ -202,7 +202,10 @@ export default function DeveloperDashboard() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ environment }),
+        body: JSON.stringify({
+          name: `${environment === 'SANDBOX' ? 'Sandbox Key' : 'Production Key'} ${new Date().toLocaleDateString()}`,
+          environment,
+        }),
       });
 
       const data = await res.json();
