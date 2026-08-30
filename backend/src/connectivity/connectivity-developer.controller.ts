@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConnectivityPartnerService } from './services/connectivity-partner.service';
 import { ConnectivityCertificationService } from './services/connectivity-certification.service';
+import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
 import { CreateDeveloperRegisterDto } from './dto/create-developer-register.dto';
 import { DeveloperLoginDto } from './dto/developer-login.dto';
 import { CreateCredentialDto } from './dto/create-credential.dto';
@@ -41,6 +42,7 @@ export class ConnectivityDeveloperController {
     private readonly prisma: PrismaService,
     private readonly partnerService: ConnectivityPartnerService,
     private readonly certificationService: ConnectivityCertificationService,
+    private readonly sandboxService: ConnectivitySandboxService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -304,5 +306,33 @@ export class ConnectivityDeveloperController {
     const partnerId = req.user.id;
     // Reuse existing certification audit engine
     return this.certificationService.verifyAndEvaluate(partnerId);
+  }
+
+  @Get('postman/collection')
+  @ApiOperation({ summary: 'Download official RouteGuide V1 Sandbox Postman Collection JSON' })
+  async getPostmanCollection(@Req() req: any) {
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+    return this.sandboxService.getPostmanCollection(baseUrl);
+  }
+
+  @Get('postman/environment')
+  @ApiBearerAuth()
+  @UseGuards(DeveloperJwtGuard)
+  @ApiOperation({ summary: 'Download personalized RouteGuide V1 Sandbox Postman Environment JSON' })
+  async getPostmanEnvironment(@Req() req: any) {
+    const authHeader = req.headers?.authorization || '';
+    const developerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+
+    return this.sandboxService.getPostmanEnvironment(
+      'rg_test_PASTE_YOUR_SANDBOX_API_KEY_HERE',
+      developerToken,
+      baseUrl,
+    );
   }
 }

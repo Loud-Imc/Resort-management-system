@@ -46,6 +46,17 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
     get: jest.fn().mockReturnValue('mock_jwt_secret'),
   };
 
+  const mockSandboxService = {
+    getPostmanCollection: jest.fn().mockReturnValue({
+      info: { name: 'RouteGuide V1 Sandbox API Collection' },
+      item: [{ name: '01. Ping Authentication' }],
+    }),
+    getPostmanEnvironment: jest.fn().mockReturnValue({
+      id: 'routeguide-v1-sandbox-env',
+      values: [{ key: 'baseUrl', value: 'http://localhost:3000' }],
+    }),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -55,6 +66,7 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ConnectivityPartnerService, useValue: mockPartnerService },
         { provide: ConnectivityCertificationService, useValue: mockCertificationService },
+        { provide: ConnectivitySandboxService, useValue: mockSandboxService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: UsersService, useValue: mockUsersService },
@@ -268,6 +280,28 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
       );
 
       expect(result.plainApiKey).toContain('rg_live_');
+    });
+  });
+
+  describe('5. Official Postman Collection & Environment Generators', () => {
+    it('returns official Postman Collection JSON schema v2.1.0', async () => {
+      const result = await controller.getPostmanCollection({ protocol: 'http', get: () => 'localhost:3000' });
+      expect(result.info.name).toBe('RouteGuide V1 Sandbox API Collection');
+      expect(mockSandboxService.getPostmanCollection).toHaveBeenCalledWith('http://localhost:3000');
+    });
+
+    it('returns Postman Environment JSON with sandbox variables', async () => {
+      const result = await controller.getPostmanEnvironment({
+        headers: { authorization: 'Bearer test_jwt_token' },
+        protocol: 'http',
+        get: () => 'localhost:3000',
+      });
+      expect(result.id).toBe('routeguide-v1-sandbox-env');
+      expect(mockSandboxService.getPostmanEnvironment).toHaveBeenCalledWith(
+        'rg_test_PASTE_YOUR_SANDBOX_API_KEY_HERE',
+        'test_jwt_token',
+        'http://localhost:3000',
+      );
     });
   });
 });
