@@ -333,6 +333,7 @@ export class ConnectivityConnectionService {
         policies: property.policies || null,
       },
       roomTypes: property.roomTypes.map(rt => ({
+        id: rt.id,
         externalRoomTypeId: mappingMap.get(rt.id) || null,
         name: rt.name,
         description: rt.description || null,
