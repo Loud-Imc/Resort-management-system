@@ -366,13 +366,6 @@ export default function DeveloperDashboard() {
     }
   };
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(id);
-    toast.success('Copied to clipboard!');
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
