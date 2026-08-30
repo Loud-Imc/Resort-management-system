@@ -197,10 +197,13 @@ export class ConnectivitySandboxService {
             ],
             body: {
               mode: 'raw',
-              raw: JSON.stringify({ externalPropertyId: '{{externalPropertyId}}' }, null, 2),
+              raw: JSON.stringify({
+                propertyId: '{{propertyId}}',
+                externalPropertyId: '{{externalPropertyId}}',
+              }, null, 2),
             },
             url: { raw: '{{baseUrl}}/api/connectivity/v1/connections', host: ['{{baseUrl}}'], path: ['api', 'connectivity', 'v1', 'connections'] },
-            description: 'Connect a RouteGuide property using externalPropertyId. Completes Milestone 1.',
+            description: 'Connect a RouteGuide property using propertyId and externalPropertyId. Completes Milestone 1.',
           },
           event: [{
             listen: 'test',
@@ -314,8 +317,12 @@ export class ConnectivitySandboxService {
               raw: JSON.stringify({
                 propertyId: '{{propertyId}}',
                 availability: [
-                  { externalRoomTypeId: '{{externalRoomTypeId}}', date: '2026-09-01', availableCount: 10 },
-                  { externalRoomTypeId: '{{externalRoomTypeId}}', date: '2026-09-02', availableCount: 10 },
+                  {
+                    externalRoomTypeId: '{{externalRoomTypeId}}',
+                    startDate: '2026-09-01',
+                    endDate: '2026-09-07',
+                    sellableQuantity: 10,
+                  },
                 ],
               }, null, 2),
             },
@@ -367,8 +374,15 @@ export class ConnectivitySandboxService {
               mode: 'raw',
               raw: JSON.stringify({
                 propertyId: '{{propertyId}}',
+                currency: 'INR',
                 rates: [
-                  { externalRoomTypeId: '{{externalRoomTypeId}}', externalRatePlanId: '{{externalRatePlanId}}', startDate: '2026-09-01', endDate: '2026-09-07', amount: 5500, currency: 'INR' },
+                  {
+                    externalRoomTypeId: '{{externalRoomTypeId}}',
+                    externalRatePlanId: '{{externalRatePlanId}}',
+                    startDate: '2026-09-01',
+                    endDate: '2026-09-07',
+                    price: 5500.00,
+                  },
                 ],
               }, null, 2),
             },
@@ -421,7 +435,13 @@ export class ConnectivitySandboxService {
               raw: JSON.stringify({
                 propertyId: '{{propertyId}}',
                 restrictions: [
-                  { externalRoomTypeId: '{{externalRoomTypeId}}', externalRatePlanId: '{{externalRatePlanId}}', startDate: '2026-09-01', endDate: '2026-09-07', minStay: 2, closedToArrival: false },
+                  {
+                    externalRoomTypeId: '{{externalRoomTypeId}}',
+                    startDate: '2026-09-01',
+                    endDate: '2026-09-07',
+                    minStayArrival: 2,
+                    closedToArrival: false,
+                  },
                 ],
               }, null, 2),
             },
@@ -447,16 +467,21 @@ export class ConnectivitySandboxService {
             body: {
               mode: 'raw',
               raw: JSON.stringify({
-                externalPropertyId: '{{externalPropertyId}}',
+                propertyId: '{{propertyId}}',
                 externalReservationId: '{{externalReservationId}}',
                 externalRoomTypeId: '{{externalRoomTypeId}}',
                 externalRatePlanId: '{{externalRatePlanId}}',
                 checkInDate: '2026-09-01',
                 checkOutDate: '2026-09-03',
-                guestName: 'Jane Doe',
-                guestEmail: 'jane@example.com',
+                adultsCount: 2,
                 totalAmount: 11000,
                 currency: 'INR',
+                guest: {
+                  firstName: 'Jane',
+                  lastName: 'Doe',
+                  email: 'jane.doe@example.com',
+                  phone: '+919876543210',
+                },
               }, null, 2),
             },
             url: { raw: '{{baseUrl}}/api/connectivity/v1/reservations', host: ['{{baseUrl}}'], path: ['api', 'connectivity', 'v1', 'reservations'] },
@@ -500,7 +525,13 @@ export class ConnectivitySandboxService {
             ],
             body: {
               mode: 'raw',
-              raw: JSON.stringify({ guestName: 'Jane M. Doe', totalAmount: 11000 }, null, 2),
+              raw: JSON.stringify({
+                totalAmount: 12500,
+                guest: {
+                  firstName: 'Jane',
+                  lastName: 'M. Doe',
+                },
+              }, null, 2),
             },
             url: { raw: '{{baseUrl}}/api/connectivity/v1/reservations/{{reservationId}}', host: ['{{baseUrl}}'], path: ['api', 'connectivity', 'v1', 'reservations', '{{reservationId}}'] },
             description: 'Modify an existing external reservation',
@@ -547,16 +578,21 @@ export class ConnectivitySandboxService {
             body: {
               mode: 'raw',
               raw: JSON.stringify({
-                externalPropertyId: '{{externalPropertyId}}',
+                propertyId: '{{propertyId}}',
                 externalReservationId: '{{externalReservationId}}',
                 externalRoomTypeId: '{{externalRoomTypeId}}',
                 externalRatePlanId: '{{externalRatePlanId}}',
                 checkInDate: '2026-09-01',
                 checkOutDate: '2026-09-03',
-                guestName: 'Jane Doe',
-                guestEmail: 'jane@example.com',
+                adultsCount: 2,
                 totalAmount: 11000,
                 currency: 'INR',
+                guest: {
+                  firstName: 'Jane',
+                  lastName: 'Doe',
+                  email: 'jane.doe@example.com',
+                  phone: '+919876543210',
+                },
               }, null, 2),
             },
             url: { raw: '{{baseUrl}}/api/connectivity/v1/reservations', host: ['{{baseUrl}}'], path: ['api', 'connectivity', 'v1', 'reservations'] },
