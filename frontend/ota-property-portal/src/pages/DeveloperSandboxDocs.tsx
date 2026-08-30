@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Cpu, Terminal, ArrowRight, ShieldCheck, RefreshCw, Key, Layers, Lock } from 'lucide-react';
+import { Cpu, Terminal, ArrowRight, RefreshCw, Key, Layers, Lock } from 'lucide-react';
 
 export default function DeveloperSandboxDocs() {
   const isLoggedIn = !!localStorage.getItem('developer_token');

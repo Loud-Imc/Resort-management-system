@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ShieldCheck, CheckCircle2, ArrowRight, Lock, Terminal, Cpu, Zap, Key } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Lock, Cpu } from 'lucide-react';
 
 export default function DeveloperCertification() {
   const isLoggedIn = !!localStorage.getItem('developer_token');
