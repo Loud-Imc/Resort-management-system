@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, UseGuards, Req, ConflictException, UnauthorizedException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, UseGuards, Req, Res, ConflictException, UnauthorizedException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -310,7 +310,9 @@ export class ConnectivityDeveloperController {
 
   @Get('postman/collection')
   @ApiOperation({ summary: 'Download official RouteGuide V1 Sandbox Postman Collection JSON' })
-  async getPostmanCollection(@Req() req: any) {
+  async getPostmanCollection(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="RouteGuide_V1_Sandbox.postman_collection.json"');
     const protocol = req.protocol || 'http';
     const host = req.get('host') || 'localhost:3000';
     const baseUrl = `${protocol}://${host}`;
@@ -321,7 +323,9 @@ export class ConnectivityDeveloperController {
   @ApiBearerAuth()
   @UseGuards(DeveloperJwtGuard)
   @ApiOperation({ summary: 'Download personalized RouteGuide V1 Sandbox Postman Environment JSON' })
-  async getPostmanEnvironment(@Req() req: any) {
+  async getPostmanEnvironment(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="RouteGuide_V1_Sandbox.postman_environment.json"');
     const authHeader = req.headers?.authorization || '';
     const developerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
 

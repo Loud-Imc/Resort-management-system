@@ -288,8 +288,21 @@ export default function DeveloperDashboard() {
     }
   };
 
-  const handleDownloadPostmanCollection = () => {
-    window.open(`${API_URL}/api/connectivity/v1/developer/postman/collection`, '_blank');
+  const handleDownloadPostmanCollection = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/connectivity/v1/developer/postman/collection`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'RouteGuide_V1_Sandbox.postman_collection.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Postman Collection downloaded!');
+    } catch {
+      toast.error('Failed to download Postman collection.');
+    }
   };
 
   const handleDownloadPostmanEnvironment = () => {
