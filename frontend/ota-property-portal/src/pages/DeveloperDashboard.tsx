@@ -648,13 +648,27 @@ export default function DeveloperDashboard() {
               </div>
 
               {webhookSecretDisplay && (
-                <div className="p-4 rounded-xl bg-slate-900 border border-indigo-500/40 space-y-1 font-mono text-xs">
-                  <span className="text-amber-400 font-sans text-[11px] block">New Secret Rotated (Save now, hidden on refresh):</span>
-                  <div className="flex items-center gap-2 text-indigo-300">
-                    <span className="truncate flex-1">{webhookSecretDisplay}</span>
-                    <button onClick={() => copyToClipboard(webhookSecretDisplay, 'whSec')} className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white">
-                      {copiedKey === 'whSec' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
+                <div className="p-4 rounded-2xl bg-indigo-950/80 border border-indigo-500/50 space-y-2 font-mono text-xs shadow-xl animate-in fade-in">
+                  <span className="text-amber-300 font-sans text-[11px] font-semibold block">
+                    ⚠️ New Webhook HMAC Secret Rotated (Copy or download now. It will not be shown again):
+                  </span>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 text-indigo-300">
+                    <span className="truncate flex-1 select-all font-bold px-2.5 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-indigo-400">{webhookSecretDisplay}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => copyToClipboard(webhookSecretDisplay, 'whSec')}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs flex items-center gap-1 transition-all"
+                      >
+                        {copiedKey === 'whSec' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedKey === 'whSec' ? 'Copied!' : 'Copy Secret'}
+                      </button>
+                      <button
+                        onClick={() => downloadKeyAsFile(webhookSecretDisplay, 'HMAC_Webhook_Secret')}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 flex items-center gap-1 transition-all"
+                      >
+                        <Download className="w-3.5 h-3.5 text-teal-400" /> Download (.txt)
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
