@@ -192,6 +192,23 @@ export default function DeveloperDashboard() {
     navigate('/developers/login');
   };
 
+  const copyToClipboard = (text: string, keyId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(keyId);
+    toast.success('Copied to clipboard!');
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const downloadKeyAsFile = (apiKey: string, env: string) => {
+    const element = document.createElement('a');
+    const file = new Blob([`RouteGuide ${env} API Key:\n${apiKey}\n\nIssued: ${new Date().toISOString()}\nProperty: TEST-PROP-001\n`], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `RouteGuide_${env}_API_Key.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
   const handleGenerateCredential = async (environment: 'SANDBOX' | 'PRODUCTION') => {
     const token = localStorage.getItem('developer_token');
     setNewKeyLoading(true);
@@ -446,20 +463,34 @@ export default function DeveloperDashboard() {
 
       {/* New Key Generated Output Box */}
       {newKeyData && (
-        <div className="p-6 rounded-2xl bg-slate-900 border border-emerald-500/50 space-y-3 shadow-2xl">
+        <div className="p-6 rounded-3xl bg-slate-900 border border-emerald-500/50 space-y-3 shadow-2xl animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-white text-sm flex items-center gap-2">
+            <h3 className="font-bold text-emerald-400 text-sm flex items-center gap-2">
               <Key className="w-4 h-4 text-emerald-400" />
-              New {newKeyData.environment} API Key Issued!
+              New {newKeyData.environment} API Key Issued Successfully!
             </h3>
-            <button onClick={() => setNewKeyData(null)} className="text-xs text-slate-400 hover:text-white">Close</button>
+            <button onClick={() => setNewKeyData(null)} className="text-xs text-slate-400 hover:text-white font-semibold">✕ Close</button>
           </div>
-          <p className="text-xs text-amber-400">Save this key now. It will not be shown again.</p>
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-950 font-mono text-xs text-emerald-400 border border-slate-800">
-            <span className="truncate flex-1">{newKeyData.plainApiKey}</span>
-            <button onClick={() => copyToClipboard(newKeyData.plainApiKey, 'newKey')} className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white">
-              {copiedKey === 'newKey' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            </button>
+          <p className="text-xs text-amber-400">
+            ⚠️ Copy or download this key now. For security purposes, API keys are hashed and cannot be displayed again after leaving this view.
+          </p>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 rounded-2xl bg-slate-950 font-mono text-xs text-emerald-400 border border-slate-800">
+            <span className="truncate flex-1 select-all font-bold px-2 py-1 bg-slate-900/50 rounded-lg text-emerald-300">{newKeyData.plainApiKey}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => copyToClipboard(newKeyData.plainApiKey, 'newKey')}
+                className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/20"
+              >
+                {copiedKey === 'newKey' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedKey === 'newKey' ? 'Copied!' : 'Copy Key'}
+              </button>
+              <button
+                onClick={() => downloadKeyAsFile(newKeyData.plainApiKey, newKeyData.environment)}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 transition-all"
+              >
+                <Download className="w-3.5 h-3.5 text-teal-400" /> Download (.txt)
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -528,6 +559,33 @@ export default function DeveloperDashboard() {
                 + New Sandbox Key
               </button>
             </div>
+
+            {newKeyData && newKeyData.environment === 'SANDBOX' && (
+              <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-white space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-emerald-300">New Sandbox API Key Issued:</span>
+                  <button onClick={() => setNewKeyData(null)} className="text-[11px] text-slate-400 hover:text-white">✕ Close</button>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 font-mono text-xs text-emerald-400">
+                  <span className="truncate flex-1 select-all font-bold px-2.5 py-1.5 bg-slate-950 rounded-xl border border-slate-800">{newKeyData.plainApiKey}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => copyToClipboard(newKeyData.plainApiKey, 'sandboxKeyInline')}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all"
+                    >
+                      {copiedKey === 'sandboxKeyInline' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedKey === 'sandboxKeyInline' ? 'Copied!' : 'Copy Key'}
+                    </button>
+                    <button
+                      onClick={() => downloadKeyAsFile(newKeyData.plainApiKey, 'SANDBOX')}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 flex items-center gap-1 transition-all"
+                    >
+                      <Download className="w-3.5 h-3.5 text-teal-400" /> Download (.txt)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               {sandboxCredentials.map((c: any) => (
