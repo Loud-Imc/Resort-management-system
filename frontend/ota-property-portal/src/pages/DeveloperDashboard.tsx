@@ -11,14 +11,12 @@ import {
   Check,
   Play,
   CheckCircle2,
-  XCircle,
   AlertCircle,
   LogOut,
   Building2,
   Download,
   FileText,
   HelpCircle,
-  ArrowRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
