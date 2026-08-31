@@ -126,7 +126,7 @@ export class ConnectivitySandboxService {
       });
 
       // 3. Delete restriction rules created for TEST-PROP-001
-      const restrictionRulesDeleted = await tx.stopSellRestriction.deleteMany({
+      const restrictionRulesDeleted = await tx.restrictionRule.deleteMany({
         where: { propertyId: sandboxProperty.id },
       });
 

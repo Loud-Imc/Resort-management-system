@@ -196,31 +196,21 @@ export class ConnectivityRestrictionsService {
         throw new BadRequestException(`maxStay (${item.maxStay}) cannot be less than minStay (${minVal})`);
       }
 
-      // Upsert or create RestrictionRule record or fallback to stopSellRestriction
-      const rule = (this.prisma as any).restrictionRule
-        ? await (this.prisma as any).restrictionRule.create({
-            data: {
-              propertyId,
-              roomTypeId: mapping.roomTypeId,
-              startDate: start,
-              endDate: end,
-              minStayArrival: item.minStayArrival ?? null,
-              minStayThrough: item.minStayThrough ?? null,
-              maxStay: item.maxStay ?? null,
-              closedToArrival: item.closedToArrival ?? false,
-              closedToDeparture: item.closedToDeparture ?? false,
-              isActive: true,
-            },
-          })
-        : await this.prisma.stopSellRestriction.create({
-            data: {
-              propertyId,
-              roomTypeId: mapping.roomTypeId,
-              startDate: start,
-              endDate: end,
-              isActive: true,
-            },
-          });
+      // Create RestrictionRule record
+      const rule = await this.prisma.restrictionRule.create({
+        data: {
+          propertyId,
+          roomTypeId: mapping.roomTypeId,
+          startDate: start,
+          endDate: end,
+          minStayArrival: item.minStayArrival ?? null,
+          minStayThrough: item.minStayThrough ?? null,
+          maxStay: item.maxStay ?? null,
+          closedToArrival: item.closedToArrival ?? false,
+          closedToDeparture: item.closedToDeparture ?? false,
+          isActive: true,
+        },
+      });
 
       // Produce RESTRICTION.CHANGED Outbox Event (with originatingPartnerId echo suppression)
       if (this.outboxService) {

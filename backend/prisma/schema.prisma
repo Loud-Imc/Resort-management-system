@@ -158,6 +158,7 @@ model RoomType {
   channelMappings            ChannelRoomTypeMapping[]
   connectivityMappings       ConnectivityRoomTypeMapping[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
+  restrictionRules           RestrictionRule[]
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -599,6 +600,7 @@ model Property {
   stopSellRestrictions        StopSellRestriction[]
   connectivityConnections   ConnectivityPartnerConnection[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
+  restrictionRules           RestrictionRule[]
 
   @@map("properties")
 }
@@ -1625,5 +1627,27 @@ model ConnectivityAvailabilityOverride {
   @@unique([propertyId, roomTypeId, date], name: "propertyId_roomTypeId_date")
   @@index([propertyId, date])
   @@map("connectivity_availability_overrides")
+}
+
+model RestrictionRule {
+  id                String   @id @default(uuid())
+  propertyId        String
+  roomTypeId        String?
+  startDate         DateTime @db.Date
+  endDate           DateTime @db.Date
+  minStayArrival    Int?
+  minStayThrough    Int?
+  maxStay           Int?
+  closedToArrival   Boolean  @default(false)
+  closedToDeparture Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  property          Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType          RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, startDate, endDate])
+  @@map("restriction_rules")
 }
 

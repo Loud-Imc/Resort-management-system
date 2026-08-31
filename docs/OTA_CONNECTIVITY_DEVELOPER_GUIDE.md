@@ -176,8 +176,81 @@ Content-Type: application/json
 
 ## 10. RESTRICTIONS
 
-Push StopSell, Minimum Stay, or Maximum Stay restrictions:
+The Restrictions API allows external Property Management Systems (PMS) and Channel Managers to query and synchronize date-range stay controls for mapped RoomTypes.
 
+### Endpoint Overview
+- **Query Active Restrictions:** `GET /api/connectivity/v1/restrictions`
+- **Synchronize Restriction Rules:** `PUT /api/connectivity/v1/restrictions`
+
+---
+
+### Supported Restriction Fields
+
+All restriction rules are pushed using `PUT /api/connectivity/v1/restrictions`. The payload expects a top-level `propertyId` and a `restrictions` array of item objects containing:
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `externalRoomTypeId` | String | **Yes** | External RoomType ID (or RouteGuide `roomTypeId`) mapped to the property connection. |
+| `startDate` | String | **Yes** | Start date of the restriction range (`YYYY-MM-DD`). |
+| `endDate` | String | **Yes** | End date of the restriction range (`YYYY-MM-DD`). |
+| `minStayArrival` | Integer | No | Minimum stay requirement (in nights) if booking **check-in date** falls on the start date (min $\ge 1$). |
+| `minStayThrough` | Integer | No | Minimum stay requirement (in nights) if booking stay **touches any date** in range (min $\ge 1$). |
+| `maxStay` | Integer | No | Maximum allowed stay length (in nights) for bookings touching the date range (min $\ge 1$). |
+| `closedToArrival` | Boolean | No | Closed to Arrival (CTA) flag. Disallows check-ins on dates in the range. |
+| `closedToDeparture` | Boolean | No | Closed to Departure (CTD) flag. Disallows check-outs on dates in the range. |
+
+---
+
+### Important: Stop Sell Semantics
+
+> [!NOTE]
+> There is **no literal `stopSell` request field** when pushing restrictions via `PUT /restrictions`.
+> 
+> To request a **Stop Sell** (completely closing sales for a date range), set **both**:
+> - `"closedToArrival": true`
+> - `"closedToDeparture": true`
+> 
+> When both CTA and CTD are set to `true`, the system prevents both check-ins and check-outs, enforcing a complete Stop Sell.
+
+---
+
+### Querying Active Restrictions (`GET /api/connectivity/v1/restrictions`)
+
+**Request:**
+```http
+GET /api/connectivity/v1/restrictions?propertyId=TEST-PROP-001&startDate=2026-09-01&endDate=2026-09-07 HTTP/1.1
+x-api-key: rg_test_1234567890abcdef12345678
+```
+
+**Response:**
+```json
+{
+  "propertyId": "c39b81f2-...",
+  "externalPropertyId": "TEST-PROP-001",
+  "startDate": "2026-09-01",
+  "endDate": "2026-09-07",
+  "restrictions": [
+    {
+      "date": "2026-09-01",
+      "roomTypeId": "d537e16e-...",
+      "externalRoomTypeId": "DELUXE",
+      "stopSell": false,
+      "minStayArrival": 2,
+      "minStayThrough": null,
+      "maxStay": null,
+      "closedToArrival": false,
+      "closedToDeparture": false
+    }
+  ]
+}
+```
+*Note: In the `GET /restrictions` response, `stopSell` evaluates to `true` if `closedToArrival = true` AND `closedToDeparture = true` OR if a domestic property owner Stop Sell rule is active.*
+
+---
+
+### Example Payloads (`PUT /api/connectivity/v1/restrictions`)
+
+#### 1. Minimum Stay Arrival (`minStayArrival: 2`)
 ```http
 PUT /api/connectivity/v1/restrictions HTTP/1.1
 x-api-key: rg_test_1234567890abcdef12345678
@@ -185,11 +258,111 @@ Content-Type: application/json
 
 {
   "propertyId": "TEST-PROP-001",
-  "roomTypeId": "roomtype-dlx-uuid",
-  "startDate": "2026-09-01",
-  "endDate": "2026-09-05",
-  "stopSell": false,
-  "minStay": 2
+  "restrictions": [
+    {
+      "externalRoomTypeId": "DELUXE",
+      "startDate": "2026-09-01",
+      "endDate": "2026-09-07",
+      "minStayArrival": 2,
+      "closedToArrival": false
+    }
+  ]
+}
+```
+
+#### 2. Minimum Stay Through (`minStayThrough: 3`)
+```http
+PUT /api/connectivity/v1/restrictions HTTP/1.1
+x-api-key: rg_test_1234567890abcdef12345678
+Content-Type: application/json
+
+{
+  "propertyId": "TEST-PROP-001",
+  "restrictions": [
+    {
+      "externalRoomTypeId": "DELUXE",
+      "startDate": "2026-09-01",
+      "endDate": "2026-09-07",
+      "minStayThrough": 3
+    }
+  ]
+}
+```
+
+#### 3. Maximum Stay (`maxStay: 7`)
+```http
+PUT /api/connectivity/v1/restrictions HTTP/1.1
+x-api-key: rg_test_1234567890abcdef12345678
+Content-Type: application/json
+
+{
+  "propertyId": "TEST-PROP-001",
+  "restrictions": [
+    {
+      "externalRoomTypeId": "DELUXE",
+      "startDate": "2026-09-01",
+      "endDate": "2026-09-07",
+      "maxStay": 7
+    }
+  ]
+}
+```
+
+#### 4. Closed to Arrival (CTA)
+```http
+PUT /api/connectivity/v1/restrictions HTTP/1.1
+x-api-key: rg_test_1234567890abcdef12345678
+Content-Type: application/json
+
+{
+  "propertyId": "TEST-PROP-001",
+  "restrictions": [
+    {
+      "externalRoomTypeId": "DELUXE",
+      "startDate": "2026-09-01",
+      "endDate": "2026-09-07",
+      "closedToArrival": true
+    }
+  ]
+}
+```
+
+#### 5. Closed to Departure (CTD)
+```http
+PUT /api/connectivity/v1/restrictions HTTP/1.1
+x-api-key: rg_test_1234567890abcdef12345678
+Content-Type: application/json
+
+{
+  "propertyId": "TEST-PROP-001",
+  "restrictions": [
+    {
+      "externalRoomTypeId": "DELUXE",
+      "startDate": "2026-09-01",
+      "endDate": "2026-09-07",
+      "closedToDeparture": true
+    }
+  ]
+}
+```
+
+#### 6. Stop Sell (Both CTA and CTD = true)
+```http
+PUT /api/connectivity/v1/restrictions HTTP/1.1
+x-api-key: rg_test_1234567890abcdef12345678
+Content-Type: application/json
+
+{
+  "propertyId": "TEST-PROP-001",
+  "restrictions": [
+    {
+      "externalRoomTypeId": "DELUXE",
+      "startDate": "2026-09-01",
+      "endDate": "2026-09-07",
+      "closedToArrival": true,
+      "closedToDeparture": true
+    }
+  ]
 }
 ```
 
