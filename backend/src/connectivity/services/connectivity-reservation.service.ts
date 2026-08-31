@@ -332,6 +332,20 @@ export class ConnectivityReservationService {
       ? [mapping.booking.user.firstName, mapping.booking.user.lastName].filter(Boolean).join(' ')
       : 'Guest';
 
+    await this.logService.createLog({
+      partnerId,
+      connectionId: mapping.connectionId,
+      endpoint: `/api/connectivity/v1/reservations/${reservationId}`,
+      method: 'GET',
+      statusCode: 200,
+      requestPayload: { reservationId },
+      responsePayload: {
+        reservationId: mapping.id,
+        bookingId: mapping.booking.id,
+        externalReservationId: mapping.externalReservationId,
+      },
+    });
+
     return {
       reservationId: mapping.id,
       bookingId: mapping.booking.id,

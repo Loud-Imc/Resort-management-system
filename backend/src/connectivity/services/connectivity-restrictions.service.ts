@@ -8,6 +8,8 @@ import { AvailabilityService } from '../../bookings/availability.service';
 import { QueryRestrictionsDto } from '../dto/query-restrictions.dto';
 import { UpdateRestrictionsDto } from '../dto/update-restrictions.dto';
 
+import { ConnectivityLogService } from './connectivity-log.service';
+
 @Injectable()
 export class ConnectivityRestrictionsService {
   constructor(
@@ -16,6 +18,7 @@ export class ConnectivityRestrictionsService {
     private readonly mappingService: ConnectivityMappingService,
     private readonly settingsService: ConnectivitySettingsService,
     private readonly availabilityService: AvailabilityService,
+    private readonly logService: ConnectivityLogService,
     @Optional() @Inject(forwardRef(() => ConnectivityOutboxService))
     private readonly outboxService?: ConnectivityOutboxService,
   ) {}
@@ -119,6 +122,16 @@ export class ConnectivityRestrictionsService {
         current.setDate(current.getDate() + 1);
       }
     }
+
+    await this.logService.createLog({
+      partnerId,
+      connectionId: connection.id,
+      endpoint: '/api/connectivity/v1/restrictions',
+      method: 'GET',
+      statusCode: 200,
+      requestPayload: dto,
+      responsePayload: { propertyId: connection.propertyId, count: restrictionResults.length },
+    });
 
     return {
       propertyId: connection.propertyId,
@@ -244,6 +257,16 @@ export class ConnectivityRestrictionsService {
         closedToDeparture: rule.closedToDeparture,
       });
     }
+
+    await this.logService.createLog({
+      partnerId,
+      connectionId: connection.id,
+      endpoint: '/api/connectivity/v1/restrictions',
+      method: 'PUT',
+      statusCode: 200,
+      requestPayload: dto,
+      responsePayload: { status: 'SUCCESS', updatedRulesCount: updatedRules.length },
+    });
 
     return {
       status: 'SUCCESS',
