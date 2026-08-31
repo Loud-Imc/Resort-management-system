@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Mail, Instagram, Globe, Building2, UserCheck, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import logo from '../assets/oreedu.svg';
+import logoDark from '../assets/oreedu-05.svg';
 
 export default function ComingSoon() {
 
@@ -66,7 +66,7 @@ export default function ComingSoon() {
             {/* ─── HEADER ─── */}
             <header className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 flex justify-between items-center shrink-0 flex-wrap gap-4">
                 <div className="flex items-center">
-                    <img src={logo} alt="Oreedu Logo" className="h-10 md:h-12 w-auto brightness-0 invert" />
+                    <img src={logoDark} alt="Oreedu Logo" className="h-10 md:h-12 w-auto" />
                 </div>
                 <div className="flex items-center gap-3">
                     <a 

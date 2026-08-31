@@ -4,7 +4,7 @@ import { format, parseISO, addDays, differenceInDays } from 'date-fns';
  * Enterprise Hospitality Date Utility (DateUtils)
  * 
  * Single Source of Truth for Date Formatting, Parsing, and Interval Overlap Calculations.
- * Ensures consistent behavior across CP, PMS, RouteGuide OTA, Reports, and Channex Manager.
+ * Ensures consistent behavior across CP, PMS, Oreedu OTA, Reports, and Channex Manager.
  */
 export class DateUtils {
   /**

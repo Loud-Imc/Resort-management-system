@@ -46,9 +46,9 @@ export class MailService {
         variables: Record<string, string> = {},
     ): Promise<void> {
         const authKey = this.configService.get('MSG91_AUTH_KEY');
-        const domain = this.configService.get('MSG91_EMAIL_DOMAIN');   // e.g. mail.routeguide.in
-        const fromEmail = this.configService.get('MSG91_EMAIL_FROM');   // e.g. noreply@routeguide.in
-        const fromName = this.configService.get('MSG91_EMAIL_FROM_NAME') || 'Route Guide';
+        const domain = this.configService.get('MSG91_EMAIL_DOMAIN');   // e.g. mail.myoreedu.com
+        const fromEmail = this.configService.get('MSG91_EMAIL_FROM');   // e.g. noreply@myoreedu.com
+        const fromName = this.configService.get('MSG91_EMAIL_FROM_NAME') || 'Oreedu';
 
         if (!authKey || !domain || !fromEmail) {
             this.logger.warn(`[MailService] MSG91 email not configured (MSG91_AUTH_KEY / MSG91_EMAIL_DOMAIN / MSG91_EMAIL_FROM missing). Skipping email to ${to}.`);
@@ -85,7 +85,7 @@ export class MailService {
         console.log(`[MailService] Sending PREMIUM booking confirmation to ${booking.user.email}`);
         const from = this.configService.get('EMAIL_FROM');
         const to = booking.user.email;
-        const subject = `Booking Confirmed - ${booking.bookingNumber} at ${booking.property?.name || 'Route Guide'}`;
+        const subject = `Booking Confirmed - ${booking.bookingNumber} at ${booking.property?.name || 'Oreedu'}`;
 
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const checkOut = new Date(booking.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -202,7 +202,7 @@ export class MailService {
                   <tr>
                       <td class="footer">
                           <p style="margin-bottom: 8px;">Questions? We're here to help.</p>
-                          <p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p>
+                          <p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p>
                       </td>
                   </tr>
               </table>
@@ -336,8 +336,8 @@ export class MailService {
                   </tr>
                   <tr>
                       <td class="footer">
-                          <p style="margin-bottom: 5px;">Route Guide Property Management System</p>
-                          <p>© ${new Date().getFullYear()} Route Guide. All rights reserved.</p>
+                          <p style="margin-bottom: 5px;">Oreedu Property Management System</p>
+                          <p>© ${new Date().getFullYear()} Oreedu. All rights reserved.</p>
                       </td>
                   </tr>
               </table>
@@ -458,7 +458,7 @@ export class MailService {
                   </tr>
                   <tr>
                       <td class="footer">
-                          <p>© ${new Date().getFullYear()} Route Guide Hospitality Network. All rights reserved.</p>
+                          <p>© ${new Date().getFullYear()} Oreedu Hospitality Network. All rights reserved.</p>
                       </td>
                   </tr>
               </table>
@@ -576,7 +576,7 @@ export class MailService {
                   <tr>
                       <td class="footer">
                           <p style="margin-bottom: 8px;">If you have already paid, please ignore this message.</p>
-                          <p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p>
+                          <p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p>
                       </td>
                   </tr>
               </table>
@@ -603,7 +603,7 @@ export class MailService {
         const to = booking.user?.email;
         if (!to) return;
 
-        const subject = `Booking Cancelled - ${booking.bookingNumber} at ${booking.property?.name || 'Route Guide'}`;
+        const subject = `Booking Cancelled - ${booking.bookingNumber} at ${booking.property?.name || 'Oreedu'}`;
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const checkOut = new Date(booking.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const cancelledAt = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' } as any);
@@ -677,7 +677,7 @@ export class MailService {
                           ` : ''}
                       </td>
                   </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p></td></tr>
+                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p></td></tr>
               </table>
           </div>
       </body>
@@ -764,7 +764,7 @@ export class MailService {
                           Please allow 5–7 business days for the refund to reflect in your account. If you have any questions, please contact our support team.
                       </td>
                   </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p></td></tr>
+                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p></td></tr>
               </table>
           </div>
       </body>
@@ -855,7 +855,7 @@ export class MailService {
                           </div>
                       </td>
                   </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p></td></tr>
+                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p></td></tr>
               </table>
           </div>
       </body>
@@ -927,7 +927,7 @@ export class MailService {
                           <p style="text-align:center; font-size: 12px; color: #9ca3af; margin-top: 20px;">It only takes a minute! Your honest feedback is greatly appreciated.</p>
                       </td>
                   </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p><p class="opt-out">You received this because you stayed with us. We only send this once per stay.</p></td></tr>
+                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p><p class="opt-out">You received this because you stayed with us. We only send this once per stay.</p></td></tr>
               </table>
           </div>
       </body>
@@ -994,7 +994,7 @@ export class MailService {
                   </tr>
                   <tr>
                       <td class="footer">
-                          <p>© ${new Date().getFullYear()} Route Guide Hospitality. All rights reserved.</p>
+                          <p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p>
                       </td>
                   </tr>
               </table>
@@ -1041,7 +1041,7 @@ export class MailService {
                   <p style="color: #64748b;">${description}</p>
                   <a href="${this.configService.get('FRONTEND_URL')}/wallet" style="display: inline-block; background: #093f4a; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; margin-top: 20px;">View My Wallet</a>
               </div>
-              <div class="footer">© ${new Date().getFullYear()} Route Guide Partner Network</div>
+              <div class="footer">© ${new Date().getFullYear()} Oreedu Partner Network</div>
           </div>
       </body>
       </html>
@@ -1085,7 +1085,7 @@ export class MailService {
                   ${notes ? `<p style="padding: 15px; background: #f1f5f9; border-radius: 8px; font-size: 14px; color: #475569;"><strong>Admin Note:</strong> ${notes}</p>` : ''}
                   <a href="${this.configService.get('FRONTEND_URL')}/rewards" style="display: inline-block; background: #093f4a; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; margin-top: 20px;">Track My Claims</a>
               </div>
-              <div class="footer">© ${new Date().getFullYear()} Route Guide Partner Network</div>
+              <div class="footer">© ${new Date().getFullYear()} Oreedu Partner Network</div>
           </div>
       </body>
       </html>
@@ -1133,7 +1133,7 @@ export class MailService {
                   
                   <a href="${this.configService.get('ADMIN_URL') || this.configService.get('FRONTEND_URL') + '/admin'}/properties" class="btn">Review Registration Request</a>
               </div>
-              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
           </div>
       </body>
       </html>
@@ -1180,7 +1180,7 @@ export class MailService {
                   
                   <a href="${this.configService.get('ADMIN_URL') || this.configService.get('FRONTEND_URL') + '/admin'}/partners" class="btn">Review Application</a>
               </div>
-              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
           </div>
       </body>
       </html>
@@ -1196,7 +1196,7 @@ export class MailService {
     async sendPropertyRegistrationConfirmation(propertyEmail: string, ownerEmail: string, request: any) {
         const from = this.configService.get('EMAIL_FROM');
         const subject = `🏨 Property Registration Received - ${request.name}`;
-        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.routeguide.in';
+        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.myoreedu.com';
         const loginUrl = `${propertyUrl.replace(/\/$/, '')}/login`;
 
         const html = `
@@ -1240,7 +1240,7 @@ export class MailService {
 
                   <a href="${loginUrl}" class="btn">Log In to Your Account</a>
               </div>
-              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
           </div>
       </body>
       </html>
@@ -1283,7 +1283,7 @@ export class MailService {
      */
     async sendPropertyApprovalEmail(recipientEmail: string, request: any, isApproved: boolean) {
         const from = this.configService.get('EMAIL_FROM');
-        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.routeguide.in';
+        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.myoreedu.com';
         const loginUrl = `${propertyUrl.replace(/\/$/, '')}/login`;
         const subject = isApproved
             ? `🎉 Your Property "${request.name}" Has Been Approved!`
@@ -1335,7 +1335,7 @@ export class MailService {
 
                   <a href="${loginUrl}" class="btn">${isApproved ? 'Go to Your Dashboard' : 'Log In to Your Account'}</a>
               </div>
-              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
           </div>
       </body>
       </html>
@@ -1368,7 +1368,7 @@ export class MailService {
      */
     async sendAdminPropertyRegistrationRequest(adminEmail: string, request: any) {
         const from = this.configService.get('EMAIL_FROM');
-        const adminUrl = this.configService.get('ADMIN_URL') || 'https://admin.routeguide.in';
+        const adminUrl = this.configService.get('ADMIN_URL') || 'https://admin.myoreedu.com';
         const subject = `🏨 New Property Registration: "${request.name}" — Pending Your Approval`;
 
         const html = `
@@ -1402,7 +1402,7 @@ export class MailService {
                   <div class="detail-row"><span class="label">Status</span><span class="value" style="color: #d97706; font-weight: 800;">PENDING APPROVAL</span></div>
                   <a href="${adminUrl}/properties" class="btn">Review Registration in Admin Panel</a>
               </div>
-              <div class="footer">© ${new Date().getFullYear()} Route Guide Administration</div>
+              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
           </div>
       </body>
       </html>
@@ -1417,7 +1417,7 @@ export class MailService {
                     location: request.location || '',
                     owner_email: request.ownerEmail,
                     owner_phone: request.ownerPhone || '',
-                    review_url: `${this.configService.get('ADMIN_URL') || 'https://admin.routeguide.in'}/properties`,
+                    review_url: `${this.configService.get('ADMIN_URL') || 'https://admin.myoreedu.com'}/properties`,
                 });
             } else {
                 const from = this.configService.get('EMAIL_FROM');

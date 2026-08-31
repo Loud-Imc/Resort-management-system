@@ -721,10 +721,10 @@ function SettingsTab() {
   };
 
   const switches: { key: keyof GlobalSettings; label: string; description: string; icon: any; color: string }[] = [
-    { key: 'reservationsEnabled', label: 'Reservation Ingestion', description: 'Allow external PMS/CM to push new reservation bookings into RouteGuide.', icon: Cpu, color: 'emerald' },
+    { key: 'reservationsEnabled', label: 'Reservation Ingestion', description: 'Allow external PMS/CM to push new reservation bookings into Oreedu.', icon: Cpu, color: 'emerald' },
     { key: 'ratesEnabled', label: 'Rates & Restrictions Push', description: 'Allow partners to update room rates, rate plans, and booking restrictions.', icon: Globe, color: 'indigo' },
-    { key: 'availabilityEnabled', label: 'Availability Pull', description: 'Allow partners to query live room availability from RouteGuide properties.', icon: PlugZap, color: 'teal' },
-    { key: 'webhooksEnabled', label: 'Outbound Webhooks', description: 'Allow RouteGuide to dispatch signed event notifications to partner webhook endpoints.', icon: Zap, color: 'purple' },
+    { key: 'availabilityEnabled', label: 'Availability Pull', description: 'Allow partners to query live room availability from Oreedu properties.', icon: PlugZap, color: 'teal' },
+    { key: 'webhooksEnabled', label: 'Outbound Webhooks', description: 'Allow Oreedu to dispatch signed event notifications to partner webhook endpoints.', icon: Zap, color: 'purple' },
   ];
 
   const colorMap: Record<string, string> = {

@@ -59,7 +59,7 @@ export default function Navbar() {
                             <img
                                 src={logo}
                                 alt="Oreedu"
-                                className="h-10 md:h-12 w-auto transition-all"
+                                className="h-8 md:h-9 w-auto transition-all"
                             />
                         </Link>
                     </div>

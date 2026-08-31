@@ -49,11 +49,11 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
 
   const mockSandboxService = {
     getPostmanCollection: jest.fn().mockReturnValue({
-      info: { name: 'RouteGuide V1 Sandbox API Collection' },
+      info: { name: 'Oreedu V1 Sandbox API Collection' },
       item: [{ name: '01. Ping Authentication' }],
     }),
     getPostmanEnvironment: jest.fn().mockReturnValue({
-      id: 'routeguide-v1-sandbox-env',
+      id: 'oreedu-v1-sandbox-env',
       values: [{ key: 'baseUrl', value: 'http://localhost:3000' }],
     }),
   };
@@ -289,7 +289,7 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
       const realSandboxService = new (require('./services/connectivity-sandbox.service').ConnectivitySandboxService)(null);
       const collection = realSandboxService.getPostmanCollection('http://localhost:3000');
 
-      expect(collection.info.name).toBe('RouteGuide V1 Sandbox API Collection');
+      expect(collection.info.name).toBe('Oreedu V1 Sandbox API Collection');
       expect(collection.item.length).toBe(21);
 
       // Verify Request #02 contains propertyId AND externalPropertyId
@@ -329,7 +329,7 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
         protocol: 'http',
         get: () => 'localhost:3000',
       }, mockRes);
-      expect(result.id).toBe('routeguide-v1-sandbox-env');
+      expect(result.id).toBe('oreedu-v1-sandbox-env');
       expect(mockSandboxService.getPostmanEnvironment).toHaveBeenCalledWith(
         'rg_test_PASTE_YOUR_SANDBOX_API_KEY_HERE',
         'test_jwt_token',

@@ -15,7 +15,7 @@ export default function DeveloperSandboxDocs() {
           Sandbox Environment Guide (<code className="text-emerald-600 dark:text-emerald-400 font-mono">TEST-PROP-001</code>)
         </h1>
         <p className="text-slate-600 dark:text-slate-400 text-sm max-w-3xl leading-relaxed">
-          The RouteGuide Sandbox is an isolated testing environment that mirrors production API contracts, allowing external Property Management Systems (PMS) and Channel Managers to test inventory sync, pricing, restrictions, and bookings safely.
+          The Oreedu Sandbox is an isolated testing environment that mirrors production API contracts, allowing external Property Management Systems (PMS) and Channel Managers to test inventory sync, pricing, restrictions, and bookings safely.
         </p>
       </div>
 
@@ -102,7 +102,7 @@ export default function DeveloperSandboxDocs() {
             All Sandbox requests must include your issued Sandbox API key (<code className="font-mono text-emerald-600 dark:text-emerald-400">rg_test_...</code>) in the <code className="font-mono text-emerald-600 dark:text-emerald-400">x-api-key</code> HTTP request header.
           </p>
           <div className="p-4 rounded-xl bg-slate-950 font-mono text-xs text-emerald-400 border border-slate-800 space-y-1">
-            <div>Staging / Sandbox Base URL: https://staging-api.routeguide.in/api/connectivity/v1</div>
+            <div>Staging / Sandbox Base URL: https://staging-api.myoreedu.com/api/connectivity/v1</div>
             <div>Local Development Base URL: http://localhost:3000/api/connectivity/v1</div>
           </div>
         </section>
@@ -154,7 +154,7 @@ export default function DeveloperSandboxDocs() {
           <div className="p-4 rounded-xl bg-slate-950 font-mono text-xs text-indigo-300 border border-slate-800">
             POST /api/connectivity/v1/sandbox/reset HTTP/1.1
             <br />
-            Host: staging-api.routeguide.in
+            Host: staging-api.oreedu.in
             <br />
             x-api-key: rg_test_your_sandbox_key
           </div>

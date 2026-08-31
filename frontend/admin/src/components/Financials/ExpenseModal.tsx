@@ -113,7 +113,7 @@ export default function ExpenseModal({ isOpen, onClose, expense }: ExpenseModalP
                                     {...register('propertyId')}
                                     className="block w-full pl-10 pr-4 py-3 bg-muted/50 border border-border rounded-xl text-foreground font-bold focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none appearance-none"
                                 >
-                                    <option value="">Platform (Route Guide Official)</option>
+                                    <option value="">Platform (Oreedu Official)</option>
                                     {properties?.map((p) => (
                                         <option key={p.id} value={p.id}>{p.name}</option>
                                     ))}

@@ -91,7 +91,7 @@ export default function DeveloperRegister() {
           Register your PMS / Channel Manager
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto">
-          Create a RouteGuide Connectivity Partner account to receive immediate Sandbox credentials (<code className="text-emerald-600 dark:text-emerald-400 font-mono">rg_test_...</code>) for <code className="text-teal-600 dark:text-teal-400 font-mono">TEST-PROP-001</code>.
+          Create a Oreedu Connectivity Partner account to receive immediate Sandbox credentials (<code className="text-emerald-600 dark:text-emerald-400 font-mono">rg_test_...</code>) for <code className="text-teal-600 dark:text-teal-400 font-mono">TEST-PROP-001</code>.
         </p>
       </div>
 
@@ -179,7 +179,7 @@ export default function DeveloperRegister() {
                 className="w-full px-4 py-2.5 text-sm font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
               />
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                The HTTPS URL of your system where RouteGuide will send real-time events such as reservation and availability updates. You can configure this later from the Developer Dashboard before certification.
+                The HTTPS URL of your system where Oreedu will send real-time events such as reservation and availability updates. You can configure this later from the Developer Dashboard before certification.
               </p>
             </div>
 

@@ -64,7 +64,7 @@ export class OtaDashboardController {
       where: { 
         propertyId: property.id,
         OR: [
-          { channelName: { startsWith: 'RouteGuide' } },
+          { channelName: { in: ['Oreedu', 'Oreedu', 'Oreedu PMS', 'Oreedu PMS'] } },
           { channelName: { startsWith: 'Offline CP:' } },
           { channelName: null }
         ]
@@ -76,7 +76,7 @@ export class OtaDashboardController {
         propertyId: property.id,
         status: { in: ['CHECKED_IN', 'RESERVED'] },
         OR: [
-          { channelName: { startsWith: 'RouteGuide' } },
+          { channelName: { in: ['Oreedu', 'Oreedu', 'Oreedu PMS', 'Oreedu PMS'] } },
           { channelName: { startsWith: 'Offline CP:' } },
           { channelName: null }
         ]
@@ -88,7 +88,7 @@ export class OtaDashboardController {
         propertyId: property.id,
         status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
         OR: [
-          { channelName: { startsWith: 'RouteGuide' } },
+          { channelName: { in: ['Oreedu', 'Oreedu', 'Oreedu PMS', 'Oreedu PMS'] } },
           { channelName: { startsWith: 'Offline CP:' } },
           { channelName: null }
         ]
@@ -104,7 +104,7 @@ export class OtaDashboardController {
       where: { 
         propertyId: property.id,
         OR: [
-          { channelName: { startsWith: 'RouteGuide' } },
+          { channelName: { in: ['Oreedu', 'Oreedu', 'Oreedu PMS', 'Oreedu PMS'] } },
           { channelName: { startsWith: 'Offline CP:' } },
           { channelName: null }
         ]
@@ -163,7 +163,7 @@ export class OtaDashboardController {
     return {
       success: true,
       isPmsActive: updated.isPmsActive,
-      message: 'RouteGuide PMS activated successfully!',
+      message: 'Oreedu PMS activated successfully!',
     };
   }
 }

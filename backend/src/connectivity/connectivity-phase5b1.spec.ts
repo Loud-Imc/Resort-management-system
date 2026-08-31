@@ -237,7 +237,7 @@ describe('Connectivity Platform Phase 5B-1 — Outbound Webhook Delivery Worker 
   });
 
   // 13. Sends canonical eventId in header
-  it('13. sends canonical eventId in X-RouteGuide-Event-Id header', async () => {
+  it('13. sends canonical eventId in X-Oreedu-Event-Id header', async () => {
     global.fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -249,8 +249,8 @@ describe('Connectivity Platform Phase 5B-1 — Outbound Webhook Delivery Worker 
     expect(global.fetch).toHaveBeenCalled();
     const fetchArgs = (global.fetch as jest.Mock).mock.calls[0];
     const headers = fetchArgs[1].headers;
-    expect(headers['X-RouteGuide-Event-Id']).toBe('evt-1001');
-    expect(headers['X-RouteGuide-Event-Type']).toBe('RESERVATION.CREATED');
+    expect(headers['X-Oreedu-Event-Id']).toBe('evt-1001');
+    expect(headers['X-Oreedu-Event-Type']).toBe('RESERVATION.CREATED');
   });
 
   // 14. Sends POST request
@@ -340,7 +340,7 @@ describe('Connectivity Platform Phase 5B-1 — Outbound Webhook Delivery Worker 
 
     const fetchArgs = (global.fetch as jest.Mock).mock.calls[0];
     const headers = fetchArgs[1].headers;
-    expect(headers['X-RouteGuide-Event-Id']).toBe('evt-1001');
+    expect(headers['X-Oreedu-Event-Id']).toBe('evt-1001');
   });
 
   // 20. Concurrent workers cannot claim the same event simultaneously

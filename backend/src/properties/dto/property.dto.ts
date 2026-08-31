@@ -12,7 +12,7 @@ export enum PropertyType {
 }
 
 export class CreatePropertyDto {
-    @ApiProperty({ example: 'Route Guide Resort' })
+    @ApiProperty({ example: 'Oreedu Resort' })
     @IsString()
     name: string;
 
@@ -57,7 +57,7 @@ export class CreatePropertyDto {
     @IsNumber()
     longitude?: number;
 
-    @ApiProperty({ example: 'contact@routeguide.com' })
+    @ApiProperty({ example: 'contact@oreedu.com' })
     @IsEmail()
     email: string;
 

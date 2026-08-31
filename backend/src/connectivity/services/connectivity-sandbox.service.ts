@@ -62,7 +62,7 @@ export class ConnectivitySandboxService {
         aggregateId: `SANDBOX:PING:${Date.now()}`,
         payload: {
           changeType: 'SANDBOX_TEST',
-          ping: 'RouteGuide Connectivity Webhook Signature Verification',
+          ping: 'Oreedu Connectivity Webhook Signature Verification',
           timestamp: new Date().toISOString(),
           externalPropertyId: connection.externalPropertyId,
         },
@@ -161,13 +161,13 @@ export class ConnectivitySandboxService {
   }
 
   /**
-   * Generates the official RouteGuide V1 Sandbox Postman Collection v2.1.0 object.
+   * Generates the official Oreedu V1 Sandbox Postman Collection v2.1.0 object.
    */
   getPostmanCollection(baseUrl = 'http://localhost:3000') {
     return {
       info: {
-        name: 'RouteGuide V1 Sandbox API Collection',
-        description: 'Official RouteGuide V1 REST API Sandbox collection for external PMS and Channel Manager developers. Execute sequentially against TEST-PROP-001 to complete the 6 certification milestones.',
+        name: 'Oreedu V1 Sandbox API Collection',
+        description: 'Official Oreedu V1 REST API Sandbox collection for external PMS and Channel Manager developers. Execute sequentially against TEST-PROP-001 to complete the 6 certification milestones.',
         schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
       },
       item: [
@@ -203,7 +203,7 @@ export class ConnectivitySandboxService {
               }, null, 2),
             },
             url: { raw: '{{baseUrl}}/api/connectivity/v1/connections', host: ['{{baseUrl}}'], path: ['api', 'connectivity', 'v1', 'connections'] },
-            description: 'Connect a RouteGuide property using propertyId and externalPropertyId. Completes Milestone 1.',
+            description: 'Connect a Oreedu property using propertyId and externalPropertyId. Completes Milestone 1.',
           },
           event: [{
             listen: 'test',
@@ -713,12 +713,12 @@ export class ConnectivitySandboxService {
   }
 
   /**
-   * Generates the official RouteGuide V1 Sandbox Postman Environment object.
+   * Generates the official Oreedu V1 Sandbox Postman Environment object.
    */
   getPostmanEnvironment(sandboxApiKey?: string, developerToken?: string, baseUrl = 'http://localhost:3000') {
     return {
-      id: 'routeguide-v1-sandbox-env',
-      name: 'RouteGuide V1 Sandbox Environment',
+      id: 'oreedu-v1-sandbox-env',
+      name: 'Oreedu V1 Sandbox Environment',
       values: [
         { key: 'baseUrl', value: baseUrl, enabled: true },
         { key: 'apiKey', value: sandboxApiKey || 'rg_test_REPLACE_WITH_YOUR_SANDBOX_API_KEY', enabled: true },

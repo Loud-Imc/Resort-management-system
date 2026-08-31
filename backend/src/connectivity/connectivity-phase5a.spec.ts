@@ -416,8 +416,8 @@ describe('Connectivity Platform Phase 5A — Outbox Persistence & Event Producer
     expect(mockOutboxRecords.length).toBe(0);
   });
 
-  // 10. Native RouteGuide Booking createReservationEventForBooking test
-  it('10. Native RouteGuide booking creation emits RESERVATION.CREATED outbox event for active partners', async () => {
+  // 10. Native Oreedu Booking createReservationEventForBooking test
+  it('10. Native Oreedu booking creation emits RESERVATION.CREATED outbox event for active partners', async () => {
     mockPrismaService.connectivityPartnerConnection.findMany.mockResolvedValue([{
       ...mockConnection,
       roomMappings: [mockRoomMapping],

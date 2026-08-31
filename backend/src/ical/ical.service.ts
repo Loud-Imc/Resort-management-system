@@ -158,7 +158,7 @@ export class IcalService {
 
     const calendar = new ICalCalendar({
       name: `${property.name} - Availability`,
-      prodId: { company: 'Route Guide', product: 'Resort Management' }
+      prodId: { company: 'Oreedu', product: 'Resort Management' }
     });
 
     for (const booking of property.bookings) {
@@ -167,7 +167,7 @@ export class IcalService {
         end: booking.checkOutDate,
         summary: 'Reserved',
         description: `Booking #${booking.bookingNumber}`,
-        id: `booking-${booking.id}@routeguide.imcloud.in`
+        id: `booking-${booking.id}@oreedu.imcloud.in`
       });
     }
 

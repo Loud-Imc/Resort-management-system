@@ -56,7 +56,7 @@ export default function OtaDashboardHome() {
         <AlertCircle className="h-16 w-16 text-muted-foreground mb-4 animate-bounce" />
         <h2 className="text-2xl font-black text-foreground">No Listing Found</h2>
         <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
-          Your account is registered but does not have a listing associated. Please log in to the legacy registration system or contact RouteGuide support to assign your hotel.
+          Your account is registered but does not have a listing associated. Please log in to the legacy registration system or contact Oreedu support to assign your hotel.
         </p>
       </div>
     );
@@ -112,14 +112,14 @@ export default function OtaDashboardHome() {
           </span>
           <h2 className="text-xl font-black text-white">Unlock Front-Desk Powers!</h2>
           <p className="text-white/90 text-xs max-w-xl font-medium">
-            Want to handle in-person checkins, staff roles, housekeeping status, and expense reporting? Activate RouteGuide PMS instantly.
+            Want to handle in-person checkins, staff roles, housekeeping status, and expense reporting? Activate Oreedu PMS instantly.
           </p>
         </div>
         <button
           onClick={handleActivatePms}
           className="z-10 py-2.5 px-5 bg-white hover:bg-slate-50 text-primary font-extrabold text-xs rounded-xl shadow-lg transition-transform hover:scale-[1.02] cursor-pointer"
         >
-          Activate RouteGuide PMS
+          Activate Oreedu PMS
         </button>
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
       </div>
@@ -168,7 +168,7 @@ export default function OtaDashboardHome() {
             <h3 className="font-extrabold text-base text-foreground">Listing Onboarding</h3>
           </div>
           <p className="text-muted-foreground text-xs mb-5 leading-relaxed">
-            Complete the sections below to boost your listing quality ranking on RouteGuide search results.
+            Complete the sections below to boost your listing quality ranking on Oreedu search results.
           </p>
 
           <div className="space-y-4 flex-1">

@@ -32,7 +32,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { otaService } from '../services/otaService';
-import logo from '../assets/logo.svg';
+import logoLight from '../assets/oreedu-04.svg';
+import logoDark from '../assets/oreedu-05.svg';
 
 export default function OtaDashboardLayout() {
   const { user, logout } = useAuth();
@@ -105,7 +106,7 @@ export default function OtaDashboardLayout() {
     setIsActivationModalOpen(false);
     try {
       await otaService.activatePms();
-      toast.success('RouteGuide PMS activated! Redirecting to full PMS panel...', { duration: 4000 });
+      toast.success('Oreedu PMS activated! Redirecting to full PMS panel...', { duration: 4000 });
       setTimeout(() => {
         window.location.href = import.meta.env.VITE_PMS_URL || 'http://localhost:5175';
       }, 1500);
@@ -140,7 +141,7 @@ export default function OtaDashboardLayout() {
   ];
 
   const handleDisabledTabClick = (label: string) => {
-    toast.error(`You have to activate the RouteGuide PMS to use ${label}. Click "Activate RouteGuide PMS" at the bottom of the sidebar to upgrade!`, {
+    toast.error(`You have to activate the Oreedu PMS to use ${label}. Click "Activate Oreedu PMS" at the bottom of the sidebar to upgrade!`, {
       duration: 5000,
       icon: '🔒'
     });
@@ -153,9 +154,9 @@ export default function OtaDashboardLayout() {
         <div className="p-6 border-b border-border">
           <Link to="/" className="flex items-center justify-center mb-6 overflow-hidden">
             <img
-              src={logo}
-              alt="Route Guide"
-              className={`h-11 w-auto object-contain ${theme !== "light" ? "brightness-0 invert" : ""}`}
+              src={theme === 'dark' ? logoDark : logoLight}
+              alt="Oreedu"
+              className="h-9 w-auto object-contain"
             />
           </Link>
 
@@ -248,7 +249,7 @@ export default function OtaDashboardLayout() {
             className="w-full py-2.5 px-3 bg-primary hover:opacity-90 text-primary-foreground font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 border border-primary/20 disabled:opacity-50 cursor-pointer"
           >
             <ShieldCheck className="h-4 w-4" />
-            <span>{isActivatingPms ? 'Activating...' : 'Activate RouteGuide PMS'}</span>
+            <span>{isActivatingPms ? 'Activating...' : 'Activate Oreedu PMS'}</span>
             <ChevronRight className="h-3 w-3 ml-auto" />
           </button>
 
@@ -327,9 +328,9 @@ export default function OtaDashboardLayout() {
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
               <Link to="/" className="flex items-center overflow-hidden">
                 <img
-                  src={logo}
-                  alt="Route Guide"
-                  className={`h-9 w-auto object-contain ${theme !== "light" ? "brightness-0 invert" : ""}`}
+                  src={theme === 'dark' ? logoDark : logoLight}
+                  alt="Oreedu"
+                  className="h-10 w-auto object-contain"
                 />
               </Link>
               <button onClick={() => setIsSidebarOpen(false)} className="p-1 text-muted-foreground">
@@ -545,7 +546,7 @@ export default function OtaDashboardLayout() {
           </div>
         </div>
       )}
-      {/* RouteGuide PMS Activation Modal */}
+      {/* Oreedu PMS Activation Modal */}
       {isActivationModalOpen && (
         <div 
           className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
@@ -562,7 +563,7 @@ export default function OtaDashboardLayout() {
                   <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-foreground tracking-tight text-left">Activate RouteGuide PMS</h2>
+                  <h2 className="text-sm font-black text-foreground tracking-tight text-left">Activate Oreedu PMS</h2>
                   <p className="text-[10px] text-muted-foreground font-semibold text-left">
                     Upgrade to full-featured frontdesk property management
                   </p>
@@ -579,7 +580,7 @@ export default function OtaDashboardLayout() {
             {/* Modal Content */}
             <div className="p-5 space-y-3 text-xs text-muted-foreground font-medium text-left leading-relaxed">
               <p>
-                You are about to activate the **RouteGuide PMS** package. This premium upgrade will immediately enable:
+                You are about to activate the **Oreedu PMS** package. This premium upgrade will immediately enable:
               </p>
               <ul className="space-y-1.5 list-disc pl-4 text-foreground/80 font-bold">
                 <li>Dynamic frontdesk calendar boards and room allocations.</li>

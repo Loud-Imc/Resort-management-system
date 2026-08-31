@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RestrictionUpdateItemDto {
-  @ApiProperty({ description: 'External RoomType ID or RouteGuide RoomType ID' })
+  @ApiProperty({ description: 'External RoomType ID or Oreedu RoomType ID' })
   @IsNotEmpty()
   @IsString()
   externalRoomTypeId: string;
@@ -48,7 +48,7 @@ export class RestrictionUpdateItemDto {
 }
 
 export class UpdateRestrictionsDto {
-  @ApiProperty({ description: 'Internal RouteGuide Property ID or External Property ID' })
+  @ApiProperty({ description: 'Internal Oreedu Property ID or External Property ID' })
   @IsNotEmpty()
   @IsString()
   propertyId: string;

@@ -98,7 +98,7 @@ export default function Login() {
             <div className="w-full max-w-md">
                 <div className="text-center mb-8">
                     <div className="flex justify-center mb-6">
-                        <img src={logo} alt="Route Guide" className="h-16 w-auto" />
+                        <img src={logo} alt="Oreedu" className="h-9 w-auto" />
                     </div>
                     <h1 className="text-3xl font-bold text-gray-900">Property Dashboard</h1>
                     <p className="text-gray-500 mt-2">Manage your property operations</p>
@@ -214,7 +214,7 @@ export default function Login() {
                     <div className="flex flex-wrap justify-center gap-3">
                         {/* Google Play */}
                         <a
-                            href="https://play.google.com/store/apps/details?id=com.routeguide.property"
+                            href="https://play.google.com/store/apps/details?id=com.oreedu.property"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="bg-primary-600 text-white px-4 py-2 rounded-xl flex items-center gap-3 hover:bg-primary-800 transition-all border border-white/10 active:scale-95"
@@ -230,7 +230,7 @@ export default function Login() {
 
                         {/* App Store */}
                         <a
-                            href="https://apps.apple.com/us/app/routeguide-property-manager/id6761613055"
+                            href="https://apps.apple.com/us/app/oreedu-property-manager/id6761613055"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="bg-primary-600 text-white px-4 py-2 rounded-xl flex items-center gap-3 hover:bg-primary-800 transition-all border border-white/10 active:scale-95"
@@ -247,7 +247,7 @@ export default function Login() {
                 </div>
 
                 <p className="text-center text-sm text-gray-400 mt-8">
-                    Route Guide Property Management
+                    Oreedu Property Management
                 </p>
             </div>
         </div>

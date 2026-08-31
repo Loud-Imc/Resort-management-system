@@ -1449,7 +1449,7 @@ export default function CreateBooking() {
                                 </div>
                             ) : (
                                 <p className="text-xs text-muted-foreground italic">
-                                    Booking source will automatically be assigned as <strong className="text-foreground">RouteGuide PMS</strong>.
+                                    Booking source will automatically be assigned as <strong className="text-foreground">Oreedu PMS</strong>.
                                 </p>
                             )}
                         </div>

@@ -237,7 +237,7 @@ describe('Property Content Connectivity API (GET /connectivity/v1/content) Unit 
     expect(result.roomTypes[0].name).toBe('Deluxe Room');
   });
 
-  it('10. RouteGuide RoomType ID is returned as id for mapping configuration', async () => {
+  it('10. Oreedu RoomType ID is returned as id for mapping configuration', async () => {
     mockPrismaService.connectivityPartnerConnection.findFirst.mockResolvedValue(mockActiveConnection);
     mockPrismaService.property.findUnique.mockResolvedValue(mockDbProperty);
     mockPrismaService.connectivityRoomTypeMapping.findMany.mockResolvedValue(mockRoomMappings);

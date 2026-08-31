@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Facebook, Instagram, Twitter, Youtube, Send } from 'lucide-react';
-import logo from '../../assets/oreedu.svg';
+import logoDark from '../../assets/oreedu-05.svg';
 
 export default function Footer() {
     const [email, setEmail] = useState('');
@@ -66,9 +66,9 @@ export default function Footer() {
                         {/* Center — Logo + Social */}
                         <div className="flex flex-col items-center gap-4">
                             <img
-                                src={logo}
+                                src={logoDark}
                                 alt="Oreedu"
-                                className="h-12 w-auto brightness-0 invert opacity-90"
+                                className="h-10 w-auto opacity-90"
                             />
                             <div className="flex items-center gap-4">
                                 {[

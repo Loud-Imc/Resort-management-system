@@ -5,7 +5,7 @@ import api from '../services/api';
 import { UserPlus, UserCheck } from 'lucide-react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
-import logo from '../assets/routeguide.svg';
+import logo from '../assets/oreedu.svg';
 
 const Register: React.FC = () => {
     const { user: authUser, logout } = useAuth();
@@ -55,7 +55,7 @@ const Register: React.FC = () => {
                 key: keyId,
                 amount: amount,
                 currency: currency,
-                name: 'Route Guide',
+                name: 'Oreedu',
                 description: 'Channel Partner Registration Fee',
                 order_id: orderId,
                 handler: async (paymentRes: any) => {
@@ -127,7 +127,7 @@ const Register: React.FC = () => {
                 <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
                     <img
                         src={logo}
-                        alt="Route Guide"
+                        alt="Oreedu"
                         style={{
                             height: '64px',
                             width: 'auto',

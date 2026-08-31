@@ -10,13 +10,13 @@ export default function DeveloperWebhooksDocs() {
   const nodeSnippet = `const crypto = require('crypto');
 
 /**
- * Verify RouteGuide Outbound Webhook HMAC-SHA256 Signature
+ * Verify Oreedu Outbound Webhook HMAC-SHA256 Signature
  * @param {string} rawHttpBody - Exact unparsed UTF-8 request body string
- * @param {string} signatureHeader - Value of 'X-RouteGuide-Signature' header (t=...,v1=...)
+ * @param {string} signatureHeader - Value of 'X-Oreedu-Signature' header (t=...,v1=...)
  * @param {string} partnerWebhookSecret - Partner secret key
  * @returns {boolean} True if signature is valid and fresh
  */
-function verifyRouteGuideWebhook(rawHttpBody, signatureHeader, partnerWebhookSecret) {
+function verifyOreeduWebhook(rawHttpBody, signatureHeader, partnerWebhookSecret) {
   if (!signatureHeader || !partnerWebhookSecret) return false;
 
   const parts = signatureHeader.split(',');
@@ -114,15 +114,15 @@ function verifyRouteGuideWebhook(rawHttpBody, signatureHeader, partnerWebhookSec
       <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6 shadow-xl">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-          <code className="text-emerald-600 dark:text-emerald-400 font-mono">X-RouteGuide-Signature</code> Header Format
+          <code className="text-emerald-600 dark:text-emerald-400 font-mono">X-Oreedu-Signature</code> Header Format
         </h2>
 
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Every outbound HTTP POST payload sent by RouteGuide contains the signature header:
+          Every outbound HTTP POST payload sent by Oreedu contains the signature header:
         </p>
 
         <div className="p-4 rounded-xl bg-slate-900 dark:bg-slate-950 border border-slate-800 font-mono text-xs text-emerald-400">
-          X-RouteGuide-Signature: t=1787894630,v1=3ad746430a149c71e285d89f029...
+          X-Oreedu-Signature: t=1787894630,v1=3ad746430a149c71e285d89f029...
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -176,7 +176,7 @@ function verifyRouteGuideWebhook(rawHttpBody, signatureHeader, partnerWebhookSec
           Exponential Backoff Retry Schedule
         </h2>
         <p className="text-xs text-slate-600 dark:text-slate-400">
-          If your endpoint returns <code className="text-rose-600 dark:text-rose-400 font-mono">HTTP 4xx/5xx</code> or times out (10s), RouteGuide retries automatically up to 5 times:
+          If your endpoint returns <code className="text-rose-600 dark:text-rose-400 font-mono">HTTP 4xx/5xx</code> or times out (10s), Oreedu retries automatically up to 5 times:
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs font-mono">

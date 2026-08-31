@@ -16,7 +16,7 @@ export class ConnectivityConnectionService {
   ) {}
 
   /**
-   * Validate RouteGuide property readiness using existing platform rules:
+   * Validate Oreedu property readiness using existing platform rules:
    * 1. property.isActive === true
    * 2. property.status === 'APPROVED'
    * 3. Map coordinates set (latitude & longitude)
@@ -35,7 +35,7 @@ export class ConnectivityConnectionService {
     });
 
     if (!property) {
-      throw new NotFoundException(`RouteGuide Property with ID ${propertyId} not found.`);
+      throw new NotFoundException(`Oreedu Property with ID ${propertyId} not found.`);
     }
 
     const pending: string[] = [];

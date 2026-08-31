@@ -7,7 +7,7 @@ export class QueryContentDto {
   @IsString()
   externalPropertyId?: string;
 
-  @ApiPropertyOptional({ description: 'RouteGuide Property ID registered in connection mapping' })
+  @ApiPropertyOptional({ description: 'Oreedu Property ID registered in connection mapping' })
   @IsOptional()
   @IsString()
   propertyId?: string;

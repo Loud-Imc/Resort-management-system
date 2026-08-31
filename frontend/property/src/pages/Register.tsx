@@ -514,9 +514,9 @@ export default function Register() {
             <div className="w-full max-w-2xl">
                 <div className="text-center mb-8">
                     <div className="flex justify-center mb-6">
-                        <img src={logo} alt="Route Guide" className="h-16 w-auto" />
+                        <img src={logo} alt="Oreedu" className="h-16 w-auto" />
                     </div>
-                    <h1 className="text-3xl font-bold text-gray-900">Partner with Route Guide</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Partner with Oreedu</h1>
                     <p className="text-gray-500 mt-2">
                         {step === 1 ? 'Step 1: Owner Information' : 'Step 2: Property Information'}
                     </p>
@@ -1230,7 +1230,7 @@ export default function Register() {
                 </div>
 
                 <p className="text-center text-sm text-gray-400 mt-8">
-                    &copy; {new Date().getFullYear()} Route Guide Property Management. All rights reserved.
+                    &copy; {new Date().getFullYear()} Oreedu Property Management. All rights reserved.
                 </p>
             </div>
         </div>

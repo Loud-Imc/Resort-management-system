@@ -15,11 +15,11 @@ export default function DeveloperPortalHome() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
-            Connect your PMS or Channel Manager to <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-300">RouteGuide</span>
+            Connect your PMS or Channel Manager to <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-300">Oreedu</span>
           </h1>
 
           <p className="text-base sm:text-lg text-slate-300 font-normal leading-relaxed">
-            RouteGuide provides a standard, vendor-neutral REST API boundary for Property Content, Inventory Availability, Rate Sync, Restriction Management, and Real-Time Reservation Life-Cycle Webhooks.
+            Oreedu provides a standard, vendor-neutral REST API boundary for Property Content, Inventory Availability, Rate Sync, Restriction Management, and Real-Time Reservation Life-Cycle Webhooks.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-4">

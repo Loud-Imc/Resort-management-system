@@ -2,6 +2,8 @@ import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { Terminal, BookOpen, Cpu, ShieldCheck, Zap, Key, Sun, Moon, ArrowRight, CheckCircle2, LayoutDashboard, LogOut } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
+import logoLight from '../assets/oreedu-04.svg';
+import logoDark from '../assets/oreedu-05.svg';
 
 export default function DeveloperPortalLayout() {
   const { theme, toggleTheme } = useTheme();
@@ -38,7 +40,7 @@ export default function DeveloperPortalLayout() {
       {/* Top Announcement Bar */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white text-center flex items-center justify-center gap-2 shadow-sm">
         <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] tracking-wider uppercase">V1 REST API</span>
-        <span>RouteGuide OTA Connectivity Platform is open for external PMS & Channel Manager integrations.</span>
+        <span>Oreedu OTA Connectivity Platform is open for external PMS & Channel Manager integrations.</span>
         <Link to="/developers/sandbox" className="underline hover:text-emerald-100 flex items-center gap-1 ml-1">
           Explore Sandbox <ArrowRight className="w-3 h-3" />
         </Link>
@@ -49,18 +51,14 @@ export default function DeveloperPortalLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Logo & Platform Badge */}
           <Link to="/developers" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-              <Terminal className="w-5 h-5 text-slate-950 font-bold" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">RouteGuide</span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  DEVELOPERS
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 block -mt-1 font-medium">B2B Connectivity Platform</span>
-            </div>
+            <img
+              src={theme === 'dark' ? logoDark : logoLight}
+              alt="Oreedu"
+              className="h-8 w-auto object-contain"
+            />
+            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              DEVELOPERS
+            </span>
           </Link>
 
           {/* Desktop Nav Links */}
@@ -166,10 +164,10 @@ export default function DeveloperPortalLayout() {
           <div className="space-y-3 md:col-span-2">
             <div className="flex items-center gap-2">
               <Terminal className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <span className="font-bold text-base text-slate-900 dark:text-white">RouteGuide Connectivity Platform</span>
+              <span className="font-bold text-base text-slate-900 dark:text-white">Oreedu Connectivity Platform</span>
             </div>
             <p className="text-slate-600 dark:text-slate-400 max-w-md text-xs leading-relaxed">
-              Standard B2B REST API boundary connecting Property Management Systems (PMS), Channel Managers, and Connectivity Providers directly to RouteGuide distribution.
+              Standard B2B REST API boundary connecting Property Management Systems (PMS), Channel Managers, and Connectivity Providers directly to Oreedu distribution.
             </p>
             <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -191,7 +189,7 @@ export default function DeveloperPortalLayout() {
           <div>
             <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px] mb-3">Support & Legal</h4>
             <ul className="space-y-2 font-medium">
-              <li className="text-slate-700 dark:text-slate-300 font-mono">connectivity-support@routeguide.com</li>
+              <li className="text-slate-700 dark:text-slate-300 font-mono">connectivity-support@oreedu.com</li>
               <li><span className="text-slate-500 dark:text-slate-400">Vendor-Neutral B2B Standard</span></li>
               <li><span className="text-slate-500 dark:text-slate-400">HMAC-SHA256 Signed Outbox</span></li>
               <li><span className="text-slate-500 dark:text-slate-400">Isolated Sandbox Architecture</span></li>
@@ -200,7 +198,7 @@ export default function DeveloperPortalLayout() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 mt-8 border-t border-slate-200 dark:border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px]">
-          <div>&copy; {new Date().getFullYear()} RouteGuide Inc. All rights reserved.</div>
+          <div>&copy; {new Date().getFullYear()} Oreedu Inc. All rights reserved.</div>
           <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 font-medium">
             <span>Vendor-Neutral API</span>
             <span>&bull;</span>

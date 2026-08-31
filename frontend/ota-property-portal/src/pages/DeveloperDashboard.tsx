@@ -45,8 +45,8 @@ const MILESTONES_DEFINITIONS: MilestoneDetail[] = [
     number: 2,
     title: 'RoomType Mapping Configuration',
     endpoint: 'POST /api/connectivity/v1/connections/TEST-PROP-001/mappings/room-types',
-    passCondition: 'At least 1 external room code mapped to a RouteGuide RoomType on TEST-PROP-001.',
-    instructions: 'Map your external room codes (e.g. DELUXE) to RouteGuide RoomType UUIDs.',
+    passCondition: 'At least 1 external room code mapped to a Oreedu RoomType on TEST-PROP-001.',
+    instructions: 'Map your external room codes (e.g. DELUXE) to Oreedu RoomType UUIDs.',
   },
   {
     key: 'ratesAndRestrictions',
@@ -201,9 +201,9 @@ export default function DeveloperDashboard() {
 
   const downloadKeyAsFile = (apiKey: string, env: string) => {
     const element = document.createElement('a');
-    const file = new Blob([`RouteGuide ${env} API Key:\n${apiKey}\n\nIssued: ${new Date().toISOString()}\nProperty: TEST-PROP-001\n`], { type: 'text/plain' });
+    const file = new Blob([`Oreedu ${env} API Key:\n${apiKey}\n\nIssued: ${new Date().toISOString()}\nProperty: TEST-PROP-001\n`], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
-    element.download = `RouteGuide_${env}_API_Key.txt`;
+    element.download = `Oreedu_${env}_API_Key.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -314,7 +314,7 @@ export default function DeveloperDashboard() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'RouteGuide_V1_Sandbox.postman_collection.json';
+      a.download = 'Oreedu_V1_Sandbox.postman_collection.json';
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Postman Collection downloaded!');
@@ -336,7 +336,7 @@ export default function DeveloperDashboard() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'RouteGuide_V1_Sandbox.postman_environment.json';
+        a.download = 'Oreedu_V1_Sandbox.postman_environment.json';
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Postman Environment template downloaded!');
@@ -394,7 +394,7 @@ export default function DeveloperDashboard() {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-extrabold tracking-tight">{profile.name}</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="System-generated RouteGuide Partner Code">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="System-generated Oreedu Partner Code">
               Partner Code: {profile.code}
             </span>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-500/10 text-teal-300 border border-teal-500/20">
@@ -502,7 +502,7 @@ export default function DeveloperDashboard() {
                   Sandbox Integration Tools & Postman Suite
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Use the official RouteGuide V1 Sandbox Postman collection to test your PMS/Channel Manager integration against <code className="text-teal-300 font-mono">TEST-PROP-001</code>.
+                  Use the official Oreedu V1 Sandbox Postman collection to test your PMS/Channel Manager integration against <code className="text-teal-300 font-mono">TEST-PROP-001</code>.
                 </p>
               </div>
 
@@ -636,7 +636,7 @@ export default function DeveloperDashboard() {
               <div className="pt-2 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">HMAC-SHA256 Secret</span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Used by RouteGuide to sign <code className="text-emerald-600 dark:text-emerald-400">X-RouteGuide-Signature</code> headers.</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Used by Oreedu to sign <code className="text-emerald-600 dark:text-emerald-400">X-Oreedu-Signature</code> headers.</span>
                 </div>
                 <button
                   onClick={() => handleUpdateWebhook(true)}
@@ -683,11 +683,11 @@ export default function DeveloperDashboard() {
               <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                 <li>Configure your publicly reachable HTTPS Webhook URL (or temporary receiver e.g. <code className="text-indigo-400">webhook.site</code>).</li>
                 <li>Trigger a test webhook using <code className="text-emerald-500">POST /api/connectivity/v1/sandbox/test-webhook</code> or the Sandbox console.</li>
-                <li>RouteGuide signs the JSON payload using HMAC-SHA256 and dispatches an HTTP POST request.</li>
-                <li>Your endpoint receives the request containing <code className="text-indigo-400 font-mono">X-RouteGuide-Signature: t=timestamp,v1=hash</code>.</li>
+                <li>Oreedu signs the JSON payload using HMAC-SHA256 and dispatches an HTTP POST request.</li>
+                <li>Your endpoint receives the request containing <code className="text-indigo-400 font-mono">X-Oreedu-Signature: t=timestamp,v1=hash</code>.</li>
                 <li>Your server verifies the signature using your HMAC secret.</li>
                 <li>Your endpoint MUST return HTTP 200 OK with JSON payload: <code className="text-emerald-500 font-mono font-bold">{`{"signatureVerified": true}`}</code> or <code className="text-emerald-500 font-mono font-bold">{`{"received": true}`}</code>.</li>
-                <li>RouteGuide logs your 200 OK acknowledgment, automatically marking Milestone 6 as <span className="text-emerald-500 font-bold">PASSED</span>.</li>
+                <li>Oreedu logs your 200 OK acknowledgment, automatically marking Milestone 6 as <span className="text-emerald-500 font-bold">PASSED</span>.</li>
               </ol>
             </div>
           </div>

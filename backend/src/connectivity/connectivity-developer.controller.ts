@@ -103,7 +103,7 @@ export class ConnectivityDeveloperController {
   }
 
   @Post('register')
-  @ApiOperation({ summary: 'Register external PMS / Channel Manager company for RouteGuide Connectivity' })
+  @ApiOperation({ summary: 'Register external PMS / Channel Manager company for Oreedu Connectivity' })
   async register(@Body() dto: CreateDeveloperRegisterDto, @Req() req: any) {
     const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
     checkRateLimit(`register_${clientIp}`, 5, 60000);
@@ -229,7 +229,7 @@ export class ConnectivityDeveloperController {
       partner: this.sanitizePartner(partner),
       sandboxProperty: {
         propertyId: 'TEST-PROP-001',
-        name: 'RouteGuide Sandbox Resort',
+        name: 'Oreedu Sandbox Resort',
       },
       hasWebhookSecretConfigured: !!partner.webhookSecret,
     };
@@ -309,10 +309,10 @@ export class ConnectivityDeveloperController {
   }
 
   @Get('postman/collection')
-  @ApiOperation({ summary: 'Download official RouteGuide V1 Sandbox Postman Collection JSON' })
+  @ApiOperation({ summary: 'Download official Oreedu V1 Sandbox Postman Collection JSON' })
   async getPostmanCollection(@Req() req: any, @Res({ passthrough: true }) res: any) {
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename="RouteGuide_V1_Sandbox.postman_collection.json"');
+    res.setHeader('Content-Disposition', 'attachment; filename="Oreedu_V1_Sandbox.postman_collection.json"');
     const protocol = req.protocol || 'http';
     const host = req.get('host') || 'localhost:3000';
     const baseUrl = `${protocol}://${host}`;
@@ -322,10 +322,10 @@ export class ConnectivityDeveloperController {
   @Get('postman/environment')
   @ApiBearerAuth()
   @UseGuards(DeveloperJwtGuard)
-  @ApiOperation({ summary: 'Download personalized RouteGuide V1 Sandbox Postman Environment JSON' })
+  @ApiOperation({ summary: 'Download personalized Oreedu V1 Sandbox Postman Environment JSON' })
   async getPostmanEnvironment(@Req() req: any, @Res({ passthrough: true }) res: any) {
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename="RouteGuide_V1_Sandbox.postman_environment.json"');
+    res.setHeader('Content-Disposition', 'attachment; filename="Oreedu_V1_Sandbox.postman_environment.json"');
     const authHeader = req.headers?.authorization || '';
     const developerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
 

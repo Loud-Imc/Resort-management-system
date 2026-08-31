@@ -74,7 +74,7 @@ const Home: React.FC = () => {
                 key: keyId,
                 amount: amount,
                 currency: currency,
-                name: 'Route Guide',
+                name: 'Oreedu',
                 description: 'Channel Partner Registration Fee',
                 order_id: orderId,
                 handler: async (paymentRes: any) => {

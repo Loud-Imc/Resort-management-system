@@ -90,7 +90,7 @@ export class ConnectivityOutboxProcessorService {
     if (process.env.CONNECTIVITY_WEBHOOK_SECRET) {
       return process.env.CONNECTIVITY_WEBHOOK_SECRET;
     }
-    return 'routeguide_default_test_secret';
+    return 'oreedu_default_test_secret';
   }
 
   /**
@@ -277,10 +277,10 @@ export class ConnectivityOutboxProcessorService {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'User-Agent': 'RouteGuide-Connectivity-Platform/1.0',
-      'X-RouteGuide-Signature': signatureHeader,
-      'X-RouteGuide-Event-Id': eventId,
-      'X-RouteGuide-Event-Type': eventType,
+      'User-Agent': 'Oreedu-Connectivity-Platform/1.0',
+      'X-Oreedu-Signature': signatureHeader,
+      'X-Oreedu-Event-Id': eventId,
+      'X-Oreedu-Event-Type': eventType,
     };
 
     const startTime = Date.now();

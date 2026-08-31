@@ -69,7 +69,7 @@ export default function DeveloperProductionDocs() {
         </div>
 
         <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-          RouteGuide enforces an automated security gate: attempting to issue or request a Production API key (<code className="text-purple-600 dark:text-purple-400 font-mono">rg_live_...</code>) before achieving <span className="text-emerald-600 dark:text-emerald-400 font-semibold">PASSED</span> certification status returns <code className="text-rose-600 dark:text-rose-400 font-mono">HTTP 403 Forbidden</code>.
+          Oreedu enforces an automated security gate: attempting to issue or request a Production API key (<code className="text-purple-600 dark:text-purple-400 font-mono">rg_live_...</code>) before achieving <span className="text-emerald-600 dark:text-emerald-400 font-semibold">PASSED</span> certification status returns <code className="text-rose-600 dark:text-rose-400 font-mono">HTTP 403 Forbidden</code>.
         </p>
 
         <div className="p-4 rounded-xl bg-slate-900 dark:bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 shadow-sm">
@@ -103,7 +103,7 @@ export default function DeveloperProductionDocs() {
               <tr>
                 <td className="p-3 font-semibold font-sans text-slate-900 dark:text-white">Base URL</td>
                 <td className="p-3">/api/connectivity/v1</td>
-                <td className="p-3 text-slate-900 dark:text-white">https://api.routeguide.com/api</td>
+                <td className="p-3 text-slate-900 dark:text-white">https://api.oreedu.com/api</td>
               </tr>
               <tr>
                 <td className="p-3 font-semibold font-sans text-slate-900 dark:text-white">Target Property ID</td>

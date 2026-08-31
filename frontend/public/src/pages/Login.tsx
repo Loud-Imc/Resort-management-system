@@ -124,7 +124,7 @@ export default function Login() {
 
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center mb-6">
-                    <img src={logo} alt="Oreedu" className="h-20 w-auto" />
+                    <img src={logo} alt="Oreedu" className="h-9 w-auto" />
                 </div>
                 <h2 className="text-center text-3xl font-extrabold text-gray-900 font-serif">
                     Sign In or Register

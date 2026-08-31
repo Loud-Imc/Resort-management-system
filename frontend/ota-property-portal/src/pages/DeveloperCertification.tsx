@@ -16,7 +16,7 @@ export default function DeveloperCertification() {
       step: '02',
       title: '2. RoomType & RatePlan Mapping Configuration',
       key: 'roomTypeMapping',
-      details: 'Map external PMS room code (e.g. DELUXE, SUITE) and rate plan code (e.g. BAR_EP) to RouteGuide internal entity IDs.',
+      details: 'Map external PMS room code (e.g. DELUXE, SUITE) and rate plan code (e.g. BAR_EP) to Oreedu internal entity IDs.',
       criteria: 'Valid active mapping record present in connectivity matrix for TEST-PROP-001.',
     },
     {
@@ -44,7 +44,7 @@ export default function DeveloperCertification() {
       step: '06',
       title: '6. Webhook Delivery & HMAC Verification',
       key: 'webhookAndHmac',
-      details: 'Configure valid HTTPS destination webhook URL, receive RouteGuide signed PING webhook event, and verify X-RouteGuide-Signature header.',
+      details: 'Configure valid HTTPS destination webhook URL, receive Oreedu signed PING webhook event, and verify X-Oreedu-Signature header.',
       criteria: 'Outbound webhook request delivered with HTTP 200/204 response from partner receiver.',
     },
   ];
@@ -60,7 +60,7 @@ export default function DeveloperCertification() {
           Partner Self-Certification Guide
         </h1>
         <p className="text-slate-600 dark:text-slate-400 text-sm max-w-3xl leading-relaxed">
-          Self-Certification is RouteGuide’s automated quality assurance process. Completing all 6 milestones on <code className="font-mono text-teal-600 dark:text-teal-400">TEST-PROP-001</code> verifies that your PMS or Channel Manager integration handles inventory sync, bookings, idempotency, and HMAC webhooks securely before unlocking Production access.
+          Self-Certification is Oreedu’s automated quality assurance process. Completing all 6 milestones on <code className="font-mono text-teal-600 dark:text-teal-400">TEST-PROP-001</code> verifies that your PMS or Channel Manager integration handles inventory sync, bookings, idempotency, and HMAC webhooks securely before unlocking Production access.
         </p>
       </div>
 
@@ -111,7 +111,7 @@ export default function DeveloperCertification() {
           </div>
           <p className="font-bold text-sm text-slate-900 dark:text-white">Zero Manual Waiting</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            RouteGuide automatically records API traffic, idempotency checks, and webhook receipts in real time.
+            Oreedu automatically records API traffic, idempotency checks, and webhook receipts in real time.
           </p>
         </div>
 
@@ -144,7 +144,7 @@ export default function DeveloperCertification() {
             The Six Certification Milestones
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Detailed requirements for each milestone evaluated by the RouteGuide automated auditor:
+            Detailed requirements for each milestone evaluated by the Oreedu automated auditor:
           </p>
         </div>
 

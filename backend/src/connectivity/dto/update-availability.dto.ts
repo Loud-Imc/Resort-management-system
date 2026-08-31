@@ -38,7 +38,7 @@ export class UpdateAvailabilityItemDto {
 }
 
 export class UpdateAvailabilityDto {
-  @ApiProperty({ description: 'RouteGuide Property ID', example: 'c39b81f2-...' })
+  @ApiProperty({ description: 'Oreedu Property ID', example: 'c39b81f2-...' })
   @IsString()
   @IsNotEmpty()
   propertyId: string;
