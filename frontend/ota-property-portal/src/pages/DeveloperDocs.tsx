@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 
 export default function DeveloperDocs() {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState<boolean>(false);
   const [activeSection, setActiveSection] = useState<string>('overview');
 
   const copyToClipboard = (text: string, sectionId: string) => {
@@ -26,6 +27,17 @@ export default function DeveloperDocs() {
     setCopiedSection(sectionId);
     toast.success('Copied to clipboard!');
     setTimeout(() => setCopiedSection(null), 2000);
+  };
+
+  const handleCopyAll = () => {
+    const el = document.getElementById('docs-main-content');
+    if (el) {
+      const text = el.innerText;
+      navigator.clipboard.writeText(text);
+      setCopiedAll(true);
+      toast.success('Copied full V1 API Reference & Integration Guide to clipboard!');
+      setTimeout(() => setCopiedAll(false), 2500);
+    }
   };
 
   const sections = [
@@ -72,9 +84,19 @@ export default function DeveloperDocs() {
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 font-sans">
       {/* Sidebar Table of Contents */}
       <aside className="lg:col-span-1 hidden lg:block sticky top-24 h-[calc(100vh-8rem)] overflow-y-auto pr-2 space-y-4 text-xs">
-        <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm pb-2 border-b border-slate-200 dark:border-slate-800">
-          <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          API Guide Contents
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-sm">
+            <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            API Guide Contents
+          </div>
+          <button
+            onClick={handleCopyAll}
+            title="Copy entire V1 API Reference & Integration Guide"
+            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+          >
+            {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copiedAll ? 'Copied' : 'Copy All'}
+          </button>
         </div>
 
         <nav className="space-y-1">
@@ -112,17 +134,26 @@ export default function DeveloperDocs() {
       </aside>
 
       {/* Documentation Main Column */}
-      <div className="lg:col-span-3 space-y-14 text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+      <div id="docs-main-content" className="lg:col-span-3 space-y-14 text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
         {/* Top Header Banner */}
         <div className="space-y-4 pb-6 border-b border-slate-200 dark:border-slate-800">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20">
-            <Terminal className="w-3.5 h-3.5" /> RouteGuide OTA Connectivity V1 Technical Specification
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20">
+              <Terminal className="w-3.5 h-3.5" /> Oreedu OTA Connectivity V1 Technical Specification
+            </div>
+            <button
+              onClick={handleCopyAll}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-emerald-400 text-xs font-bold border border-slate-700 transition-all shadow-md shrink-0 cursor-pointer"
+            >
+              {copiedAll ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-emerald-400" />}
+              {copiedAll ? 'Copied Entire API Guide!' : 'Copy Entire V1 API Reference'}
+            </button>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             V1 API Reference & Integration Guide
           </h1>
           <p className="text-slate-600 dark:text-slate-400 text-sm max-w-2xl leading-relaxed">
-            The definitive technical guide for external Property Management Systems (PMS), Channel Managers, and Central Reservation Systems (CRS) integrating with RouteGuide.
+            The definitive technical guide for external Property Management Systems (PMS), Channel Managers, and Central Reservation Systems (CRS) integrating with Oreedu.
           </p>
 
           {/* Quick Onboarding Banner */}
@@ -150,7 +181,7 @@ export default function DeveloperDocs() {
             1. Overview & B2B Architecture
           </h2>
           <p>
-            The RouteGuide OTA Connectivity Platform operates as a vendor-neutral, bi-directional REST boundary. External software systems can manage inventory distribution, rate plans, restrictions, bookings, and receive real-time webhook event notifications.
+            The Oreedu OTA Connectivity Platform operates as a vendor-neutral, bi-directional REST boundary. External software systems can manage inventory distribution, rate plans, restrictions, bookings, and receive real-time webhook event notifications.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
@@ -174,7 +205,7 @@ export default function DeveloperDocs() {
             2. Environments & Base URLs
           </h2>
           <p>
-            All RouteGuide Connectivity V1 API requests must target the full environment base URL corresponding to your issued credential environment:
+            All Oreedu Connectivity V1 API requests must target the full environment base URL corresponding to your issued credential environment:
           </p>
 
           <div className="space-y-3">
@@ -186,8 +217,8 @@ export default function DeveloperDocs() {
                 <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">TEST-PROP-001 ONLY</span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-950 font-mono text-xs text-emerald-400 flex items-center justify-between border border-slate-800">
-                <span>https://staging-api.routeguide.in/api/connectivity/v1</span>
-                <button onClick={() => copyToClipboard('https://staging-api.routeguide.in/api/connectivity/v1', 'url-sandbox')} className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white">
+                <span>https://staging-api.myoreedu.com/api/connectivity/v1</span>
+                <button onClick={() => copyToClipboard('https://staging-api.myoreedu.com/api/connectivity/v1', 'url-sandbox')} className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white">
                   {copiedSection === 'url-sandbox' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
@@ -202,8 +233,8 @@ export default function DeveloperDocs() {
                 <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">CERTIFIED PARTNERS ONLY</span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-950 font-mono text-xs text-purple-300 flex items-center justify-between border border-slate-800">
-                <span>https://api.routeguide.in/api/connectivity/v1</span>
-                <button onClick={() => copyToClipboard('https://api.routeguide.in/api/connectivity/v1', 'url-prod')} className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white">
+                <span>https://api.myoreedu.com/api/connectivity/v1</span>
+                <button onClick={() => copyToClipboard('https://api.myoreedu.com/api/connectivity/v1', 'url-prod')} className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white">
                   {copiedSection === 'url-prod' ? <Check className="w-3.5 h-3.5 text-purple-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
@@ -223,13 +254,13 @@ export default function DeveloperDocs() {
 
           <div className="relative rounded-2xl bg-slate-900 p-4 border border-slate-800 font-mono text-xs text-slate-200 shadow-sm">
             <button
-              onClick={() => copyToClipboard('GET /api/connectivity/v1/ping HTTP/1.1\nHost: staging-api.routeguide.in\nx-api-key: rg_test_1234567890abcdef12345678\nContent-Type: application/json', 'auth-ping')}
+              onClick={() => copyToClipboard('GET /api/connectivity/v1/ping HTTP/1.1\nHost: staging-api.oreedu.in\nx-api-key: rg_test_1234567890abcdef12345678\nContent-Type: application/json', 'auth-ping')}
               className="absolute top-3 right-3 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
             >
               {copiedSection === 'auth-ping' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
             <pre>{`GET /api/connectivity/v1/ping HTTP/1.1
-Host: staging-api.routeguide.in
+Host: staging-api.oreedu.in
 x-api-key: rg_test_1234567890abcdef12345678  # Example only — use your own Sandbox API key.
 Content-Type: application/json`}</pre>
           </div>
@@ -255,7 +286,7 @@ Content-Type: application/json`}</pre>
             4. Sandbox Environment (<code className="text-emerald-600 dark:text-emerald-400 font-mono text-base">TEST-PROP-001</code>)
           </h2>
           <p>
-            RouteGuide provides an isolated Sandbox resort <code className="text-teal-600 dark:text-teal-400 font-mono">TEST-PROP-001</code> (RouteGuide Sandbox Resort) initialized with test RoomTypes and physical rooms.
+            Oreedu provides an isolated Sandbox resort <code className="text-teal-600 dark:text-teal-400 font-mono">TEST-PROP-001</code> (Oreedu Sandbox Resort) initialized with test RoomTypes and physical rooms.
           </p>
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
             <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
@@ -303,7 +334,7 @@ x-api-key: rg_test_1234567890abcdef12345678  # Example only`}</pre>
           <pre className="p-4 rounded-2xl bg-slate-950 border border-slate-800 font-mono text-xs text-emerald-400">
 {`{
   "id": "c39b81f2-53a9-40ea-92b0-681b37b42021",
-  "name": "RouteGuide Sandbox Resort",
+  "name": "Oreedu Sandbox Resort",
   "slug": "test-prop-001",
   "city": "Kochi",
   "state": "Kerala",
@@ -328,7 +359,7 @@ x-api-key: rg_test_1234567890abcdef12345678  # Example only`}</pre>
               7. Property Connection & Room Mapping
             </h2>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Establish property connections and bind external PMS room/rate codes to RouteGuide entities.
+              Establish property connections and bind external PMS room/rate codes to Oreedu entities.
             </p>
           </div>
 
@@ -339,13 +370,13 @@ x-api-key: rg_test_1234567890abcdef12345678  # Example only`}</pre>
               <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">/api/connectivity/v1/connections</span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Initializes an active connection between your developer partner account and a RouteGuide property (e.g. <code className="font-mono">TEST-PROP-001</code> in Sandbox).
+              Initializes an active connection between your developer partner account and a Oreedu property (e.g. <code className="font-mono">TEST-PROP-001</code> in Sandbox).
             </p>
             <div className="space-y-1">
               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Request Body (CreateConnectionDto)</span>
               <pre className="p-3 rounded-xl bg-slate-950 font-mono text-xs text-slate-200 border border-slate-800">
 {`{
-  "propertyId": "TEST-PROP-001",              // Required: RouteGuide propertyId or Sandbox code
+  "propertyId": "TEST-PROP-001",              // Required: Oreedu propertyId or Sandbox code
   "externalPropertyId": "PMS-HOTEL-101"       // Required: Your external PMS property code
 }`}
               </pre>
@@ -372,7 +403,7 @@ x-api-key: rg_test_1234567890abcdef12345678  # Example only`}</pre>
               <div className="flex items-center justify-between text-slate-400 border-b border-slate-800 pb-2 font-sans font-bold">
                 <span>External PMS / Channel Manager</span>
                 <span></span>
-                <span>RouteGuide Platform Entity</span>
+                <span>Oreedu Platform Entity</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-amber-400">externalRoomTypeId ("EXT-DLX-ROOM")</span>
@@ -494,7 +525,7 @@ Content-Type: application/json
               11. Full Reservation Lifecycle (4 Core APIs)
             </h2>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              RouteGuide provides 4 distinct endpoints covering the complete reservation life-cycle from creation to cancellation.
+              Oreedu provides 4 distinct endpoints covering the complete reservation life-cycle from creation to cancellation.
             </p>
           </div>
 
@@ -504,13 +535,13 @@ Content-Type: application/json
               <span className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs">POST</span>
               <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">/api/connectivity/v1/reservations</span>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Ingests a new external PMS / Channel Manager booking into RouteGuide, validates restrictions, and allocates a physical room.</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">Ingests a new external PMS / Channel Manager booking into Oreedu, validates restrictions, and allocates a physical room.</p>
 
             <div className="space-y-1">
               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Request Body Schema (CreateConnectivityReservationDto)</span>
               <pre className="p-3 rounded-xl bg-slate-950 font-mono text-xs text-slate-200 border border-slate-800">
 {`{
-  "propertyId": "TEST-PROP-001",              // Required: RouteGuide propertyId or externalPropertyId
+  "propertyId": "TEST-PROP-001",              // Required: Oreedu propertyId or externalPropertyId
   "externalReservationId": "EXT-RES-1001",     // Required: Unique ID in external PMS
   "externalRoomTypeId": "EXT-DLX-ROOM",        // Required: Mapped external RoomType code
   "externalRatePlanId": "STD-BAR",             // Optional: Mapped external RatePlan code
@@ -571,7 +602,7 @@ Content-Type: application/json
               <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">/api/connectivity/v1/reservations/:id</span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Retrieves reservation details. The <code className="font-mono">:id</code> parameter can be the RouteGuide <code className="font-mono">reservationMappingId</code>, the RouteGuide <code className="font-mono">bookingId</code>, or your PMS <code className="font-mono">externalReservationId</code>.
+              Retrieves reservation details. The <code className="font-mono">:id</code> parameter can be the Oreedu <code className="font-mono">reservationMappingId</code>, the Oreedu <code className="font-mono">bookingId</code>, or your PMS <code className="font-mono">externalReservationId</code>.
             </p>
             <pre className="p-3 rounded-xl bg-slate-950 font-mono text-xs text-emerald-400 border border-slate-800">
 {`{
@@ -666,12 +697,12 @@ Content-Type: application/json
             12. Reservation Idempotency Guarantees
           </h2>
           <p>
-            If a network timeout occurs and your PMS re-transmits an ingestion request with the same <code className="text-emerald-600 dark:text-emerald-400 font-mono">externalReservationId</code>, RouteGuide guarantees strict idempotency:
+            If a network timeout occurs and your PMS re-transmits an ingestion request with the same <code className="text-emerald-600 dark:text-emerald-400 font-mono">externalReservationId</code>, Oreedu guarantees strict idempotency:
           </p>
           <ul className="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400 pl-2">
             <li>No duplicate booking records are created.</li>
             <li>No duplicate inventory deductions occur.</li>
-            <li>RouteGuide returns the existing booking record with <code className="font-mono text-emerald-500">"isExisting": true</code>.</li>
+            <li>Oreedu returns the existing booking record with <code className="font-mono text-emerald-500">"isExisting": true</code>.</li>
           </ul>
         </section>
 
@@ -681,7 +712,7 @@ Content-Type: application/json
             13. Webhook URL & Secret Management
           </h2>
           <p>
-            Configure where RouteGuide dispatches outbound event webhooks:
+            Configure where Oreedu dispatches outbound event webhooks:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
@@ -715,15 +746,15 @@ Authorization: Bearer <developer_token>
             14. Outbound Event Delivery & Payload Structure
           </h2>
           <p>
-            All webhooks are delivered via HTTP POST with custom RouteGuide tracking headers:
+            All webhooks are delivered via HTTP POST with custom Oreedu tracking headers:
           </p>
           <pre className="p-4 rounded-2xl bg-slate-950 border border-slate-800 font-mono text-xs text-emerald-400">
 {`POST https://webhook.yourpms.com/events HTTP/1.1
 Host: webhook.yourpms.com
 Content-Type: application/json
-X-RouteGuide-Signature: t=1787894630,v1=3ad746430a149c71e285d89f029a8f4c2049e81d8975a2
-X-RouteGuide-Event-Id: evt-2b62d7e6-8fa5-4a25-9a3b-0149e8a011ef
-X-RouteGuide-Event-Type: RESERVATION.CREATED
+X-Oreedu-Signature: t=1787894630,v1=3ad746430a149c71e285d89f029a8f4c2049e81d8975a2
+X-Oreedu-Event-Id: evt-2b62d7e6-8fa5-4a25-9a3b-0149e8a011ef
+X-Oreedu-Event-Type: RESERVATION.CREATED
 
 {
   "eventId": "evt-2b62d7e6-8fa5-4a25-9a3b-0149e8a011ef",
@@ -763,13 +794,13 @@ X-RouteGuide-Event-Type: RESERVATION.CREATED
             <pre>{`const crypto = require('crypto');
 
 /**
- * Validates incoming RouteGuide webhook signature with timing-safe comparison
- * @param {string|Buffer} rawBody - Raw HTTP body received from RouteGuide
- * @param {string} signatureHeader - Value of X-RouteGuide-Signature header
+ * Validates incoming Oreedu webhook signature with timing-safe comparison
+ * @param {string|Buffer} rawBody - Raw HTTP body received from Oreedu
+ * @param {string} signatureHeader - Value of X-Oreedu-Signature header
  * @param {string} secret - Partner Webhook HMAC secret
  * @param {number} toleranceSec - Max allowed timestamp age in seconds (default 300s)
  */
-function verifyRouteGuideWebhook(rawBody, signatureHeader, secret, toleranceSec = 300) {
+function verifyOreeduWebhook(rawBody, signatureHeader, secret, toleranceSec = 300) {
   if (!signatureHeader || !secret) return false;
 
   // 1. Extract t (timestamp) and v1 (signature hex)
@@ -819,10 +850,10 @@ function verifyRouteGuideWebhook(rawBody, signatureHeader, secret, toleranceSec 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
               <span className="font-bold text-slate-900 dark:text-white uppercase flex items-center gap-1.5">
-                <ArrowRight className="w-3.5 h-3.5 text-emerald-500" /> Inbound (PMS ➔ RouteGuide)
+                <ArrowRight className="w-3.5 h-3.5 text-emerald-500" /> Inbound (PMS ➔ Oreedu)
               </span>
               <p className="text-slate-600 dark:text-slate-400">
-                The external PMS is responsible for client-side retries. If RouteGuide returns <code className="font-mono text-amber-500">HTTP 429 Too Many Requests</code>, inspect headers:
+                The external PMS is responsible for client-side retries. If Oreedu returns <code className="font-mono text-amber-500">HTTP 429 Too Many Requests</code>, inspect headers:
               </p>
               <ul className="font-mono text-[11px] space-y-1 text-slate-600 dark:text-slate-400">
                 <li>X-RateLimit-Limit: 100</li>
@@ -833,10 +864,10 @@ function verifyRouteGuideWebhook(rawBody, signatureHeader, secret, toleranceSec 
 
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm">
               <span className="font-bold text-slate-900 dark:text-white uppercase flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-teal-500" /> Outbound (RouteGuide ➔ PMS)
+                <Clock className="w-3.5 h-3.5 text-teal-500" /> Outbound (Oreedu ➔ PMS)
               </span>
               <p className="text-slate-600 dark:text-slate-400">
-                RouteGuide automatically retries failed webhooks (HTTP 4xx/5xx/timeout) using 5-tier exponential backoff:
+                Oreedu automatically retries failed webhooks (HTTP 4xx/5xx/timeout) using 5-tier exponential backoff:
               </p>
               <ul className="font-mono text-[11px] space-y-1 text-slate-600 dark:text-slate-400">
                 <li>Retry 1: +10 seconds</li>
@@ -910,7 +941,7 @@ function verifyRouteGuideWebhook(rawBody, signatureHeader, secret, toleranceSec 
               <ShieldCheck className="w-4 h-4" /> Ready to Build Your Integration?
             </div>
             <h3 className="text-2xl font-extrabold tracking-tight">
-              Get Started with RouteGuide Sandbox Access Today
+              Get Started with Oreedu Sandbox Access Today
             </h3>
             <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
               Register your PMS, Channel Manager, or Central Reservation System. You will receive an active Sandbox API Key (<code className="text-emerald-400 font-mono">rg_test_...</code>) and Webhook secret immediately.

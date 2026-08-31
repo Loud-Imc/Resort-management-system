@@ -24,7 +24,7 @@ export class OtaGuestsController {
       where: { 
         propertyId: property.id,
         OR: [
-          { channelName: { startsWith: 'RouteGuide' } },
+          { channelName: { in: ['Oreedu', 'Oreedu', 'Oreedu PMS', 'Oreedu PMS'] } },
           { channelName: { startsWith: 'Offline CP:' } },
           { channelName: null }
         ]
@@ -82,7 +82,7 @@ export class OtaGuestsController {
       where: {
         propertyId: property.id,
         OR: [
-          { channelName: { startsWith: 'RouteGuide' } },
+          { channelName: { in: ['Oreedu', 'Oreedu', 'Oreedu PMS', 'Oreedu PMS'] } },
           { channelName: { startsWith: 'Offline CP:' } },
           { channelName: null }
         ],

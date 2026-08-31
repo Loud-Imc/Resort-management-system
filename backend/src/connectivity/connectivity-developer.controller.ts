@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Body, UseGuards, Req, ConflictException, UnauthorizedException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, UseGuards, Req, Res, ConflictException, UnauthorizedException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConnectivityPartnerService } from './services/connectivity-partner.service';
 import { ConnectivityCertificationService } from './services/connectivity-certification.service';
+import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
 import { CreateDeveloperRegisterDto } from './dto/create-developer-register.dto';
 import { DeveloperLoginDto } from './dto/developer-login.dto';
 import { CreateCredentialDto } from './dto/create-credential.dto';
@@ -41,6 +42,7 @@ export class ConnectivityDeveloperController {
     private readonly prisma: PrismaService,
     private readonly partnerService: ConnectivityPartnerService,
     private readonly certificationService: ConnectivityCertificationService,
+    private readonly sandboxService: ConnectivitySandboxService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -101,7 +103,7 @@ export class ConnectivityDeveloperController {
   }
 
   @Post('register')
-  @ApiOperation({ summary: 'Register external PMS / Channel Manager company for RouteGuide Connectivity' })
+  @ApiOperation({ summary: 'Register external PMS / Channel Manager company for Oreedu Connectivity' })
   async register(@Body() dto: CreateDeveloperRegisterDto, @Req() req: any) {
     const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
     checkRateLimit(`register_${clientIp}`, 5, 60000);
@@ -227,7 +229,7 @@ export class ConnectivityDeveloperController {
       partner: this.sanitizePartner(partner),
       sandboxProperty: {
         propertyId: 'TEST-PROP-001',
-        name: 'RouteGuide Sandbox Resort',
+        name: 'Oreedu Sandbox Resort',
       },
       hasWebhookSecretConfigured: !!partner.webhookSecret,
     };
@@ -304,5 +306,37 @@ export class ConnectivityDeveloperController {
     const partnerId = req.user.id;
     // Reuse existing certification audit engine
     return this.certificationService.verifyAndEvaluate(partnerId);
+  }
+
+  @Get('postman/collection')
+  @ApiOperation({ summary: 'Download official Oreedu V1 Sandbox Postman Collection JSON' })
+  async getPostmanCollection(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="Oreedu_V1_Sandbox.postman_collection.json"');
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+    return this.sandboxService.getPostmanCollection(baseUrl);
+  }
+
+  @Get('postman/environment')
+  @ApiBearerAuth()
+  @UseGuards(DeveloperJwtGuard)
+  @ApiOperation({ summary: 'Download personalized Oreedu V1 Sandbox Postman Environment JSON' })
+  async getPostmanEnvironment(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="Oreedu_V1_Sandbox.postman_environment.json"');
+    const authHeader = req.headers?.authorization || '';
+    const developerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+
+    return this.sandboxService.getPostmanEnvironment(
+      'rg_test_PASTE_YOUR_SANDBOX_API_KEY_HERE',
+      developerToken,
+      baseUrl,
+    );
   }
 }

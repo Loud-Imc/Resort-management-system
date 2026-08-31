@@ -40,6 +40,9 @@ import { PropertiesList, PropertyForm, PropertyRequestsList } from './pages/Prop
 // Channel Partners
 import { CPList } from './pages/ChannelPartners';
 
+// Connectivity (PMS / Channel Manager external partners)
+import ConnectivityPartnersAdmin from './pages/Connectivity/ConnectivityPartnersAdmin';
+
 // Marketing
 import { MarketingDashboard, CouponsPage, NotificationCenter, BannersPage, HeroContentPage, PromotionsPage } from './pages/Marketing';
 
@@ -110,6 +113,9 @@ function App() {
 
                     {/* Channel Partners */}
                     <Route path="channel-partners" element={<CPList />} />
+
+                    {/* Connectivity — External PMS / Channel Manager Admin */}
+                    <Route path="connectivity/partners" element={<ConnectivityPartnersAdmin />} />
 
                     {/* Marketing Management */}
                     <Route path="marketing" element={<MarketingDashboard />} />

@@ -65,7 +65,7 @@ export class ConnectivityController {
   }
 
   @Post('connections')
-  @ApiOperation({ summary: 'Connect a RouteGuide property using externalPropertyId' })
+  @ApiOperation({ summary: 'Connect a Oreedu property using externalPropertyId' })
   async createConnection(
     @CurrentPartner() partner: any,
     @CurrentCredential() credential: any,

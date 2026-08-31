@@ -186,7 +186,7 @@ export class ConnectivityCertificationService {
       status: hasRoomMappings ? 'PASSED' : 'NOT_STARTED',
       details: hasRoomMappings
         ? `Mapped ${sandboxConn.roomMappings.length} RoomType(s) on TEST-PROP-001`
-        : 'Partner must map at least one external room code to a RouteGuide RoomType on TEST-PROP-001.',
+        : 'Partner must map at least one external room code to a Oreedu RoomType on TEST-PROP-001.',
     };
 
     // Query partner's logs for TEST-PROP-001 / V1 endpoints

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import ForgotPassword from '../components/auth/ForgotPassword';
-import logo from '../assets/routeguide.svg';
+import logo from '../assets/oreedu.svg';
 
 type ErrorField = 'email' | 'password' | 'general' | null;
 
@@ -90,9 +90,9 @@ const Login: React.FC = () => {
                 <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
                     <img
                         src={logo}
-                        alt="Route Guide"
+                        alt="Oreedu"
                         style={{
-                            height: '64px',
+                            height: '36px',
                             width: 'auto',
                             objectFit: 'contain'
                         }}

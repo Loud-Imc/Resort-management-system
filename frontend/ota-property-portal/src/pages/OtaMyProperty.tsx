@@ -280,7 +280,7 @@ export default function OtaMyProperty() {
 
         {/* Property Name overlay at the bottom of the cover image */}
         <div className="absolute bottom-4 left-6 text-left">
-          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary bg-primary-foreground/10 px-2 py-0.5 rounded-md backdrop-blur-sm border border-primary/20">RouteGuide Partner</span>
+          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary bg-primary-foreground/10 px-2 py-0.5 rounded-md backdrop-blur-sm border border-primary/20">Oreedu Partner</span>
           <h1 className="text-xl sm:text-2xl font-black text-white mt-1 drop-shadow-md">{name || 'Unnamed Property'}</h1>
         </div>
 

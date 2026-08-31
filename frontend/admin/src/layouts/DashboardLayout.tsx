@@ -28,10 +28,12 @@ import {
     Image as ImageIcon,
     Type,
     LayoutGrid,
-    Search
+    Search,
+    PlugZap
 } from 'lucide-react';
 import clsx from 'clsx';
-import logo from '../assets/routeguide.svg';
+import logoLight from '../assets/oreedu-04.svg';
+import logoDark from '../assets/oreedu-05.svg';
 import NotificationBell from '../components/NotificationBell';
 
 export default function DashboardLayout() {
@@ -99,6 +101,9 @@ export default function DashboardLayout() {
         ...(hasPermission('channelPartners.read') ? [
             { icon: Users, label: 'CP Onboarding', path: '/channel-partners', badgePath: '/channel-partners' },
         ] : []),
+        ...((isSuperAdmin || user?.roles?.includes('Admin')) ? [
+            { icon: PlugZap, label: 'PMS / CM Partners', path: '/connectivity/partners' },
+        ] : []),
         ...(hasPermission('payments.read') ? [
             { icon: IndianRupee, label: 'CP Redemptions', path: '/financials/redemptions', badgePath: '/financials/redemptions' },
         ] : []),
@@ -146,9 +151,9 @@ export default function DashboardLayout() {
                 <div className="p-1 border-b border-gray-100">
                     <Link to="/" className="flex items-center justify-center mb-6 overflow-hidden">
                         <img
-                            src={logo}
-                            alt="Route Guide"
-                            className="h-12 w-auto object-contain mt-2"
+                            src={theme === 'dark' ? logoDark : logoLight}
+                            alt="Oreedu"
+                            className="h-9 w-auto object-contain mt-2"
                         />
                     </Link>
 
@@ -239,7 +244,7 @@ export default function DashboardLayout() {
             {/* Mobile Header & Sidebar Overlay */}
             <div className="md:hidden fixed w-full bg-card border-b border-border z-20 flex items-center justify-between p-4">
                 <Link to="/" className="flex items-center">
-                    <img src={logo} alt="Route Guide" className="h-10 w-auto object-contain -my-4" />
+                    <img src={theme === 'dark' ? logoDark : logoLight} alt="Oreedu" className="h-10 w-auto object-contain" />
                 </Link>
                 <div className="flex items-center gap-2">
                     <button

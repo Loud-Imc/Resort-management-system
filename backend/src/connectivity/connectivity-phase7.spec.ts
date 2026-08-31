@@ -256,7 +256,7 @@ describe('Phase 7 — Sandbox MVP Unit Tests', () => {
       id: 'TEST-PROP-001',
       code: 'TEST-PROP-001',
       slug: 'TEST-PROP-001',
-      name: 'RouteGuide Sandbox Resort',
+      name: 'Oreedu Sandbox Resort',
       isActive: true,
       status: 'APPROVED',
       latitude: 9.9312,
@@ -273,7 +273,7 @@ describe('Phase 7 — Sandbox MVP Unit Tests', () => {
       propertyId: 'TEST-PROP-001',
       externalPropertyId: 'EXT-PROP-001',
       status: 'ACTIVE',
-      property: { id: 'TEST-PROP-001', name: 'RouteGuide Sandbox Resort', code: 'TEST-PROP-001' },
+      property: { id: 'TEST-PROP-001', name: 'Oreedu Sandbox Resort', code: 'TEST-PROP-001' },
     });
 
     const conn = await connectionService.createConnection(

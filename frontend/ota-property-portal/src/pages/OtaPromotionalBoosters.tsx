@@ -47,7 +47,7 @@ export default function OtaPromotionalBoosters() {
         key: order.keyId,
         amount: order.amount,
         currency: order.currency,
-        name: 'RouteGuide Promotions',
+        name: 'Oreedu Promotions',
         description: `${tier.replace('_', ' ')} Campaign Booster`,
         order_id: order.id,
         handler: async function (response: any) {

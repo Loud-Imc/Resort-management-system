@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import logo from '../assets/routeguide.svg';
+import logo from '../assets/oreedu.svg';
 
 const loginSchema = z.object({
     email: z.string().min(1, 'Email or Phone Number is required'),
@@ -83,6 +83,7 @@ export default function Login() {
             await login(data);
             navigate('/');
         } catch (err: any) {
+            console.error('Admin Login Error Details:', err);
             const { message, field } = parseLoginError(err);
             setError(message);
             setErrorField(field);
@@ -93,8 +94,8 @@ export default function Login() {
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
             <div className="max-w-md w-full bg-card rounded-xl shadow-xl border border-border p-8 transition-colors duration-300">
                 <div className="text-center mb-10 flex flex-col items-center">
-                    <img src={logo} alt="Route Guide" className="h-20 w-auto mb-4" />
-                    <h1 className="text-4xl font-bold text-foreground tracking-tight">Route Guide</h1>
+                    <img src={logo} alt="Oreedu" className="h-9 w-auto mb-4" />
+                    <h1 className="text-4xl font-bold text-foreground tracking-tight">Oreedu</h1>
                     <p className="text-muted-foreground mt-2 font-medium">Platform Administration</p>
                 </div>
 

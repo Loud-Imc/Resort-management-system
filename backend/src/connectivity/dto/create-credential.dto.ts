@@ -3,8 +3,8 @@ import { ConnectivityCredentialEnv } from '@prisma/client';
 
 export class CreateCredentialDto {
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  @IsOptional()
+  name?: string;
 
   @IsEnum(ConnectivityCredentialEnv)
   @IsOptional()

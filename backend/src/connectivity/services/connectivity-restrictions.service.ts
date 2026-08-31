@@ -8,6 +8,8 @@ import { AvailabilityService } from '../../bookings/availability.service';
 import { QueryRestrictionsDto } from '../dto/query-restrictions.dto';
 import { UpdateRestrictionsDto } from '../dto/update-restrictions.dto';
 
+import { ConnectivityLogService } from './connectivity-log.service';
+
 @Injectable()
 export class ConnectivityRestrictionsService {
   constructor(
@@ -16,6 +18,7 @@ export class ConnectivityRestrictionsService {
     private readonly mappingService: ConnectivityMappingService,
     private readonly settingsService: ConnectivitySettingsService,
     private readonly availabilityService: AvailabilityService,
+    private readonly logService: ConnectivityLogService,
     @Optional() @Inject(forwardRef(() => ConnectivityOutboxService))
     private readonly outboxService?: ConnectivityOutboxService,
   ) {}
@@ -120,6 +123,16 @@ export class ConnectivityRestrictionsService {
       }
     }
 
+    await this.logService.createLog({
+      partnerId,
+      connectionId: connection.id,
+      endpoint: '/api/connectivity/v1/restrictions',
+      method: 'GET',
+      statusCode: 200,
+      requestPayload: dto,
+      responsePayload: { propertyId: connection.propertyId, count: restrictionResults.length },
+    });
+
     return {
       propertyId: connection.propertyId,
       externalPropertyId: connection.externalPropertyId,
@@ -196,31 +209,21 @@ export class ConnectivityRestrictionsService {
         throw new BadRequestException(`maxStay (${item.maxStay}) cannot be less than minStay (${minVal})`);
       }
 
-      // Upsert or create RestrictionRule record or fallback to stopSellRestriction
-      const rule = (this.prisma as any).restrictionRule
-        ? await (this.prisma as any).restrictionRule.create({
-            data: {
-              propertyId,
-              roomTypeId: mapping.roomTypeId,
-              startDate: start,
-              endDate: end,
-              minStayArrival: item.minStayArrival ?? null,
-              minStayThrough: item.minStayThrough ?? null,
-              maxStay: item.maxStay ?? null,
-              closedToArrival: item.closedToArrival ?? false,
-              closedToDeparture: item.closedToDeparture ?? false,
-              isActive: true,
-            },
-          })
-        : await this.prisma.stopSellRestriction.create({
-            data: {
-              propertyId,
-              roomTypeId: mapping.roomTypeId,
-              startDate: start,
-              endDate: end,
-              isActive: true,
-            },
-          });
+      // Create RestrictionRule record
+      const rule = await this.prisma.restrictionRule.create({
+        data: {
+          propertyId,
+          roomTypeId: mapping.roomTypeId,
+          startDate: start,
+          endDate: end,
+          minStayArrival: item.minStayArrival ?? null,
+          minStayThrough: item.minStayThrough ?? null,
+          maxStay: item.maxStay ?? null,
+          closedToArrival: item.closedToArrival ?? false,
+          closedToDeparture: item.closedToDeparture ?? false,
+          isActive: true,
+        },
+      });
 
       // Produce RESTRICTION.CHANGED Outbox Event (with originatingPartnerId echo suppression)
       if (this.outboxService) {
@@ -254,6 +257,16 @@ export class ConnectivityRestrictionsService {
         closedToDeparture: rule.closedToDeparture,
       });
     }
+
+    await this.logService.createLog({
+      partnerId,
+      connectionId: connection.id,
+      endpoint: '/api/connectivity/v1/restrictions',
+      method: 'PUT',
+      statusCode: 200,
+      requestPayload: dto,
+      responsePayload: { status: 'SUCCESS', updatedRulesCount: updatedRules.length },
+    });
 
     return {
       status: 'SUCCESS',

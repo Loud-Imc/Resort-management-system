@@ -16,13 +16,26 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   app.enableCors({
-    origin: [
-      process.env.ADMIN_URL || 'http://localhost:5174',
-      process.env.PUBLIC_URL || 'http://localhost:5173',
-      process.env.CHANNEL_PARTNER_URL || 'http://localhost:5176',
-      process.env.PROPERTY_URL || 'http://localhost:5175',
-      process.env.OPP_URL || 'http://localhost:5177',
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const allowedOrigins = [
+        process.env.ADMIN_URL,
+        process.env.PUBLIC_URL,
+        process.env.CHANNEL_PARTNER_URL,
+        process.env.PROPERTY_URL,
+        process.env.OPP_URL,
+      ].filter(Boolean);
+
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.myoreedu.com') ||
+        origin.endsWith('.routeguide.in') ||
+        origin.includes('localhost')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   });
 

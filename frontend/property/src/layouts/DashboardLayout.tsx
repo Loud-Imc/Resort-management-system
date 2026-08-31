@@ -22,7 +22,8 @@ import {
     LayoutDashboard
 } from 'lucide-react';
 import clsx from 'clsx';
-import logo from '../assets/logo.svg';
+import logoLight from '../assets/oreedu-04.svg';
+import logoDark from '../assets/oreedu-05.svg';
 import NotificationBell from '../components/NotificationBell';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
@@ -59,7 +60,7 @@ export default function DashboardLayout() {
     const handleActivatePms = async () => {
         try {
             await api.post('/ota-portal/dashboard/activate-pms');
-            toast.success('RouteGuide PMS Package Activated successfully!');
+            toast.success('Oreedu PMS Package Activated successfully!');
             setShowUpgradeModal(false);
             window.location.reload();
         } catch (err: any) {
@@ -119,9 +120,9 @@ export default function DashboardLayout() {
                 <div className="p-6 border-b border-border">
                     <Link to="/" className="flex items-center justify-center mb-6 overflow-hidden">
                         <img
-                            src={logo}
-                            alt="Route Guide"
-                            className={`h-11 w-auto object-contain ${theme !== "light" ? "brightness-0 invert" : ""}`}
+                            src={theme === 'dark' ? logoDark : logoLight}
+                            alt="Oreedu"
+                            className="h-10 w-auto object-contain"
                         />
                     </Link>
 
@@ -252,7 +253,7 @@ export default function DashboardLayout() {
             {/* Mobile Header */}
             <div className="md:hidden fixed w-full bg-card border-b border-border z-20 flex items-center justify-between p-4">
                 <Link to="/" className="flex items-center">
-                    <img src={logo} alt="Route Guide" className={`h-11 w-auto object-contain -my-16 ${theme !== "light" ? "brightness-0 invert" : ""}`} />
+                    <img src={theme === 'dark' ? logoDark : logoLight} alt="Oreedu" className="h-10 w-auto object-contain" />
                 </Link>
                 <div className="flex items-center gap-1">
                     <NotificationBell />

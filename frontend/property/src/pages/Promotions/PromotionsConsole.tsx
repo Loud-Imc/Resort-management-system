@@ -117,7 +117,7 @@ export default function PromotionsConsole() {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'Route Guide',
+        name: 'Oreedu',
         description: `Regional Boost: ${paymentTarget.type === 'HOMEPAGE_FEATURED' ? 'Home Featured' : 'Search Highlight'}`,
         order_id: orderData.orderId,
         prefill,
@@ -417,7 +417,7 @@ export default function PromotionsConsole() {
                 </div>
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-widest">Secure Payment</h3>
-                  <p className="text-[10px] text-emerald-100 font-medium">Powered by Route Guide Payments</p>
+                  <p className="text-[10px] text-emerald-100 font-medium">Powered by Oreedu Payments</p>
                 </div>
               </div>
               <button 

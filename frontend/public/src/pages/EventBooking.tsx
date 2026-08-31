@@ -102,7 +102,7 @@ export default function EventBookingFlow() {
                 key: paymentInfo.keyId,
                 amount: paymentInfo.amount,
                 currency: paymentInfo.currency,
-                name: 'Route Guide',
+                name: 'Oreedu',
                 description: `Event Ticket - ${event.title}`,
                 order_id: paymentInfo.orderId,
                 handler: async function (response: any) {

@@ -780,13 +780,13 @@ export class BookingsService {
                 if (cp) offlineCpNameForChannel = cp.name;
             }
 
-            let computedChannelName = 'RouteGuide OTA';
+            let computedChannelName = 'Oreedu OTA';
             if (offlineCpNameForChannel) {
                 computedChannelName = `Offline CP: ${offlineCpNameForChannel}`;
             } else if (channelPartnerId) {
-                computedChannelName = 'RouteGuide CP';
+                computedChannelName = 'Oreedu CP';
             } else if (isAuthorizedStaff || isManualBooking) {
-                computedChannelName = 'RouteGuide PMS';
+                computedChannelName = 'Oreedu PMS';
             }
 
             const newBooking = await tx.booking.create({

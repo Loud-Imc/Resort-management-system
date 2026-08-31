@@ -319,7 +319,7 @@ function buildDoc(data: InvoiceData, type: 'GUEST' | 'PARTNER'): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   setColor('#0d9488');
-  doc.text('www.routeguide.in', pageW - margin, pageH - 25, { align: 'right' });
+  doc.text('www.myoreedu.com', pageW - margin, pageH - 25, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);

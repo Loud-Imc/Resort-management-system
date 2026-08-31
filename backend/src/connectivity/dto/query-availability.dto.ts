@@ -2,7 +2,7 @@ import { IsNotEmpty, IsString, IsISO8601, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class QueryAvailabilityDto {
-  @ApiProperty({ description: 'Internal RouteGuide Property ID or External Property ID' })
+  @ApiProperty({ description: 'Internal Oreedu Property ID or External Property ID' })
   @IsNotEmpty()
   @IsString()
   propertyId: string;
@@ -17,7 +17,7 @@ export class QueryAvailabilityDto {
   @IsISO8601()
   endDate: string;
 
-  @ApiPropertyOptional({ description: 'Filter by specific RouteGuide RoomType ID' })
+  @ApiPropertyOptional({ description: 'Filter by specific Oreedu RoomType ID' })
   @IsOptional()
   @IsString()
   roomTypeId?: string;

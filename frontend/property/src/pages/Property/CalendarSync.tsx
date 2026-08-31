@@ -1354,7 +1354,7 @@ export default function CalendarSync() {
                 <h3 className="text-xl font-bold text-foreground">Emergency Stop Sell / Pause Bookings</h3>
               </div>
               <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                PAUSE all online checkouts on external OTAs (via Channex) and direct booking website (RouteGuide) for a specific range. PMS walk-in desk remains open.
+                PAUSE all online checkouts on external OTAs (via Channex) and direct booking website (Oreedu) for a specific range. PMS walk-in desk remains open.
               </p>
             </div>
             <button

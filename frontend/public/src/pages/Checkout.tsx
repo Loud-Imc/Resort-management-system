@@ -287,7 +287,7 @@ export default function Checkout() {
                 key: paymentInfo.keyId,
                 amount: paymentInfo.amount,
                 currency: paymentInfo.currency,
-                name: 'Route Guide',
+                name: 'Oreedu',
                 description: `Room Booking - ${booking.bookingNumber}`,
                 order_id: paymentInfo.orderId,
                 handler: async function (response: any) {

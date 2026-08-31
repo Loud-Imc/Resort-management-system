@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Facebook, Instagram, Twitter, Youtube, Send } from 'lucide-react';
-import logo from '../../assets/routeguide.svg';
+import logoDark from '../../assets/oreedu-05.svg';
 
 export default function Footer() {
     const [email, setEmail] = useState('');
@@ -66,9 +66,9 @@ export default function Footer() {
                         {/* Center — Logo + Social */}
                         <div className="flex flex-col items-center gap-4">
                             <img
-                                src={logo}
-                                alt="Route Guide"
-                                className="h-12 w-auto brightness-0 invert opacity-90"
+                                src={logoDark}
+                                alt="Oreedu"
+                                className="h-10 w-auto opacity-90"
                             />
                             <div className="flex items-center gap-4">
                                 {[
@@ -120,7 +120,7 @@ export default function Footer() {
 
                     {/* Bottom bar */}
                     <div className="border-t border-white/5 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-gray-600 text-[10px]">
-                        <p>© {new Date().getFullYear()} All rights Reserved by Route Guide | Develop & Designed By Loudimc.com</p>
+                        <p>© {new Date().getFullYear()} All rights Reserved by Oreedu | Develop & Designed By Loudimc.com</p>
                         <div className="flex gap-4">
                             <a href="/terms" className="hover:text-gray-400 transition-colors">Terms & Conditions</a>
                             <a href="/privacy" className="hover:text-gray-400 transition-colors">Privacy Policy</a>

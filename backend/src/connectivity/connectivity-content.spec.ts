@@ -237,7 +237,7 @@ describe('Property Content Connectivity API (GET /connectivity/v1/content) Unit 
     expect(result.roomTypes[0].name).toBe('Deluxe Room');
   });
 
-  it('10. Internal roomTypeId and platformRoomTypeId are NOT returned in roomTypes', async () => {
+  it('10. Oreedu RoomType ID is returned as id for mapping configuration', async () => {
     mockPrismaService.connectivityPartnerConnection.findFirst.mockResolvedValue(mockActiveConnection);
     mockPrismaService.property.findUnique.mockResolvedValue(mockDbProperty);
     mockPrismaService.connectivityRoomTypeMapping.findMany.mockResolvedValue(mockRoomMappings);
@@ -247,7 +247,7 @@ describe('Property Content Connectivity API (GET /connectivity/v1/content) Unit 
     });
 
     const rtObj = result.roomTypes[0] as any;
-    expect(rtObj.id).toBeUndefined();
+    expect(rtObj.id).toBe('rt-deluxe-uuid');
     expect(rtObj.roomTypeId).toBeUndefined();
     expect(rtObj.platformRoomTypeId).toBeUndefined();
   });
@@ -378,7 +378,7 @@ describe('Property Content Connectivity API (GET /connectivity/v1/content) Unit 
 
     const strResponse = JSON.stringify(result);
     expect(strResponse).not.toContain('prop-uuid-999');
-    expect(strResponse).not.toContain('rt-deluxe-uuid');
+    expect(strResponse).toContain('rt-deluxe-uuid');
     expect(strResponse).not.toContain('propertyId');
     expect(strResponse).not.toContain('roomTypeId');
     expect(strResponse).not.toContain('platformPropertyId');

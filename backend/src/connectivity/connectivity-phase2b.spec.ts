@@ -8,10 +8,16 @@ import { ConnectivityConnectionService } from './services/connectivity-connectio
 import { ConnectivityMappingService } from './services/connectivity-mapping.service';
 import { ConnectivitySettingsService } from './services/connectivity-settings.service';
 import { ConnectivityRestrictionsService } from './services/connectivity-restrictions.service';
+import { ConnectivityLogService } from './services/connectivity-log.service';
 
 describe('Connectivity Platform Phase 2B Unit Tests (Restrictions)', () => {
   let availabilityService: AvailabilityService;
   let restrictionsService: ConnectivityRestrictionsService;
+
+  const mockLogService = {
+    createLog: jest.fn().mockResolvedValue(null),
+    getLogs: jest.fn().mockResolvedValue([]),
+  };
 
   const mockPrismaService = {
     stopSellRestriction: {
@@ -56,6 +62,7 @@ describe('Connectivity Platform Phase 2B Unit Tests (Restrictions)', () => {
         { provide: ConnectivitySettingsService, useValue: mockSettingsService },
         { provide: PricingService, useValue: mockPricingService },
         { provide: SystemSettingsService, useValue: mockSystemSettingsService },
+        { provide: ConnectivityLogService, useValue: mockLogService },
       ],
     }).compile();
 

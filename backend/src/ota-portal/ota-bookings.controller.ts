@@ -27,7 +27,7 @@ export class OtaBookingsController {
       where: { 
         propertyId: property.id,
         OR: [
-          { channelName: { startsWith: 'RouteGuide' } },
+          { channelName: { in: ['Oreedu', 'Oreedu', 'Oreedu PMS', 'Oreedu PMS'] } },
           { channelName: { startsWith: 'Offline CP:' } },
           { channelName: null }
         ]
@@ -55,12 +55,12 @@ export class OtaBookingsController {
       throw new NotFoundException('Booking not found');
     }
 
-    const isRouteGuideBooking = 
+    const isOreeduBooking = 
       !booking.channelName || 
-      booking.channelName.startsWith('RouteGuide') || 
+      (booking.channelName.startsWith('Oreedu') || booking.channelName.startsWith('Oreedu')) || 
       booking.channelName.startsWith('Offline CP:');
 
-    if (!booking.property || booking.property.ownerId !== req.user.id || !isRouteGuideBooking) {
+    if (!booking.property || booking.property.ownerId !== req.user.id || !isOreeduBooking) {
       throw new ForbiddenException('You do not have access to this booking');
     }
 
@@ -82,12 +82,12 @@ export class OtaBookingsController {
       throw new NotFoundException('Booking not found');
     }
 
-    const isRouteGuideBooking = 
+    const isOreeduBooking = 
       !booking.channelName || 
-      booking.channelName.startsWith('RouteGuide') || 
+      (booking.channelName.startsWith('Oreedu') || booking.channelName.startsWith('Oreedu')) || 
       booking.channelName.startsWith('Offline CP:');
 
-    if (!booking.property || booking.property.ownerId !== req.user.id || !isRouteGuideBooking) {
+    if (!booking.property || booking.property.ownerId !== req.user.id || !isOreeduBooking) {
       throw new ForbiddenException('You do not have access to this booking');
     }
 

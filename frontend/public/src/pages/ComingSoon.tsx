@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Mail, Instagram, Globe, Building2, UserCheck } from 'lucide-react';
-import logo from '../assets/routeguide.svg';
+import { Mail, Instagram, Globe, Building2, UserCheck, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import logoDark from '../assets/oreedu-05.svg';
 
 export default function ComingSoon() {
 
@@ -65,7 +66,7 @@ export default function ComingSoon() {
             {/* ─── HEADER ─── */}
             <header className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 flex justify-between items-center shrink-0 flex-wrap gap-4">
                 <div className="flex items-center">
-                    <img src={logo} alt="Route Guide Logo" className="h-10 md:h-12 w-auto brightness-0 invert" />
+                    <img src={logoDark} alt="Oreedu Logo" className="h-10 md:h-12 w-auto" />
                 </div>
                 <div className="flex items-center gap-3">
                     <a 
@@ -136,16 +137,19 @@ export default function ComingSoon() {
 
             {/* ─── FOOTER ─── */}
             <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 py-6 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500 shrink-0">
-                <p>© {new Date().getFullYear()} All rights Reserved by Route Guide | Develop & Designed By Loudimc.com</p>
+                <p>© {new Date().getFullYear()} All rights Reserved by Oreedu | Develop & Designed By Loudimc.com</p>
                 <div className="flex items-center gap-6">
                     <a href="https://instagram.com" className="hover:text-white transition-colors" target="_blank" rel="noopener noreferrer">
                         <Instagram className="h-4 w-4" />
                     </a>
-                    <a href="mailto:info@routeguide.in" className="hover:text-white transition-colors flex items-center gap-1.5">
-                        <Mail className="h-4 w-4" /> info@routeguide.in
+                    <Link to="/privacy" className="hover:text-white transition-colors flex items-center gap-1.5">
+                        <ShieldCheck className="h-4 w-4" /> Privacy Policy
+                    </Link>
+                    <a href="mailto:info@myoreedu.com" className="hover:text-white transition-colors flex items-center gap-1.5">
+                        <Mail className="h-4 w-4" /> info@myoreedu.com
                     </a>
-                    <a href="https://routeguide.in" className="hover:text-white transition-colors flex items-center gap-1.5">
-                        <Globe className="h-4 w-4" /> routeguide.in
+                    <a href="https://myoreedu.com" className="hover:text-white transition-colors flex items-center gap-1.5">
+                        <Globe className="h-4 w-4" /> myoreedu.com
                     </a>
                 </div>
             </footer>

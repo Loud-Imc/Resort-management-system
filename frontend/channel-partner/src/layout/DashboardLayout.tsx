@@ -16,7 +16,7 @@ import {
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 
-import logo from '../assets/routeguide.svg';
+import logo from '../assets/oreedu.svg';
 import NotificationBell from '../components/NotificationBell';
 import ProgressBar from '../components/ProgressBar';
 
@@ -104,9 +104,9 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' }}>
                     <img
                         src={logo}
-                        alt="Route Guide"
+                        alt="Oreedu"
                         style={{
-                            height: '45px',
+                            height: '42px',
                             width: 'auto',
                             objectFit: 'contain',
                         }}
@@ -196,9 +196,9 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
                         {/* Mobile logo — only visible on mobile */}
                         <Link to="/" className="mobile-only" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
                             <img
-                                src="/src/assets/routeguide-mobile.svg"
-                                alt="Route Guide"
-                                style={{ height: '52px', width: 'auto', objectFit: 'contain' }}
+                                src="/src/assets/oreedu-mobile.svg"
+                                alt="Oreedu"
+                                style={{ height: '60px', width: 'auto', objectFit: 'contain' }}
                             />
                         </Link>
 

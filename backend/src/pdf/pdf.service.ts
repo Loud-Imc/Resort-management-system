@@ -185,7 +185,7 @@ export class PdfService {
                                         },
                                         routeGuideLogoBase64 
                                           ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 38 }
-                                          : { text: 'Route Guide', style: 'brandLogo', fontSize: 8 }
+                                          : { text: 'Oreedu', style: 'brandLogo', fontSize: 8 }
                                     ],
                                     margin: [12, 45, 0, 0]
                                 }
@@ -196,7 +196,7 @@ export class PdfService {
                     return [
                         routeGuideLogoBase64 
                           ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
-                          : { text: 'Route Guide', style: 'brandLogo' },
+                          : { text: 'Oreedu', style: 'brandLogo' },
                         { text: 'Travel | Discover | Belong', style: 'brandTagline', margin: [0, 5, 0, 0] }
                     ];
                 }
@@ -405,7 +405,7 @@ export class PdfService {
             },
             {
               width: 100,
-              qr: `${process.env.FRONTEND_URL || 'https://routeguide.in'}/confirmation?bookingId=${booking.id}`,
+              qr: `${process.env.FRONTEND_URL || 'https://myoreedu.com'}/confirmation?bookingId=${booking.id}`,
               fit: 80,
               alignment: 'right',
             },
@@ -416,7 +416,7 @@ export class PdfService {
 
       footer: (currentPage: number, pageCount: number) => {
         return {
-          text: `Page ${currentPage} of ${pageCount} | Route Guide - Luxury Reimagined`,
+          text: `Page ${currentPage} of ${pageCount} | Oreedu - Luxury Reimagined`,
           style: 'footerText',
           alignment: 'center',
           margin: [0, 10, 0, 0],
@@ -487,7 +487,7 @@ export class PdfService {
           columns: [
             routeGuideLogoBase64 
               ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
-              : { text: 'Route Guide', style: 'brandLogo' },
+              : { text: 'Oreedu', style: 'brandLogo' },
             {
               stack: [
                 { text: 'ASSETS REPORT', style: 'docTitle', alignment: 'right' },
@@ -577,7 +577,7 @@ export class PdfService {
           columns: [
             routeGuideLogoBase64 
               ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
-              : { text: 'Route Guide', style: 'brandLogo' },
+              : { text: 'Oreedu', style: 'brandLogo' },
             {
               stack: [
                 { text: 'EXPENSES REPORT', style: 'docTitle', alignment: 'right' },
@@ -662,7 +662,7 @@ export class PdfService {
           columns: [
             routeGuideLogoBase64 
               ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
-              : { text: 'Route Guide', style: 'brandLogo' },
+              : { text: 'Oreedu', style: 'brandLogo' },
             {
               stack: [
                 { text: 'GUESTS REPORT', style: 'docTitle', alignment: 'right' },
@@ -738,7 +738,7 @@ export class PdfService {
           columns: [
             routeGuideLogoBase64 
               ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
-              : { text: 'Route Guide', style: 'brandLogo' },
+              : { text: 'Oreedu', style: 'brandLogo' },
             {
               stack: [
                 { text: 'GUEST PROFILE & HISTORY', style: 'docTitle', alignment: 'right' },

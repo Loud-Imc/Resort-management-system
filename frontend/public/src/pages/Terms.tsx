@@ -6,7 +6,7 @@ export default function Terms() {
                 <p>Last updated: {new Date().toLocaleDateString()}</p>
 
                 <h3>1. Introduction</h3>
-                <p>Welcome to Route Guide. By accessing our website and booking our services, you agree to these terms.</p>
+                <p>Welcome to Oreedu. By accessing our website and booking our services, you agree to these terms.</p>
 
                 <h3>2. Booking & Cancellation</h3>
                 <p>Reservations are confirmed upon receipt of payment. Cancellations made 48 hours prior to check-in are eligible for a full refund.</p>
@@ -15,7 +15,7 @@ export default function Terms() {
                 <p>We are an eco-friendly property. Please respect the environment and local wildlife. Loud music is prohibited after 10 PM.</p>
 
                 <h3>4. Liability</h3>
-                <p>Route Guide is not responsible for loss of personal belongings. Guests are advised to use the in-room safes.</p>
+                <p>Oreedu is not responsible for loss of personal belongings. Guests are advised to use the in-room safes.</p>
             </div>
         </div>
     );

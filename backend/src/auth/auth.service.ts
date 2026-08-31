@@ -211,7 +211,7 @@ export class AuthService {
 
         // Send OTP via SMS
         if (user.phone) {
-            const message = `Your password reset verification code for Route Guide is ${code}. It expires in 10 minutes.`;
+            const message = `Your password reset verification code for Oreedu is ${code}. It expires in 10 minutes.`;
             await this.notificationsService.sendSMS(user.phone, message, { otp: code });
         }
 
