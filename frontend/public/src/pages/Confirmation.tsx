@@ -10,7 +10,7 @@ import { formatDateTimeFull } from '../utils/dateTime';
 import { QRCodeSVG } from 'qrcode.react';
 // import jsPDF from 'jspdf';
 // import { toCanvas } from 'html-to-image';
-import logo from '../assets/routeguide.svg';
+import logo from '../assets/oreedu.svg';
 import api from '../services/api';
 
 
@@ -116,7 +116,7 @@ export default function Confirmation() {
                 key: paymentInfo.keyId,
                 amount: paymentInfo.amount,
                 currency: paymentInfo.currency,
-                name: 'Route Guide',
+                name: 'Oreedu',
                 description: isDepositPaid ? `Balance Payment - ${booking.bookingNumber}` : `Deposit Payment - ${booking.bookingNumber}`,
                 order_id: paymentInfo.orderId,
                 handler: async function (response: any) {
@@ -183,8 +183,8 @@ export default function Confirmation() {
     //         const imgHeight = (canvas.height * imgWidth) / canvas.width;
     //         pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
     //         const fileName = balanceDue > 0
-    //             ? `RouteGuide_Performa_Invoice_${booking.bookingNumber}.pdf`
-    //             : `RouteGuide_Invoice_${booking.bookingNumber}.pdf`;
+    //             ? `Oreedu_Performa_Invoice_${booking.bookingNumber}.pdf`
+    //             : `Oreedu_Invoice_${booking.bookingNumber}.pdf`;
     //         pdf.save(fileName);
     //     } catch (error) {
     //         console.error('Error generating PDF:', error);
@@ -204,8 +204,8 @@ export default function Confirmation() {
             const link = document.createElement('a');
             link.href = url;
             const fileName = balanceDue > 0
-                ? `RouteGuide_Performa_Invoice_${booking.bookingNumber}.pdf`
-                : `RouteGuide_Invoice_${booking.bookingNumber}.pdf`;
+                ? `Oreedu_Performa_Invoice_${booking.bookingNumber}.pdf`
+                : `Oreedu_Invoice_${booking.bookingNumber}.pdf`;
             link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
@@ -295,10 +295,10 @@ export default function Confirmation() {
                         {/* Print Only Header Content (Visible in PDF too) */}
                         <div className="hidden print:block [.pdf-capture-mode_&]:block mb-8 [.pdf-capture-mode_&]:mb-0">
                             <div className="flex items-center gap-3 mb-6">
-                                <img src={logo} alt="Route Guide" className="logo-img h-8 w-auto brightness-0" />
+                                <img src={logo} alt="Oreedu" className="logo-img h-8 w-auto brightness-0" />
                                 <div className="h-10 w-[1px] bg-gray-200 mx-2 hidden sm:block"></div>
                                 <div>
-                                    {/* <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-widest leading-none">Route Guide</h1> */}
+                                    {/* <h1 className="text-2xl font-serif font-bold text-gray-900 uppercase tracking-widest leading-none">Oreedu</h1> */}
                                     <p className="text-[10px] text-gray-600 font-medium uppercase tracking-tighter mt-0">
                                         {balanceDue > 0 ? 'Official Booking Confirmation & Performa Invoice' : 'Official Booking Confirmation & Invoice'}
                                     </p>

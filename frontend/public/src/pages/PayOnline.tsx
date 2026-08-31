@@ -103,7 +103,7 @@ export default function PayOnline() {
                 key: paymentInfo.keyId,
                 amount: paymentInfo.amount,
                 currency: paymentInfo.currency,
-                name: 'Route Guide',
+                name: 'Oreedu',
                 description: `Complete Payment - ${booking.bookingNumber}`,
                 order_id: paymentInfo.orderId,
                 handler: async function (response: any) {

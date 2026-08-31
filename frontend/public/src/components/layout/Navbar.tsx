@@ -3,7 +3,7 @@ import { Menu, X, User as UserIcon, LogOut, Home as HomeIcon, MapPin } from 'luc
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import CurrencySwitcher from './CurrencySwitcher';
-import logo from '../../assets/routeguide.svg';
+import logo from '../../assets/oreedu.svg';
 import NotificationBell from '../NotificationBell';
 
 export default function Navbar() {
@@ -58,7 +58,7 @@ export default function Navbar() {
                         <Link to="/" className="flex items-center">
                             <img
                                 src={logo}
-                                alt="Route Guide"
+                                alt="Oreedu"
                                 className="h-10 md:h-12 w-auto transition-all"
                             />
                         </Link>

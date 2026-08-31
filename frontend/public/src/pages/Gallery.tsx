@@ -14,7 +14,7 @@ export default function Gallery() {
         <div>
             <section className="bg-gray-900 text-white py-20 px-4 text-center">
                 <h1 className="text-5xl font-serif font-bold mb-4">Gallery</h1>
-                <p className="text-xl text-gray-300">Glimpses of life at Route Guide</p>
+                <p className="text-xl text-gray-300">Glimpses of life at Oreedu</p>
             </section>
 
             <div className="max-w-7xl mx-auto px-4 py-16">

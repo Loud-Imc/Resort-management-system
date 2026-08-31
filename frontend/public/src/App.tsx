@@ -50,7 +50,14 @@ function App() {
     return (
       <QueryClientProvider client={queryClient}>
         <CurrencyProvider>
-          <ComingSoon />
+          <BrowserRouter>
+            <ScrollToTop />
+            <Routes>
+              <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
+              <Route path="/terms" element={<Layout><Terms /></Layout>} />
+              <Route path="*" element={<ComingSoon />} />
+            </Routes>
+          </BrowserRouter>
         </CurrencyProvider>
       </QueryClientProvider>
     );

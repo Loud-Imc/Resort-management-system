@@ -20,9 +20,9 @@ export default function About() {
             {/* Content */}
             <section className="py-20 max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
                 <div>
-                    <h2 className="text-3xl font-serif font-bold mb-6 text-gray-900">The Route Guide Experience</h2>
+                    <h2 className="text-3xl font-serif font-bold mb-6 text-gray-900">The Oreedu Experience</h2>
                     <p className="text-gray-600 mb-6 leading-relaxed">
-                        Route Guide was born from a vision to create a sustainable luxury destination that respects its environment.
+                        Oreedu was born from a vision to create a sustainable luxury destination that respects its environment.
                         Located at the breathtaking Banasura Sagar Dam in Wayanad, Kerala, we offer a unique blend of
                         modern comfort and raw natural beauty.
                     </p>
