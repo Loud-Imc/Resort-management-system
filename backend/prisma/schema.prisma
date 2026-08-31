@@ -157,6 +157,7 @@ model RoomType {
   rooms                      Room[]
   channelMappings            ChannelRoomTypeMapping[]
   connectivityMappings       ConnectivityRoomTypeMapping[]
+  connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -597,6 +598,7 @@ model Property {
   offlineChannelPartners      OfflineCP[]
   stopSellRestrictions        StopSellRestriction[]
   connectivityConnections   ConnectivityPartnerConnection[]
+  connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
 
   @@map("properties")
 }
@@ -1606,5 +1608,22 @@ model ConnectivityOutbox {
   @@index([partnerId, status, nextRetryAt])
   @@index([connectionId, sequenceNumber])
   @@map("connectivity_outbox")
+}
+
+model ConnectivityAvailabilityOverride {
+  id                String   @id @default(uuid())
+  propertyId        String
+  roomTypeId        String
+  date              DateTime @db.Date
+  allocatedQuantity Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  property          Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType          RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, roomTypeId, date], name: "propertyId_roomTypeId_date")
+  @@index([propertyId, date])
+  @@map("connectivity_availability_overrides")
 }
 

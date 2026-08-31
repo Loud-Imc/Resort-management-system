@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConnectivityDeveloperController } from './connectivity-developer.controller';
 import { ConnectivityPartnerService } from './services/connectivity-partner.service';
 import { ConnectivityCertificationService } from './services/connectivity-certification.service';
+import { ConnectivitySandboxService } from './services/connectivity-sandbox.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -322,11 +323,12 @@ describe('Developer Account Onboarding & Security Gate Unit Tests', () => {
     });
 
     it('returns Postman Environment JSON with sandbox variables', async () => {
+      const mockRes = { setHeader: jest.fn() };
       const result = await controller.getPostmanEnvironment({
         headers: { authorization: 'Bearer test_jwt_token' },
         protocol: 'http',
         get: () => 'localhost:3000',
-      });
+      }, mockRes);
       expect(result.id).toBe('routeguide-v1-sandbox-env');
       expect(mockSandboxService.getPostmanEnvironment).toHaveBeenCalledWith(
         'rg_test_PASTE_YOUR_SANDBOX_API_KEY_HERE',

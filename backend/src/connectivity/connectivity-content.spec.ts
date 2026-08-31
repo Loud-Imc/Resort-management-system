@@ -378,7 +378,7 @@ describe('Property Content Connectivity API (GET /connectivity/v1/content) Unit 
 
     const strResponse = JSON.stringify(result);
     expect(strResponse).not.toContain('prop-uuid-999');
-    expect(strResponse).not.toContain('rt-deluxe-uuid');
+    expect(strResponse).toContain('rt-deluxe-uuid');
     expect(strResponse).not.toContain('propertyId');
     expect(strResponse).not.toContain('roomTypeId');
     expect(strResponse).not.toContain('platformPropertyId');

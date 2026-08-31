@@ -97,14 +97,12 @@ export class ConnectivityAvailabilityService {
     });
 
     // 7. Fetch external availability allocation overrides in date range
-    const overrides = (this.prisma as any).connectivityAvailabilityOverride
-      ? await (this.prisma as any).connectivityAvailabilityOverride.findMany({
-          where: {
-            propertyId,
-            date: { gte: start, lte: end },
-          },
-        })
-      : [];
+    const overrides = await this.prisma.connectivityAvailabilityOverride.findMany({
+      where: {
+        propertyId,
+        date: { gte: start, lte: end },
+      },
+    });
 
     const availabilityResults: Array<{
       date: string;
@@ -269,7 +267,7 @@ export class ConnectivityAvailabilityService {
 
         if (isReset) {
           // Remove/reset allocation cap override for this date
-          await (this.prisma as any).connectivityAvailabilityOverride.deleteMany({
+          await this.prisma.connectivityAvailabilityOverride.deleteMany({
             where: {
               propertyId,
               roomTypeId: mapping.roomTypeId,
@@ -278,7 +276,7 @@ export class ConnectivityAvailabilityService {
           });
         } else {
           // Upsert external allocation cap override record
-          const override = await (this.prisma as any).connectivityAvailabilityOverride.upsert({
+          const override = await this.prisma.connectivityAvailabilityOverride.upsert({
             where: {
               propertyId_roomTypeId_date: {
                 propertyId,
