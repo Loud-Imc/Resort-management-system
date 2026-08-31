@@ -85,6 +85,7 @@ export default function Login() {
             toast.success('Welcome back!');
             navigate('/');
         } catch (error: any) {
+            console.error('Property Login Error Details:', error);
             const { message, field } = parseLoginError(error);
             setErrorField(field);
             toast.error(message);

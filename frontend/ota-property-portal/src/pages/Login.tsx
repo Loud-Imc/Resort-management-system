@@ -50,8 +50,9 @@ export default function Login() {
       toast.success('Welcome back!');
       navigate('/');
     } catch (error: any) {
-      const msg = error.message || 'Login failed. Please verify credentials.';
-      const lower = msg.toLowerCase();
+      console.error('OPP Login Error Details:', error);
+      const msg = error.response?.data?.message || error.message || 'Login failed. Please verify credentials.';
+      const lower = typeof msg === 'string' ? msg.toLowerCase() : '';
       
       if (lower.includes('password')) {
         setErrorField('password');
@@ -61,7 +62,7 @@ export default function Login() {
         setErrorField('general');
       }
       
-      toast.error(msg);
+      toast.error(typeof msg === 'string' ? msg : 'Login failed');
     } finally {
       setIsLoading(false);
     }

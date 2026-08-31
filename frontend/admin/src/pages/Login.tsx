@@ -83,6 +83,7 @@ export default function Login() {
             await login(data);
             navigate('/');
         } catch (err: any) {
+            console.error('Admin Login Error Details:', err);
             const { message, field } = parseLoginError(err);
             setError(message);
             setErrorField(field);
