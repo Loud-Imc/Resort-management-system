@@ -50,18 +50,29 @@ export default function Login() {
         setIsLoading(true);
         setError(null);
         try {
-            // Clean up existing container if any
+            // Clean up existing recaptchaVerifier instance if any
+            if ((window as any).recaptchaVerifier) {
+                try {
+                    (window as any).recaptchaVerifier.clear();
+                } catch (e) {
+                    console.warn('Failed to clear previous recaptchaVerifier:', e);
+                }
+                (window as any).recaptchaVerifier = null;
+            }
+
             const container = document.getElementById('recaptcha-container');
             if (container) {
                 container.innerHTML = '';
             }
 
-            const appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+            (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
                 'size': 'invisible',
                 'callback': () => {
                     console.log('reCAPTCHA verified');
                 }
             });
+
+            const appVerifier = (window as any).recaptchaVerifier;
 
             const formattedPhone = normalizePhoneNumber(phoneNumber);
             console.log('Sending OTP to:', formattedPhone);
@@ -72,6 +83,16 @@ export default function Login() {
             setResendTimer(60);
         } catch (err: any) {
             console.error('Phone auth error:', err);
+            if ((window as any).recaptchaVerifier) {
+                try {
+                    (window as any).recaptchaVerifier.clear();
+                } catch (e) {}
+                (window as any).recaptchaVerifier = null;
+            }
+            const container = document.getElementById('recaptcha-container');
+            if (container) {
+                container.innerHTML = '';
+            }
             let userMessage = 'Failed to send OTP. Please try again.';
             if (err.code === 'auth/invalid-phone-number') userMessage = 'Invalid phone number format.';
             if (err.code === 'auth/too-many-requests') userMessage = 'Too many requests. Please try again later.';

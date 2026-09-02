@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
@@ -58,6 +58,9 @@ export default function Register() {
     const [categories, setCategories] = useState<any[]>([]);
     const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
 
+    const [documentExpiry, setDocumentExpiry] = useState<Record<string, string>>({});
+    const [isFetchingGst, setIsFetchingGst] = useState(false);
+
     const [formData, setFormData] = useState({
         // Owner fields
         ownerFirstName: '',
@@ -89,6 +92,7 @@ export default function Register() {
         longitude: '',
         platformCommission: 10
     });
+
 
     useEffect(() => {
         let interval: any;
@@ -237,18 +241,29 @@ export default function Register() {
 
         setIsVerifyingPhone(true);
         try {
-            // Clean up existing container if any
+            // Clean up existing recaptchaVerifier instance if any
+            if ((window as any).recaptchaVerifier) {
+                try {
+                    (window as any).recaptchaVerifier.clear();
+                } catch (e) {
+                    console.warn('Failed to clear previous recaptchaVerifier:', e);
+                }
+                (window as any).recaptchaVerifier = null;
+            }
+
             const container = document.getElementById('recaptcha-container');
             if (container) {
                 container.innerHTML = '';
             }
 
-            const appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+            (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
                 'size': 'invisible',
                 'callback': () => {
                     console.log('reCAPTCHA verified');
                 }
             });
+
+            const appVerifier = (window as any).recaptchaVerifier;
 
             const formattedPhone = normalizePhoneNumber(formData.ownerPhone);
             console.log('Sending OTP to:', formattedPhone);
@@ -260,6 +275,16 @@ export default function Register() {
             toast.success('Verification code sent');
         } catch (error: any) {
             console.error('Error sending OTP:', error);
+            if ((window as any).recaptchaVerifier) {
+                try {
+                    (window as any).recaptchaVerifier.clear();
+                } catch (e) {}
+                (window as any).recaptchaVerifier = null;
+            }
+            const container = document.getElementById('recaptcha-container');
+            if (container) {
+                container.innerHTML = '';
+            }
             let userMessage = 'Failed to send verification code';
             if (error.code === 'auth/invalid-phone-number') userMessage = 'Invalid phone number format.';
             if (error.code === 'auth/too-many-requests') userMessage = 'Too many requests. Please try again later.';
@@ -485,7 +510,8 @@ export default function Register() {
                 referredById: referredById || undefined,
                 isExistingOwner: !!selectedExistingOwner,
                 existingOwnerId: selectedExistingOwner?.id || undefined,
-                ownerPassword: formData.ownerPassword
+                ownerPassword: formData.ownerPassword,
+                documentDetails: Object.keys(documentExpiry).length > 0 ? documentExpiry : undefined,
             };
 
             await registerProperty(formattedData);
@@ -506,6 +532,45 @@ export default function Register() {
             }
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleFetchGst = async () => {
+        const gst = formData.gstNumber?.trim().toUpperCase();
+        if (!gst) {
+            toast.error('Please enter a GST number first');
+            return;
+        }
+        if (gst.length !== 15) {
+            toast.error('GST number must be exactly 15 characters');
+            return;
+        }
+        setIsFetchingGst(true);
+        try {
+            const res = await api.post('/properties/public/gst-lookup', { gstNumber: gst });
+            if (res.data) {
+                const data = res.data;
+                setFormData(prev => ({
+                    ...prev,
+                    gstNumber: gst,
+                    propertyName: prev.propertyName || data.tradeName || data.legalName || prev.propertyName,
+                    address: data.address || prev.address,
+                    city: data.city || prev.city,
+                    state: data.state || prev.state,
+                    pincode: data.pincode || prev.pincode,
+                }));
+                if (data.tradeName || data.address) {
+                    toast.success(`GST verified: ${data.tradeName || data.legalName || 'Address details autofilled!'}`);
+                } else if (data.state) {
+                    toast.success(`State set to ${data.state} based on GSTIN code.`);
+                } else {
+                    toast.success('Valid GST structure verified!');
+                }
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to fetch GST details');
+        } finally {
+            setIsFetchingGst(false);
         }
     };
 
@@ -802,6 +867,52 @@ export default function Register() {
                             </div>
                         ) : (
                             <div className="space-y-4">
+                                {/* Optional GST Number & Autofill */}
+                                <div className="p-4 bg-teal-50/60 border border-teal-100 rounded-2xl space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-xs font-bold text-teal-900 uppercase tracking-wider">
+                                            GST Number (Optional)
+                                        </label>
+                                        <span className="text-[10px] font-semibold text-teal-700 bg-teal-100/80 px-2 py-0.5 rounded-full">
+                                            Autofills details
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <FileText className="h-4 w-4 text-teal-600" />
+                                            </div>
+                                            <input
+                                                name="gstNumber"
+                                                type="text"
+                                                maxLength={15}
+                                                value={formData.gstNumber}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))}
+                                                className="w-full pl-10 pr-4 py-2.5 border border-teal-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm font-mono text-gray-900 bg-white uppercase"
+                                                placeholder="e.g. 29AAAAA0000A1Z5"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleFetchGst}
+                                            disabled={isFetchingGst || !formData.gstNumber}
+                                            className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
+                                        >
+                                            {isFetchingGst ? (
+                                                <>
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    <span>Fetching...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="h-3.5 w-3.5" />
+                                                    <span>Fetch Details</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="col-span-2 md:col-span-1">
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Name</label>
@@ -1178,6 +1289,17 @@ export default function Register() {
                                                     onUpload={(url) => setFormData(prev => ({ ...prev, licenceImage: url }))}
                                                     required
                                                 />
+                                                {formData.licenceImage && (
+                                                    <div className="mt-2">
+                                                        <label className="block text-xs font-semibold text-gray-600 mb-1">Licence Expiry Date (Optional)</label>
+                                                        <input
+                                                            type="date"
+                                                            value={documentExpiry['licenceImage'] || ''}
+                                                            onChange={(e) => setDocumentExpiry(prev => ({ ...prev, licenceImage: e.target.value }))}
+                                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="md:col-span-2">
                                                 <MultipleDocumentUpload
@@ -1185,6 +1307,22 @@ export default function Register() {
                                                     values={formData.documents || []}
                                                     onUploads={(urls) => setFormData(prev => ({ ...prev, documents: urls }))}
                                                 />
+                                                {(formData.documents || []).length > 0 && (
+                                                    <div className="mt-3 space-y-2">
+                                                        <p className="text-xs font-semibold text-gray-600">Document Expiry Dates (Optional)</p>
+                                                        {formData.documents.map((_, idx) => (
+                                                            <div key={idx} className="flex items-center gap-3">
+                                                                <span className="text-xs text-gray-500 w-28">Document {idx + 1}</span>
+                                                                <input
+                                                                    type="date"
+                                                                    value={documentExpiry[`document_${idx}`] || ''}
+                                                                    onChange={(e) => setDocumentExpiry(prev => ({ ...prev, [`document_${idx}`]: e.target.value }))}
+                                                                    className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-primary-500"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1241,20 +1379,23 @@ function DocumentUpload({ label, id, value, onUpload, required }: { label: strin
     const [isUploading, setIsUploading] = useState(false);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const rawFile = e.target.files?.[0];
+        if (!rawFile) return;
 
-        // Check file size (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('File size must be less than 5MB');
+        // Check file size (max 15MB)
+        if (rawFile.size > 15 * 1024 * 1024) {
+            toast.error('File size must be less than 15MB');
             return;
         }
 
-        const formData = new FormData();
-        formData.append('file', file);
-
         setIsUploading(true);
         try {
+            const { compressImageClientSide } = await import('../utils/imageCompressor');
+            const file = await compressImageClientSide(rawFile, 1600, 1600, 0.80);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
             const { data } = await import('../services/api').then(m => m.default.post('/uploads', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             }));
@@ -1342,12 +1483,14 @@ function MultipleDocumentUpload({
 
         try {
             const api = await import('../services/api').then(m => m.default);
+            const { compressImageClientSide } = await import('../utils/imageCompressor');
             for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (file.size > 5 * 1024 * 1024) {
-                    toast.error(`File ${file.name} is too large (max 5MB)`);
+                const rawFile = files[i];
+                if (rawFile.size > 15 * 1024 * 1024) {
+                    toast.error(`File ${rawFile.name} is too large (max 15MB)`);
                     continue;
                 }
+                const file = await compressImageClientSide(rawFile, 1600, 1600, 0.80);
                 const formData = new FormData();
                 formData.append('file', file);
                 
