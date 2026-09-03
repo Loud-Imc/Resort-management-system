@@ -51,6 +51,7 @@ model User {
   approvedSettlements       PropertySettlement[]         @relation("SettlementApprover")
   createdSettlements        PropertySettlement[]         @relation("SettlementCreator")
   payoutSettlements         PropertySettlement[]         @relation("SettlementPayoutProcessor")
+  issuedCreditNotes         CreditNote[]                 @relation("CreditNoteIssuer")
   propertyStaff             PropertyStaff[]
   approvedRefunds           RefundRequest[]              @relation("RefundApprover")
   requestedRefunds          RefundRequest[]              @relation("RefundRequester")
@@ -290,6 +291,9 @@ model Booking {
   commissionableAmount    Decimal                @default(0) @db.Decimal(10, 2)
   paymentMethod           BookingPaymentMethod?
   gstNumber               String?
+  invoiceNumber           String?
+  invoiceDate             DateTime?
+  financialYear           String?
   isHistoricalEntry       Boolean                @default(false)
   transactionDate         DateTime?
   createdBy               String?
@@ -311,6 +315,7 @@ model Booking {
   manualPaymentRequests   ManualPaymentRequest[]
   payments                Payment[]
   propertySettlement      PropertySettlement?
+  creditNotes             CreditNote[]
   review                  Review?
   roomBlocks              RoomBlock[]
   bookingRooms            BookingRoom[]
@@ -561,6 +566,7 @@ model Property {
   baseCurrency                String               @default("INR")
   taxRate                     Float                @default(12)
   defaultCancellationPolicyId String?
+  isGstApplicable             Boolean              @default(false)
   gstNumber                   String?
   licenceImage                String?
   documents                   String[]             @default([])
@@ -576,6 +582,7 @@ model Property {
   defaultCheckOutTime         String               @default("11:00")
   isGroupGstInclusive         Boolean              @default(false)
   bookings                    Booking[]
+  creditNotes                 CreditNote[]
   cancellationPolicies        CancellationPolicy[] @relation("PropertyPolicies")
   events                      Event[]
   expenseCategories           ExpenseCategory[]
@@ -926,30 +933,58 @@ model GlobalSetting {
 }
 
 model PropertySettlement {
-  id           String           @id @default(uuid())
-  propertyId   String
-  bookingId    String           @unique
-  grossAmount  Decimal          @db.Decimal(10, 2)
-  collectedAmount Decimal        @db.Decimal(10, 2) @default(0)
-  platformFee  Decimal          @db.Decimal(10, 2)
-  cpCommission Decimal          @db.Decimal(10, 2)
-  netPayout    Decimal          @db.Decimal(10, 2)
-  status       SettlementStatus @default(CALCULATED)
-  createdById  String?
-  approvedById String?
-  payoutById   String?
-  processedAt  DateTime?
-  referenceId  String?
-  method       String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  approvedBy   User?            @relation("SettlementApprover", fields: [approvedById], references: [id])
-  booking      Booking          @relation(fields: [bookingId], references: [id])
-  createdBy    User?            @relation("SettlementCreator", fields: [createdById], references: [id])
-  payoutBy     User?            @relation("SettlementPayoutProcessor", fields: [payoutById], references: [id])
-  property     Property         @relation(fields: [propertyId], references: [id])
+  id                    String           @id @default(uuid())
+  propertyId            String
+  bookingId             String           @unique
+  grossAmount           Decimal          @db.Decimal(10, 2)
+  collectedAmount       Decimal          @db.Decimal(10, 2) @default(0)
+  platformFee           Decimal          @db.Decimal(10, 2)
+  commissionGst         Decimal          @db.Decimal(10, 2) @default(0)
+  propertyTaxCollected  Decimal          @db.Decimal(10, 2) @default(0)
+  cpCommission          Decimal          @db.Decimal(10, 2)
+  netPayout             Decimal          @db.Decimal(10, 2)
+  status                SettlementStatus @default(CALCULATED)
+  createdById           String?
+  approvedById          String?
+  payoutById            String?
+  processedAt           DateTime?
+  referenceId           String?
+  method                String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  approvedBy            User?            @relation("SettlementApprover", fields: [approvedById], references: [id])
+  booking               Booking          @relation(fields: [bookingId], references: [id])
+  createdBy             User?            @relation("SettlementCreator", fields: [createdById], references: [id])
+  payoutBy              User?            @relation("SettlementPayoutProcessor", fields: [payoutById], references: [id])
+  property              Property         @relation(fields: [propertyId], references: [id])
 
   @@map("property_settlements")
+}
+
+model CreditNote {
+  id                 String   @id @default(uuid())
+  creditNoteNumber   String   @unique
+  financialYear      String
+  bookingId          String
+  propertyId         String
+  invoiceNumber      String
+  originalAmount     Decimal  @db.Decimal(10, 2)
+  creditedAmount     Decimal  @db.Decimal(10, 2)
+  taxAmount          Decimal  @default(0) @db.Decimal(10, 2)
+  refundPercentage   Decimal  @db.Decimal(5, 2)
+  reason             String?
+  issuedById         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  booking            Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  property           Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  issuedBy           User?    @relation("CreditNoteIssuer", fields: [issuedById], references: [id])
+
+  @@index([bookingId])
+  @@index([propertyId])
+  @@index([financialYear])
+  @@map("credit_notes")
 }
 
 model CPRedemptionRequest {

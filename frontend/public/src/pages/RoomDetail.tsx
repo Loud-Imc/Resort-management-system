@@ -457,20 +457,20 @@ export default function RoomDetail() {
                                                     )}
                                                 </div>
                                             </div>
-                                            {!roomType.isGstInclusive && (
+                                            {property?.isGstApplicable !== false && !roomType.isGstInclusive && (
                                                 <div className="flex justify-between text-gray-500 text-[10px] font-bold uppercase tracking-tight italic">
                                                     <span>+ Taxes & Charges</span>
                                                     <span>Calculated at checkout</span>
                                                 </div>
                                             )}
                                             <div className="flex justify-between text-gray-900 font-black text-lg pt-2">
-                                                <span>{roomType.isGstInclusive ? 'Total Price' : 'Subtotal'}</span>
+                                                <span>{property?.isGstApplicable === false ? 'Total Price' : (roomType.isGstInclusive ? 'Total Price' : 'Subtotal')}</span>
                                                 <PriceDisplay
                                                     amount={roomType.discountedPricePerNight || roomType.basePrice}
                                                     className={clsx(Number(roomType.offerDiscountAmount) > 0 ? "text-orange-600" : "text-primary-600")}
                                                 />
                                             </div>
-                                            {roomType.isGstInclusive && (
+                                            {property?.isGstApplicable !== false && roomType.isGstInclusive && (
                                                 <div className="text-[10px] text-green-600 font-bold uppercase tracking-tight text-right -mt-1">
                                                     GST Inclusive
                                                 </div>
@@ -569,7 +569,7 @@ export default function RoomDetail() {
                             amount={roomType.discountedPricePerNight || roomType.basePrice}
                             className="text-xl font-black text-primary-700"
                         />
-                        {!roomType.isGstInclusive && <span className="text-[10px] text-gray-400 font-medium">+ taxes</span>}
+                        {property?.isGstApplicable !== false && !roomType.isGstInclusive && <span className="text-[10px] text-gray-400 font-medium">+ taxes</span>}
                     </div>
                 </div>
                 <Link

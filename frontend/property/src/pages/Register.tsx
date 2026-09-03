@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
@@ -25,6 +25,31 @@ export default function Register() {
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
     const [showPassword, setShowPassword] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const scrollToField = (fieldName: string) => {
+        setTimeout(() => {
+            const el = document.getElementById(`field-${fieldName}`) ||
+                       document.querySelector(`[name="${fieldName}"]`) ||
+                       document.getElementById(fieldName) ||
+                       document.getElementById(`error-${fieldName}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if ('focus' in el && typeof (el as any).focus === 'function') {
+                    (el as any).focus();
+                }
+            }
+        }, 60);
+    };
+
+    const clearError = (fieldName: string) => {
+        setErrors(prev => {
+            if (!prev[fieldName]) return prev;
+            const next = { ...prev };
+            delete next[fieldName];
+            return next;
+        });
+    };
 
     // Marketing Referral
     const [searchParams] = useSearchParams();
@@ -74,6 +99,7 @@ export default function Register() {
         ownerAadhaarImageBack: '',
         licenceImage: '',
         documents: [] as string[],
+        isGstApplicable: false,
         gstNumber: '',
         // Property fields
         propertyName: '',
@@ -360,6 +386,7 @@ export default function Register() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
+        clearError(name);
 
         setFormData(prev => {
             const next = { ...prev, [name]: value };
@@ -390,8 +417,6 @@ export default function Register() {
             setShowCommissionOtpInput(false);
             setCommissionOtp('');
         }
-
-        // If googleMapsLink changes, attempt to extract lat/lng if we had them (not in this form yet but good practice)
     };
 
     const handleMapsLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -434,6 +459,7 @@ export default function Register() {
 
     const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const catId = e.target.value;
+        clearError('categoryId');
         const selectedCat = categories.find(c => c.id === catId);
         const mappedType = selectedCat ? mapSlugToPropertyType(selectedCat.slug) : 'OTHER';
         setFormData(prev => ({
@@ -443,18 +469,94 @@ export default function Register() {
         }));
     };
 
+    const validateStep1 = () => {
+        const errs: Record<string, string> = {};
+        if (!formData.ownerPhone?.trim()) {
+            errs.ownerPhone = 'Phone number is required';
+        } else if (!isPhoneVerified) {
+            errs.ownerPhone = 'Please verify your phone number via OTP';
+        }
+        if (!formData.ownerFirstName?.trim()) {
+            errs.ownerFirstName = 'First name is required';
+        }
+        if (!formData.ownerEmail?.trim()) {
+            errs.ownerEmail = 'Email address is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.ownerEmail.trim())) {
+            errs.ownerEmail = 'Please enter a valid email address';
+        }
+        if (!formData.ownerPassword) {
+            errs.ownerPassword = 'Password is required';
+        } else if (formData.ownerPassword.length < 8) {
+            errs.ownerPassword = 'Password must be at least 8 characters';
+        }
+        return errs;
+    };
+
+    const validateStep2 = () => {
+        const errs: Record<string, string> = {};
+        if (!formData.propertyName?.trim()) {
+            errs.propertyName = 'Property name is required';
+        }
+        if (!formData.categoryId) {
+            errs.categoryId = 'Please select a property category';
+        }
+        if (!formData.address?.trim()) {
+            errs.address = 'Complete address is required';
+        }
+        if (!formData.city?.trim()) {
+            errs.city = 'City is required';
+        }
+        if (!formData.state?.trim()) {
+            errs.state = 'State is required';
+        }
+        if (!formData.pincode?.trim()) {
+            errs.pincode = 'Pincode is required';
+        } else if (!/^\d{6}$/.test(formData.pincode.trim())) {
+            errs.pincode = 'Please enter a valid 6-digit pincode';
+        }
+        if (!formData.propertyEmail?.trim()) {
+            errs.propertyEmail = 'Property email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.propertyEmail.trim())) {
+            errs.propertyEmail = 'Please enter a valid email address';
+        }
+        if (!formData.propertyPhone?.trim()) {
+            errs.propertyPhone = 'Property phone is required';
+        }
+        if (!SKIP_COMMISSION_OTP && !isCommissionVerified) {
+            errs.platformCommission = 'Please verify platform commission via OTP';
+        }
+        if (!formData.ownerAadhaarNumber?.trim()) {
+            errs.ownerAadhaarNumber = 'Aadhaar number is required';
+        } else if (formData.ownerAadhaarNumber.replace(/\D/g, '').length !== 12) {
+            errs.ownerAadhaarNumber = 'Aadhaar number must be exactly 12 digits';
+        }
+        if (formData.isGstApplicable) {
+            const gst = formData.gstNumber?.trim().toUpperCase();
+            if (!gst) {
+                errs.gstNumber = 'Property GST Identification Number (GSTIN) is required when GST registered';
+            } else {
+                const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+                if (!gstRegex.test(gst)) {
+                    errs.gstNumber = 'Please enter a valid 15-character GSTIN (e.g. 32AAAAA0000A1Z5)';
+                }
+            }
+        }
+        if (!formData.ownerAadhaarImage) {
+            errs.ownerAadhaarImage = 'Aadhaar card front copy is required';
+        }
+        if (!formData.licenceImage) {
+            errs.licenceImage = 'Property licence document is required';
+        }
+        return errs;
+    };
+
     const nextStep = async () => {
         if (step === 1) {
-            if (!formData.ownerFirstName || !formData.ownerEmail || !formData.ownerPhone || !formData.ownerPassword) {
-                toast.error('Please fill all owner details');
-                return;
-            }
-            if (!isPhoneVerified) {
-                toast.error('Please verify your phone number first');
-                return;
-            }
-            if (formData.ownerPassword.length < 8) {
-                toast.error('Password must be at least 8 characters');
+            const errs = validateStep1();
+            if (Object.keys(errs).length > 0) {
+                setErrors(errs);
+                const firstField = Object.keys(errs)[0];
+                scrollToField(firstField);
                 return;
             }
 
@@ -477,22 +579,31 @@ export default function Register() {
                         message = serverMsg.join(', ');
                     }
                     toast.error(message);
+                    setErrors({ ownerPassword: message });
+                    scrollToField('ownerPassword');
                     return;
                 } finally {
                     setIsVerifyingPassword(false);
                 }
             }
         }
+        setErrors({});
         setStep(prev => prev + 1);
     };
 
-    const prevStep = () => setStep(prev => prev - 1);
+    const prevStep = () => {
+        setErrors({});
+        setStep(prev => prev - 1);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!SKIP_COMMISSION_OTP && !isCommissionVerified) {
-            toast.error('Please verify the platform commission explicitly via OTP');
+        const errs = validateStep2();
+        if (Object.keys(errs).length > 0) {
+            setErrors(errs);
+            const firstField = Object.keys(errs)[0];
+            scrollToField(firstField);
             return;
         }
 
@@ -502,6 +613,7 @@ export default function Register() {
             const { googleMapsLink, ...rest } = formData;
             const formattedData = {
                 ...rest,
+                gstNumber: formData.isGstApplicable ? formData.gstNumber?.trim().toUpperCase() : undefined,
                 ownerPhone: normalizePhoneNumber(formData.ownerPhone),
                 propertyPhone: normalizePhoneNumber(formData.propertyPhone),
                 latitude: rest.latitude ? parseFloat(rest.latitude as any) : undefined,
@@ -598,21 +710,25 @@ export default function Register() {
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {step === 1 ? (
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
+                                <div id="field-ownerPhone">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-500">*</span></label>
                                     <div className="flex gap-2">
                                         <div className="relative flex-1">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <Phone className="h-4 w-4 text-gray-400" />
                                             </div>
                                             <input
+                                                id="ownerPhone"
                                                 name="ownerPhone"
                                                 type="tel"
-                                                required
                                                 disabled={isPhoneVerified || showOtpInput}
                                                 value={formData.ownerPhone}
                                                 onChange={handleChange}
-                                                className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 ${isPhoneVerified ? 'bg-green-50 border-green-200' : ''}`}
+                                                className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 ${
+                                                    errors.ownerPhone 
+                                                        ? 'border-red-500 focus:ring-red-500 bg-red-50/20' 
+                                                        : (isPhoneVerified ? 'bg-green-50 border-green-200 focus:ring-primary-500' : 'border-gray-200 focus:ring-primary-500')
+                                                }`}
                                                 placeholder="9876543210"
                                             />
                                             {isPhoneVerified && (
@@ -641,6 +757,12 @@ export default function Register() {
                                             </button>
                                         )}
                                     </div>
+                                    {errors.ownerPhone && (
+                                        <p id="error-ownerPhone" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{errors.ownerPhone}</span>
+                                        </p>
+                                    )}
                                 </div>
 
                                 {showOtpInput && (
@@ -731,26 +853,35 @@ export default function Register() {
                                 )}
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name</label>
+                                    <div id="field-ownerFirstName">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name <span className="text-red-500">*</span></label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <User className="h-4 w-4 text-gray-400" />
                                             </div>
                                             <input
+                                                id="ownerFirstName"
                                                 name="ownerFirstName"
                                                 type="text"
-                                                required
                                                 value={formData.ownerFirstName}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                    errors.ownerFirstName ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                                }`}
                                                 placeholder="John"
                                             />
                                         </div>
+                                        {errors.ownerFirstName && (
+                                            <p id="error-ownerFirstName" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.ownerFirstName}</span>
+                                            </p>
+                                        )}
                                     </div>
-                                    <div>
+                                    <div id="field-ownerLastName">
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name (Optional)</label>
                                         <input
+                                            id="ownerLastName"
                                             name="ownerLastName"
                                             type="text"
                                             value={formData.ownerLastName}
@@ -761,16 +892,16 @@ export default function Register() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                                <div id="field-ownerEmail">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address <span className="text-red-500">*</span></label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Mail className="h-4 w-4 text-gray-400" />
                                         </div>
                                         <input
+                                            id="ownerEmail"
                                             name="ownerEmail"
                                             type="email"
-                                            required
                                             value={formData.ownerEmail}
                                             onChange={(e) => {
                                                 handleChange(e);
@@ -779,10 +910,18 @@ export default function Register() {
                                                     setIsPhoneVerified(false);
                                                 }
                                             }}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                errors.ownerEmail ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                            }`}
                                             placeholder="you@example.com"
                                         />
                                     </div>
+                                    {errors.ownerEmail && (
+                                        <p id="error-ownerEmail" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{errors.ownerEmail}</span>
+                                        </p>
+                                    )}
                                 </div>
 
                                 {selectedExistingOwner && (
@@ -811,21 +950,23 @@ export default function Register() {
                                     </div>
                                 )}
 
-                                <div>
+                                <div id="field-ownerPassword">
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                        {selectedExistingOwner ? 'Existing Account Password (Required)' : 'Password'}
+                                        {selectedExistingOwner ? 'Existing Account Password (Required)' : 'Password'} <span className="text-red-500">*</span>
                                     </label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Lock className="h-4 w-4 text-gray-400" />
                                         </div>
                                         <input
+                                            id="ownerPassword"
                                             name="ownerPassword"
                                             type={showPassword ? "text" : "password"}
-                                            required
                                             value={formData.ownerPassword}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                errors.ownerPassword ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                            }`}
                                             placeholder={selectedExistingOwner ? "Enter your existing account password" : "Minimum 8 characters"}
                                         />
                                         <button
@@ -836,6 +977,12 @@ export default function Register() {
                                             {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                         </button>
                                     </div>
+                                    {errors.ownerPassword && (
+                                        <p id="error-ownerPassword" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{errors.ownerPassword}</span>
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="mt-2 flex items-start gap-2 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
                                     <Shield className="h-4 w-4 text-blue-600 mt-0.5" />
@@ -867,8 +1014,8 @@ export default function Register() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {/* Optional GST Number & Autofill */}
-                                <div className="p-4 bg-teal-50/60 border border-teal-100 rounded-2xl space-y-2">
+                                {/* Optional GST Number & Autofill (Hidden) */}
+                                <div className="hidden p-4 bg-teal-50/60 border border-teal-100 rounded-2xl space-y-2">
                                     <div className="flex items-center justify-between">
                                         <label className="block text-xs font-bold text-teal-900 uppercase tracking-wider">
                                             GST Number (Optional)
@@ -914,25 +1061,33 @@ export default function Register() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="col-span-2 md:col-span-1">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Name</label>
+                                    <div id="field-propertyName" className="col-span-2 md:col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Name <span className="text-red-500">*</span></label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <Building2 className="h-4 w-4 text-gray-400" />
                                             </div>
                                             <input
+                                                id="propertyName"
                                                 name="propertyName"
                                                 type="text"
-                                                required
                                                 value={formData.propertyName}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                    errors.propertyName ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                                }`}
                                                 placeholder="e.g. Blue Lagoon Resort"
                                             />
                                         </div>
+                                        {errors.propertyName && (
+                                            <p id="error-propertyName" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.propertyName}</span>
+                                            </p>
+                                        )}
                                     </div>
-                                    <div className="col-span-2 md:col-span-1">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Category</label>
+                                    <div id="field-categoryId" className="col-span-2 md:col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Category <span className="text-red-500">*</span></label>
                                         {isCategoriesLoading ? (
                                             <div className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 flex items-center gap-2">
                                                 <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
@@ -941,12 +1096,15 @@ export default function Register() {
                                         ) : (
                                             <div className="relative">
                                                 <select
+                                                    id="categoryId"
                                                     name="categoryId"
-                                                    required
                                                     value={formData.categoryId}
                                                     onChange={handleCategoryChange}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm appearance-none text-gray-900 bg-white pr-10"
+                                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm appearance-none text-gray-900 bg-white pr-10 ${
+                                                        errors.categoryId ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                                    }`}
                                                 >
+                                                    <option value="">Select category...</option>
                                                     {categories.map((cat) => (
                                                         <option key={cat.id} value={cat.id}>
                                                             {cat.name}
@@ -960,16 +1118,23 @@ export default function Register() {
                                                 </div>
                                             </div>
                                         )}
+                                        {errors.categoryId && (
+                                            <p id="error-categoryId" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.categoryId}</span>
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
-                                <div>
+                                <div id="field-propertyDescription">
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
                                     <div className="relative">
                                         <div className="absolute top-3 left-3 pointer-events-none">
                                             <ClipboardList className="h-4 w-4 text-gray-400" />
                                         </div>
                                         <textarea
+                                            id="propertyDescription"
                                             name="propertyDescription"
                                             value={formData.propertyDescription}
                                             onChange={handleChange}
@@ -979,25 +1144,33 @@ export default function Register() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Complete Address</label>
+                                <div id="field-address">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Complete Address <span className="text-red-500">*</span></label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <MapPin className="h-4 w-4 text-gray-400" />
                                         </div>
                                         <input
+                                            id="address"
                                             name="address"
                                             type="text"
-                                            required
                                             value={formData.address}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                errors.address ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                            }`}
                                             placeholder="123, Main Road, Area"
                                         />
                                     </div>
+                                    {errors.address && (
+                                        <p id="error-address" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{errors.address}</span>
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div>
+                                <div id="field-googleMapsLink">
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Google Maps Link (Recommended)</label>
                                     <div className="space-y-2">
                                         <div className="relative">
@@ -1005,6 +1178,7 @@ export default function Register() {
                                                 <Globe className="h-4 w-4 text-gray-400" />
                                             </div>
                                             <input
+                                                id="googleMapsLink"
                                                 name="googleMapsLink"
                                                 type="url"
                                                 value={formData.googleMapsLink}
@@ -1051,83 +1225,123 @@ export default function Register() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
+                                    <div id="field-city">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">City <span className="text-red-500">*</span></label>
                                         <input
+                                            id="city"
                                             name="city"
                                             type="text"
-                                            required
                                             value={formData.city}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                errors.city ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                            }`}
                                             placeholder="Wayanad"
                                         />
+                                        {errors.city && (
+                                            <p id="error-city" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.city}</span>
+                                            </p>
+                                        )}
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">State</label>
+                                    <div id="field-state">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">State <span className="text-red-500">*</span></label>
                                         <input
+                                            id="state"
                                             name="state"
                                             type="text"
-                                            required
                                             value={formData.state}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                errors.state ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                            }`}
                                             placeholder="Kerala"
                                         />
+                                        {errors.state && (
+                                            <p id="error-state" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.state}</span>
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Pincode</label>
+                                    <div id="field-pincode">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Pincode <span className="text-red-500">*</span></label>
                                         <input
+                                            id="pincode"
                                             name="pincode"
                                             type="text"
-                                            required
                                             value={formData.pincode}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                errors.pincode ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                            }`}
                                             placeholder="673122"
                                         />
+                                        {errors.pincode && (
+                                            <p id="error-pincode" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.pincode}</span>
+                                            </p>
+                                        )}
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Email</label>
+                                    <div id="field-propertyEmail">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Email <span className="text-red-500">*</span></label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <Mail className="h-4 w-4 text-gray-400" />
                                             </div>
                                             <input
+                                                id="propertyEmail"
                                                 name="propertyEmail"
                                                 type="email"
-                                                required
                                                 value={formData.propertyEmail}
                                                 onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                    errors.propertyEmail ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                                }`}
                                                 placeholder="resort@example.com"
                                             />
                                         </div>
+                                        {errors.propertyEmail && (
+                                            <p id="error-propertyEmail" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.propertyEmail}</span>
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Phone</label>
+                                <div id="field-propertyPhone">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Phone <span className="text-red-500">*</span></label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Phone className="h-4 w-4 text-gray-400" />
                                         </div>
                                         <input
+                                            id="propertyPhone"
                                             name="propertyPhone"
                                             type="tel"
-                                            required
                                             value={formData.propertyPhone}
                                             onChange={handleChange}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                errors.propertyPhone ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                            }`}
                                             placeholder="9876543210"
                                         />
                                     </div>
+                                    {errors.propertyPhone && (
+                                        <p id="error-propertyPhone" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{errors.propertyPhone}</span>
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div id="field-platformCommission" className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="col-span-2 md:col-span-1">
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Platform Commission (%)</label>
                                         <div className="flex gap-2">
@@ -1136,16 +1350,20 @@ export default function Register() {
                                                     <Shield className="h-4 w-4 text-gray-400" />
                                                 </div>
                                                 <input
+                                                    id="platformCommission"
                                                     name="platformCommission"
                                                     type="number"
                                                     step="0.01"
                                                     min="0"
                                                     max="100"
-                                                    required
                                                     disabled={!SKIP_COMMISSION_OTP && (isCommissionVerified || showCommissionOtpInput)}
                                                     value={formData.platformCommission}
                                                     onChange={handleChange}
-                                                    className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white ${isCommissionVerified ? 'bg-green-50 border-green-200' : ''}`}
+                                                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                        errors.platformCommission 
+                                                            ? 'border-red-500 focus:ring-red-500 bg-red-50/20' 
+                                                            : (isCommissionVerified ? 'bg-green-50 border-green-200 focus:ring-primary-500' : 'border-gray-200 focus:ring-primary-500')
+                                                    }`}
                                                     placeholder="10.00"
                                                 />
                                                 {isCommissionVerified && (
@@ -1174,6 +1392,12 @@ export default function Register() {
                                                 </button>
                                             )}
                                         </div>
+                                        {errors.platformCommission && (
+                                            <p id="error-platformCommission" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                <span>{errors.platformCommission}</span>
+                                            </p>
+                                        )}
                                         <p className="text-[10px] text-gray-400 mt-1">
                                             {SKIP_COMMISSION_OTP 
                                                 ? "The percentage paid to the platform for each booking."
@@ -1240,31 +1464,112 @@ export default function Register() {
                                         Mandatory Registration Documents
                                     </h3>
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-5">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Owner Aadhaar Number</label>
+                                            <div id="field-ownerAadhaarNumber" className="col-span-1 md:col-span-2">
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Owner Aadhaar Number <span className="text-red-500">*</span></label>
                                                 <input
+                                                    id="ownerAadhaarNumber"
                                                     name="ownerAadhaarNumber"
                                                     type="text"
-                                                    required
                                                     value={formData.ownerAadhaarNumber}
                                                     onChange={handleChange}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
+                                                        errors.ownerAadhaarNumber ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
+                                                    }`}
                                                     placeholder="12-digit Aadhaar Number"
                                                 />
+                                                {errors.ownerAadhaarNumber && (
+                                                    <p id="error-ownerAadhaarNumber" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                        <span>{errors.ownerAadhaarNumber}</span>
+                                                    </p>
+                                                )}
                                             </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">GST Number (Optional)</label>
-                                                <input
-                                                    name="gstNumber"
-                                                    type="text"
-                                                    value={formData.gstNumber}
-                                                    onChange={handleChange}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                                    placeholder="15-digit GSTIN"
-                                                />
+                                        </div>
+
+                                        {/* GST Applicability Question & Input */}
+                                        <div id="field-gstNumber" className="p-4 sm:p-5 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200 rounded-2xl space-y-3 shadow-sm">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-900">
+                                                        Is this property GST registered / applicable?
+                                                    </label>
+                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                        Select Yes if this property is registered under GST and collects GST on room bookings.
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 gap-1 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            clearError('gstNumber');
+                                                            setFormData(prev => ({ ...prev, isGstApplicable: false, gstNumber: '' }));
+                                                        }}
+                                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                            !formData.isGstApplicable
+                                                                ? 'bg-gray-900 text-white shadow-sm'
+                                                                : 'text-gray-600 hover:text-gray-900'
+                                                        }`}
+                                                    >
+                                                        No
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            clearError('gstNumber');
+                                                            setFormData(prev => ({ ...prev, isGstApplicable: true }));
+                                                        }}
+                                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                            formData.isGstApplicable
+                                                                ? 'bg-teal-600 text-white shadow-sm'
+                                                                : 'text-gray-600 hover:text-gray-900'
+                                                        }`}
+                                                    >
+                                                        Yes
+                                                    </button>
+                                                </div>
                                             </div>
+
+                                            {formData.isGstApplicable && (
+                                                <div className="pt-3 border-t border-gray-200/80 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                    <label className="block text-xs font-bold text-teal-900 uppercase tracking-wider mb-1.5">
+                                                        Property GST Identification Number (GSTIN) <span className="text-red-500">*</span>
+                                                    </label>
+                                                    <div className="relative">
+                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                            <FileText className="h-4 w-4 text-teal-600" />
+                                                        </div>
+                                                        <input
+                                                            id="gstNumber"
+                                                            name="gstNumber"
+                                                            type="text"
+                                                            maxLength={15}
+                                                            value={formData.gstNumber}
+                                                            onChange={(e) => {
+                                                                clearError('gstNumber');
+                                                                setFormData(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }));
+                                                            }}
+                                                            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm font-mono text-gray-900 bg-white uppercase tracking-wider ${
+                                                                errors.gstNumber 
+                                                                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20' 
+                                                                    : 'border-teal-300 focus:ring-teal-500 focus:border-teal-500'
+                                                            }`}
+                                                            placeholder="e.g. 32AAAAA0000A1Z5"
+                                                        />
+                                                    </div>
+                                                    {errors.gstNumber ? (
+                                                        <p id="error-gstNumber" className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                            <span>{errors.gstNumber}</span>
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-[11px] text-teal-700 mt-1.5 font-medium">
+                                                            Enter the 15-character GSTIN registered for this property/business.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1272,7 +1577,11 @@ export default function Register() {
                                                 label="Aadhaar Card Front Copy"
                                                 id="ownerAadhaarImage"
                                                 value={formData.ownerAadhaarImage}
-                                                onUpload={(url) => setFormData(prev => ({ ...prev, ownerAadhaarImage: url }))}
+                                                error={errors.ownerAadhaarImage}
+                                                onUpload={(url) => {
+                                                    clearError('ownerAadhaarImage');
+                                                    setFormData(prev => ({ ...prev, ownerAadhaarImage: url }));
+                                                }}
                                                 required
                                             />
                                             <DocumentUpload
@@ -1286,7 +1595,11 @@ export default function Register() {
                                                     label="Property Licence"
                                                     id="licenceImage"
                                                     value={formData.licenceImage}
-                                                    onUpload={(url) => setFormData(prev => ({ ...prev, licenceImage: url }))}
+                                                    error={errors.licenceImage}
+                                                    onUpload={(url) => {
+                                                        clearError('licenceImage');
+                                                        setFormData(prev => ({ ...prev, licenceImage: url }));
+                                                    }}
                                                     required
                                                 />
                                                 {formData.licenceImage && (
@@ -1338,7 +1651,7 @@ export default function Register() {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={isLoading || !formData.ownerAadhaarImage || !formData.licenceImage || (!SKIP_COMMISSION_OTP && !isCommissionVerified)}
+                                        disabled={isLoading}
                                         className="flex-[2] py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-xl font-bold text-sm hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary-500/20"
                                     >
                                         {isLoading ? (
@@ -1375,7 +1688,21 @@ export default function Register() {
     );
 }
 
-function DocumentUpload({ label, id, value, onUpload, required }: { label: string; id: string; value: string; onUpload: (url: string) => void; required?: boolean }) {
+function DocumentUpload({ 
+    label, 
+    id, 
+    value, 
+    onUpload, 
+    required, 
+    error 
+}: { 
+    label: string; 
+    id: string; 
+    value: string; 
+    onUpload: (url: string) => void; 
+    required?: boolean; 
+    error?: string; 
+}) {
     const [isUploading, setIsUploading] = useState(false);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1410,9 +1737,13 @@ function DocumentUpload({ label, id, value, onUpload, required }: { label: strin
     };
 
     return (
-        <div>
+        <div id={`field-${id}`}>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">{label} {required && <span className="text-red-500">*</span>}</label>
-            <div className={`relative border-2 border-dashed ${value ? 'border-primary-500 bg-primary-50' : 'border-gray-200'} rounded-xl p-4 transition-all`}>
+            <div className={`relative border-2 border-dashed ${
+                error 
+                    ? 'border-red-500 bg-red-50/20' 
+                    : (value ? 'border-primary-500 bg-primary-50' : 'border-gray-200')
+            } rounded-xl p-4 transition-all`}>
                 <input
                     type="file"
                     id={id}
@@ -1451,12 +1782,18 @@ function DocumentUpload({ label, id, value, onUpload, required }: { label: strin
                         </div>
                     ) : (
                         <>
-                            <ClipboardList className="h-6 w-6 text-gray-400 mb-2" />
-                            <span className="text-xs text-gray-500 font-medium">Click to upload doc</span>
+                            <ClipboardList className={`h-6 w-6 mb-2 ${error ? 'text-red-400' : 'text-gray-400'}`} />
+                            <span className={`text-xs font-medium ${error ? 'text-red-600' : 'text-gray-500'}`}>Click to upload doc</span>
                         </>
                     )}
                 </label>
             </div>
+            {error && (
+                <p id={`error-${id}`} className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{error}</span>
+                </p>
+            )}
         </div>
     );
 }

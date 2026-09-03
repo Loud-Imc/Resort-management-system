@@ -166,38 +166,38 @@ export class PricingService {
         const checkOut = new Date(checkOutDate);
         checkOut.setHours(0, 0, 0, 0);
 
-        const numberOfNights = Math.round(
+        const numberOfNights = Math.max(1, Math.round(
             (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
-        );
+        ));
 
-        if (numberOfNights < 0) {
+        if (checkIn > checkOut) {
             throw new BadRequestException('Check-out date cannot be before check-in date');
         }
 
         // For standard bookings: guests beyond maxAdults/maxChildren are permitted
         // but incur extra charges (calculated below). Group bookings use groupSize capacity.
-        // Removed the strict groupSize > maxGroupCap validation because it incorrectly limits multi-room group bookings 
-        // to a single room's capacity. Aggregate capacity is handled by AvailabilityService.
+        // 3. Normalize prices if room type is GST inclusive (Only if property is GST registered)
+        const isPropertyGstApplicable = Boolean((roomType.property as any)?.isGstApplicable && (roomType.property as any)?.gstNumber);
+        const isRoomGstInclusive = isPropertyGstApplicable && Boolean(roomType.isGstInclusive);
 
-        // 3. Normalize prices if room type is GST inclusive
         let effectiveBasePrice = Number(roomType.basePrice);
         let effectiveExtraAdultPrice = Number(roomType.extraAdultPrice);
         let effectiveExtraChildPrice = Number(roomType.extraChildPrice);
 
-        if (roomType.isGstInclusive) {
+        if (isRoomGstInclusive) {
             // Reverse-calculate components for base amount (per room per night)
-            const normalizedBase = await this.calculateReverseGST(effectiveBasePrice, 1, 1);
+            const normalizedBase = await this.calculateReverseGST(effectiveBasePrice, 1, 1, undefined, true);
             effectiveBasePrice = normalizedBase.baseAmount;
 
             // Reverse-calculate extra adult price (treated as its own tariff per night)
             if (effectiveExtraAdultPrice > 0) {
-                const normalizedAdult = await this.calculateReverseGST(effectiveExtraAdultPrice, 1, 1);
+                const normalizedAdult = await this.calculateReverseGST(effectiveExtraAdultPrice, 1, 1, undefined, true);
                 effectiveExtraAdultPrice = normalizedAdult.baseAmount;
             }
 
             // Reverse-calculate extra child price
             if (effectiveExtraChildPrice > 0) {
-                const normalizedChild = await this.calculateReverseGST(effectiveExtraChildPrice, 1, 1);
+                const normalizedChild = await this.calculateReverseGST(effectiveExtraChildPrice, 1, 1, undefined, true);
                 effectiveExtraChildPrice = normalizedChild.baseAmount;
             }
         }
@@ -211,7 +211,6 @@ export class PricingService {
         let basePricePerNight = 0;
         let isGroupInclusive = false;
         
-        // Pre-calculate room count for accurate GST slab reverse-calculation
         const stdCapacity = (Number(roomType.maxAdults) || 2) + (Number(roomType.maxChildren) || 0);
         const roomCapacity = roomType.groupMaxOccupancy || stdCapacity || 1;
         const calculatedRoomCount = (isGroupBooking && groupSize)
@@ -220,9 +219,6 @@ export class PricingService {
         let finalRoomCount = Math.max(1, calculatedRoomCount);
 
         if (isGroupBooking && groupSize) {
-            // ... (group booking logic stays same, using property-level prices which we current assume are exclusive)
-            // If the user wants property-level group prices to be inclusive too, we'd need another flag.
-            // For now focusing on RoomType prices as requested.
             if (!roomType.isAvailableForGroupBooking) {
                 console.warn(`[PricingService] Group booking attempted on non-group roomType: ${roomTypeId}`);
                 throw new BadRequestException('This room type is not available for group booking pool');
@@ -231,16 +227,8 @@ export class PricingService {
             const propertyGroupPriceAdult = (roomType.property as any).groupPriceAdult;
             const propertyGroupPriceChild = (roomType.property as any).groupPriceChild;
             
-            isGroupInclusive = (roomType.property as any).isGroupGstInclusive;
-            if (isGroupInclusive === undefined || isGroupInclusive === null) {
-                // Fallback for stale Prisma client or null value
-                try {
-                    const rawProps = await this.prisma.$queryRaw<any[]>`SELECT "isGroupGstInclusive" FROM properties WHERE id = ${roomType.propertyId}`;
-                    isGroupInclusive = rawProps?.[0]?.isGroupGstInclusive ?? false;
-                } catch (e) {
-                    isGroupInclusive = false;
-                }
-            }
+            const rawGroupInclusive = (roomType.property as any).isGroupGstInclusive;
+            isGroupInclusive = isPropertyGstApplicable && Boolean(rawGroupInclusive);
 
             // 1. Target room count was already pre-calculated above for slab accuracy
 
@@ -248,62 +236,48 @@ export class PricingService {
             let totalInclusivePerNight = 0;
             if (propertyGroupPriceAdult === null || propertyGroupPriceAdult === undefined) {
                 if (propertyGroupPricePerHead === null || propertyGroupPricePerHead === undefined) {
-                    console.error(`[PricingService] Missing group pricing for property: ${roomType.property.name}`);
-                    throw new BadRequestException(`Group pricing is not configured for property: ${roomType.property.name}`);
+                    throw new BadRequestException('Group price per head is not configured for this property');
                 }
                 totalInclusivePerNight = Number(propertyGroupPricePerHead) * groupSize;
             } else {
-                const adultPrice = Number(propertyGroupPriceAdult);
-                const childPrice = propertyGroupPriceChild !== null ? Number(propertyGroupPriceChild) : adultPrice;
-                const totalSpecifiedGuests = (adultsCount || 0) + (childrenCount || 0);
-                
-                if (totalSpecifiedGuests > 0) {
-                    totalInclusivePerNight = (adultPrice * (adultsCount || 0)) + (childPrice * (childrenCount || 0));
-                } else {
-                    totalInclusivePerNight = adultPrice * groupSize;
-                }
+                const adultRate = Number(propertyGroupPriceAdult);
+                const childRate = Number(propertyGroupPriceChild || 0);
+                totalInclusivePerNight = (adultRate * adultsCount) + (childRate * childrenCount);
             }
 
-            // 3. Convert inclusive total to base total using accurate roomCount-based slab
+            // 3. Normalize to base if isGroupGstInclusive
             if (isGroupInclusive) {
-                const normalized = await this.calculateReverseGST(totalInclusivePerNight, 1, finalRoomCount, groupSize);
-                basePricePerNight = Number((normalized.baseAmount / groupSize).toFixed(2));
-                baseAmount = normalized.baseAmount * Math.max(1, numberOfNights);
+                // Slabs are applied per room (distribute tariff equally across required rooms)
+                const normalized = await this.calculateReverseGST(totalInclusivePerNight, 1, finalRoomCount, undefined, true);
+                basePricePerNight = normalized.baseAmount;
             } else {
-                basePricePerNight = Number((totalInclusivePerNight / groupSize).toFixed(2));
-                baseAmount = totalInclusivePerNight * Math.max(1, numberOfNights);
+                basePricePerNight = totalInclusivePerNight;
             }
 
-            console.log(`[PricingService] Group Booking Pricing Debug:`, {
-                propertyName: roomType.property.name,
-                isGroupInclusive,
-                totalInclusivePerNight,
-                baseAmount,
-                finalRoomCount
-            });
+            baseAmount = basePricePerNight * numberOfNights;
         } else {
-            // Standard pricing (nights * base price for X rooms)
-            const rooms = requestedRoomCount || 1;
-            basePricePerNight = effectiveBasePrice * rooms;
-            baseAmount = basePricePerNight * Math.max(1, numberOfNights);
+            // Standard booking pricing
+            const baseAdults = roomType.baseAdults !== null && roomType.baseAdults !== undefined
+                ? Number(roomType.baseAdults)
+                : (Number(roomType.maxAdults) || 2);
+            const baseChildren = roomType.baseChildren !== null && roomType.baseChildren !== undefined
+                ? Number(roomType.baseChildren)
+                : (Number(roomType.maxChildren) || 2);
 
-            // 4. Calculate extra adult charges
-            // Use explicit extraAdultsCount if provided, else fallback to total guest count minus base capacity
-            const effectiveBaseAdults = Number(roomType.baseAdults ?? roomType.maxAdults ?? 2) * rooms;
-            extraAdults = extraAdultsCount !== undefined && extraAdultsCount !== null
-                ? Math.max(0, Number(extraAdultsCount))
-                : Math.max(0, adultsCount - effectiveBaseAdults);
-            extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
+            const effectiveRoomCount = finalRoomCount;
+            const totalBaseAdults = baseAdults * effectiveRoomCount;
+            const totalBaseChildren = baseChildren * effectiveRoomCount;
 
-            // 5. Calculate extra child charges
-            const effectiveBaseChildren = Number(roomType.baseChildren ?? roomType.maxChildren ?? 1) * rooms;
-            extraChildren = extraChildrenCount !== undefined && extraChildrenCount !== null
-                ? Math.max(0, Number(extraChildrenCount))
-                : Math.max(0, childrenCount - effectiveBaseChildren);
-            extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
+            extraAdults = Math.max(0, adultsCount - totalBaseAdults);
+            extraChildren = Math.max(0, childrenCount - totalBaseChildren);
+
+            basePricePerNight = effectiveBasePrice * effectiveRoomCount;
+            baseAmount = effectiveBasePrice * numberOfNights * effectiveRoomCount;
+            extraAdultAmount = effectiveExtraAdultPrice * extraAdults * numberOfNights;
+            extraChildAmount = effectiveExtraChildPrice * extraChildren * numberOfNights;
         }
 
-        // 6. Apply seasonal pricing rules if any
+        // 6. Apply Pricing Rules (Seasonal/Dynamic Pricing)
         const pricingRule = await this.getApplicablePricingRule(
             roomTypeId,
             checkInDate,
@@ -313,8 +287,7 @@ export class PricingService {
         let subtotal = baseAmount + extraAdultAmount + extraChildAmount;
         if (pricingRule) {
             if (pricingRule.adjustmentType === 'PERCENTAGE') {
-                const adjustment = (subtotal * Number(pricingRule.adjustmentValue)) / 100;
-                subtotal += adjustment;
+                subtotal += (subtotal * Number(pricingRule.adjustmentValue)) / 100;
             } else {
                 subtotal += Number(pricingRule.adjustmentValue);
             }
@@ -323,102 +296,80 @@ export class PricingService {
         // CAPTURE ORIGINAL SUBTOTAL (Pre-offer/coupon/referral)
         const subtotalBeforeDiscounts = subtotal;
         let originalTaxAmount = 0;
-        const gstTiersForOriginal = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
         const originalEffectiveNights = Math.max(1, numberOfNights);
 
-        // GST calculation logic below uses finalRoomCount pre-calculated above
-
-        for (let i = 0; i < originalEffectiveNights; i++) {
-            const subtotalThisNight = subtotalBeforeDiscounts / originalEffectiveNights;
-            if (isGroupBooking && groupSize && groupSize > 0) {
-                const headTariffThisNight = subtotalThisNight / groupSize;
-                const headTax = this.calculateTaxForTariff(headTariffThisNight, gstTiersForOriginal);
-                originalTaxAmount += headTax * groupSize;
-            } else {
-                const roomTariffThisNight = subtotalThisNight / finalRoomCount;
-                for (let r = 0; r < finalRoomCount; r++) {
-                    originalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiersForOriginal);
+        if (isPropertyGstApplicable) {
+            const gstTiersForOriginal = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+            for (let i = 0; i < originalEffectiveNights; i++) {
+                const subtotalThisNight = subtotalBeforeDiscounts / originalEffectiveNights;
+                if (isGroupBooking && groupSize && groupSize > 0) {
+                    const headTariffThisNight = subtotalThisNight / groupSize;
+                    const headTax = this.calculateTaxForTariff(headTariffThisNight, gstTiersForOriginal);
+                    originalTaxAmount += headTax * groupSize;
+                } else {
+                    const roomTariffThisNight = subtotalThisNight / finalRoomCount;
+                    for (let r = 0; r < finalRoomCount; r++) {
+                        originalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiersForOriginal);
+                    }
                 }
             }
         }
         const originalTotal = subtotalBeforeDiscounts + originalTaxAmount;
 
-        // 7. Check for active Room Type Offers (Direct Discounts)
-        const allOffers = await this.prisma.offer.findMany({
-            where: {
-                roomTypes: { some: { id: roomTypeId } },
-                isActive: true,
-            },
-        });
-
-        const activeOffer = allOffers.find(offer =>
-            DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, offer.startDate, offer.endDate)
-        );
+        // 7. Check for active Room Type Offers
+        const allOffers = await this.prisma.offer.findMany({ where: { roomTypes: { some: { id: roomTypeId } }, isActive: true } });
+        const activeOffer = allOffers.find(o => DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, o.startDate, o.endDate));
 
         let offerDiscountAmount = 0;
         if (activeOffer) {
             const offer = activeOffer as any;
             if (offer.discountType === 'PERCENTAGE') {
-                offerDiscountAmount = Math.round((subtotal * Number(offer.discountValue)) / 100);
-            } else {
-                offerDiscountAmount = Math.round(Number(offer.discountValue));
+                offerDiscountAmount = (subtotal * Number(offer.discountValue)) / 100;
+            } else if (offer.discountType === 'FIXED_AMOUNT') {
+                offerDiscountAmount = Number(offer.discountValue);
             }
+            offerDiscountAmount = Math.min(offerDiscountAmount, subtotal);
             subtotal -= offerDiscountAmount;
         }
 
-        // 8. Apply referral discount if applicable (BEFORE tax per Indian GST rules)
+        // 8. Apply Referral Discount if provided
         let referralDiscountAmount = 0;
         if (referralCode) {
             const cp = await this.prisma.channelPartner.findFirst({
-                where: { referralCode, status: 'APPROVED' as any }
+                where: { referralCode: referralCode.trim().toUpperCase(), status: 'APPROVED' as any }
             });
-
-            if (!cp) {
-                throw new BadRequestException('Invalid referral code or partner not approved');
+            if (cp) {
+                const discountRate = cp.referralDiscountRate ? Number(cp.referralDiscountRate) : 5.0;
+                referralDiscountAmount = (subtotal * discountRate) / 100;
+                referralDiscountAmount = Math.min(referralDiscountAmount, subtotal);
+                subtotal -= referralDiscountAmount;
             }
-
-            const discountRate = Number(cp.referralDiscountRate || 0);
-            referralDiscountAmount = (subtotal * discountRate) / 100;
-            subtotal -= referralDiscountAmount;
         }
 
-        // 9. Apply coupon discount (BEFORE tax per Indian GST rules - tax on transaction value)
+        // 9. Apply Coupon Code Discount if provided
         let couponDiscountAmount = 0;
         if (couponCode) {
-            couponDiscountAmount = await this.calculateCouponDiscount(
-                couponCode,
-                subtotal,
-                checkInDate,
-            );
+            couponDiscountAmount = await this.applyCoupon(couponCode, subtotal);
             subtotal -= couponDiscountAmount;
-            console.log(`[PricingService] Coupon discount applied: ${couponDiscountAmount}, new subtotal: ${subtotal}`);
         }
 
-        // 9a. Global discount cap — applied AFTER all individual discounts, BEFORE tax
-        // Cap value is loaded from GlobalSettings (MAX_DISCOUNT_PCT, fallback 30%).
-        // Trims coupon first, then referral if still over cap. Offer is never reduced.
+        // Combined Discount Ceiling Enforcement
         const maxDiscountPctSetting = await this.systemSettingsService.getSetting('MAX_DISCOUNT_PCT');
-        const maxDiscountFraction = (typeof maxDiscountPctSetting === 'number' ? maxDiscountPctSetting : (this.FALLBACK_MAX_DISCOUNT_PCT * 100)) / 100;
-
-        const grossPreDiscount = baseAmount + extraAdultAmount + extraChildAmount +
-            (pricingRule ? (pricingRule.adjustmentType === 'PERCENTAGE'
-                ? (baseAmount + extraAdultAmount + extraChildAmount) * Number(pricingRule.adjustmentValue) / 100
-                : Number(pricingRule.adjustmentValue)) : 0);
-        const maxAllowedDiscount = grossPreDiscount * maxDiscountFraction;
+        const maxDiscountPct = (typeof maxDiscountPctSetting === 'number' ? maxDiscountPctSetting : 30) / 100;
+        const maxAllowedDiscount = subtotalBeforeDiscounts * maxDiscountPct;
         let totalDiscount = offerDiscountAmount + referralDiscountAmount + couponDiscountAmount;
-        let capApplied = false;
 
         if (totalDiscount > maxAllowedDiscount) {
-            capApplied = true;
-            const overageAmount = totalDiscount - maxAllowedDiscount;
+            const overage = totalDiscount - maxAllowedDiscount;
+            let remainingOverage = overage;
 
-            // Trim coupon first
-            const couponTrim = Math.min(couponDiscountAmount, overageAmount);
-            couponDiscountAmount -= couponTrim;
-            subtotal += couponTrim; // restore trimmed amount to subtotal
-            let remainingOverage = overageAmount - couponTrim;
+            if (couponDiscountAmount > 0) {
+                const couponTrim = Math.min(couponDiscountAmount, remainingOverage);
+                couponDiscountAmount -= couponTrim;
+                remainingOverage -= couponTrim;
+                subtotal += couponTrim;
+            }
 
-            // Trim referral next if still over cap
             if (remainingOverage > 0) {
                 const referralTrim = Math.min(referralDiscountAmount, remainingOverage);
                 referralDiscountAmount -= referralTrim;
@@ -432,43 +383,35 @@ export class PricingService {
         subtotal = Math.max(0, subtotal);
 
         // 10. Calculate GST based on dynamic GST tiers (Applied per room per night)
-        // GST is calculated on the fully-discounted subtotal (transaction value)
-        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
         let totalTaxAmount = 0;
-
-        // Iterate through each night to handle seasonal pricing variations
-        const taxEffectiveNights = Math.max(1, numberOfNights);
-        for (let i = 0; i < taxEffectiveNights; i++) {
-            // Per-night taxable amount (average across nights)
-            const subtotalThisNight = subtotal / taxEffectiveNights;
-            if (isGroupBooking && groupSize && groupSize > 0) {
-                const headTariffThisNight = subtotalThisNight / groupSize;
-                const headTax = this.calculateTaxForTariff(headTariffThisNight, gstTiers);
-                totalTaxAmount += headTax * groupSize;
-            } else {
-                const roomTariffThisNight = subtotalThisNight / finalRoomCount;
-                // Apply GST slab separately for each room
-                for (let r = 0; r < finalRoomCount; r++) {
-                    totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
+        if (isPropertyGstApplicable) {
+            const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+            const taxEffectiveNights = Math.max(1, numberOfNights);
+            for (let i = 0; i < taxEffectiveNights; i++) {
+                const subtotalThisNight = subtotal / taxEffectiveNights;
+                if (isGroupBooking && groupSize && groupSize > 0) {
+                    const headTariffThisNight = subtotalThisNight / groupSize;
+                    const headTax = this.calculateTaxForTariff(headTariffThisNight, gstTiers);
+                    totalTaxAmount += headTax * groupSize;
+                } else {
+                    const roomTariffThisNight = subtotalThisNight / finalRoomCount;
+                    for (let r = 0; r < finalRoomCount; r++) {
+                        totalTaxAmount += this.calculateTaxForTariff(roomTariffThisNight, gstTiers);
+                    }
                 }
             }
         }
 
         const taxAmount = totalTaxAmount;
-        const taxRate = subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 0;
-
-        // 11. Calculate final total (subtotal already has all discounts applied)
-        console.log("subtotal *****", subtotal);
-        console.log("taxAmount *****", taxAmount);
+        const taxRate = (isPropertyGstApplicable && subtotal > 0) ? Math.round((taxAmount / subtotal) * 100) : 0;
         const totalAmount = subtotal + taxAmount;
-        console.log("totalAmount *****", totalAmount);
+
         // 12. Handle Currency Conversion
         let exchangeRate = 1.0;
         if (targetCurrency !== baseCurrency) {
             exchangeRate = await this.currenciesService.convert(1, baseCurrency, targetCurrency);
         }
 
-        // The consolidated roomCount used for pricing/tax logic
         const roomCount = finalRoomCount;
 
         const cleanFloat = (val: number) => {
@@ -477,113 +420,91 @@ export class PricingService {
             return Number(val.toFixed(2));
         };
 
-        const isGstInc = isGroupBooking ? !!isGroupInclusive : !!roomType.isGstInclusive;
-        const taxMultiplier = 1 + (taxRate / 100);
+        const isGstInc = isPropertyGstApplicable && (isGroupBooking ? !!isGroupInclusive : !!roomType.isGstInclusive);
 
-        const grossBaseAmount = isGstInc
-            ? cleanFloat((Number(roomType.basePrice) || 0) * roomCount * Math.max(1, numberOfNights))
-            : cleanFloat(baseAmount);
+        let grossOfferDiscountAmount = offerDiscountAmount;
+        let grossReferralDiscountAmount = referralDiscountAmount;
+        let grossCouponDiscountAmount = couponDiscountAmount;
 
-        const grossExtraAdultAmount = isGstInc
-            ? cleanFloat((Number(roomType.extraAdultPrice) || 0) * (extraAdults || 0) * Math.max(1, numberOfNights))
-            : cleanFloat(extraAdultAmount);
+        if (isGstInc && taxRate > 0) {
+            const grossMultiplier = 1 + (taxRate / 100);
+            grossOfferDiscountAmount = cleanFloat(offerDiscountAmount * grossMultiplier);
+            grossReferralDiscountAmount = cleanFloat(referralDiscountAmount * grossMultiplier);
+            grossCouponDiscountAmount = cleanFloat(couponDiscountAmount * grossMultiplier);
+        }
 
-        const grossExtraChildAmount = isGstInc
-            ? cleanFloat((Number(roomType.extraChildPrice) || 0) * (extraChildren || 0) * Math.max(1, numberOfNights))
-            : cleanFloat(extraChildAmount);
-
-        const grossOfferDiscountAmount = isGstInc
-            ? Math.round(offerDiscountAmount * taxMultiplier)
-            : Math.round(offerDiscountAmount);
-
-        const grossCouponDiscountAmount = isGstInc
-            ? cleanFloat(couponDiscountAmount * taxMultiplier)
-            : cleanFloat(couponDiscountAmount);
-
-        const grossReferralDiscountAmount = isGstInc
-            ? cleanFloat(referralDiscountAmount * taxMultiplier)
-            : cleanFloat(referralDiscountAmount);
-
-        const finalTotalAmount = isGstInc
-            ? Math.max(0, Math.round(grossBaseAmount + grossExtraAdultAmount + grossExtraChildAmount - grossOfferDiscountAmount - grossCouponDiscountAmount - grossReferralDiscountAmount))
-            : cleanFloat(totalAmount);
-
+        const finalTotalAmount = cleanFloat(totalAmount);
         const finalTaxAmount = isGstInc && taxRate > 0
-            ? cleanFloat(finalTotalAmount * (taxRate / (100 + taxRate)))
+            ? cleanFloat(finalTotalAmount - (finalTotalAmount / (1 + (taxRate / 100))))
             : cleanFloat(totalTaxAmount);
 
-        const result = {
+        const result: PricingBreakdown = {
             baseAmount: isGstInc ? cleanFloat(finalTotalAmount - finalTaxAmount) : cleanFloat(baseAmount),
-            grossBaseAmount,
+            grossBaseAmount: isGstInc
+                ? cleanFloat((basePricePerNight * numberOfNights * (isGroupBooking ? 1 : roomCount)) * (1 + (taxRate / 100)))
+                : cleanFloat(baseAmount),
             extraAdultAmount: cleanFloat(extraAdultAmount),
-            grossExtraAdultAmount,
+            grossExtraAdultAmount: isGstInc && taxRate > 0 ? cleanFloat(extraAdultAmount * (1 + (taxRate / 100))) : cleanFloat(extraAdultAmount),
             extraChildAmount: cleanFloat(extraChildAmount),
-            grossExtraChildAmount,
+            grossExtraChildAmount: isGstInc && taxRate > 0 ? cleanFloat(extraChildAmount * (1 + (taxRate / 100))) : cleanFloat(extraChildAmount),
             taxAmount: finalTaxAmount,
-            offerDiscountAmount: Math.round(offerDiscountAmount),
+            taxRate,
+            offerDiscountAmount: cleanFloat(offerDiscountAmount),
             grossOfferDiscountAmount,
             couponDiscountAmount: cleanFloat(couponDiscountAmount),
             grossCouponDiscountAmount,
             referralDiscountAmount: cleanFloat(referralDiscountAmount),
             grossReferralDiscountAmount,
-            discountAmount: cleanFloat(offerDiscountAmount + couponDiscountAmount + referralDiscountAmount),
+            discountAmount: cleanFloat(totalDiscount),
             totalAmount: finalTotalAmount,
-            originalTotal: cleanFloat(originalTotal),
+            originalTotal: isGstInc ? cleanFloat(originalTotal) : cleanFloat(originalTotal),
             numberOfNights,
-            pricePerNight: basePricePerNight,
-            taxRate: Math.round(taxRate),
+            pricePerNight: cleanFloat(basePricePerNight),
             baseCurrency,
             targetCurrency,
             exchangeRate,
-            convertedTotal: isGstInc && exchangeRate === 1.0 ? finalTotalAmount : cleanFloat(finalTotalAmount * exchangeRate),
-            originalConvertedTotal: cleanFloat(originalTotal * exchangeRate),
+            convertedTotal: Number((finalTotalAmount * exchangeRate).toFixed(2)),
+            originalConvertedTotal: Number((originalTotal * exchangeRate).toFixed(2)),
             roomCount,
-            baseAdults: Number(roomType.baseAdults ?? roomType.maxAdults ?? 2),
-            baseChildren: Number(roomType.baseChildren ?? roomType.maxChildren ?? 1),
-            maxPhysicalAdults: Number(roomType.maxPhysicalAdults ?? 4),
-            maxPhysicalChildren: Number(roomType.maxPhysicalChildren ?? 2),
-            // Transparency: inform the consumer whether the cap was enforced
-            ...(capApplied && { discountCapApplied: true, discountCapPct: maxDiscountFraction * 100 }),
-            appliedCodeType: referralCode ? 'REFERRAL' : (couponCode ? 'COUPON' : 'NONE') as 'REFERRAL' | 'COUPON' | 'NONE',
-            referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode } }))?.id : undefined,
-            partialPaymentPct: Number(await this.systemSettingsService.getSetting('PARTIAL_PAYMENT_PCT') || 33.33),
+            appliedCodeType: couponCode ? 'COUPON' : (referralCode ? 'REFERRAL' : 'NONE'),
+            referralPartnerId: referralCode ? (await this.prisma.channelPartner.findFirst({ where: { referralCode: referralCode.trim().toUpperCase() } }))?.id : undefined,
             isGstInclusive: isGstInc,
-            offerName: (offerDiscountAmount > 0 && activeOffer) ? activeOffer.name : undefined,
-            offerDescription: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.description ?? undefined) : undefined,
-            offerStartDate: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.startDate ? activeOffer.startDate.toISOString() : undefined) : undefined,
-            offerEndDate: (offerDiscountAmount > 0 && activeOffer) ? (activeOffer.endDate ? activeOffer.endDate.toISOString() : undefined) : undefined,
-            offerDiscountType: (offerDiscountAmount > 0 && activeOffer) ? activeOffer.discountType : undefined,
-            offerDiscountValue: (offerDiscountAmount > 0 && activeOffer) ? Number(activeOffer.discountValue) : undefined,
+            offerName: activeOffer ? ((activeOffer as any).title || activeOffer.name) : undefined,
+            offerDescription: activeOffer?.description || undefined,
+            offerStartDate: activeOffer?.startDate ? format(new Date(activeOffer.startDate), 'yyyy-MM-dd') : undefined,
+            offerEndDate: activeOffer?.endDate ? format(new Date(activeOffer.endDate), 'yyyy-MM-dd') : undefined,
+            offerDiscountType: activeOffer?.discountType || undefined,
+            offerDiscountValue: activeOffer?.discountValue ? Number(activeOffer.discountValue) : undefined,
         };
 
-        // --- MANAGE OVERRIDES ---
+        // 13. If Price Override was provided by admin/desk
         if (overrideTotal !== undefined && overrideTotal !== null) {
-            let finalOverrideBreakdown;
+            let finalOverrideBreakdown: { baseAmount: number; taxAmount: number; taxRate: number };
             if (isOverrideInclusive) {
-                // Return total is forced to overrideTotal, reverse calculate base/tax
                 finalOverrideBreakdown = await this.calculateReverseGST(
                     overrideTotal,
                     numberOfNights,
                     roomCount,
-                    isGroupBooking ? groupSize : undefined
+                    isGroupBooking ? groupSize : undefined,
+                    isPropertyGstApplicable
                 );
             } else {
-                // Return base is forced to overrideTotal, add tax on top
                 finalOverrideBreakdown = await this.calculateExclusiveGST(
                     overrideTotal,
                     numberOfNights,
                     roomCount,
-                    isGroupBooking ? groupSize : undefined
+                    isGroupBooking ? groupSize : undefined,
+                    isPropertyGstApplicable
                 );
             }
 
             result.baseAmount = finalOverrideBreakdown.baseAmount;
             result.grossBaseAmount = isOverrideInclusive ? overrideTotal : finalOverrideBreakdown.baseAmount;
             result.taxAmount = finalOverrideBreakdown.taxAmount;
+            result.taxRate = finalOverrideBreakdown.taxRate;
             result.totalAmount = result.baseAmount + result.taxAmount;
             result.convertedTotal = Number((result.totalAmount * exchangeRate).toFixed(2));
 
-            // Zero out other components to keep breakdown clean for overrides
             result.extraAdultAmount = 0;
             result.grossExtraAdultAmount = 0;
             result.extraChildAmount = 0;
@@ -597,7 +518,6 @@ export class PricingService {
             result.discountAmount = 0;
         }
 
-        console.log(`[PricingService] Final result: total=${result.totalAmount}, type=${result.appliedCodeType}`);
         return result;
     }
 
@@ -609,43 +529,41 @@ export class PricingService {
         overrideBase: number,
         numberOfNights: number,
         roomCount: number,
-        groupSize?: number
-    ): Promise<{ baseAmount: number; taxAmount: number }> {
-        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
-
-        // Target base per unit (head or room) per night
-        const divisor = (groupSize && groupSize > 0) ? groupSize : roomCount;
-        const basePerUnitPerNight = overrideBase / (numberOfNights * divisor);
-
-        let targetTaxRate = 0.12; // default fallback
-
-        if (gstTiers && Array.isArray(gstTiers) && gstTiers.length > 0) {
-            // Find which tier this base price falls into
-            for (const tier of gstTiers) {
-                if (basePerUnitPerNight >= tier.min && (tier.max === null || tier.max === undefined || basePerUnitPerNight <= tier.max)) {
-                    targetTaxRate = tier.rate / 100;
-                    break;
-                }
-            }
-        } else {
-            // Fallback tax rate brackets:
-            // 0 - 1000: 0%
-            // 1001 - 7500: 5%
-            // 7501+: 18%
-            if (basePerUnitPerNight <= 1000) {
-                targetTaxRate = 0.0;
-            } else if (basePerUnitPerNight <= 7500) {
-                targetTaxRate = 0.05;
-            } else {
-                targetTaxRate = 0.18;
-            }
+        groupSize?: number,
+        isGstApplicable: boolean = true
+    ): Promise<{ baseAmount: number; taxAmount: number; taxRate: number }> {
+        if (!isGstApplicable) {
+            return {
+                baseAmount: Number(overrideBase.toFixed(2)),
+                taxAmount: 0,
+                taxRate: 0
+            };
         }
 
+        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        if (!gstTiers || !Array.isArray(gstTiers) || gstTiers.length === 0) {
+            throw new BadRequestException('GST tax tiers not configured in system settings');
+        }
+
+        const divisor = (groupSize && groupSize > 0) ? groupSize : roomCount;
+        const basePerUnitPerNight = overrideBase / (Math.max(1, numberOfNights) * Math.max(1, divisor));
+
+        const applicableTier = gstTiers.find(tier =>
+            basePerUnitPerNight >= tier.min &&
+            (tier.max === null || tier.max === undefined || basePerUnitPerNight <= tier.max)
+        );
+
+        if (!applicableTier) {
+            throw new BadRequestException(`No applicable GST tier found for base rate ₹${basePerUnitPerNight.toFixed(2)}`);
+        }
+
+        const targetTaxRate = applicableTier.rate / 100;
         const exactTaxAmount = overrideBase * targetTaxRate;
 
         return {
             baseAmount: Number(overrideBase.toFixed(2)),
-            taxAmount: Number(exactTaxAmount.toFixed(2))
+            taxAmount: Number(exactTaxAmount.toFixed(2)),
+            taxRate: applicableTier.rate
         };
     }
 
@@ -659,36 +577,22 @@ export class PricingService {
     ) {
         const pricingRules = await this.prisma.pricingRule.findMany({
             where: {
+                roomTypeId,
                 isActive: true,
-                OR: [
-                    { roomTypeId },
-                    { roomTypeId: null }, // Global rules
-                ],
-                AND: [
-                    { startDate: { lte: checkOutDate } },
-                    { endDate: { gte: checkInDate } },
-                ],
-            },
-            orderBy: {
-                createdAt: 'desc',
             },
         });
 
-        // Return the first matching rule (most recent)
-        return pricingRules[0] || null;
+        return pricingRules.find(rule =>
+            DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, rule.startDate, rule.endDate)
+        );
     }
 
     /**
-     * Calculate coupon discount
+     * Apply coupon code and calculate discount
      */
-    private async calculateCouponDiscount(
-        couponCode: string,
-        subtotal: number,
-        bookingDate: Date,
-    ): Promise<number> {
-        const trimmedCode = couponCode.trim().toUpperCase();
+    private async applyCoupon(couponCode: string, subtotal: number): Promise<number> {
         const coupon = await this.prisma.coupon.findUnique({
-            where: { code: trimmedCode },
+            where: { code: couponCode.trim().toUpperCase() },
         });
 
         if (!coupon) {
@@ -696,18 +600,12 @@ export class PricingService {
         }
 
         if (!coupon.isActive) {
-            throw new BadRequestException('Coupon is not active');
+            throw new BadRequestException('Coupon is no longer active');
         }
 
-        const checkIn = new Date(bookingDate);
-        const validFrom = new Date(coupon.validFrom);
-        validFrom.setHours(0, 0, 0, 0); // Be lenient: valid from start of day
-
-        const validUntil = new Date(coupon.validUntil);
-        validUntil.setHours(23, 59, 59, 999); // Be lenient: valid until end of day
-
-        if (checkIn < validFrom || checkIn > validUntil) {
-            throw new BadRequestException('Coupon is not valid for this date');
+        const now = new Date();
+        if (now < coupon.validFrom || now > coupon.validUntil) {
+            throw new BadRequestException('Coupon has expired');
         }
 
         if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
@@ -716,7 +614,7 @@ export class PricingService {
 
         if (coupon.minBookingAmount && subtotal < Number(coupon.minBookingAmount)) {
             throw new BadRequestException(
-                `Minimum booking amount of ${coupon.minBookingAmount} required for this coupon`,
+                `Minimum booking amount for this coupon is ₹${coupon.minBookingAmount}`,
             );
         }
 
@@ -727,7 +625,6 @@ export class PricingService {
             discount = Number(coupon.discountValue);
         }
 
-        // Discount cannot exceed subtotal
         return Math.min(discount, subtotal);
     }
 
@@ -735,28 +632,20 @@ export class PricingService {
      * Calculate tax for a single tariff unit (one room for one night)
      */
     private calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
-        let taxRate = 0.12; // Default fallback
-        if (gstTiers && Array.isArray(gstTiers) && gstTiers.length > 0) {
-            const applicableTier = gstTiers.find(tier =>
-                tariff >= tier.min &&
-                (tier.max === null || tier.max === undefined || tariff <= tier.max)
-            );
-            if (applicableTier) {
-                taxRate = applicableTier.rate / 100;
-            }
-        } else {
-            // Fallback tax rate brackets:
-            // 0 - 1000: 0%
-            // 1001 - 7500: 5%
-            // 7501+: 18%
-            if (tariff <= 1000) {
-                taxRate = 0.0;
-            } else if (tariff <= 7500) {
-                taxRate = 0.05;
-            } else {
-                taxRate = 0.18;
-            }
+        if (!gstTiers || !Array.isArray(gstTiers) || gstTiers.length === 0) {
+            throw new BadRequestException('GST tax tiers not configured in system settings');
         }
+
+        const applicableTier = gstTiers.find(tier =>
+            tariff >= tier.min &&
+            (tier.max === null || tier.max === undefined || tariff <= tier.max)
+        );
+
+        if (!applicableTier) {
+            throw new BadRequestException(`No applicable GST tier found for tariff ₹${tariff.toFixed(2)}`);
+        }
+
+        const taxRate = applicableTier.rate / 100;
         return tariff * taxRate;
     }
 
@@ -767,86 +656,77 @@ export class PricingService {
         calculatedTotal: number,
         overrideTotal: number,
     ): boolean {
-        // Allow override within reasonable bounds (e.g., not less than 50% of calculated)
         const minAllowed = calculatedTotal * 0.5;
         return overrideTotal >= minAllowed;
     }
 
     /**
      * Reverse-calculate GST and Base Amount from a given Total amount.
-     * Used when an admin overrides the total price of a booking.
+     * Used when a room type is GST inclusive or when an admin overrides the total price of a booking.
      */
     async calculateReverseGST(
         overrideTotal: number,
         numberOfNights: number,
         roomCount: number,
-        groupSize?: number
-    ): Promise<{ baseAmount: number; taxAmount: number }> {
-        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        groupSize?: number,
+        isGstApplicable: boolean = true
+    ): Promise<{ baseAmount: number; taxAmount: number; taxRate: number }> {
+        if (!isGstApplicable) {
+            return {
+                baseAmount: Number(overrideTotal.toFixed(2)),
+                taxAmount: 0,
+                taxRate: 0
+            };
+        }
 
-        // Target total per unit (head or room) per night
+        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        if (!gstTiers || !Array.isArray(gstTiers) || gstTiers.length === 0) {
+            throw new BadRequestException('GST tax tiers not configured in system settings');
+        }
+
         const divisor = (groupSize && groupSize > 0) ? groupSize : roomCount;
-        const totalPerUnitPerNight = overrideTotal / (numberOfNights * divisor);
+        const totalPerUnitPerNight = overrideTotal / (Math.max(1, numberOfNights) * Math.max(1, divisor));
 
         let targetTaxRate = 0;
         let validTariff = 0;
 
-        if (gstTiers && Array.isArray(gstTiers)) {
-            // Sort tiers descending to test highest rates first (safest for overlaps)
-            const sortedTiers = [...gstTiers].sort((a, b) => b.rate - a.rate);
+        const sortedTiers = [...gstTiers].sort((a, b) => b.rate - a.rate);
 
-            for (const tier of sortedTiers) {
-                const tierRate = tier.rate / 100;
+        for (const tier of sortedTiers) {
+            const tierRate = tier.rate / 100;
+            const testTariff = totalPerUnitPerNight / (1 + tierRate);
 
-                // Test tariff if this tier's rate was applied:
-                // Since Total = Tariff + (Tariff * Rate), Tariff = Total / (1 + Rate)
-                const testTariff = totalPerUnitPerNight / (1 + tierRate);
-
-                // Check if this testTariff actually falls into this tier's bracket
-                if (testTariff >= tier.min && (tier.max === null || tier.max === undefined || testTariff <= tier.max)) {
-                    targetTaxRate = tierRate;
-                    validTariff = testTariff;
-                    break;
-                }
+            if (testTariff >= tier.min && (tier.max === null || tier.max === undefined || testTariff <= tier.max)) {
+                targetTaxRate = tierRate;
+                validTariff = testTariff;
+                break;
             }
         }
 
-        // If no tier matched (should not happen with default 0-1000, 1000-7500, etc)
-        // Fallback to dynamic reverse calculation brackets
-        if (!validTariff) {
-            // Test 18% rate (Tariff > 7500)
-            const testTariff18 = totalPerUnitPerNight / (1 + 0.18);
-            if (testTariff18 > 7500) {
-                targetTaxRate = 0.18;
-                validTariff = testTariff18;
+        if (validTariff === 0 && targetTaxRate === 0) {
+            const matchDirect = sortedTiers.find(tier =>
+                totalPerUnitPerNight >= tier.min &&
+                (tier.max === null || tier.max === undefined || totalPerUnitPerNight <= tier.max)
+            );
+            if (matchDirect) {
+                targetTaxRate = matchDirect.rate / 100;
             } else {
-                // Test 5% rate (1001 <= Tariff <= 7500)
-                const testTariff5 = totalPerUnitPerNight / (1 + 0.05);
-                if (testTariff5 > 1000 && testTariff5 <= 7500) {
-                    targetTaxRate = 0.05;
-                    validTariff = testTariff5;
-                } else {
-                    // Default to 0% rate (Tariff <= 1000)
-                    targetTaxRate = 0.0;
-                    validTariff = totalPerUnitPerNight;
-                }
+                throw new BadRequestException(`No applicable GST tier found for unit tariff ₹${totalPerUnitPerNight.toFixed(2)}`);
             }
         }
 
-        // Calculate precise tax and base using the selected rate
-        // Tax = Total - (Total / (1 + Rate))
         const exactTaxAmount = overrideTotal - (overrideTotal / (1 + targetTaxRate));
         const exactBaseAmount = overrideTotal - exactTaxAmount;
 
         return {
             baseAmount: Number(exactBaseAmount.toFixed(2)),
-            taxAmount: Number(exactTaxAmount.toFixed(2))
+            taxAmount: Number(exactTaxAmount.toFixed(2)),
+            taxRate: Math.round(targetTaxRate * 100)
         };
     }
 
     /**
      * Single Source of Truth for Published Room Prices across the entire PMS ecosystem.
-     * Evaluates daily published selling rates cleanly without requiring dummy or fake booking parameters.
      */
     async getPublishedDailyRates(
         roomTypeId: string,
@@ -860,13 +740,11 @@ export class PricingService {
             include: { property: true },
         }) as any;
 
-        if (!roomType) {
-            throw new NotFoundException(`Room type not found: ${roomTypeId}`);
-        }
-        if (!roomType.property) {
-            throw new BadRequestException('Property information missing for this room type');
+        if (!roomType || !roomType.property) {
+            throw new BadRequestException('Room type or property configuration missing');
         }
 
+        const isPropertyGstApplicable = Boolean(roomType.property.isGstApplicable && roomType.property.gstNumber);
         const baseCurrency = (roomType.property as any).baseCurrency || 'INR';
         let exchangeRate = 1.0;
         const targetCurr = targetCurrency || baseCurrency;
@@ -879,8 +757,10 @@ export class PricingService {
         const checkOut = new Date(endDate);
         checkOut.setHours(0, 0, 0, 0);
 
-        // Load GST tiers exactly once
-        const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        let gstTiers: any[] = [];
+        if (isPropertyGstApplicable) {
+            gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
+        }
 
         const results: PublishedDailyRateQuote[] = [];
         const current = new Date(checkIn);
@@ -896,29 +776,23 @@ export class PricingService {
 
             const originalBasePrice = Number(roomType.basePrice);
             let effectiveBasePrice = originalBasePrice;
-            const isGstInclusive = Boolean(roomType.isGstInclusive);
+            const isGstInclusive = isPropertyGstApplicable && Boolean(roomType.isGstInclusive);
             const gstMode: 'INCLUSIVE' | 'EXCLUSIVE' = isGstInclusive ? 'INCLUSIVE' : 'EXCLUSIVE';
 
             // Reverse-calculate GST if room type is GST inclusive
             if (isGstInclusive) {
-                const normalized = await this.calculateReverseGST(effectiveBasePrice, 1, 1);
+                const normalized = await this.calculateReverseGST(effectiveBasePrice, 1, 1, undefined, true);
                 effectiveBasePrice = normalized.baseAmount;
             }
 
-            // Apply seasonal pricing rules if any
-            const pricingRule = await this.getApplicablePricingRule(
-                roomTypeId,
-                current,
-                nextDate,
-            );
+            const pricingRule = await this.getApplicablePricingRule(roomTypeId, current, nextDate);
 
             let subtotal = effectiveBasePrice;
             let appliedPricingRule: { id: string; name: string; adjustmentType: string; adjustmentValue: number } | undefined = undefined;
 
             if (pricingRule) {
                 if (pricingRule.adjustmentType === 'PERCENTAGE') {
-                    const adjustment = (subtotal * Number(pricingRule.adjustmentValue)) / 100;
-                    subtotal += adjustment;
+                    subtotal += (subtotal * Number(pricingRule.adjustmentValue)) / 100;
                 } else {
                     subtotal += Number(pricingRule.adjustmentValue);
                 }
@@ -930,17 +804,8 @@ export class PricingService {
                 };
             }
 
-            // Check for active Room Type Offers (Direct Discounts)
-            const allDailyOffers = await this.prisma.offer.findMany({
-                where: {
-                    roomTypes: { some: { id: roomTypeId } },
-                    isActive: true,
-                },
-            });
-
-            const activeOffer = allDailyOffers.find(offer =>
-                DateUtils.isNightInOfferRange(dateStr, offer.startDate, offer.endDate)
-            );
+            const allDailyOffers = await this.prisma.offer.findMany({ where: { roomTypes: { some: { id: roomTypeId } }, isActive: true } });
+            const activeOffer = allDailyOffers.find(offer => DateUtils.isNightInOfferRange(dateStr, offer.startDate, offer.endDate));
 
             let appliedOffer: {
                 id: string;
@@ -975,10 +840,13 @@ export class PricingService {
             subtotal = Math.max(0, subtotal);
             const effectivePriceBeforeTax = Number(subtotal.toFixed(2));
 
-            // Calculate GST based on dynamic GST tiers for 1 room
-            const taxAmountRaw = this.calculateTaxForTariff(effectivePriceBeforeTax, gstTiers);
-            const taxAmount = Number(taxAmountRaw.toFixed(2));
-            const taxRate = effectivePriceBeforeTax > 0 ? Math.round((taxAmountRaw / effectivePriceBeforeTax) * 100) : 0;
+            let taxAmount = 0;
+            let taxRate = 0;
+            if (isPropertyGstApplicable) {
+                const taxAmountRaw = this.calculateTaxForTariff(effectivePriceBeforeTax, gstTiers);
+                taxAmount = Number(taxAmountRaw.toFixed(2));
+                taxRate = effectivePriceBeforeTax > 0 ? Math.round((taxAmountRaw / effectivePriceBeforeTax) * 100) : 0;
+            }
 
             const publishedPrice = Number((effectivePriceBeforeTax + taxAmount).toFixed(2));
             const convertedPublishedPrice = Number((publishedPrice * exchangeRate).toFixed(2));

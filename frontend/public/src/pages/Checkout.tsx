@@ -788,7 +788,11 @@ export default function Checkout() {
 
                                 <div className="border-t border-gray-100 pt-4 space-y-2">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">{effectivePricing?.isGstInclusive ? 'Room Charges (GST Inc.)' : 'Base Room Charges'}</span>
+                                        <span className="text-gray-600">
+                                            {(effectivePricing?.taxAmount || 0) === 0
+                                                ? 'Room Charges'
+                                                : (effectivePricing?.isGstInclusive ? 'Room Charges (GST Inc.)' : 'Base Room Charges')}
+                                        </span>
                                         <span>{formatPrice(effectivePricing?.isGstInclusive ? (effectivePricing.originalTotal || (effectivePricing.baseAmount + effectivePricing.taxAmount)) : effectivePricing?.baseAmount, selectedCurrency, rates) || '0'}</span>
                                     </div>
                                     {(effectivePricing?.extraAdultAmount || 0) > 0 && (
@@ -824,14 +828,14 @@ export default function Checkout() {
                                         </div>
                                     )}
 
-                                    {!effectivePricing?.isGstInclusive && (
+                                    {!effectivePricing?.isGstInclusive && (effectivePricing?.taxAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm group relative pt-2">
                                             <div className="flex items-center gap-1.5 text-gray-600">
-                                                <span>Taxes</span>
+                                                <span>Taxes & GST ({effectivePricing.taxRate}%)</span>
                                                 <div className="group/info relative">
                                                     <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
                                                     <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                                                        GST is calculated per room per night based on the transaction value (0%, 12%, or 18% tiers).
+                                                        GST is calculated per room per night based on dynamic GST tiers.
                                                     </div>
                                                 </div>
                                             </div>

@@ -632,10 +632,7 @@ export default function CreateBooking() {
                                                 <span className="text-xs text-muted-foreground line-through font-semibold shrink-0">₹{originalPriceDetails.totalAmount.toFixed(0)}</span>
                                             )}
                                             <span className={`font-extrabold text-xl tracking-tight shrink-0 ${watch('overrideTotal') ? 'text-amber-600 dark:text-amber-400' : 'text-primary'}`}>
-                                                ₹{watch('overrideTotal')
-                                                    ? (watch('isOverrideInclusive') ? watch('overrideTotal')! : watch('overrideTotal')! * (1 + priceDetails.taxRate / 100)).toFixed(2)
-                                                    : priceDetails.totalAmount.toFixed(2)
-                                                }
+                                                ₹{priceDetails.totalAmount.toFixed(2)}
                                             </span>
                                         </div>
                                     </div>
@@ -2033,7 +2030,7 @@ export default function CreateBooking() {
                                                     <span>Referral Discount</span><span>-₹{referralDiscountDisplay.toFixed(2)}</span>
                                                 </div>
                                             )}
-                                            {!isInclusive && (
+                                            {!isInclusive && details.taxAmount > 0 && (
                                                 <div className="flex justify-between text-sm border-b border-border pb-3">
                                                     <span className="text-muted-foreground font-medium">GST / Taxes ({details.taxRate}%)</span>
                                                     <span className="font-semibold text-foreground">+₹{details.taxAmount.toFixed(2)}</span>
@@ -2072,11 +2069,11 @@ export default function CreateBooking() {
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground font-medium">Override Base Tariff</span>
-                                            <span className="font-bold text-foreground">₹{(watch('isOverrideInclusive') ? (watch('overrideTotal')! / (1 + priceDetails.taxRate / 100)) : watch('overrideTotal')!).toFixed(2)}</span>
+                                            <span className="font-bold text-foreground">₹{priceDetails.baseAmount.toFixed(2)}</span>
                                         </div>
                                         <div className="flex justify-between text-sm border-b border-amber-200/40 dark:border-amber-900/20 pb-3">
                                             <span className="text-muted-foreground font-medium">GST Tax ({priceDetails.taxRate}%)</span>
-                                            <span className="font-bold text-foreground">₹{(watch('isOverrideInclusive') ? (watch('overrideTotal')! - watch('overrideTotal')! / (1 + priceDetails.taxRate / 100)) : (watch('overrideTotal')! * priceDetails.taxRate / 100)).toFixed(2)}</span>
+                                            <span className="font-bold text-foreground">₹{priceDetails.taxAmount.toFixed(2)}</span>
                                         </div>
                                         {(originalPriceDetails || priceDetails).offerDiscountAmount > 0 || (originalPriceDetails || priceDetails).discountAmount > 0 ? (
                                             <p className="text-[9px] text-muted-foreground italic">Discounts are bypassed when a manual override is active.</p>
@@ -2084,7 +2081,7 @@ export default function CreateBooking() {
                                         <div className="flex justify-between items-center pt-1">
                                             <span className="font-bold text-xs text-muted-foreground uppercase tracking-wider">Override Total</span>
                                             <span className="font-extrabold text-3xl tracking-tight text-amber-600 dark:text-amber-400">
-                                                ₹{(watch('isOverrideInclusive') ? watch('overrideTotal')! : watch('overrideTotal')! * (1 + priceDetails.taxRate / 100)).toFixed(2)}
+                                                ₹{priceDetails.totalAmount.toFixed(2)}
                                             </span>
                                         </div>
                                     </div>

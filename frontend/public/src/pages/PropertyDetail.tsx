@@ -735,9 +735,11 @@ export default function PropertyDetail() {
                                                                             <div className={clsx("text-4xl font-black leading-none", Number(groupStay.offerDiscountAmount) > 0 ? "text-orange-600" : "text-gray-900")}>
                                                                                 <PriceDisplay amount={groupStay.totalPrice} />
                                                                             </div>
-                                                                            <div className="text-[10px] text-gray-500 font-bold mt-1">
-                                                                                {groupStay.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
-                                                                            </div>
+                                                                            {property?.isGstApplicable !== false && (
+                                                                                <div className="text-[10px] text-gray-500 font-bold mt-1">
+                                                                                    {groupStay.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                 ) : (
@@ -969,9 +971,11 @@ export default function PropertyDetail() {
                                                                             <div className={clsx("text-4xl font-black leading-none", Number(availabilityInfo.offerDiscountAmount) > 0 ? "text-orange-600" : "text-gray-900")}>
                                                                                 <PriceDisplay amount={availabilityInfo.totalPrice} />
                                                                             </div>
-                                                                            <div className="text-[10px] text-gray-500 font-bold mt-1">
-                                                                                {availabilityInfo.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
-                                                                            </div>
+                                                                            {property?.isGstApplicable !== false && (
+                                                                                <div className="text-[10px] text-gray-500 font-bold mt-1">
+                                                                                    {availabilityInfo.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex flex-col items-end">
@@ -983,9 +987,11 @@ export default function PropertyDetail() {
                                                                             <div className={clsx("text-4xl font-black leading-none", Number(roomType.offerDiscountAmount) > 0 ? "text-orange-600" : "text-gray-900")}>
                                                                                 <PriceDisplay amount={(roomType.discountedPricePerNight || roomType.basePrice) * (nights || 1)} />
                                                                             </div>
-                                                                            <div className="text-[10px] text-gray-500 font-bold mt-1">
-                                                                                {roomType.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
-                                                                            </div>
+                                                                            {property?.isGstApplicable !== false && (
+                                                                                <div className="text-[10px] text-gray-500 font-bold mt-1">
+                                                                                    {roomType.isGstInclusive ? 'Includes taxes and charges' : '+ taxes and charges'}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     )}
                                                                 </div>
