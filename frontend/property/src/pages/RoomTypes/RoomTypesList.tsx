@@ -90,7 +90,7 @@ export default function RoomTypesList() {
                                     <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
                                         ₹{type.basePrice}
                                     </span>
-                                    {type.isGstInclusive && (
+                                    {selectedProperty?.isGstApplicable && type.isGstInclusive && (
                                         <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">GST Inclusive</span>
                                     )}
                                 </div>

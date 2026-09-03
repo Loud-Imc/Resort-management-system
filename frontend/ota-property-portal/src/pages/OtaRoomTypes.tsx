@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { otaService } from '../services/otaService';
-import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2 } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -28,6 +28,7 @@ const COMMON_AMENITIES = [
 ];
 
 export default function OtaRoomTypes() {
+  const [property, setProperty] = useState<any>(null);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
   const [policies, setPolicies] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,12 +79,14 @@ export default function OtaRoomTypes() {
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const [rtRes, policiesRes] = await Promise.all([
+      const [rtRes, policiesRes, propRes] = await Promise.all([
         otaService.getRoomTypes(),
-        otaService.getMyPolicies()
+        otaService.getMyPolicies(),
+        otaService.getMyProperty().catch(() => null)
       ]);
       setRoomTypes(rtRes);
       setPolicies(policiesRes);
+      setProperty(propRes);
     } catch (e) {
       toast.error('Failed to retrieve room categories catalog');
     } finally {
@@ -317,16 +320,35 @@ export default function OtaRoomTypes() {
                   onChange={(e) => setBasePrice(e.target.value)}
                 />
                 <div className="mt-2.5">
-                  <label className="inline-flex items-center cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={isGstInclusive}
-                      onChange={(e) => setIsGstInclusive(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${isGstInclusive ? 'bg-primary' : 'bg-muted'}`}></div>
-                    <span className="ml-2 text-[9px] font-bold text-muted-foreground group-hover:text-primary transition-colors uppercase tracking-wider">Price is inclusive of GST</span>
-                  </label>
+                  {property?.isGstApplicable ? (
+                    <>
+                      <label className="inline-flex items-center cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={isGstInclusive}
+                          onChange={(e) => setIsGstInclusive(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${isGstInclusive ? 'bg-primary' : 'bg-muted'}`}></div>
+                        <span className="ml-2 text-[9px] font-bold text-muted-foreground group-hover:text-primary transition-colors uppercase tracking-wider">
+                          {isGstInclusive ? 'Price is Inclusive of GST' : 'Price is Exclusive of GST (+ GST)'}
+                        </span>
+                      </label>
+                      <p className="mt-1 text-[9px] text-muted-foreground font-medium flex items-center gap-1">
+                        <Info className="h-3 w-3 text-primary shrink-0" />
+                        <span>
+                          {isGstInclusive
+                            ? 'Base price is total guest amount; GST is reverse-calculated for invoices.'
+                            : 'Dynamic GST tiers will be added on top of base price at checkout.'}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-muted/40 text-muted-foreground text-[10px] font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50"></span>
+                      <span>Non-GST Property: Zero GST applied & Bill of Supply issued</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -853,7 +875,12 @@ export default function OtaRoomTypes() {
                   <span>Max Guests: {rt.maxPhysicalAdults || rt.maxAdults || rt.capacity || 2} Adults</span>
                 </div>
                 <div className="border-t border-border/60 pt-3 flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Base Rate</span>
+                  <div className="flex flex-col items-start">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Base Rate</span>
+                    {property?.isGstApplicable && rt.isGstInclusive && (
+                      <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter mt-0.5">GST Inclusive</span>
+                    )}
+                  </div>
                   <span className="text-sm font-black text-primary">₹{Number(rt.basePrice).toLocaleString()} / night</span>
                 </div>
               </div>

@@ -480,12 +480,42 @@ export class BookingsController {
         return this.bookingsService.checkOut(id, req.user, dto);
     }
 
+    @Get('credit-note/:id/pdf')
+    @ApiOperation({ summary: 'Download Credit Note PDF' })
+    async getCreditNotePdf(
+        @Param('id') id: string,
+        @Res() res: any,
+    ) {
+        const buffer = await this.bookingsService.generateCreditNote(id);
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="Credit_Note_${id}.pdf"`,
+            'Content-Length': buffer.length,
+        });
+
+        res.end(buffer);
+    }
+
+    @Get(':id/credit-notes')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get all credit notes for a booking' })
+    getCreditNotes(@Param('id') id: string) {
+        return this.bookingsService.getCreditNotesForBooking(id);
+    }
+
     @Post(':id/cancel')
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Cancel booking' })
-    cancel(@Param('id') id: string, @Request() req, @Body('reason') reason?: string) {
-        return this.bookingsService.cancel(id, req.user, reason);
+    cancel(
+        @Param('id') id: string,
+        @Request() req,
+        @Body('reason') reason?: string,
+        @Body('refundPercentage') refundPercentage?: number,
+    ) {
+        return this.bookingsService.cancel(id, req.user, reason, refundPercentage);
     }
 
     @Patch(':id/status')

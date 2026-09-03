@@ -10,7 +10,7 @@ import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
     Camera, X, CheckCircle, XCircle, Star, Image as ImageIcon,
     Plus, Clock, Percent, ShieldAlert, Trash2, FileText,
-    Users, Navigation
+    Users, Navigation, AlertCircle
 } from 'lucide-react';
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
@@ -83,6 +83,9 @@ export default function MyProperty() {
     const [defaultCheckInTime, setDefaultCheckInTime] = useState<string>('14:00');
     const [defaultCheckOutTime, setDefaultCheckOutTime] = useState<string>('11:00');
     const [isGroupGstInclusive, setIsGroupGstInclusive] = useState(false);
+    const [isGstApplicable, setIsGstApplicable] = useState(false);
+    const [gstNumber, setGstNumber] = useState('');
+    const [gstError, setGstError] = useState<string | null>(null);
     const [amenities, setAmenities] = useState<string[]>([]);
     const [newAmenity, setNewAmenity] = useState('');
     const [images, setImages] = useState<string[]>([]);
@@ -169,6 +172,8 @@ export default function MyProperty() {
                     defaultCheckInTime: reqDetails.defaultCheckInTime || '14:00',
                     defaultCheckOutTime: reqDetails.defaultCheckOutTime || '11:00',
                     isGroupGstInclusive: reqDetails.isGroupGstInclusive || false,
+                    isGstApplicable: reqDetails.isGstApplicable ?? (Boolean(reqDetails.gstNumber && reqDetails.gstNumber.trim())),
+                    gstNumber: reqDetails.gstNumber || '',
                     platformCommission: (selectedProperty as any).platformCommission || 10.00,
                     policies: reqDetails.policies || {}
                 };
@@ -200,6 +205,8 @@ export default function MyProperty() {
         setEmail(p.email ?? '');
         setWhatsappNumber(p.whatsappNumber ?? '');
         setPlatformCommission(p.platformCommission !== undefined && p.platformCommission !== null ? Number(p.platformCommission) : 10);
+        setIsGstApplicable((p as any).isGstApplicable ?? (Boolean(p.gstNumber && p.gstNumber.trim())));
+        setGstNumber(p.gstNumber ?? '');
         setAmenities(p.amenities ?? []);
         setImages(p.images ?? []);
         setCoverImage(p.coverImage ?? '');
@@ -305,6 +312,27 @@ export default function MyProperty() {
             }
         }
 
+        // Validation for GST
+        if (isGstApplicable) {
+            const trimmedGst = gstNumber?.trim().toUpperCase();
+            if (!trimmedGst) {
+                setGstError('GST Identification Number (GSTIN) is required when GST is enabled.');
+                const el = document.getElementById('myproperty-gst-input');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el?.focus();
+                return;
+            }
+            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+            if (!gstRegex.test(trimmedGst)) {
+                setGstError('Please enter a valid 15-character GSTIN (e.g. 32AAAAA0000A1Z5)');
+                const el = document.getElementById('myproperty-gst-input');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el?.focus();
+                return;
+            }
+        }
+        setGstError(null);
+
         try {
             setSaving(true);
             const payload: any = {
@@ -318,6 +346,8 @@ export default function MyProperty() {
                 defaultCheckInTime,
                 defaultCheckOutTime,
                 isGroupGstInclusive,
+                isGstApplicable,
+                gstNumber: gstNumber ? gstNumber.trim().toUpperCase() : null,
                 latitude: latitude === '' ? null : Number(latitude),
                 longitude: longitude === '' ? null : Number(longitude),
                 policies: {
@@ -601,6 +631,106 @@ export default function MyProperty() {
                         <div className="flex items-center gap-1.5 text-gray-400 bg-white/50 px-2 py-1 rounded-md border border-gray-100">
                             <ShieldAlert className="h-3 w-3" />
                             <span className="text-[10px] font-bold uppercase">Admin Only</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* GST Applicability & GSTIN Settings */}
+                <div className="p-4 sm:p-5 rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/50 to-emerald-50/30 dark:bg-gray-700/30 dark:border-teal-900/40 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300 shrink-0">
+                                <FileText className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900 dark:text-white">GST Registration & Invoicing</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {isGstApplicable
+                                        ? 'GST applicable: Dynamic GST tiers apply on rooms & Tax Invoices issued'
+                                        : 'Non-GST Property: Zero GST applied & Bill of Supply issued'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {editMode ? (
+                            <div className="flex items-center bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800 rounded-xl p-1 gap-1 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsGstApplicable(false); clearError('gstNumber'); }}
+                                    className={clsx(
+                                        "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                        !isGstApplicable
+                                            ? "bg-gray-900 text-white shadow-sm"
+                                            : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                                    )}
+                                >
+                                    Non-GST
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsGstApplicable(true)}
+                                    className={clsx(
+                                        "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                        isGstApplicable
+                                            ? "bg-teal-600 text-white shadow-sm"
+                                            : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                                    )}
+                                >
+                                    GST Registered
+                                </button>
+                            </div>
+                        ) : (
+                            <span className={clsx(
+                                "px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase self-start sm:self-auto",
+                                isGstApplicable
+                                    ? "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300"
+                                    : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                            )}>
+                                {isGstApplicable ? 'GST Registered' : 'Non-GST'}
+                            </span>
+                        )}
+                    </div>
+
+                    {isGstApplicable && (
+                        <div id="myproperty-gst-container" className="pt-3 border-t border-teal-100 dark:border-teal-900/40 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <label className="block text-xs font-bold text-teal-900 dark:text-teal-300 uppercase tracking-wider mb-1.5">
+                                Property GST Identification Number (GSTIN) <span className="text-red-500">*</span>
+                            </label>
+                            {editMode ? (
+                                <div>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <FileText className="h-4 w-4 text-teal-600" />
+                                        </div>
+                                        <input
+                                            id="myproperty-gst-input"
+                                            type="text"
+                                            maxLength={15}
+                                            value={gstNumber}
+                                            onChange={(e) => {
+                                                setGstError(null);
+                                                setGstNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+                                            }}
+                                            placeholder="e.g. 32AAAAA0000A1Z5"
+                                            className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 text-sm font-mono uppercase tracking-wider ${
+                                                gstError
+                                                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20 text-gray-900 dark:text-white'
+                                                    : 'border-teal-300 dark:border-teal-700 focus:ring-teal-500 text-gray-900 dark:text-white bg-white dark:bg-gray-800'
+                                            }`}
+                                        />
+                                    </div>
+                                    {gstError && (
+                                        <p className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{gstError}</span>
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800 rounded-lg text-sm font-mono font-bold text-teal-900 dark:text-teal-200">
+                                    <span>{gstNumber || 'No GSTIN provided'}</span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

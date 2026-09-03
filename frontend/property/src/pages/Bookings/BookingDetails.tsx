@@ -21,7 +21,8 @@ import {
     Receipt,
     Pencil,
     Briefcase,
-    AlertCircle
+    AlertCircle,
+    FileText
 } from 'lucide-react';
 import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -161,6 +162,36 @@ const BookingDetails = () => {
         }
     };
 
+    const handleDownloadCreditNotePDF = async () => {
+        try {
+            setIsDownloading(true);
+            const response = await api.get(`/bookings/${booking.id}/credit-notes`);
+            const notes = response.data;
+            if (!notes || notes.length === 0) {
+                toast.error('No Credit Note found for this cancellation.');
+                return;
+            }
+            const creditNoteId = notes[0].id;
+            const pdfRes = await api.get(`/bookings/credit-note/${creditNoteId}/pdf`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([pdfRes.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Credit_Note_${booking.bookingNumber}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('Credit Note downloaded');
+        } catch (error) {
+            console.error('Failed to download Credit Note PDF', error);
+            toast.error('Failed to download Credit Note from server');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
             {/* Header */}
@@ -214,6 +245,16 @@ const BookingDetails = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {booking.status === 'CANCELLED' && (
+                        <button
+                            onClick={handleDownloadCreditNotePDF}
+                            disabled={isDownloading}
+                            className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white hover:shadow-xl hover:shadow-rose-500/20 px-6 py-3 rounded-2xl transition-all active:scale-95 text-xs font-black uppercase tracking-widest disabled:opacity-50 cursor-pointer"
+                        >
+                            {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                            Download Credit Note
+                        </button>
+                    )}
                     <button
                         onClick={handleDownloadBackendPDF}
                         disabled={isDownloading}
@@ -503,10 +544,12 @@ const BookingDetails = () => {
                                         <span className="font-black">-₹{Number(booking.discountAmount).toLocaleString()}</span>
                                     </div>
                                 )}
-                                <div className="flex justify-between text-sm items-center">
-                                    <span className="text-muted-foreground font-bold">Taxes & Fees</span>
-                                    <span className="font-black text-foreground">₹{Number(booking.taxAmount).toLocaleString()}</span>
-                                </div>
+                                {Number(booking.taxAmount || 0) > 0 && (
+                                    <div className="flex justify-between text-sm items-center">
+                                        <span className="text-muted-foreground font-bold">Taxes & Fees</span>
+                                        <span className="font-black text-foreground">₹{Number(booking.taxAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="pt-6 border-t border-border/50 space-y-6">

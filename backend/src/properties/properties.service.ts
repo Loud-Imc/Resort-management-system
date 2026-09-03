@@ -229,6 +229,7 @@ export class PropertiesService {
                     amenities: details.amenities || [],
                     licenceImage: details.licenceImage || null,
                     documents: details.documents || [],
+                    isGstApplicable: details.isGstApplicable !== undefined ? Boolean(details.isGstApplicable) : Boolean(details.gstNumber && details.gstNumber.trim()),
                     gstNumber: details.gstNumber || null,
                     ownerAadhaarNumber: details.ownerAadhaarNumber || null,
                     ownerAadhaarImage: details.ownerAadhaarImage || null,

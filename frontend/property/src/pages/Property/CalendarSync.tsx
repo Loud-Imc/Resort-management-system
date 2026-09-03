@@ -347,28 +347,6 @@ export default function CalendarSync() {
               <BookOpen className="h-4 w-4" />
               <span>📖 Owner & Staff Guide (`Benefits & FAQ`)</span>
             </button>
-            <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 rounded-2xl text-xs font-bold shadow-sm">
-              <span>Currency:</span>
-              <select
-                value={(selectedProperty as any)?.baseCurrency || 'INR'}
-                onChange={async (e) => {
-                  const newCurrency = e.target.value;
-                  if (!selectedProperty?.id) return;
-                  try {
-                    await channelsService.updateCurrency(selectedProperty.id, newCurrency);
-                    toast.success(`Property base currency updated to ${newCurrency}!`);
-                    setTimeout(() => window.location.reload(), 1000);
-                  } catch (err: any) {
-                    toast.error(err?.response?.data?.message || err?.message || 'Failed to update currency');
-                  }
-                }}
-                className="bg-background border border-border rounded-lg px-1.5 py-0.5 text-xs text-foreground font-extrabold focus:outline-hidden cursor-pointer"
-              >
-                {['INR', 'USD', 'GBP', 'EUR', 'JPY'].map(curr => (
-                  <option key={curr} value={curr}>{curr}</option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
       </div>
@@ -703,29 +681,6 @@ export default function CalendarSync() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2.5 shrink-0">
-                  <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 rounded-2xl text-xs font-bold">
-                    <span>Currency:</span>
-                    <select
-                      value={(selectedProperty as any)?.baseCurrency || 'INR'}
-                      onChange={async (e) => {
-                        const newCurrency = e.target.value;
-                        if (!selectedProperty?.id) return;
-                        try {
-                          await channelsService.updateCurrency(selectedProperty.id, newCurrency);
-                          toast.success(`Property base currency updated to ${newCurrency}!`);
-                          setTimeout(() => window.location.reload(), 1000);
-                        } catch (err: any) {
-                          toast.error(err?.response?.data?.message || err?.message || 'Failed to update currency');
-                        }
-                      }}
-                      className="bg-background border border-border rounded-lg px-1.5 py-0.5 text-xs text-foreground font-extrabold focus:outline-hidden cursor-pointer"
-                    >
-                      {['INR', 'USD', 'GBP', 'EUR', 'JPY'].map(curr => (
-                        <option key={curr} value={curr}>{curr}</option>
-                      ))}
-                    </select>
-                  </div>
-
                   <button
                     onClick={() => { setCustomOtaSearch(''); setDirectoryCategory('All'); setCustomOtaModal(true); }}
                     className="py-3 px-5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"

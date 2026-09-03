@@ -415,17 +415,19 @@ export default function Confirmation() {
                                 <div className="space-y-4 print:space-y-2 [.pdf-capture-mode_&]:space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500">
-                                            {roomType?.isGstInclusive
-                                                ? `Room Charges (${booking.numberOfNights || 1} ${booking.numberOfNights === 1 ? 'Night' : 'Nights'}, ${booking.bookingRooms?.length || booking.roomsCount || 1} ${(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'} - GST Inc.)`
-                                                : `Accommodation Charges (${booking.numberOfNights || 1} ${booking.numberOfNights === 1 ? 'Night' : 'Nights'}, ${booking.bookingRooms?.length || booking.roomsCount || 1} ${(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'})`
+                                            {Number(booking.taxAmount || 0) === 0
+                                                ? `Room Charges (${booking.numberOfNights || 1} ${booking.numberOfNights === 1 ? 'Night' : 'Nights'}, ${booking.bookingRooms?.length || booking.roomsCount || 1} ${(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'})`
+                                                : (roomType?.isGstInclusive
+                                                    ? `Room Charges (${booking.numberOfNights || 1} ${booking.numberOfNights === 1 ? 'Night' : 'Nights'}, ${booking.bookingRooms?.length || booking.roomsCount || 1} ${(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'} - GST Inc.)`
+                                                    : `Accommodation Charges (${booking.numberOfNights || 1} ${booking.numberOfNights === 1 ? 'Night' : 'Nights'}, ${booking.bookingRooms?.length || booking.roomsCount || 1} ${(booking.bookingRooms?.length || booking.roomsCount || 1) === 1 ? 'Room' : 'Rooms'})`)
                                             }
                                         </span>
                                         <span className="font-medium text-gray-900">{formatPrice(roomType?.isGstInclusive ? (Number(booking.originalTotal) || (Number(booking.baseAmount) + Number(booking.taxAmount))) : (booking.baseAmount || 0), booking.bookingCurrency || 'INR')}</span>
                                     </div>
-                                    {!roomType?.isGstInclusive && (
+                                    {!roomType?.isGstInclusive && Number(booking.taxAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm">
                                             <div className="flex items-center gap-1.5 text-gray-500">
-                                                <span>Taxes</span>
+                                                <span>Taxes & GST</span>
                                                 <div className="group/info relative print:hidden [.pdf-capture-mode_&]:hidden">
                                                     <Info className="h-3 w-3 text-gray-400 cursor-help" />
                                                     <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[9px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">

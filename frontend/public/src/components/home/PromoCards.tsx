@@ -1,43 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Star, MapPin } from 'lucide-react';
+import { Star, MapPin, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { propertyApi } from '../../services/properties';
-
-
-
-// Fallback static cards just in case the system holds absolutely zero properties
-const LOCAL_FALLBACKS = [
-    {
-        id: 'f1',
-        name: 'Serene Lake View Hotel',
-        description: 'Experience tranquility in our premium eco-villas with stunning lake vistas.',
-        coverImage: '/images/promo_resort_1.png',
-        category: { name: 'Eco-Luxury' },
-        rating: 4.8,
-        city: 'Munnar',
-        state: 'Kerala'
-    },
-    {
-        id: 'f2',
-        name: 'Heritage Courtyard Stay',
-        description: 'A blend of traditional architecture and modern luxury in the heart of history.',
-        coverImage: '/images/promo_resort_2.png',
-        category: { name: 'Cultural' },
-        rating: 4.5,
-        city: 'Mysore',
-        state: 'Karnataka'
-    },
-    {
-        id: 'f3',
-        name: 'Private Rainforest Retreat',
-        description: 'Escape to your own private sanctuary nestled within lush tropical greenery.',
-        coverImage: '/images/promo_resort_3.png',
-        category: { name: 'Wellness' },
-        rating: 4.9,
-        city: 'Coorg',
-        state: 'Karnataka'
-    }
-];
 
 export default function PromoCards() {
     const navigate = useNavigate();
@@ -46,11 +10,11 @@ export default function PromoCards() {
     const [loading, setLoading] = useState(true);
     const [detectedCity, setDetectedCity] = useState<string>('');
 
-    // Detect user city: Step 0 → GPS + Google Reverse Geocode, Step 1 → IP detection fallback
+    // Detect user city: Step 0 → GPS + Google Reverse Geocode, Step 1 → IP detection
     useEffect(() => {
         const detectLocation = async () => {
             try {
-                // Check local storage first (24h TTL) — avoids prompting the user on every visit
+                // Check local storage first (24h TTL)
                 const cachedCityRaw = localStorage.getItem('user_detected_city');
                 if (cachedCityRaw) {
                     try {
@@ -66,9 +30,7 @@ export default function PromoCards() {
 
                 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-                // ── STEP 0: Browser GPS → Google Reverse Geocoding ──────────────
-                // Ask the browser for permission. This shows the native "Allow location?" prompt.
-                // We only wait 8 seconds; if the user ignores/dismisses, we fall through.
+                // STEP 0: Browser GPS → Reverse Geocode
                 const gpsCity = await new Promise<string | null>((resolve) => {
                     if (!navigator.geolocation) {
                         resolve(null);
@@ -87,7 +49,7 @@ export default function PromoCards() {
                                 resolve(null);
                             }
                         },
-                        () => resolve(null), // user denied or error
+                        () => resolve(null),
                         { timeout: 8000, maximumAge: 60000 }
                     );
                 });
@@ -101,7 +63,7 @@ export default function PromoCards() {
                     return;
                 }
 
-                // ── STEP 1: IP-based detection via backend (Cloudflare / offline-geo-from-ip) ──
+                // STEP 1: IP-based detection via backend
                 const res = await fetch(`${API_URL}/api/properties/detect-location`);
                 const data = await res.json();
 
@@ -112,11 +74,10 @@ export default function PromoCards() {
                         timestamp: Date.now()
                     }));
                 } else {
-                    // IP unresolvable (e.g. localhost) → fetch global featured
                     setDetectedCity('');
                 }
             } catch (err) {
-                console.warn('Failed to detect geolocation, falling back to global featured.', err);
+                console.warn('Failed to detect geolocation, fetching global featured.', err);
                 setDetectedCity('');
             }
         };
@@ -124,31 +85,16 @@ export default function PromoCards() {
         detectLocation();
     }, []);
 
-    // 2. Reactively fetch Featured Properties for detected location
+    // Fetch real Featured Properties from DB
     useEffect(() => {
         const fetchPromotions = async () => {
             try {
                 setLoading(true);
-
-                // Use the new single-call cascade endpoint on the backend
-                let fetchedList = await propertyApi.getHomepageFeatured(3, detectedCity || undefined);
-
-                // Final Fallback to static design placeholders if DB contains 0 properties
-                if (fetchedList.length === 0) {
-                    setProperties(LOCAL_FALLBACKS);
-                } else {
-                    // We pad remaining slots if database has 1 or 2 items total to keep exactly 3 layout slots
-                    const renderList = [...fetchedList];
-                    let fallbackIdx = 0;
-                    while (renderList.length < 3) {
-                        renderList.push({ ...LOCAL_FALLBACKS[fallbackIdx], isPlaceholder: true } as any);
-                        fallbackIdx++;
-                    }
-                    setProperties(renderList);
-                }
+                const fetchedList = await propertyApi.getHomepageFeatured(3, detectedCity || undefined);
+                setProperties(Array.isArray(fetchedList) ? fetchedList : []);
             } catch (error) {
                 console.error('Failed to load homepage promotions:', error);
-                setProperties(LOCAL_FALLBACKS);
+                setProperties([]);
             } finally {
                 setLoading(false);
             }
@@ -165,24 +111,35 @@ export default function PromoCards() {
 
     return (
         <section className="mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {loading && properties.length === 0 ? (
-                    // Preloading pulses
-                    [1, 2, 3].map(n => (
+            {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(n => (
                         <div key={n} className="relative aspect-[16/9] bg-gray-200 rounded-lg animate-pulse" />
-                    ))
-                ) : (
-                    properties.map((promo) => (
+                    ))}
+                </div>
+            ) : properties.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-200/80 p-12 text-center shadow-xs">
+                    <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-gray-400">
+                        <Sparkles className="h-6 w-6" />
+                    </div>
+                    <h3 className="text-base font-bold text-gray-800">No Featured Properties</h3>
+                    <p className="text-xs text-gray-500 mt-1">There are no featured properties available at the moment.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {properties.map((promo) => (
                         <div
                             key={promo.id}
                             onClick={() => handleCardClick(promo)}
-                            className="group cursor-pointer relative aspect-[16/9] overflow-hidden rounded-lg transition-all duration-300 hover:shadow-2xl"
+                            className="group cursor-pointer relative aspect-[16/9] overflow-hidden rounded-lg transition-all duration-300 hover:shadow-2xl bg-gray-100"
                         >
-                            <img
-                                src={promo.coverImage || '/images/promo_resort_1.png'}
-                                alt={promo.name}
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                            />
+                            {promo.coverImage && (
+                                <img
+                                    src={promo.coverImage}
+                                    alt={promo.name}
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                />
+                            )}
 
                             {/* Overlay Gradient */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent p-5 flex flex-col justify-between">
@@ -208,13 +165,15 @@ export default function PromoCards() {
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                                                <span className="text-white text-xs font-bold">{promo.rating ? Number(promo.rating).toFixed(1) : '4.5'}</span>
+                                                <span className="text-white text-xs font-bold">
+                                                    {promo.rating ? Number(promo.rating).toFixed(1) : '4.5'}
+                                                </span>
                                                 <span className="text-white/80 text-[10px] ml-1">Excellent</span>
                                             </div>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-white text-sm font-bold">
-                                                From ₹{promo.basePrice ? promo.basePrice.toLocaleString('en-IN') : (promo.pricePerNight ? promo.pricePerNight.toLocaleString('en-IN') : '4,200')}
+                                                From ₹{(promo.basePrice || promo.pricePerNight || 0).toLocaleString('en-IN')}
                                             </p>
                                             <p className="text-xs font-normal text-white/80">/ night</p>
                                         </div>
@@ -222,9 +181,9 @@ export default function PromoCards() {
                                 </div>
                             </div>
                         </div>
-                    ))
-                )}
-            </div>
+                    ))}
+                </div>
+            )}
         </section>
     );
 }

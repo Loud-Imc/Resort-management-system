@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsService } from '../../services/reports';
-import { Loader2, Calendar, User, X, Info, Download } from 'lucide-react';
+import { bookingsService } from '../../services/bookings';
+import { Loader2, Calendar, User, X, Info, Download, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatDateTimeFull } from '../../utils/dateTime';
 
@@ -56,6 +57,18 @@ interface DetailsResponse {
 
 export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange, propertyId, financialReport, occupancyReport, totalExpenses, gstReport }: FinancialDetailsModalProps) {
     const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+
+    const handleDownloadInvoice = async (bookingId: string, bookingNumber?: string) => {
+        try {
+            setDownloadingInvoiceId(bookingId);
+            await bookingsService.downloadInvoice(bookingId, bookingNumber);
+        } catch (err) {
+            console.error('Error downloading invoice:', err);
+        } finally {
+            setDownloadingInvoiceId(null);
+        }
+    };
 
     const { data: details, isLoading } = useQuery<DetailsResponse>({
         queryKey: ['financialDetails', dateRange, propertyId],
@@ -271,40 +284,55 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                                 <th className="px-4 py-3">Booking # / Guest</th>
                                                 <th className="px-4 py-3 text-right">Paid Amount</th>
                                                 <th className="px-4 py-3 text-right">Platform Fee</th>
+                                                <th className="px-4 py-3 text-right">GST (18%)</th>
+                                                <th className="px-4 py-3 text-right">Total Deducted</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                            {filteredPlatformFees?.map((p: any) => (
-                                                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
-                                                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                                                        {formatDateTimeFull(p.paymentDate)}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="font-bold text-gray-900 dark:text-white">#{p.booking?.bookingNumber}</div>
-                                                        <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                                                            <User className="h-3 w-3" />
-                                                            {p.booking?.user?.firstName} {p.booking?.user?.lastName}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-gray-900 dark:text-white md:text-right">
-                                                        ₹{Number(p.paidAmount).toLocaleString()}
-                                                    </td>
-                                                    <td className="px-4 py-3 font-bold text-orange-600 dark:text-orange-400 md:text-right">
-                                                        ₹{Number(p.platformFee).toLocaleString()}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {filteredPlatformFees?.map((p: any) => {
+                                                const fee = Number(p.platformFee || 0);
+                                                const feeGst = Number((fee * 0.18).toFixed(2));
+                                                const totalDeducted = Number((fee + feeGst).toFixed(2));
+                                                return (
+                                                    <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
+                                                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                                            {formatDateTimeFull(p.paymentDate)}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="font-bold text-gray-900 dark:text-white">#{p.booking?.bookingNumber}</div>
+                                                            <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                                                                <User className="h-3 w-3" />
+                                                                {p.booking?.user?.firstName} {p.booking?.user?.lastName}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-gray-900 dark:text-white md:text-right">
+                                                            ₹{Number(p.amount ?? p.paidAmount ?? p.booking?.paidAmount ?? 0).toLocaleString()}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-semibold text-orange-600 dark:text-orange-400 md:text-right">
+                                                            ₹{fee.toLocaleString()}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 md:text-right">
+                                                            ₹{feeGst.toLocaleString()}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-black text-rose-600 dark:text-rose-400 md:text-right">
+                                                            ₹{totalDeducted.toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                             {filteredPlatformFees.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No platform fees found for this period.</td>
+                                                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No platform fees found for this period.</td>
                                                 </tr>
                                             )}
                                         </tbody>
                                         {(details?.platformFeeDetails?.length ?? 0) > 0 && (
                                             <tfoot className="bg-gray-50 dark:bg-gray-700/50">
                                                 <tr>
-                                                    <td colSpan={3} className="px-4 py-3 font-bold text-right text-gray-900 dark:text-white">Total Platform Fees:</td>
-                                                    <td className="px-4 py-3 font-bold text-orange-600 dark:text-orange-400 text-right">₹{financialReport?.summary?.totalPlatformFees?.toLocaleString() || 0}</td>
+                                                    <td colSpan={5} className="px-4 py-3 font-bold text-right text-gray-900 dark:text-white">Total Platform Fees:</td>
+                                                    <td className="px-4 py-3 font-black text-rose-600 dark:text-rose-400 text-right">
+                                                        ₹{(Number(financialReport?.summary?.totalPlatformFees || 0) * 1.18).toLocaleString()}
+                                                    </td>
                                                 </tr>
                                             </tfoot>
                                         )}
@@ -381,52 +409,86 @@ export default function FinancialDetailsModal({ isOpen, onClose, type, dateRange
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider hidden md:table-header-group">
                                             <tr>
-                                                <th className="px-4 py-3">Booking # / Date</th>
+                                                <th className="px-4 py-3">Invoice # / Booking</th>
+                                                <th className="px-4 py-3">Date</th>
                                                 <th className="px-4 py-3">Guest Details</th>
-                                                <th className="px-4 py-3 text-right">Taxable Amount</th>
-                                                <th className="px-4 py-3 text-right">GST Collected</th>
+                                                <th className="px-4 py-3 text-center">Type</th>
+                                                <th className="px-4 py-3 text-right">Taxable Base</th>
+                                                <th className="px-4 py-3 text-right">GST Rate & Amount</th>
                                                 <th className="px-4 py-3 text-right">Gross Total</th>
+                                                <th className="px-4 py-3 text-center">Invoice</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                                             {gstReport?.details?.map((item: any) => (
                                                 <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 flex flex-col md:table-row p-4 md:p-0">
                                                     <td className="px-4 py-3">
-                                                        <p className="font-bold text-sm text-gray-900 dark:text-white">{item.bookingNumber}</p>
-                                                        <p className="text-xs text-gray-500">{format(new Date(item.date), 'MMM dd, yyyy')}</p>
+                                                        <p className="font-bold text-sm text-gray-900 dark:text-white">{item.invoiceNumber || `INV-${item.bookingNumber}`}</p>
+                                                        <p className="text-xs text-primary font-medium">#{item.bookingNumber}</p>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+                                                        {item.date ? format(new Date(item.date), 'MMM dd, yyyy') : 'N/A'}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <p className="font-medium text-sm text-gray-900 dark:text-white">{item.guestName}</p>
-                                                        {item.gstNumber && (
+                                                        {item.gstNumber && item.gstNumber !== 'N/A' ? (
                                                             <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">GSTIN: {item.gstNumber}</p>
+                                                        ) : (
+                                                            <p className="text-[10px] text-gray-400 uppercase tracking-tighter">Consumer</p>
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
-                                                        ₹{item.taxableAmount.toLocaleString()}
+                                                    <td className="px-4 py-3 text-center">
+                                                        <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                                                            item.supplyType === 'B2B' 
+                                                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800' 
+                                                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                        }`}>
+                                                            {item.supplyType || (item.gstNumber && item.gstNumber !== 'N/A' ? 'B2B' : 'B2C')}
+                                                        </span>
                                                     </td>
-                                                    <td className="px-4 py-3 text-right font-bold text-emerald-600">
-                                                        ₹{item.taxAmount.toLocaleString()}
+                                                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                                                        ₹{Number(item.taxableAmount).toLocaleString('en-IN', { minimumFractionDigits: item.taxableAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <span className="text-xs font-semibold text-gray-500 mr-1">({item.taxRate || 0}%)</span>
+                                                        <span className="font-bold text-emerald-600">₹{Number(item.taxAmount).toLocaleString('en-IN', { minimumFractionDigits: item.taxAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}</span>
                                                     </td>
                                                     <td className="px-4 py-3 text-right font-extrabold text-gray-900 dark:text-white">
-                                                        ₹{item.totalAmount.toLocaleString()}
+                                                        ₹{Number(item.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: item.totalAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <button
+                                                            onClick={() => handleDownloadInvoice(item.id, item.bookingNumber)}
+                                                            disabled={downloadingInvoiceId === item.id}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground transition-all disabled:opacity-50"
+                                                            title="Download Tax Invoice"
+                                                        >
+                                                            {downloadingInvoiceId === item.id ? (
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                            ) : (
+                                                                <FileText className="h-3.5 w-3.5" />
+                                                            )}
+                                                            <span>PDF</span>
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
                                             {(!gstReport?.details || gstReport.details.length === 0) && (
                                                 <tr>
-                                                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No GST records found for this period.</td>
+                                                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No GST records found for this period.</td>
                                                 </tr>
                                             )}
                                         </tbody>
                                         {gstReport?.details?.length > 0 && (
                                             <tfoot className="bg-gray-50 dark:bg-gray-700/50">
                                                 <tr>
-                                                    <td colSpan={2} className="px-4 py-3 font-bold text-right text-gray-900 dark:text-white">Total:</td>
-                                                    <td className="px-4 py-3 font-bold text-right text-gray-700 dark:text-gray-300">₹{gstReport?.summary?.totalTaxable?.toLocaleString() || 0}</td>
-                                                    <td className="px-4 py-3 font-extrabold text-right text-emerald-600">₹{gstReport?.summary?.totalTax?.toLocaleString() || 0}</td>
+                                                    <td colSpan={4} className="px-4 py-3 font-bold text-right text-gray-900 dark:text-white">Total:</td>
+                                                    <td className="px-4 py-3 font-bold text-right text-gray-700 dark:text-gray-300">₹{Number(gstReport?.summary?.totalTaxable || 0).toLocaleString('en-IN')}</td>
+                                                    <td className="px-4 py-3 font-extrabold text-right text-emerald-600">₹{Number(gstReport?.summary?.totalTax || 0).toLocaleString('en-IN')}</td>
                                                     <td className="px-4 py-3 font-black text-right text-gray-900 dark:text-white">
-                                                        ₹{(Number(gstReport?.summary?.totalTaxable || 0) + Number(gstReport?.summary?.totalTax || 0))?.toLocaleString() || 0}
+                                                        ₹{(Number(gstReport?.summary?.totalTaxable || 0) + Number(gstReport?.summary?.totalTax || 0))?.toLocaleString('en-IN')}
                                                     </td>
+                                                    <td></td>
                                                 </tr>
                                             </tfoot>
                                         )}
