@@ -291,6 +291,8 @@ model Booking {
   paymentMethod           BookingPaymentMethod?
   gstNumber               String?
   isHistoricalEntry       Boolean                @default(false)
+  isDeleted               Boolean                @default(false)
+  deletedAt               DateTime?
   transactionDate         DateTime?
   createdBy               String?
   externalBookingId       String?                @unique
@@ -564,6 +566,7 @@ model Property {
   gstNumber                   String?
   licenceImage                String?
   documents                   String[]             @default([])
+  documentDetails             Json?
   ownerAadhaarImage           String?
   ownerAadhaarImageBack       String?
   ownerAadhaarNumber          String?

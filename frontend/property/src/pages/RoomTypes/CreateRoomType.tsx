@@ -75,7 +75,10 @@ const roomTypeSchema = z.object({
     groupMaxOccupancy: z.number().min(0).optional(),
     isGstInclusive: z.boolean(),
     allowPayAtProperty: z.boolean(),
-    size: z.number({ message: 'Room size is required' }).min(1, 'Room size is required'),
+    size: z.preprocess(
+        (val) => (val === '' || val === undefined || val === null || (typeof val === 'number' && Number.isNaN(val)) ? undefined : Number(val)),
+        z.number().min(0, 'Room size must be positive').optional()
+    ),
 }).refine(data => {
     if (data.originalPrice && data.originalPrice <= data.basePrice) {
         return false;
@@ -346,7 +349,7 @@ export default function CreateRoomType() {
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Room Size (sq.ft) <span className="text-red-500">*</span>
+                                Room Size (sq.ft)
                                 <Info className="h-3.5 w-3.5 text-gray-400" />
                             </label>
                             <input
@@ -497,25 +500,24 @@ export default function CreateRoomType() {
                                 </div>
 
                                 {watch('isAvailableForGroupBooking') && (
-                                    <div className="flex flex-col gap-2.5 animate-in fade-in slide-in-from-left-2 duration-200 pt-4 border-t border-gray-100 dark:border-gray-700">
+                                    <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200 pt-4 border-t border-gray-100 dark:border-gray-700">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-primary-600 flex items-center gap-2">
-                                            Max Group Occupancy
-                                            <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
-                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-2.5 bg-gray-900 text-[10px] text-white rounded-xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed font-medium shadow-xl border border-white/10">
-                                                    Maximum number of people allowed in this room for a group stay (can be higher than normal occupancy).
-                                                </div>
-                                            </div>
+                                            Single Room Capacity (Auto-calculated)
                                         </label>
-                                        <div className="relative">
-                                            <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                            <input
-                                                type="number"
-                                                {...register('groupMaxOccupancy', { valueAsNumber: true })}
-                                                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all"
-                                                placeholder="e.g. 10"
-                                            />
+                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-800 rounded-xl flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Users className="h-4 w-4 text-emerald-600" />
+                                                <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                                                    {(Number(watch('maxPhysicalAdults') || watch('maxAdults') || 2)) + (Number(watch('maxPhysicalChildren') || watch('maxChildren') || 0))} Guests / Room
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                                ({watch('maxPhysicalAdults') || watch('maxAdults') || 2} Max Physical Adults + {watch('maxPhysicalChildren') || watch('maxChildren') || 0} Max Physical Children)
+                                            </span>
                                         </div>
+                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
+                                            Total group capacity for this room type will automatically multiply across all active rooms created under it.
+                                        </p>
                                     </div>
                                 )}
 
@@ -683,7 +685,7 @@ export default function CreateRoomType() {
                             Room Type Images <span className="text-red-500">*</span>
                         </h2>
                     </div>
-                    <ImageUpload images={images || []} onChange={(imgs) => setValue('images', imgs)} maxImages={10} />
+                    <ImageUpload images={images || []} onChange={(imgs) => setValue('images', imgs)} maxImages={10} allowCoverSelect />
                     {errors.images?.message && <p className="text-red-500 text-xs font-bold">{String(errors.images.message)}</p>}
                 </div>
 

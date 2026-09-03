@@ -103,6 +103,9 @@ export class RegisterPropertyDto {
     gstNumber?: string;
 
     @IsOptional()
+    documentDetails?: Record<string, { expiryDate?: string; label?: string }>;
+
+    @IsOptional()
     @IsString()
     ownerAadhaarNumber?: string;
 

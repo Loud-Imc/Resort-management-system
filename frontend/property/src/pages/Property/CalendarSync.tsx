@@ -474,6 +474,8 @@ export default function CalendarSync() {
                         Daily sync runs automatically 24/7. Click only for instant manual re-sync after changing room setups.
                       </span>
                     </div>
+                    {/* Pause Sync button hidden per request */}
+                    {false && (
                     <button
                       onClick={() => handleDisableChannelSync(activeChannelMapping.channelName)}
                       className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-2xl transition-colors shrink-0 cursor-pointer"
@@ -481,6 +483,7 @@ export default function CalendarSync() {
                     >
                       <Power className="h-5 w-5" />
                     </button>
+                    )}
                   </div>
                 </div>
 

@@ -18,15 +18,29 @@ export class RoomTypesService {
 
     /**
      * Recompute and persist property.maxGroupCapacity as the SUM of
-     * groupMaxOccupancy from all room types with isAvailableForGroupBooking=true.
-     * Called automatically after create/update/delete of any room type.
+     * (maxPhysicalAdults + maxPhysicalChildren) * active physical room count
+     * for all room types with isAvailableForGroupBooking=true.
+     * Called automatically after create/update/delete of any room type or room.
      */
-    private async syncPropertyGroupCapacity(propertyId: string): Promise<void> {
-        const result = await this.prisma.roomType.aggregate({
+    public async syncPropertyGroupCapacity(propertyId: string): Promise<void> {
+        const roomTypes = await this.prisma.roomType.findMany({
             where: { propertyId, isAvailableForGroupBooking: true },
-            _sum: { groupMaxOccupancy: true },
+            include: {
+                rooms: {
+                    where: { isEnabled: true },
+                },
+            },
         });
-        const total = result._sum.groupMaxOccupancy ?? 0;
+
+        let total = 0;
+        for (const rt of roomTypes) {
+            const physAdults = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
+            const physChildren = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
+            const capacityPerRoom = Number(physAdults) + Number(physChildren);
+            const activeRoomCount = rt.rooms ? rt.rooms.length : 0;
+            total += capacityPerRoom * activeRoomCount;
+        }
+
         await this.prisma.property.update({
             where: { id: propertyId },
             data: { maxGroupCapacity: total > 0 ? total : null },
@@ -62,8 +76,13 @@ export class RoomTypesService {
         try {
             const { cancellationPolicy, cancellationPolicyId, ...rest } = createRoomTypeDto;
 
+            const physAdults = rest.maxPhysicalAdults ?? rest.maxAdults ?? 2;
+            const physChildren = rest.maxPhysicalChildren ?? rest.maxChildren ?? 0;
+            const computedGroupMax = Number(physAdults) + Number(physChildren);
+
             const data: any = {
                 ...rest,
+                groupMaxOccupancy: computedGroupMax,
                 cancellationPolicyText: cancellationPolicy,
                 cancellationPolicyId: (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null,
             };
@@ -81,7 +100,7 @@ export class RoomTypesService {
             });
 
             return roomType;
-        } catch (error) {
+        } catch (error: any) {
             this.logger.error(`Error creating room type: ${error.message}`, error.stack);
             if (error.code === 'P2002') {
                 throw new ConflictException('A room type with this name already exists for this property.');
@@ -108,33 +127,25 @@ export class RoomTypesService {
 
     async findAllAdmin(user: any, propertyId?: string) {
         const roles = user.roles || [];
-        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
-
-        const where: any = {};
-
+        const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
+        const propertyFilter: any = {};
         if (!isGlobalAdmin) {
-            where.property = {
-                OR: [
-                    { ownerId: user.id },
-                    { staff: { some: { userId: user.id } } }
-                ]
-            };
-        }
-
-        if (propertyId) {
-            where.propertyId = propertyId;
+            propertyFilter.OR = [
+                { ownerId: user.id },
+                { staff: { some: { userId: user.id } } }
+            ];
         }
 
         return this.prisma.roomType.findMany({
-            where,
+            where: {
+                ...(propertyId ? { propertyId } : {}),
+                property: !isGlobalAdmin ? propertyFilter : undefined,
+            },
             include: {
                 property: { select: { name: true, city: true, defaultCancellationPolicyId: true } },
+                rooms: true,
                 cancellationPolicy: true,
-                _count: {
-                    select: { rooms: true }
-                }
             },
-            orderBy: { name: 'asc' }
         });
     }
 
@@ -142,9 +153,18 @@ export class RoomTypesService {
         const roomType = await this.prisma.roomType.findUnique({
             where: { id },
             include: {
+                property: {
+                    select: {
+                        id: true,
+                        name: true,
+                        city: true,
+                        ownerId: true,
+                        defaultCancellationPolicyId: true,
+                        staff: true,
+                    },
+                },
                 rooms: true,
                 cancellationPolicy: true,
-                property: { select: { ownerId: true, defaultCancellationPolicyId: true, staff: true } },
             },
         });
 
@@ -152,18 +172,13 @@ export class RoomTypesService {
             throw new NotFoundException('Room type not found');
         }
 
-        if (!requestUser) {
-            if (!roomType.isPubliclyVisible) {
-                throw new NotFoundException('Room type not found');
-            }
-        } else {
+        if (requestUser) {
             const roles: string[] = requestUser.roles || [];
-            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
+            const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
             const isOwner = roomType.property.ownerId === requestUser.id;
             const isStaff = roomType.property.staff.some((s) => s.userId === requestUser.id);
-
-            if (!isAdmin && !isOwner && !isStaff && !roomType.isPubliclyVisible) {
-                throw new ForbiddenException('You do not have permission to access this room type');
+            if (!isAdmin && !isOwner && !isStaff) {
+                throw new ForbiddenException('You do not have permission to view this room type');
             }
         }
 
@@ -179,15 +194,17 @@ export class RoomTypesService {
 
             this.validatePricing(basePrice, originalPrice);
 
-            const { cancellationPolicy, cancellationPolicyId, propertyId, ...rest } = updateRoomTypeDto;
+            const physAdults = updateRoomTypeDto.maxPhysicalAdults ?? updateRoomTypeDto.maxAdults ?? existing.maxPhysicalAdults ?? existing.maxAdults ?? 2;
+            const physChildren = updateRoomTypeDto.maxPhysicalChildren ?? updateRoomTypeDto.maxChildren ?? existing.maxPhysicalChildren ?? existing.maxChildren ?? 0;
 
             const data: any = {
-                ...rest,
-                cancellationPolicyText: cancellationPolicy,
+                ...updateRoomTypeDto,
+                groupMaxOccupancy: Number(physAdults) + Number(physChildren),
+                cancellationPolicyText: updateRoomTypeDto.cancellationPolicy,
             };
 
-            if (cancellationPolicyId !== undefined) {
-                data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null;
+            if (updateRoomTypeDto.cancellationPolicyId !== undefined) {
+                data.cancellationPolicyId = (updateRoomTypeDto.cancellationPolicyId && updateRoomTypeDto.cancellationPolicyId.trim() !== '') ? updateRoomTypeDto.cancellationPolicyId : null;
             }
 
             const updated = await this.prisma.roomType.update({

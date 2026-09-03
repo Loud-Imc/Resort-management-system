@@ -1050,20 +1050,26 @@ export class AvailabilityService {
         // Standard Search logic
         const suitableTypes = await this.prisma.roomType.findMany({
             where: {
-                maxAdults: { gte: minAdultsPerRoom },
-                maxChildren: { gte: minChildrenPerRoom },
-                isPubliclyVisible: true,
-                propertyId: propertyId || undefined,
-                rooms: {
-                    some: { isEnabled: true }
-                },
-                property: {
-                    isActive: true,
-                    status: PropertyStatus.APPROVED,
-                    categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
-                    ...geoOrLocationFilter(),
-                    ...(type && type !== 'ALL' && { type: type as any }),
-                }
+                ...(propertyId ? {
+                    propertyId,
+                    rooms: {
+                        some: { isEnabled: true }
+                    }
+                } : {
+                    maxAdults: { gte: minAdultsPerRoom },
+                    maxChildren: { gte: minChildrenPerRoom },
+                    isPubliclyVisible: true,
+                    rooms: {
+                        some: { isEnabled: true }
+                    },
+                    property: {
+                        isActive: true,
+                        status: PropertyStatus.APPROVED,
+                        categoryId: (categoryId && categoryId !== 'all') ? categoryId : undefined,
+                        ...geoOrLocationFilter(),
+                        ...(type && type !== 'ALL' && { type: type as any }),
+                    }
+                })
             },
             include: {
                 property: {
@@ -1081,20 +1087,43 @@ export class AvailabilityService {
                 checkOutDate,
             );
 
-            if (availableCount >= rooms || includeSoldOut) {
-                const pricing = await this.pricingService.calculatePrice(
-                    type.id,
-                    checkInDate,
-                    checkOutDate,
-                    adults,
-                    children,
-                    undefined,
-                    undefined,
-                    currency,
-                    false,
-                    undefined,
-                    rooms
-                );
+            const typeMaxA = (type as any).maxPhysicalAdults ?? type.maxAdults ?? 2;
+            const typeMaxC = (type as any).maxPhysicalChildren ?? type.maxChildren ?? 1;
+            const neededRoomsForAdults = Math.ceil(adults / Math.max(typeMaxA, 1));
+            const neededRoomsForChildren = children > 0 ? Math.ceil(children / Math.max(typeMaxC, 1)) : 0;
+            const neededRooms = Math.max(rooms || 1, neededRoomsForAdults, neededRoomsForChildren);
+
+            if (availableCount >= (propertyId ? 1 : neededRooms) || includeSoldOut) {
+                let pricing: any;
+                try {
+                    pricing = await this.pricingService.calculatePrice(
+                        type.id,
+                        checkInDate,
+                        checkOutDate,
+                        adults,
+                        children,
+                        undefined,
+                        undefined,
+                        currency,
+                        false,
+                        undefined,
+                        neededRooms
+                    );
+                } catch (err: any) {
+                    console.warn(`[searchAvailableRoomTypes] Pricing fallback for roomType ${type.id}:`, err?.message);
+                    const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                    pricing = {
+                        originalConvertedTotal: Number(type.basePrice) * neededRooms * nights,
+                        convertedTotal: Number(type.basePrice) * neededRooms * nights,
+                        baseAmount: Number(type.basePrice) * neededRooms * nights,
+                        taxAmount: 0,
+                        taxRate: 0,
+                        pricePerNight: Number(type.basePrice) * neededRooms,
+                        numberOfNights: nights,
+                        isGstInclusive: false,
+                        offerDiscountAmount: 0,
+                    };
+                }
 
                 results.push({
                     id: type.id,
@@ -1103,6 +1132,9 @@ export class AvailabilityService {
                     images: (type as any).images,
                     maxAdults: type.maxAdults,
                     maxChildren: type.maxChildren,
+                    maxPhysicalAdults: (type as any).maxPhysicalAdults,
+                    maxPhysicalChildren: (type as any).maxPhysicalChildren,
+                    neededRooms,
                     size: (type as any).size,
                     propertyId: type.propertyId,
                     property: {
@@ -1132,7 +1164,7 @@ export class AvailabilityService {
                         ? (pricing.totalAmount - pricing.taxAmount) / pricing.numberOfNights
                         : pricing.pricePerNight,
                     numberOfNights: pricing.numberOfNights,
-                    isSoldOut: availableCount < rooms,
+                    isSoldOut: availableCount < (propertyId ? 1 : neededRooms),
                     isGstInclusive: pricing.isGstInclusive,
                     offerName: pricing.offerName,
                     offerDescription: pricing.offerDescription,

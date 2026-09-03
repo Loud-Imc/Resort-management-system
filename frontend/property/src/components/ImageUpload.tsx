@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, Star } from 'lucide-react';
 import { uploadService } from '../services/uploads';
 import toast from 'react-hot-toast';
 
@@ -7,9 +7,11 @@ interface ImageUploadProps {
     images: string[];
     onChange: (images: string[]) => void;
     maxImages?: number;
+    allowAllFiles?: boolean;
+    allowCoverSelect?: boolean;
 }
 
-export default function ImageUpload({ images = [], onChange, maxImages = 5 }: ImageUploadProps) {
+export default function ImageUpload({ images = [], onChange, maxImages = 5, allowAllFiles = false, allowCoverSelect = false }: ImageUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -22,10 +24,15 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
             const newImages = [...images];
             for (let i = 0; i < files.length; i++) {
                 if (newImages.length >= maxImages) break;
-                const file = files[i];
-                if (!file.type.startsWith('image/')) {
-                    toast.error(`File ${file.name} is not an image`);
+                const rawFile = files[i];
+                if (!allowAllFiles && !rawFile.type.startsWith('image/')) {
+                    toast.error(`File ${rawFile.name} is not an image`);
                     continue;
+                }
+                let file: File = rawFile;
+                if (rawFile.type.startsWith('image/')) {
+                    const { compressImageClientSide } = await import('../utils/imageCompressor');
+                    file = await compressImageClientSide(rawFile, 1920, 1920, 0.82);
                 }
                 const response: any = await uploadService.upload(file);
                 newImages.push(response.url);
@@ -44,12 +51,45 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
         onChange(images.filter((_, i) => i !== index));
     };
 
+    const setAsCover = (index: number) => {
+        if (index === 0) return;
+        const updated = [...images];
+        const [selected] = updated.splice(index, 1);
+        updated.unshift(selected);
+        onChange(updated);
+        toast.success('Cover image updated');
+    };
+
     return (
         <div className="space-y-4">
+            {allowCoverSelect && images.length > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                    Click the star on any image to set it as the main cover photo.
+                </p>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {images.map((url, index) => (
                     <div key={index} className="relative group aspect-video bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
                         <img src={url} alt={`Uploaded ${index + 1}`} className="w-full h-full object-cover" />
+                        {/* Cover badge for first image */}
+                        {allowCoverSelect && index === 0 && (
+                            <div className="absolute top-2 left-2 flex items-center gap-1 bg-amber-400 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                                <Star className="h-3 w-3 fill-white" />
+                                Cover
+                            </div>
+                        )}
+                        {/* Set as cover button for non-first images */}
+                        {allowCoverSelect && index > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setAsCover(index)}
+                                title="Set as main cover photo"
+                                className="absolute top-2 left-2 p-1 bg-amber-400 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                            >
+                                <Star className="h-3.5 w-3.5" />
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={() => removeImage(index)}
@@ -77,8 +117,19 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }: Im
                     </button>
                 )}
             </div>
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" />
-            <p className="text-xs text-gray-500 dark:text-gray-400">Supported formats: JPG, PNG, WEBP. Max {maxImages} images.</p>
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept={allowAllFiles ? '*/*' : 'image/*'}
+                multiple
+                className="hidden"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+                {allowAllFiles ? `Supported: images & documents. ` : 'Supported formats: JPG, PNG, WEBP. '}
+                Max {maxImages} files.
+            </p>
         </div>
     );
 }
+

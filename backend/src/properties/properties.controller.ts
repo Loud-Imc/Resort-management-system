@@ -150,6 +150,19 @@ export class PropertiesController {
         return this.propertiesService.verifyCommissionOtp(phone, code);
     }
 
+    @Post('public/gst-lookup')
+    @ApiOperation({ summary: 'Lookup GST details and autofill address (Public)' })
+    gstLookup(@Body() body: any) {
+        const gstNumber = typeof body === 'string' ? body : (body?.gstNumber || body?.gstin || '');
+        return this.propertiesService.gstLookup(gstNumber);
+    }
+
+    @Get('public/gst-lookup')
+    @ApiOperation({ summary: 'Lookup GST details via GET (Public)' })
+    gstLookupGet(@Query('gstNumber') gstNumber: string) {
+        return this.propertiesService.gstLookup(gstNumber);
+    }
+
     @Get('homepage-featured')
     @ApiOperation({ summary: 'Get featured properties for homepage promo cards (single cascade)' })
     async getHomepageFeatured(

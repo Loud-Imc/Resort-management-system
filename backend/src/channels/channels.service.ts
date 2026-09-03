@@ -1299,6 +1299,27 @@ export class ChannelsService {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
+    // Check for overlapping active restrictions
+    const overlapping = await this.prisma.stopSellRestriction.findMany({
+      where: {
+        propertyId,
+        roomTypeId: roomTypeId || null,
+        isActive: true,
+        startDate: { lte: end },
+        endDate: { gte: start },
+      },
+    });
+
+    if (overlapping.length > 0) {
+      const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const conflicts = overlapping
+        .map(r => `${fmt(new Date(r.startDate))} – ${fmt(new Date(r.endDate))}`)
+        .join(', ');
+      throw new BadRequestException(
+        `Stop sell already exists for the selected date range. Conflicting period(s): ${conflicts}`
+      );
+    }
+
     const restriction = await this.prisma.stopSellRestriction.create({
       data: {
         propertyId,

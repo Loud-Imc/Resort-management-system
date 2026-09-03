@@ -111,6 +111,7 @@ export interface CreatePropertyDto {
     ownerAadhaarImage?: string;
     ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;
+    gstNumber?: string;
 }
 
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {

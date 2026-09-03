@@ -67,6 +67,11 @@ export class RoomsService {
             newValue: room,
         });
 
+        // Sync Property Group Capacity
+        if (room.propertyId) {
+            await this.syncPropertyGroupCapacity(room.propertyId);
+        }
+
         if (room.propertyId && room.roomTypeId) {
             const today = new Date();
             const futureDate = new Date();
@@ -415,6 +420,11 @@ export class RoomsService {
             newValue: updated,
         });
 
+        // Sync Property Group Capacity if isEnabled or roomTypeId changed
+        if (updated.propertyId) {
+            await this.syncPropertyGroupCapacity(updated.propertyId);
+        }
+
         if (updated.propertyId && updated.roomTypeId) {
             const today = new Date();
             const futureDate = new Date();
@@ -503,6 +513,11 @@ export class RoomsService {
             oldValue: room,
             newValue: isHardDeleted ? { hardDeleted: true } : deletedOrUpdated,
         });
+
+        // Sync Property Group Capacity
+        if (room.propertyId) {
+            await this.syncPropertyGroupCapacity(room.propertyId);
+        }
 
         // Trigger availability push for Channel / Outbox
         if (room.propertyId && room.roomTypeId) {
@@ -830,9 +845,48 @@ export class RoomsService {
             newValue: { count: rooms.length, rooms },
         });
 
+        // Sync Property Group Capacity
+        if (roomType.propertyId) {
+            await this.syncPropertyGroupCapacity(roomType.propertyId);
+        }
+
         return {
             created: rooms.length,
             rooms,
         };
+    }
+
+    /**
+     * Recompute and persist property.maxGroupCapacity as the SUM of
+     * (maxAdults + maxChildren) * active physical room count
+     * for all room types with isAvailableForGroupBooking=true.
+     */
+    private async syncPropertyGroupCapacity(propertyId: string): Promise<void> {
+        try {
+            const roomTypes = await this.prisma.roomType.findMany({
+                where: { propertyId, isAvailableForGroupBooking: true },
+                include: {
+                    rooms: {
+                        where: { isEnabled: true },
+                    },
+                },
+            });
+
+            let total = 0;
+            for (const rt of roomTypes) {
+                const physAdults = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
+                const physChildren = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
+                const capacityPerRoom = Number(physAdults) + Number(physChildren);
+                const activeRoomCount = rt.rooms ? rt.rooms.length : 0;
+                total += capacityPerRoom * activeRoomCount;
+            }
+
+            await this.prisma.property.update({
+                where: { id: propertyId },
+                data: { maxGroupCapacity: total > 0 ? total : null },
+            });
+        } catch (err: any) {
+            this.logger.error(`Failed to sync property group capacity for ${propertyId}: ${err.message}`);
+        }
     }
 }

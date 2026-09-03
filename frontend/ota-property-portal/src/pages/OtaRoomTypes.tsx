@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { otaService } from '../services/otaService';
-import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2 } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -178,7 +178,7 @@ export default function OtaRoomTypes() {
         isPubliclyVisible,
         isAvailableForGroupBooking,
         allowPayAtProperty,
-        groupMaxOccupancy: parseInt(groupMaxOccupancy) || 0,
+        groupMaxOccupancy: (resolvedMaxPhysAdults || 0) + (resolvedMaxPhysChildren || 0),
         cancellationPolicyId: cancellationPolicyId || null,
         amenities: selectedAmenities,
         highlights: selectedHighlights,
@@ -241,8 +241,19 @@ export default function OtaRoomTypes() {
     }
   };
 
-  const handleDeleteImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
+  const handleDeleteImage = (idx: number) => {
+    setImages(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const setAsCoverImage = (idx: number) => {
+    if (idx === 0) return;
+    setImages(prev => {
+      const updated = [...prev];
+      const [selected] = updated.splice(idx, 1);
+      updated.unshift(selected);
+      return updated;
+    });
+    toast.success('Cover image updated');
   };
 
   const toggleArrayItem = (list: string[], setter: React.Dispatch<React.SetStateAction<string[]>>, item: string) => {
@@ -528,14 +539,15 @@ export default function OtaRoomTypes() {
 
               {isAvailableForGroupBooking && (
                 <div className="space-y-1.5 animate-in fade-in duration-200">
-                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Max Group Occupancy</label>
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
-                    value={groupMaxOccupancy}
-                    onChange={(e) => setGroupMaxOccupancy(e.target.value)}
-                  />
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Single Room Capacity (Auto-calculated)</label>
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-800 rounded-xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                      {(parseInt(maxPhysicalAdults) || 0) + (parseInt(maxPhysicalChildren) || 0)} Guests / Room
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      ({parseInt(maxPhysicalAdults) || 0} Adults + {parseInt(maxPhysicalChildren) || 0} Children)
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -716,6 +728,24 @@ export default function OtaRoomTypes() {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80';
                       }}
                     />
+                    {/* Cover badge */}
+                    {idx === 0 && (
+                      <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                        <Star className="h-2.5 w-2.5 fill-white" />
+                        Cover
+                      </div>
+                    )}
+                    {/* Set as cover button for non-first images */}
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setAsCoverImage(idx)}
+                        title="Set as main cover photo"
+                        className="absolute top-1.5 left-1.5 p-1 bg-amber-400 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer shadow-md"
+                      >
+                        <Star className="h-3 w-3" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleDeleteImage(idx)}

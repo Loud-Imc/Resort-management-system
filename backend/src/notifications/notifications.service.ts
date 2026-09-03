@@ -657,11 +657,50 @@ export class NotificationsService {
     targetUsers?: string[];
     targetRoles?: string[];
     propertyId?: string;
+    targetIncompleteReadiness?: boolean;
     data?: any;
   }) {
     let userIds: string[] = [];
 
-    if (payload.targetUsers?.length) {
+    if (payload.targetIncompleteReadiness) {
+      // Find properties with incomplete readiness checklist
+      const properties = await this.prisma.property.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          ownerId: true,
+          latitude: true,
+          longitude: true,
+          images: true,
+          roomTypes: {
+            select: {
+              id: true,
+              rooms: { select: { id: true }, take: 1 }
+            }
+          },
+          cancellationPolicies: { select: { id: true }, take: 1 },
+          staff: { select: { userId: true } }
+        }
+      });
+
+      const incompleteProperties = properties.filter(p => {
+        const hasCoordinates = !!(p.latitude && p.longitude);
+        const hasImages = (p.images?.length || 0) > 0;
+        const hasRoomTypes = p.roomTypes.length > 0;
+        const hasRooms = p.roomTypes.some(rt => rt.rooms.length > 0);
+        const hasPolicies = p.cancellationPolicies.length > 0;
+        return !(hasCoordinates && hasImages && hasRoomTypes && hasRooms && hasPolicies);
+      });
+
+      const userSet = new Set<string>();
+      incompleteProperties.forEach(p => {
+        if (p.ownerId) userSet.add(p.ownerId);
+        p.staff.forEach(s => {
+          if (s.userId) userSet.add(s.userId);
+        });
+      });
+      userIds = Array.from(userSet);
+    } else if (payload.targetUsers?.length) {
       userIds = payload.targetUsers;
     } else if (payload.targetRoles?.length) {
       const users = await this.prisma.user.findMany({

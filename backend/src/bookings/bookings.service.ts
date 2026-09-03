@@ -1090,7 +1090,9 @@ export class BookingsService {
         const isGlobalAdmin = roles.includes('SuperAdmin') || roles.includes('Admin');
         const isCP = roles.includes('ChannelPartner');
 
-        const where: any = {};
+        const where: any = {
+            isDeleted: false,
+        };
         if (filters?.status) {
             where.status = filters.status as any;
         }
@@ -1215,24 +1217,42 @@ export class BookingsService {
             channelPartner: true,
         };
 
+        // Build smart chronological sorting: Upcoming/Today check-ins (asc) first, followed by Past check-ins (desc)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const allBookings = await this.prisma.booking.findMany({
+            where,
+            include: includeOptions,
+            orderBy: { checkInDate: 'asc' },
+        });
+
+        const upcoming: any[] = [];
+        const past: any[] = [];
+
+        for (const b of allBookings) {
+            const bDate = new Date(b.checkInDate);
+            bDate.setHours(0, 0, 0, 0);
+            if (bDate.getTime() >= today.getTime()) {
+                upcoming.push(b);
+            } else {
+                past.push(b);
+            }
+        }
+
+        // Past bookings sorted descending (most recent past stay first)
+        past.sort((a, b) => new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime());
+
+        const sortedBookings = [...upcoming, ...past];
+
         // If pagination is requested, return page metadata along with slice of data
         if (filters?.page && filters?.limit) {
-            const total = await this.prisma.booking.count({ where });
+            const total = sortedBookings.length;
             const skip = (filters.page - 1) * filters.limit;
-            const take = filters.limit;
-
-            const data = await this.prisma.booking.findMany({
-                where,
-                include: includeOptions,
-                orderBy: {
-                    createdAt: 'desc',
-                },
-                skip,
-                take,
-            });
+            const paginatedData = sortedBookings.slice(skip, skip + filters.limit);
 
             return {
-                data,
+                data: paginatedData,
                 total,
                 page: filters.page,
                 limit: filters.limit,
@@ -1241,13 +1261,7 @@ export class BookingsService {
         }
 
         // Return standard array if no pagination params are provided (backwards compatibility)
-        return this.prisma.booking.findMany({
-            where,
-            include: includeOptions,
-            orderBy: {
-                createdAt: 'desc',
-            },
-        });
+        return sortedBookings;
     }
 
     /**
@@ -2936,14 +2950,7 @@ export class BookingsService {
             ...(booking.roomBlocks?.map((rb: any) => rb.roomId) || [])
         ])).filter(Boolean);
         return this.prisma.$transaction(async (tx) => {
-            // Delete related records in specific order to avoid constraint issues
-            await tx.propertySettlement.deleteMany({ where: { bookingId: id } });
-            await tx.cPTransaction.deleteMany({ where: { bookingId: id } });
-            await tx.manualPaymentRequest.deleteMany({ where: { bookingId: id } });
-            await tx.review.deleteMany({ where: { bookingId: id } });
-            await tx.income.deleteMany({ where: { bookingId: id } });
-            await tx.payment.deleteMany({ where: { bookingId: id } });
-            await tx.bookingGuest.deleteMany({ where: { bookingId: id } });
+            // 1. Release room blocks and free room occupancy back to inventory
             await tx.roomBlock.deleteMany({ where: { bookingId: id } });
             if ((tx as any).bookingRoom) {
                 await (tx as any).bookingRoom.deleteMany({ where: { bookingId: id } });
@@ -2952,12 +2959,27 @@ export class BookingsService {
                 where: { id: { in: roomIds }, status: { in: ['RESERVED', 'OCCUPIED'] } },
                 data: { status: 'AVAILABLE' },
             });
-            await tx.auditLog.deleteMany({ where: { bookingId: id } });
 
-            // Finally delete the booking
-            const deleted = await tx.booking.delete({
-                where: { id }
+            // 2. Soft-delete the booking and preserve all payments, guests, settlements & history
+            const deleted = await tx.booking.update({
+                where: { id },
+                data: {
+                    status: 'CANCELLED',
+                    isDeleted: true,
+                    deletedAt: new Date(),
+                }
             });
+
+            // 3. Create a permanent audit log entry for this deletion
+            await this.auditService.createLog({
+                action: 'DELETE',
+                entity: 'Booking',
+                entityId: id,
+                userId: user.id,
+                oldValue: { status: booking.status, isDeleted: false },
+                newValue: { status: 'CANCELLED', isDeleted: true, deletedAt: new Date() },
+                bookingId: id,
+            }, tx);
 
             return { message: 'Booking deleted successfully', id: deleted.id };
         });

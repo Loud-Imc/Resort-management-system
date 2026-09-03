@@ -360,6 +360,13 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
     ownerAadhaarNumber?: string;
+
+    @IsOptional()
+    @IsString()
+    gstNumber?: string;
+
+    @IsOptional()
+    documentDetails?: Record<string, { expiryDate?: string; label?: string }>;
 }
 
 export class PropertyQueryDto {

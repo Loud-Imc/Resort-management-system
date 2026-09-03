@@ -87,7 +87,79 @@ export class PropertiesService {
         // Delete OTP after verification
         await this.prisma.oneTimePassword.delete({ where: { id: otp.id } });
 
-        return { success: true, message: 'Commission verified successfully' };
+    /**
+     * Public GSTIN Lookup & Address Autofill
+     */
+    async gstLookup(gstin: string) {
+        if (!gstin) throw new BadRequestException('GSTIN is required');
+        const cleanGst = gstin.trim().toUpperCase();
+        const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        if (!gstRegex.test(cleanGst)) {
+            throw new BadRequestException('Invalid GSTIN format. Expected 15-character alphanumeric GST number.');
+        }
+
+        const STATE_MAP: Record<string, string> = {
+            '01': 'Jammu and Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
+            '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan',
+            '09': 'Uttar Pradesh', '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh',
+            '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram', '16': 'Tripura',
+            '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal', '20': 'Jharkhand',
+            '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat',
+            '26': 'Dadra and Nagar Haveli and Daman and Diu', '27': 'Maharashtra', '29': 'Karnataka',
+            '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu',
+            '34': 'Puducherry', '35': 'Andaman and Nicobar Islands', '36': 'Telangana', '37': 'Andhra Pradesh',
+            '38': 'Ladakh'
+        };
+
+        const stateCode = cleanGst.substring(0, 2);
+        const derivedState = STATE_MAP[stateCode] || '';
+
+        // Try public GST lookup providers with timeout
+        try {
+            const resp = await axios.get(`https://api.gstincheck.co.in/check/${cleanGst}`, {
+                timeout: 5000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            if (resp.data && resp.data.data) {
+                const d = resp.data.data;
+                const addr = d.pradr?.addr || d.address || {};
+                const tradeName = d.tradeNam || d.lgnm || d.legalName || '';
+                const bno = addr.bno || '';
+                const bnm = addr.bnm || '';
+                const st = addr.st || '';
+                const loc = addr.loc || '';
+                const fullAddr = [bno, bnm, st, loc].filter(Boolean).join(', ');
+                const city = addr.dst || addr.city || loc || '';
+                const state = addr.stcd || derivedState;
+                const pincode = addr.pncd || addr.pincode || '';
+
+                return {
+                    success: true,
+                    gstNumber: cleanGst,
+                    tradeName: tradeName,
+                    legalName: d.lgnm || tradeName,
+                    address: fullAddr,
+                    city,
+                    state,
+                    pincode,
+                    status: d.sts || 'Active'
+                };
+            }
+        } catch (err: any) {
+            this.logger.warn(`Public GST API lookup failed for ${cleanGst}: ${err.message}. Using structured fallback.`);
+        }
+
+        return {
+            success: true,
+            gstNumber: cleanGst,
+            tradeName: '',
+            legalName: '',
+            address: '',
+            city: '',
+            state: derivedState,
+            pincode: '',
+            status: 'Valid Structure'
+        };
     }
 
     // Generate URL-friendly slug from name
