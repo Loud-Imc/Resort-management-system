@@ -867,8 +867,8 @@ export default function Register() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {/* Optional GST Number & Autofill */}
-                                <div className="p-4 bg-teal-50/60 border border-teal-100 rounded-2xl space-y-2">
+                                {/* Optional GST Number & Autofill (Hidden) */}
+                                <div className="hidden p-4 bg-teal-50/60 border border-teal-100 rounded-2xl space-y-2">
                                     <div className="flex items-center justify-between">
                                         <label className="block text-xs font-bold text-teal-900 uppercase tracking-wider">
                                             GST Number (Optional)
