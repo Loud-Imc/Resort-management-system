@@ -656,7 +656,7 @@ export default function MyProperty() {
                             <div className="flex items-center bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800 rounded-xl p-1 gap-1 shrink-0">
                                 <button
                                     type="button"
-                                    onClick={() => { setIsGstApplicable(false); clearError('gstNumber'); }}
+                                    onClick={() => setIsGstApplicable(false)}
                                     className={clsx(
                                         "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
                                         !isGstApplicable
