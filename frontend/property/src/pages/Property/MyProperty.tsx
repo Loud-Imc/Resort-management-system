@@ -10,7 +10,7 @@ import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
     Camera, X, CheckCircle, XCircle, Star, Image as ImageIcon,
     Plus, Clock, Percent, ShieldAlert, Trash2, FileText,
-    Users, Navigation, AlertCircle
+    Users, Navigation, AlertCircle, Lock, Copy, Check, ShieldCheck, Send
 } from 'lucide-react';
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
@@ -86,6 +86,8 @@ export default function MyProperty() {
     const [isGstApplicable, setIsGstApplicable] = useState(false);
     const [gstNumber, setGstNumber] = useState('');
     const [gstError, setGstError] = useState<string | null>(null);
+    const [showGstContactModal, setShowGstContactModal] = useState(false);
+    const [copiedGst, setCopiedGst] = useState(false);
     const [amenities, setAmenities] = useState<string[]>([]);
     const [newAmenity, setNewAmenity] = useState('');
     const [images, setImages] = useState<string[]>([]);
@@ -312,8 +314,8 @@ export default function MyProperty() {
             }
         }
 
-        // Validation for GST
-        if (isGstApplicable) {
+        // Validation for GST (if platform admin edits it)
+        if (isPlatformAdmin && isGstApplicable) {
             const trimmedGst = gstNumber?.trim().toUpperCase();
             if (!trimmedGst) {
                 setGstError('GST Identification Number (GSTIN) is required when GST is enabled.');
@@ -346,8 +348,6 @@ export default function MyProperty() {
                 defaultCheckInTime,
                 defaultCheckOutTime,
                 isGroupGstInclusive,
-                isGstApplicable,
-                gstNumber: gstNumber ? gstNumber.trim().toUpperCase() : null,
                 latitude: latitude === '' ? null : Number(latitude),
                 longitude: longitude === '' ? null : Number(longitude),
                 policies: {
@@ -356,9 +356,11 @@ export default function MyProperty() {
                 }
             };
 
-            // Only include commission if platform admin
+            // Only include commission and GST if platform admin
             if (isPlatformAdmin) {
                 payload.platformCommission = platformCommission;
+                payload.isGstApplicable = isGstApplicable;
+                payload.gstNumber = gstNumber ? gstNumber.trim().toUpperCase() : null;
             }
 
             if (selectedProperty.isRequest) {
@@ -636,67 +638,68 @@ export default function MyProperty() {
                 </div>
 
                 {/* GST Applicability & GSTIN Settings */}
-                <div className="p-4 sm:p-5 rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/50 to-emerald-50/30 dark:bg-gray-700/30 dark:border-teal-900/40 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300 shrink-0">
-                                <FileText className="h-5 w-5" />
+                {isGstApplicable ? (
+                    <div className="p-4 sm:p-5 rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 to-emerald-50/40 dark:bg-gray-800/80 dark:border-teal-900/50 space-y-4 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300 shrink-0">
+                                    <ShieldCheck className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">GST Registration & Invoicing</h3>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300">
+                                            <Check className="h-3 w-3" /> GST APPLIED
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        GST applicable: Dynamic GST tiers apply on rooms & Tax Invoices issued
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-sm font-bold text-gray-900 dark:text-white">GST Registration & Invoicing</h3>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    {isGstApplicable
-                                        ? 'GST applicable: Dynamic GST tiers apply on rooms & Tax Invoices issued'
-                                        : 'Non-GST Property: Zero GST applied & Bill of Supply issued'}
-                                </p>
-                            </div>
+
+                            {editMode && isPlatformAdmin ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 rounded">
+                                        Admin Control
+                                    </span>
+                                    <div className="flex items-center bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800 rounded-xl p-1 gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsGstApplicable(false)}
+                                            className={clsx(
+                                                "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                                !isGstApplicable ? "bg-gray-900 text-white shadow-xs" : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                                            )}
+                                        >
+                                            Non-GST
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsGstApplicable(true)}
+                                            className={clsx(
+                                                "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                                isGstApplicable ? "bg-teal-600 text-white shadow-xs" : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                                            )}
+                                        >
+                                            Active
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-gray-800/80 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 self-start sm:self-auto">
+                                    <Lock className="h-3.5 w-3.5 text-gray-400" />
+                                    <span className="text-[11px] font-semibold">Non-editable</span>
+                                </div>
+                            )}
                         </div>
 
-                        {editMode ? (
-                            <div className="flex items-center bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800 rounded-xl p-1 gap-1 shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsGstApplicable(false)}
-                                    className={clsx(
-                                        "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                                        !isGstApplicable
-                                            ? "bg-gray-900 text-white shadow-sm"
-                                            : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
-                                    )}
-                                >
-                                    Non-GST
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsGstApplicable(true)}
-                                    className={clsx(
-                                        "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                                        isGstApplicable
-                                            ? "bg-teal-600 text-white shadow-sm"
-                                            : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
-                                    )}
-                                >
-                                    GST Registered
-                                </button>
-                            </div>
-                        ) : (
-                            <span className={clsx(
-                                "px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase self-start sm:self-auto",
-                                isGstApplicable
-                                    ? "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300"
-                                    : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
-                            )}>
-                                {isGstApplicable ? 'GST Registered' : 'Non-GST'}
-                            </span>
-                        )}
-                    </div>
-
-                    {isGstApplicable && (
-                        <div id="myproperty-gst-container" className="pt-3 border-t border-teal-100 dark:border-teal-900/40 animate-in fade-in slide-in-from-top-2 duration-200">
+                        {/* GSTIN Details Box */}
+                        <div className="pt-3 border-t border-teal-100 dark:border-teal-900/40">
                             <label className="block text-xs font-bold text-teal-900 dark:text-teal-300 uppercase tracking-wider mb-1.5">
-                                Property GST Identification Number (GSTIN) <span className="text-red-500">*</span>
+                                Property GST Identification Number (GSTIN)
                             </label>
-                            {editMode ? (
+                            {editMode && isPlatformAdmin ? (
                                 <div>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -727,13 +730,91 @@ export default function MyProperty() {
                                     )}
                                 </div>
                             ) : (
-                                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800 rounded-lg text-sm font-mono font-bold text-teal-900 dark:text-teal-200">
-                                    <span>{gstNumber || 'No GSTIN provided'}</span>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-gray-800 border border-teal-200/90 dark:border-teal-800/60 rounded-xl shadow-xs">
+                                    <div className="flex items-center gap-3">
+                                        <div className="font-mono text-sm sm:text-base font-extrabold text-teal-950 dark:text-teal-100 tracking-wider">
+                                            {gstNumber || '32AAAAA0000A1Z5 (Applied)'}
+                                        </div>
+                                        {gstNumber && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(gstNumber);
+                                                    setCopiedGst(true);
+                                                    toast.success('GSTIN copied to clipboard');
+                                                    setTimeout(() => setCopiedGst(false), 2000);
+                                                }}
+                                                className="text-xs text-teal-600 hover:text-teal-800 dark:text-teal-400 flex items-center gap-1 font-semibold transition-colors px-2 py-0.5 rounded hover:bg-teal-50 dark:hover:bg-teal-900/30 cursor-pointer"
+                                                title="Copy GSTIN"
+                                            >
+                                                {copiedGst ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                                <span>{copiedGst ? 'Copied' : 'Copy'}</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowGstContactModal(true)}
+                                        className="text-xs text-gray-500 hover:text-primary dark:text-gray-400 font-medium underline underline-offset-2 transition-colors cursor-pointer self-start sm:self-auto"
+                                    >
+                                        Need to update GSTIN? Contact Admin
+                                    </button>
                                 </div>
                             )}
                         </div>
-                    )}
-                </div>
+                    </div>
+                ) : (
+                    <div className="p-4 sm:p-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/60 space-y-3 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-gray-200/80 text-gray-600 dark:bg-gray-700 dark:text-gray-300 shrink-0">
+                                    <FileText className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">GST Registration & Invoicing</h3>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 uppercase">
+                                            GST Not Applied
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Non-GST Property • Zero GST applied & Bill of Supply issued
+                                    </p>
+                                </div>
+                            </div>
+
+                            {editMode && isPlatformAdmin && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 rounded">
+                                        Admin Control
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsGstApplicable(true)}
+                                        className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                    >
+                                        Enable GST
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-3.5 bg-white dark:bg-gray-800/90 border border-gray-200/80 dark:border-gray-700 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
+                                <p className="font-semibold text-gray-800 dark:text-gray-200">GST is currently not applied for this property.</p>
+                                <p className="text-gray-500 dark:text-gray-400">To add your GSTIN and enable Tax Invoices on guest bookings, please contact the platform administrator.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowGstContactModal(true)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground font-bold text-xs rounded-xl transition-all shrink-0 cursor-pointer shadow-xs"
+                            >
+                                <Mail className="h-3.5 w-3.5" />
+                                <span>Contact Admin to Update GST</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex items-center gap-2 pt-2">
                     <input
@@ -1370,6 +1451,71 @@ export default function MyProperty() {
                                     </div>
                                 );
                             })}
+                        </div>
+                    </div>
+                {/* Contact Admin GST Modal */}
+                {showGstContactModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-teal-50/50 dark:bg-gray-900/50">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
+                                        <ShieldCheck className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-900 dark:text-white">GST Registration Update</h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Admin Managed Compliance</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowGstContactModal(false)}
+                                    className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                                    To ensure tax compliance and invoice accuracy, GST updates (GSTIN, legal trade name, or tax applicability) are verified and processed by the platform administration.
+                                </p>
+
+                                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 space-y-2 text-xs">
+                                    <div className="flex justify-between items-center text-gray-500 dark:text-gray-400">
+                                        <span>Property:</span>
+                                        <span className="font-bold text-gray-900 dark:text-white">{name || 'Your Property'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-gray-500 dark:text-gray-400">
+                                        <span>Support Email:</span>
+                                        <span className="font-mono font-bold text-primary">support@oreedu.com</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-gray-500 dark:text-gray-400">
+                                        <span>Required Documents:</span>
+                                        <span className="font-semibold text-gray-700 dark:text-gray-300">GST Registration Certificate</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2 pt-2">
+                                    <a
+                                        href={`mailto:support@oreedu.com?subject=${encodeURIComponent(`GST Update Request - ${name || 'Property'}`)}&body=${encodeURIComponent(`Hello Platform Support Team,\n\nWe would like to request an update to the GST registration details for our property:\n\n- Property Name: ${name || ''}\n- Property Email: ${email || ''}\n- GSTIN: [Enter 15-digit GSTIN]\n- Legal Business Name: [Enter Registered Business Name]\n\nPlease find our GST certificate attached.\n\nThank you,\n${name || 'Property Management'}`)}`}
+                                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm rounded-xl transition-all shadow-sm cursor-pointer"
+                                    >
+                                        <Send className="h-4 w-4" />
+                                        <span>Send Request via Email</span>
+                                    </a>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText('support@oreedu.com');
+                                            toast.success('Support email copied to clipboard');
+                                        }}
+                                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                                    >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        <span>Copy Support Email (support@oreedu.com)</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
