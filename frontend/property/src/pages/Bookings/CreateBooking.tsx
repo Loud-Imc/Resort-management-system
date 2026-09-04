@@ -1832,15 +1832,39 @@ export default function CreateBooking() {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <input
-                                                        type="number"
-                                                        {...register('overrideTotal', {
-                                                            setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
-                                                            onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
-                                                        })}
-                                                        className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-extrabold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder-gray-400"
-                                                        placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
-                                                    />
+                                                    <div className="flex gap-2">
+                                                        <div className="relative flex-1">
+                                                            <input
+                                                                type="number"
+                                                                {...register('overrideTotal', {
+                                                                    setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
+                                                                    onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
+                                                                })}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        handleCheckAvailability();
+                                                                    }
+                                                                }}
+                                                                className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-extrabold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder-gray-400"
+                                                                placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCheckAvailability()}
+                                                            disabled={checkingAvailability}
+                                                            className="h-11 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                                                            title="Apply Override Price"
+                                                        >
+                                                            {checkingAvailability ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <CheckCircle className="h-4 w-4" />
+                                                            )}
+                                                            <span>Apply</span>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-405 mb-1.5">Reason for Override</label>
