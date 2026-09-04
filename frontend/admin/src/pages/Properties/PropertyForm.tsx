@@ -230,7 +230,7 @@ export default function PropertyForm() {
                 latitude: formData.latitude ? Number(formData.latitude) : undefined,
                 longitude: formData.longitude ? Number(formData.longitude) : undefined,
                 isGstApplicable: Boolean(formData.isGstApplicable),
-                gstNumber: formData.isGstApplicable && formData.gstNumber ? formData.gstNumber.trim().toUpperCase() : null,
+                gstNumber: formData.gstNumber ? formData.gstNumber.trim().toUpperCase() : null,
             };
 
             if (isEdit && id) {
