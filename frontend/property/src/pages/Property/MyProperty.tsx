@@ -816,90 +816,172 @@ export default function MyProperty() {
                     </div>
                 )}
 
-                <div className="flex items-center gap-2 pt-2">
-                    <input
-                        id="allowsGroupBooking"
-                        type="checkbox"
-                        checked={allowsGroupBooking}
-                        onChange={(e) => setAllowsGroupBooking(e.target.checked)}
-                        disabled={!editMode}
-                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                    />
-                    <label htmlFor="allowsGroupBooking" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Allow Group Bookings (Multiple people in one booking)
-                    </label>
-                </div>
+                {/* Highlighted Group Bookings Section */}
+                <div className={clsx(
+                    "p-5 sm:p-6 rounded-2xl border transition-all space-y-5 shadow-xs",
+                    allowsGroupBooking
+                        ? "border-indigo-200/90 dark:border-indigo-900/50 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 dark:from-gray-800 dark:via-gray-800 dark:to-indigo-950/20"
+                        : "border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40"
+                )}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5">
+                            <div className={clsx(
+                                "p-2.5 rounded-xl shrink-0 transition-colors",
+                                allowsGroupBooking
+                                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300"
+                                    : "bg-gray-200/80 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                            )}>
+                                <Users className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">Group Bookings & Whole Property Pricing</h3>
+                                    <span className={clsx(
+                                        "px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide",
+                                        allowsGroupBooking
+                                            ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300"
+                                            : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                                    )}>
+                                        {allowsGroupBooking ? 'Active' : 'Disabled'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    Allow guests to book the entire resort or pooled rooms for multiple people in one booking
+                                </p>
+                            </div>
+                        </div>
 
-                {allowsGroupBooking && (
-                    <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                        <div className="space-y-2">
-                            <label className="block text-xs font-bold text-primary uppercase tracking-wider">Total Group Capacity</label>
-                            <div className="flex items-center gap-3">
-                                <Users className="h-4 w-4 text-gray-400" />
-                                <span className="text-lg font-black text-gray-900 dark:text-white">
-                                    {maxGroupCapacity || 0} guests
+                        {editMode ? (
+                            <label htmlFor="allowsGroupBooking" className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-800 rounded-xl cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all self-start sm:self-auto shrink-0 shadow-2xs">
+                                <input
+                                    id="allowsGroupBooking"
+                                    type="checkbox"
+                                    checked={allowsGroupBooking}
+                                    onChange={(e) => setAllowsGroupBooking(e.target.checked)}
+                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                    {allowsGroupBooking ? 'Enabled' : 'Enable Group Bookings'}
                                 </span>
-                            </div>
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic leading-relaxed">
-                                Auto-calculated from the <span className="font-bold text-primary">Max Group Occupancy</span> set on each room type in the group pool.
-                                To change this number, go to <span className="font-bold">Room Types → Edit</span> a room type, enable
-                                <span className="font-bold"> "Enable Group Bookings"</span> and set its Max Group Occupancy.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="block text-xs font-bold text-primary uppercase tracking-wider">Group Price (Adult)</label>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm font-bold text-gray-400">₹</span>
-                                    <input
-                                        type="number"
-                                        value={groupPriceAdult}
-                                        onChange={(e) => setGroupPriceAdult(e.target.value === '' ? '' : parseInt(e.target.value))}
-                                        disabled={!editMode}
-                                        placeholder="e.g. 600"
-                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceAdult === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm font-bold`}
-                                    />
-                                </div>
-                                {allowsGroupBooking && groupPriceAdult === '' && (
-                                    <p className="text-[10px] text-red-500 font-bold animate-pulse">Required for Group Bookings</p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <label className="block text-xs font-bold text-primary uppercase tracking-wider">Group Price (Child)</label>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm font-bold text-gray-400">₹</span>
-                                    <input
-                                        type="number"
-                                        value={groupPriceChild}
-                                        onChange={(e) => setGroupPriceChild(e.target.value === '' ? '' : parseInt(e.target.value))}
-                                        disabled={!editMode}
-                                        placeholder="e.g. 400"
-                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceChild === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm font-bold`}
-                                    />
-                                </div>
-                                {allowsGroupBooking && groupPriceChild === '' && (
-                                    <p className="text-[10px] text-red-500 font-bold animate-pulse">Required for Group Bookings</p>
-                                )}
-                            </div>
-                        </div>
-                        <p className="text-[10px] text-gray-400 font-medium italic">* These prices override individual room rates during group bookings.</p>
-                        
-                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                            <input
-                                type="checkbox"
-                                id="isGroupGstInclusive"
-                                checked={isGroupGstInclusive}
-                                onChange={(e) => setIsGroupGstInclusive(e.target.checked)}
-                                disabled={!editMode}
-                                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary"
-                            />
-                            <label htmlFor="isGroupGstInclusive" className="text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
-                                These prices are inclusive of GST
                             </label>
-                        </div>
+                        ) : null}
                     </div>
-                )}
+
+                    {allowsGroupBooking && (
+                        <div className="pt-4 border-t border-indigo-100 dark:border-indigo-900/40 space-y-5 animate-in fade-in slide-in-from-top-1 duration-200">
+                            {/* Capacity Stat */}
+                            <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider">
+                                        Total Pooled Group Capacity
+                                    </label>
+                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Auto-calculated from <span className="font-semibold text-indigo-600 dark:text-indigo-400">Max Group Occupancy</span> across eligible room types
+                                    </p>
+                                </div>
+                                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 rounded-xl">
+                                    <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                    <span className="text-base sm:text-lg font-black text-indigo-950 dark:text-indigo-100">
+                                        {maxGroupCapacity || 0} guests
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Rates Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 space-y-2">
+                                    <label className="block text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                                        Group Price / Adult <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-sm">
+                                            ₹
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={groupPriceAdult}
+                                            onChange={(e) => setGroupPriceAdult(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                            disabled={!editMode}
+                                            placeholder="e.g. 1200"
+                                            className={clsx(
+                                                "w-full pl-8 pr-4 py-2.5 border rounded-xl text-sm font-bold text-gray-900 dark:text-white bg-white dark:bg-gray-700 outline-none transition-all",
+                                                editMode
+                                                    ? (groupPriceAdult === '' ? 'border-red-500 bg-red-50/20 ring-2 ring-red-500/20' : 'border-indigo-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500')
+                                                    : 'border-transparent bg-transparent shadow-none pl-6 text-base font-extrabold'
+                                            )}
+                                        />
+                                    </div>
+                                    {editMode && groupPriceAdult === '' && (
+                                        <p className="text-[10px] text-red-500 font-bold">Required when group bookings are active</p>
+                                    )}
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 space-y-2">
+                                    <label className="block text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                                        Group Price / Child <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-sm">
+                                            ₹
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={groupPriceChild}
+                                            onChange={(e) => setGroupPriceChild(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                            disabled={!editMode}
+                                            placeholder="e.g. 400"
+                                            className={clsx(
+                                                "w-full pl-8 pr-4 py-2.5 border rounded-xl text-sm font-bold text-gray-900 dark:text-white bg-white dark:bg-gray-700 outline-none transition-all",
+                                                editMode
+                                                    ? (groupPriceChild === '' ? 'border-red-500 bg-red-50/20 ring-2 ring-red-500/20' : 'border-indigo-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500')
+                                                    : 'border-transparent bg-transparent shadow-none pl-6 text-base font-extrabold'
+                                            )}
+                                        />
+                                    </div>
+                                    {editMode && groupPriceChild === '' && (
+                                        <p className="text-[10px] text-red-500 font-bold">Required when group bookings are active</p>
+                                    )}
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+                                * These group rates override individual room rates during group checkout.
+                            </p>
+
+                            {/* GST Inclusivity Setting for Group Pricing */}
+                            <div className="pt-3 border-t border-indigo-100/80 dark:border-indigo-900/30">
+                                {isGstApplicable ? (
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white/90 dark:bg-gray-800/90 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                                        <div className="flex items-center gap-2.5">
+                                            <input
+                                                type="checkbox"
+                                                id="isGroupGstInclusive"
+                                                checked={isGroupGstInclusive}
+                                                onChange={(e) => setIsGroupGstInclusive(e.target.checked)}
+                                                disabled={!editMode}
+                                                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            />
+                                            <label htmlFor="isGroupGstInclusive" className="text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200 cursor-pointer">
+                                                These group prices are inclusive of GST
+                                            </label>
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 pl-6 sm:pl-0">
+                                            {isGroupGstInclusive
+                                                ? 'GST will be reverse-calculated from entered prices'
+                                                : 'GST slab will be added on top of entered prices'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 p-3 bg-gray-100/80 dark:bg-gray-700/40 rounded-xl text-xs text-gray-600 dark:text-gray-300">
+                                        <span className="font-bold text-[10px] uppercase tracking-wider bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded">
+                                            Non-GST Property
+                                        </span>
+                                        <span>Entered group prices are net payable without tax (Zero GST applied & Bill of Supply issued).</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>

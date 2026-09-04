@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import {
     Loader2, TrendingUp, Users, Bed, Calendar, ArrowUpRight, HelpCircle, Info, Tag, DollarSign, Filter, Search,
-    FileText, AlertCircle, ShieldCheck
+    FileText, AlertCircle, ShieldCheck, Download
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import FinancialDetailsModal from '../../components/Reports/FinancialDetailsModal';
