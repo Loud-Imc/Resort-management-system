@@ -293,8 +293,8 @@ describe('Property Content Connectivity API (GET /connectivity/v1/content) Unit 
       externalPropertyId: 'EXT-PROP-101',
     });
 
-    expect(result.rates).toBeUndefined();
-    expect(result.dailyRates).toBeUndefined();
+    expect((result as any).rates).toBeUndefined();
+    expect((result as any).dailyRates).toBeUndefined();
   });
 
   // ─── POLICIES, IMAGES & AMENITIES TESTS ───────────────────────────────────
