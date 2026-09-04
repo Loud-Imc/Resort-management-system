@@ -61,6 +61,8 @@ export class OtaPropertiesController {
         coverImage: dto.coverImage,
         images: dto.images,
         amenities: dto.amenities,
+        isGstApplicable: dto.isGstApplicable !== undefined ? Boolean(dto.isGstApplicable) : undefined,
+        gstNumber: dto.gstNumber !== undefined ? (dto.gstNumber ? dto.gstNumber.trim().toUpperCase() : null) : undefined,
       },
     });
 

@@ -21,6 +21,9 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 import { ChannelsService } from '../channels/channels.service';
 import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 
+import { Decimal } from '@prisma/client/runtime/library';
+import { InvoiceNumberService } from './invoice-number.service';
+
 @Injectable()
 export class BookingsService {
     private readonly logger = new Logger(BookingsService.name);
@@ -35,6 +38,7 @@ export class BookingsService {
         private systemSettings: SystemSettingsService,
         private pdfService: PdfService,
         private mailService: MailService,
+        private invoiceNumberService: InvoiceNumberService,
         @Optional() @Inject(forwardRef(() => ChannelsService)) private channelsService?: ChannelsService,
         @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private connectivityOutboxService?: ConnectivityOutboxService,
     ) { }
@@ -789,11 +793,16 @@ export class BookingsService {
                 computedChannelName = 'Oreedu PMS';
             }
 
+            const { invoiceNumber, financialYear } = await this.invoiceNumberService.generateNextInvoiceNumber(effectiveCreatedAt);
+
             const newBooking = await tx.booking.create({
                 data: {
                     createdAt: effectiveCreatedAt,
                     updatedAt: effectiveCreatedAt,
                     bookingNumber,
+                    invoiceNumber,
+                    invoiceDate: effectiveCreatedAt,
+                    financialYear,
                     checkInDate: checkIn,
                     checkOutDate: checkOut,
                     numberOfNights: pricing.numberOfNights,
@@ -1959,9 +1968,9 @@ export class BookingsService {
     }
 
     /**
-     * Cancel a booking
+     * Cancel a booking and issue GST Credit Note if payment was made
      */
-    async cancel(id: string, user: any, reason?: string) {
+    async cancel(id: string, user: any, reason?: string, refundPercentageOverride?: number) {
         const booking = await this.findOne(id, user);
 
         if (!['PENDING_PAYMENT', 'CONFIRMED', 'RESERVED'].includes(booking.status)) {
@@ -2053,8 +2062,9 @@ export class BookingsService {
         const applicablePolicy = anyBooking.roomType?.cancellationPolicy || anyBooking.property?.defaultCancellationPolicy;
 
         let refundPercentage = 100;
-
-        if (applicablePolicy) {
+        if (refundPercentageOverride !== undefined && refundPercentageOverride !== null) {
+            refundPercentage = Math.max(0, Math.min(100, Number(refundPercentageOverride)));
+        } else if (applicablePolicy) {
             const checkInDate = new Date(booking.checkInDate);
             const now = new Date();
             const hoursUntilCheckIn = Math.max(0, differenceInHours(checkInDate, now));
@@ -2070,12 +2080,51 @@ export class BookingsService {
             }
         }
 
+        let createdCreditNote: any = null;
+
+        // Generate Credit Note if payments exist
+        const totalPaid = payments.reduce((acc, p) => acc + Number(p.amount), 0);
+        if (totalPaid > 0) {
+            let invoiceNum = booking.invoiceNumber;
+            if (!invoiceNum) {
+                const inv = await this.invoiceNumberService.generateNextInvoiceNumber(booking.createdAt);
+                invoiceNum = inv.invoiceNumber;
+                await this.prisma.booking.update({
+                    where: { id: booking.id },
+                    data: {
+                        invoiceNumber: inv.invoiceNumber,
+                        invoiceDate: booking.createdAt,
+                        financialYear: inv.financialYear,
+                    },
+                });
+            }
+
+            const { creditNoteNumber, financialYear } = await this.invoiceNumberService.generateNextCreditNoteNumber(new Date());
+            const baseCredited = Number(((Number(booking.baseAmount || 0) * refundPercentage) / 100).toFixed(2));
+            const taxCredited = Number(((Number(booking.taxAmount || 0) * refundPercentage) / 100).toFixed(2));
+
+            createdCreditNote = await this.prisma.creditNote.create({
+                data: {
+                    creditNoteNumber,
+                    financialYear,
+                    bookingId: booking.id,
+                    propertyId: (booking.propertyId || booking.room?.propertyId) as string,
+                    invoiceNumber: invoiceNum,
+                    originalAmount: new Decimal(booking.totalAmount),
+                    creditedAmount: new Decimal(baseCredited),
+                    taxAmount: new Decimal(taxCredited),
+                    refundPercentage: new Decimal(refundPercentage),
+                    reason: reason || 'Booking cancellation',
+                    issuedById: user?.id,
+                },
+            });
+        }
+
         for (const payment of payments) {
             try {
                 const actualRefundAmount = Number(payment.amount) * (refundPercentage / 100);
 
                 if (actualRefundAmount <= 0) {
-                    // No refund granted based on policy
                     await this.prisma.payment.update({
                         where: { id: payment.id },
                         data: {
@@ -2088,12 +2137,11 @@ export class BookingsService {
                 }
 
                 if (payment.paymentMethod === 'WALLET') {
-                    // Refund to CP Wallet
                     await this.channelPartnersService.refundWalletPayment(
                         booking.agentId || (booking as any).channelPartnerId!,
                         actualRefundAmount,
                         `Refund (${refundPercentage}%) for cancelled booking ${booking.bookingNumber}`,
-                        payment.id // Use Payment ID as referenceId (idempotency key)
+                        payment.id
                     );
 
                     await this.prisma.payment.update({
@@ -2114,10 +2162,8 @@ export class BookingsService {
                         }
                     });
                 } else if (payment.razorpayPaymentId) {
-                    // Refund via Razorpay — call requestRefund (Maker-Checker enforced)
                     await this.paymentsService.requestRefund(user, payment.id, actualRefundAmount, reason || `Booking cancellation (${refundPercentage}% refund)`);
                 } else {
-                    // Manual payment (CASH, UPI, bank transfer) — record refund for accounting
                     await this.prisma.payment.update({
                         where: { id: payment.id },
                         data: {
@@ -2152,7 +2198,11 @@ export class BookingsService {
             startDate: booking.checkInDate,
             endDate: booking.checkOutDate,
         });
-        return updated;
+        return {
+            ...updated,
+            couponRestored,
+            creditNote: createdCreditNote,
+        };
     }
 
     /**
@@ -3216,7 +3266,7 @@ export class BookingsService {
      * Generate invoice PDF for a booking
      */
     async generateInvoice(id: string, type: 'GUEST' | 'PARTNER' = 'GUEST') {
-        const booking = await this.prisma.booking.findUnique({
+        let booking = await this.prisma.booking.findUnique({
             where: { id },
             include: {
                 user: true,
@@ -3248,7 +3298,86 @@ export class BookingsService {
             throw new NotFoundException(`Booking with ID ${id} not found`);
         }
 
+        // If booking doesn't have an invoice number yet, assign next sequential invoice number
+        if (!booking.invoiceNumber) {
+            const { invoiceNumber, financialYear } = await this.invoiceNumberService.generateNextInvoiceNumber(booking.createdAt);
+            booking = await this.prisma.booking.update({
+                where: { id },
+                data: {
+                    invoiceNumber,
+                    invoiceDate: booking.createdAt,
+                    financialYear,
+                },
+                include: {
+                    user: true,
+                    property: {
+                        include: {
+                            owner: true,
+                        },
+                    },
+                    roomType: true,
+                    room: {
+                        include: {
+                            property: true,
+                        },
+                    },
+                    bookingRooms: {
+                        include: {
+                            room: true,
+                        },
+                    },
+                    channelPartner: {
+                        include: {
+                            user: true,
+                        },
+                    },
+                },
+            });
+        }
+
         return this.pdfService.generateBookingConfirmation(booking, type);
+    }
+
+    /**
+     * Generate credit note PDF by creditNoteId
+     */
+    async generateCreditNote(creditNoteId: string) {
+        const creditNote = await this.prisma.creditNote.findUnique({
+            where: { id: creditNoteId },
+            include: {
+                booking: {
+                    include: {
+                        user: true,
+                        property: true,
+                        room: { include: { property: true } },
+                        roomType: true,
+                    },
+                },
+                property: true,
+                issuedBy: true,
+            },
+        });
+
+        if (!creditNote) {
+            throw new NotFoundException(`Credit Note with ID ${creditNoteId} not found`);
+        }
+
+        return this.pdfService.generateCreditNotePdf(creditNote, creditNote.booking);
+    }
+
+    /**
+     * Get all Credit Notes for a booking
+     */
+    async getCreditNotesForBooking(bookingId: string) {
+        return this.prisma.creditNote.findMany({
+            where: { bookingId },
+            include: {
+                issuedBy: {
+                    select: { id: true, firstName: true, lastName: true, email: true },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
     }
 
     /**

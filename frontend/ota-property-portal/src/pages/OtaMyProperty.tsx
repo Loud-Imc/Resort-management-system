@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { otaService } from '../services/otaService';
-import { Loader2, Save, MapPin, Building, ShieldCheck, Image as ImageIcon, Trash2, Plus, Edit, X, FileText } from 'lucide-react';
+import { Loader2, Save, MapPin, Building, ShieldCheck, Image as ImageIcon, Trash2, Plus, Edit, X, FileText, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function OtaMyProperty() {
@@ -22,9 +22,12 @@ export default function OtaMyProperty() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [coverImage, setCoverImage] = useState('');
+  const [images, setImages] = useState<string[]>([]);
   const [amenityInput, setAmenityInput] = useState('');
   const [amenities, setAmenities] = useState<string[]>([]);
-  const [images, setImages] = useState<string[]>([]);
+  const [isGstApplicable, setIsGstApplicable] = useState(false);
+  const [gstNumber, setGstNumber] = useState('');
+  const [gstError, setGstError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Policy Form states
@@ -74,6 +77,8 @@ export default function OtaMyProperty() {
     setLatitude(details.latitude ? details.latitude.toString() : '');
     setLongitude(details.longitude ? details.longitude.toString() : '');
     setCoverImage(details.coverImage || '');
+    setIsGstApplicable(details.isGstApplicable ?? (Boolean(details.gstNumber && details.gstNumber.trim())));
+    setGstNumber(details.gstNumber || '');
     setAmenities(details.amenities || []);
     setImages(details.images || []);
   };
@@ -153,6 +158,27 @@ export default function OtaMyProperty() {
 
   const handleSaveProfile = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    if (isGstApplicable) {
+      const trimmedGst = gstNumber?.trim().toUpperCase();
+      if (!trimmedGst) {
+        setGstError('GST Identification Number (GSTIN) is required when GST is enabled.');
+        const el = document.getElementById('ota-myproperty-gst-input');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus();
+        return;
+      }
+      const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstRegex.test(trimmedGst)) {
+        setGstError('Please enter a valid 15-character GSTIN (e.g. 32AAAAA0000A1Z5)');
+        const el = document.getElementById('ota-myproperty-gst-input');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus();
+        return;
+      }
+    }
+    setGstError(null);
+
     setIsSaving(true);
     try {
       const updated = await otaService.updateMyProperty({
@@ -165,6 +191,8 @@ export default function OtaMyProperty() {
         phone,
         email,
         whatsappNumber,
+        isGstApplicable,
+        gstNumber: gstNumber ? gstNumber.trim().toUpperCase() : null,
         latitude: latitude ? parseFloat(latitude) : undefined,
         longitude: longitude ? parseFloat(longitude) : undefined,
         coverImage,
@@ -462,6 +490,90 @@ export default function OtaMyProperty() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* GST Applicability & Registration */}
+        <div className="p-4 bg-muted/20 border border-teal-500/20 rounded-xl space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              <div>
+                <h4 className="font-extrabold text-xs text-foreground">GST Registration & Invoicing</h4>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {isGstApplicable
+                    ? 'GST applicable: Dynamic GST tiers apply on rooms & Tax Invoices issued'
+                    : 'Non-GST Property: Zero GST applied & Bill of Supply issued'}
+                </p>
+              </div>
+            </div>
+
+            {editMode ? (
+              <div className="flex items-center bg-background border border-border rounded-lg p-0.5 gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => { setIsGstApplicable(false); setGstError(null); }}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    !isGstApplicable ? 'bg-foreground text-background shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Non-GST
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsGstApplicable(true)}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    isGstApplicable ? 'bg-teal-600 text-white shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  GST Registered
+                </button>
+              </div>
+            ) : (
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase ${
+                isGstApplicable ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400' : 'bg-muted text-muted-foreground'
+              }`}>
+                {isGstApplicable ? 'GST Registered' : 'Non-GST'}
+              </span>
+            )}
+          </div>
+
+          {isGstApplicable && (
+            <div className="pt-2 border-t border-border/50">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block mb-1">
+                Property GST Identification Number (GSTIN) *
+              </label>
+              {editMode ? (
+                <div>
+                  <input
+                    id="ota-myproperty-gst-input"
+                    type="text"
+                    maxLength={15}
+                    value={gstNumber}
+                    onChange={(e) => {
+                      setGstError(null);
+                      setGstNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+                    }}
+                    placeholder="e.g. 32AAAAA0000A1Z5"
+                    className={`w-full px-3 py-2 bg-background border rounded-xl outline-none font-mono uppercase text-xs font-bold text-foreground focus:ring-2 ${
+                      gstError
+                        ? 'border-red-500 focus:ring-red-500 bg-red-50/10'
+                        : 'border-teal-500/30 focus:ring-teal-500'
+                    }`}
+                  />
+                  {gstError && (
+                    <p className="text-[11px] text-red-600 font-semibold mt-1 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="h-3 w-3 shrink-0" />
+                      <span>{gstError}</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="px-3 py-2 bg-background border border-border/20 rounded-lg text-foreground font-mono font-bold text-xs">
+                  {gstNumber || 'No GSTIN provided'}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Google maps link coordinates extractor */}
@@ -767,7 +879,7 @@ export default function OtaMyProperty() {
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                       p.type === 'REFUNDABLE' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
                     }`}>
-                      {p.type.replace('_', ' ')}
+                      {(p.type || 'POLICY').replace('_', ' ')}
                     </span>
                     <button
                       onClick={() => handleDeletePolicy(p.id)}

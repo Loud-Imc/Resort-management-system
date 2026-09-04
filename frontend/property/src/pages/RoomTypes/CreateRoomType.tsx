@@ -278,16 +278,29 @@ export default function CreateRoomType() {
                             />
                             {errors.basePrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.basePrice.message)}</p>}
                             <div className="mt-2 pl-1">
-                                <label className="inline-flex items-center cursor-pointer group">
-                                    <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
-                                    <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${watch('isGstInclusive') ? 'bg-green-600' : 'bg-red-500'}`}></div>
-                                    <span className="ml-2 text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors uppercase tracking-wider">Price is inclusive of GST</span>
-                                </label>
-                                {watch('isGstInclusive') && (
-                                    <p className="mt-1.5 text-[9px] text-gray-500 dark:text-gray-400 italic font-medium pl-1 animate-in fade-in slide-in-from-top-1 flex items-center gap-1">
-                                        <Info className="h-2.5 w-2.5 text-blue-500" />
-                                        When enabled, the Base Price is treated as the final amount including tax. The system back-calculates tax for reports.
-                                    </p>
+                                {selectedProperty?.isGstApplicable ? (
+                                    <>
+                                        <label className="inline-flex items-center cursor-pointer group">
+                                            <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
+                                            <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${watch('isGstInclusive') ? 'bg-green-600' : 'bg-gray-400 dark:bg-gray-600'}`}></div>
+                                            <span className="ml-2 text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors uppercase tracking-wider">
+                                                {watch('isGstInclusive') ? 'Price is Inclusive of GST' : 'Price is Exclusive of GST (+ GST)'}
+                                            </span>
+                                        </label>
+                                        <p className="mt-1.5 text-[9px] text-gray-500 dark:text-gray-400 font-medium pl-1 animate-in fade-in flex items-center gap-1">
+                                            <Info className="h-3 w-3 text-teal-600 shrink-0" />
+                                            <span>
+                                                {watch('isGstInclusive')
+                                                    ? 'Base price is the total amount paid by guests; GST is reverse-calculated for invoices and reports.'
+                                                    : 'Dynamic GST tiers will be calculated and added on top of this base price at checkout.'}
+                                            </span>
+                                        </p>
+                                    </>
+                                ) : (
+                                    <div className="inline-flex items-center gap-2 py-1 px-2.5 rounded-lg bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 text-gray-500 dark:text-gray-400 text-[10px] font-semibold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                        <span>Non-GST Property: Zero GST applied & Bill of Supply issued</span>
+                                    </div>
                                 )}
                             </div>
                         </div>

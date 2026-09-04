@@ -156,7 +156,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                                         className="text-xl font-black text-gray-900" 
                                     />
                                     <span className="text-[10px] text-gray-500 font-bold">
-                                        / person {property.isGroupGstInclusive ? 'incl. GST' : '+ GST'}
+                                        / person {property.isGstApplicable !== false ? (property.isGroupGstInclusive ? 'incl. GST' : '+ GST') : ''}
                                     </span>
                                 </div>
                             </>

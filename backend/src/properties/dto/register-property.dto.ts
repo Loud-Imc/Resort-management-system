@@ -99,6 +99,10 @@ export class RegisterPropertyDto {
     documents?: string[];
 
     @IsOptional()
+    @IsBoolean()
+    isGstApplicable?: boolean;
+
+    @IsOptional()
     @IsString()
     gstNumber?: string;
 

@@ -3,13 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { reportsService } from '../../services/reports';
 import { expensesService } from '../../services/expenses';
+import { bookingsService } from '../../services/bookings';
 import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie,
     Cell, Tooltip, ResponsiveContainer,
     XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import {
-    Loader2, TrendingUp, Users, Bed, Calendar, ArrowUpRight, HelpCircle, Info, Tag, DollarSign, Filter, Search
+    Loader2, TrendingUp, Users, Bed, Calendar, ArrowUpRight, HelpCircle, Info, Tag, DollarSign, Filter, Search,
+    FileText, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import FinancialDetailsModal from '../../components/Reports/FinancialDetailsModal';
@@ -34,7 +36,32 @@ export default function Reports() {
     const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | 'PLATFORM_FEES' | 'OCCUPANCY' | 'NET_EARNINGS' | 'GST' | null>(null);
 
     const [activeTab, setActiveTab] = useState<'PERFORMANCE' | 'GST' | 'ASSETS'>('PERFORMANCE');
+    const [gstSubTab, setGstSubTab] = useState<'INVOICES' | 'CREDIT_NOTES'>('INVOICES');
     const [showSourceInfo, setShowSourceInfo] = useState(false);
+    const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+    const [downloadingCreditNoteId, setDownloadingCreditNoteId] = useState<string | null>(null);
+
+    const handleDownloadInvoice = async (bookingId: string, bookingNumber?: string) => {
+        try {
+            setDownloadingInvoiceId(bookingId);
+            await bookingsService.downloadInvoice(bookingId, bookingNumber);
+        } catch (err) {
+            console.error('Error downloading invoice:', err);
+        } finally {
+            setDownloadingInvoiceId(null);
+        }
+    };
+
+    const handleDownloadCreditNote = async (creditNoteId: string, creditNoteNumber?: string) => {
+        try {
+            setDownloadingCreditNoteId(creditNoteId);
+            await bookingsService.downloadCreditNotePdf(creditNoteId, creditNoteNumber);
+        } catch (err) {
+            console.error('Error downloading credit note:', err);
+        } finally {
+            setDownloadingCreditNoteId(null);
+        }
+    };
 
     const [isFilterExpanded, setIsFilterExpanded] = useState(false);
     const [filters, setFilters] = useState({
@@ -185,12 +212,24 @@ export default function Reports() {
                             </>
                         )}
                         {activeTab === 'GST' && (
-                            <button
-                                onClick={() => reportsService.exportGstPdf(dateRange.startDate, dateRange.endDate, selectedProperty?.id)}
-                                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2"
-                            >
-                                Download GST PDF
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => reportsService.exportGstPdf(dateRange.startDate, dateRange.endDate, selectedProperty?.id)}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-1.5"
+                                    title="Download Complete GST Compliance Report PDF"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    <span>Download GST PDF</span>
+                                </button>
+                                <button
+                                    onClick={() => reportsService.exportCreditNotesPdf(dateRange.startDate, dateRange.endDate, selectedProperty?.id)}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-sm flex items-center gap-1.5"
+                                    title="Download Credit Notes Compliance Report PDF"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    <span>Download Credit Notes PDF</span>
+                                </button>
+                            </div>
                         )}
                     </div>
                     {['week', 'month', 'last-month'].map((t) => (
@@ -565,59 +604,259 @@ export default function Reports() {
                 </>
             ) : (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex justify-between items-center">
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">GST Compliance Tracking</h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Detailed breakdown of taxable volume and tax collected</p>
-                        </div>
-                        <div className="flex gap-4">
-                            <div className="text-right">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase">Total Taxable</p>
-                                <p className="text-sm font-bold text-gray-900 dark:text-white">₹{gstReport?.summary?.totalTaxable?.toLocaleString()}</p>
+                    {/* Check if property is Non-GST */}
+                    {selectedProperty && (!selectedProperty.isGstApplicable || !selectedProperty.gstNumber) ? (
+                        <div className="p-8">
+                            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-6 text-amber-900 dark:text-amber-200 flex flex-col md:flex-row items-start gap-4 shadow-sm">
+                                <div className="p-3 bg-amber-100 dark:bg-amber-900/60 rounded-xl text-amber-600 dark:text-amber-400 shrink-0">
+                                    <AlertCircle className="h-6 w-6" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-base font-bold text-gray-900 dark:text-white">Non-GST Registered Property</h3>
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200/70 dark:bg-amber-900/80 text-amber-800 dark:text-amber-300">
+                                            EXEMPTED
+                                        </span>
+                                    </div>
+                                    <p className="text-sm mt-1 text-gray-600 dark:text-gray-300">
+                                        <strong className="text-gray-900 dark:text-white">{selectedProperty?.name}</strong> is registered under the Non-GST / Exempt scheme. All guest invoices are generated as <strong>Bill of Supply</strong> with 0% GST compliance requirements.
+                                    </p>
+                                    <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                        <div className="flex items-center gap-1.5 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800/60 shadow-sm">
+                                            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                                            <span>Tax Liability: ₹0.00 (Exempt)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800/60 shadow-sm">
+                                            <FileText className="h-4 w-4 text-blue-500" />
+                                            <span>Document Format: Bill of Supply</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="text-right border-l border-gray-200 dark:border-gray-700 pl-4">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase">Total Tax</p>
-                                <p className="text-sm font-bold text-emerald-600">₹{gstReport?.summary?.totalTax?.toLocaleString()}</p>
-                            </div>
                         </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-gray-100 dark:bg-gray-700/50 text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                                <tr>
-                                    <th className="px-6 py-4">Booking # / Date</th>
-                                    <th className="px-6 py-4">Guest Details</th>
-                                    <th className="px-6 py-4 text-right">Taxable Amount</th>
-                                    <th className="px-6 py-4 text-right">GST Collected</th>
-                                    <th className="px-6 py-4 text-right">Gross Total</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {gstReport?.details?.map((item: any) => (
-                                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <p className="font-bold text-sm text-gray-900 dark:text-white">{item.bookingNumber}</p>
-                                            <p className="text-xs text-gray-500">{format(new Date(item.date), 'MMM dd, yyyy')}</p>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <p className="font-medium text-sm text-gray-900 dark:text-white">{item.guestName}</p>
-                                            <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">GSTIN: {item.gstNumber}</p>
-                                        </td>
-                                        <td className="px-6 py-4 text-right text-sm font-medium text-gray-700 dark:text-gray-300">₹{item.taxableAmount.toLocaleString()}</td>
-                                        <td className="px-6 py-4 text-right text-sm font-bold text-emerald-600">₹{item.taxAmount.toLocaleString()}</td>
-                                        <td className="px-6 py-4 text-right text-sm font-extrabold text-gray-900 dark:text-white">₹{item.totalAmount.toLocaleString()}</td>
-                                    </tr>
-                                ))}
-                                {!gstReport?.details?.length && (
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center">
-                                            <p className="text-gray-400 italic">No tax records found for the selected period.</p>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    ) : (
+                        <>
+                            <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">GST Compliance & Tax Invoices</h3>
+                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                            GSTIN: {selectedProperty?.gstNumber || gstReport?.propertyGstNumber || 'Active'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setGstSubTab('INVOICES')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                gstSubTab === 'INVOICES'
+                                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                                            }`}
+                                        >
+                                            Outward Invoices ({gstReport?.details?.length || 0})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setGstSubTab('CREDIT_NOTES')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                gstSubTab === 'CREDIT_NOTES'
+                                                    ? 'bg-rose-600 text-white shadow-sm'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                                            }`}
+                                        >
+                                            Credit Notes ({gstReport?.creditNotes?.length || 0})
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Taxable Base</p>
+                                        <p className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">₹{gstReport?.summary?.totalTaxable?.toLocaleString('en-IN') || 0}</p>
+                                    </div>
+                                    <div className="text-right border-l border-gray-200 dark:border-gray-700 pl-3">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">GST Collected</p>
+                                        <p className="text-xs sm:text-sm font-bold text-emerald-600">₹{gstReport?.summary?.totalTax?.toLocaleString('en-IN') || 0}</p>
+                                    </div>
+                                    <div className="text-right border-l border-gray-200 dark:border-gray-700 pl-3">
+                                        <p className="text-[10px] font-bold text-rose-500 uppercase">Tax Reversed</p>
+                                        <p className="text-xs sm:text-sm font-bold text-rose-600">₹{gstReport?.summary?.totalTaxReversed?.toLocaleString('en-IN') || 0}</p>
+                                    </div>
+                                    <div className="text-right border-l border-gray-200 dark:border-gray-700 pl-3">
+                                        <p className="text-[10px] font-bold text-blue-500 uppercase">Net GST Due</p>
+                                        <p className="text-xs sm:text-sm font-black text-blue-600 dark:text-blue-400">₹{gstReport?.summary?.netTaxLiability?.toLocaleString('en-IN') || 0}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {gstSubTab === 'INVOICES' ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-gray-100 dark:bg-gray-700/50 text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                            <tr>
+                                                <th className="px-6 py-4">Invoice # / Booking</th>
+                                                <th className="px-6 py-4">Date</th>
+                                                <th className="px-6 py-4">Guest Details</th>
+                                                <th className="px-6 py-4 text-center">Supply Type</th>
+                                                <th className="px-6 py-4 text-right">Taxable Base</th>
+                                                <th className="px-6 py-4 text-right">GST Rate & Amount</th>
+                                                <th className="px-6 py-4 text-right">Gross Total</th>
+                                                <th className="px-6 py-4 text-center">Tax Invoice</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {gstReport?.details?.map((item: any) => (
+                                                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-bold text-sm text-gray-900 dark:text-white">{item.invoiceNumber || `INV-${item.bookingNumber}`}</p>
+                                                        <p className="text-xs text-primary font-medium">#{item.bookingNumber}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
+                                                        {item.date ? format(new Date(item.date), 'MMM dd, yyyy') : 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-medium text-sm text-gray-900 dark:text-white">{item.guestName}</p>
+                                                        {item.gstNumber && item.gstNumber !== 'N/A' ? (
+                                                            <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">GSTIN: {item.gstNumber}</p>
+                                                        ) : (
+                                                            <p className="text-[10px] text-gray-400 uppercase tracking-tighter">Unregistered Consumer</p>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                                                            item.supplyType === 'B2B' 
+                                                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800' 
+                                                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                        }`}>
+                                                            {item.supplyType || (item.gstNumber && item.gstNumber !== 'N/A' ? 'B2B' : 'B2C')}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                        ₹{Number(item.taxableAmount).toLocaleString('en-IN', { minimumFractionDigits: item.taxableAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <span className="text-xs font-semibold text-gray-500 mr-1.5">({item.taxRate || 0}%)</span>
+                                                        <span className="text-sm font-bold text-emerald-600">₹{Number(item.taxAmount).toLocaleString('en-IN', { minimumFractionDigits: item.taxAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right text-sm font-extrabold text-gray-900 dark:text-white">
+                                                        ₹{Number(item.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: item.totalAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <button
+                                                            onClick={() => handleDownloadInvoice(item.id, item.bookingNumber)}
+                                                            disabled={downloadingInvoiceId === item.id}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground transition-all disabled:opacity-50"
+                                                            title="Download Official Tax Invoice PDF"
+                                                        >
+                                                            {downloadingInvoiceId === item.id ? (
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                            ) : (
+                                                                <FileText className="h-3.5 w-3.5" />
+                                                            )}
+                                                            <span>Invoice</span>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {(!gstReport?.details || gstReport.details.length === 0) && (
+                                                <tr>
+                                                    <td colSpan={8} className="px-6 py-12 text-center">
+                                                        <p className="text-gray-400 italic">No tax records found for the selected period.</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-gray-100 dark:bg-gray-700/50 text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                            <tr>
+                                                <th className="px-6 py-4">Credit Note # / Date</th>
+                                                <th className="px-6 py-4">Original Invoice Ref</th>
+                                                <th className="px-6 py-4">Guest Details</th>
+                                                <th className="px-6 py-4 text-center">Type</th>
+                                                <th className="px-6 py-4">Refund % & Reason</th>
+                                                <th className="px-6 py-4 text-right">Original Amount</th>
+                                                <th className="px-6 py-4 text-right">GST Reversed</th>
+                                                <th className="px-6 py-4 text-right">Credited Total</th>
+                                                <th className="px-6 py-4 text-center">Credit Note</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {gstReport?.creditNotes?.map((item: any) => (
+                                                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-bold text-sm text-gray-900 dark:text-white">{item.creditNoteNumber}</p>
+                                                        <p className="text-xs text-gray-500">{item.date ? format(new Date(item.date), 'MMM dd, yyyy') : 'N/A'}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-bold text-xs text-gray-800 dark:text-gray-200">{item.invoiceNumber || 'N/A'}</p>
+                                                        <p className="text-[10px] text-primary font-medium">#{item.bookingNumber}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-medium text-sm text-gray-900 dark:text-white">{item.guestName}</p>
+                                                        {item.gstNumber && item.gstNumber !== 'N/A' ? (
+                                                            <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">GSTIN: {item.gstNumber}</p>
+                                                        ) : (
+                                                            <p className="text-[10px] text-gray-400 uppercase tracking-tighter">Unregistered Consumer</p>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                                                            item.supplyType === 'B2B' 
+                                                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800' 
+                                                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                        }`}>
+                                                            {item.supplyType || 'B2C'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 mr-2">
+                                                            {item.refundPercentage}%
+                                                        </span>
+                                                        <span className="text-xs text-gray-600 dark:text-gray-400">{item.reason}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                        ₹{Number(item.originalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right text-sm font-bold text-emerald-600">
+                                                        ₹{Number(item.taxAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right text-sm font-extrabold text-rose-600 dark:text-rose-400">
+                                                        ₹{Number(item.creditedAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <button
+                                                            onClick={() => handleDownloadCreditNote(item.id, item.creditNoteNumber)}
+                                                            disabled={downloadingCreditNoteId === item.id}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-600 dark:hover:text-white transition-all disabled:opacity-50 cursor-pointer"
+                                                            title="Download Credit Note PDF"
+                                                        >
+                                                            {downloadingCreditNoteId === item.id ? (
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                            ) : (
+                                                                <FileText className="h-3.5 w-3.5" />
+                                                            )}
+                                                            <span>Credit Note</span>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {(!gstReport?.creditNotes || gstReport.creditNotes.length === 0) && (
+                                                <tr>
+                                                    <td colSpan={9} className="px-6 py-12 text-center">
+                                                        <p className="text-gray-400 italic">No credit notes issued for the selected period.</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
             </div>

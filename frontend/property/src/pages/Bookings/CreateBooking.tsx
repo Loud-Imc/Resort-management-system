@@ -632,10 +632,7 @@ export default function CreateBooking() {
                                                 <span className="text-xs text-muted-foreground line-through font-semibold shrink-0">₹{originalPriceDetails.totalAmount.toFixed(0)}</span>
                                             )}
                                             <span className={`font-extrabold text-xl tracking-tight shrink-0 ${watch('overrideTotal') ? 'text-amber-600 dark:text-amber-400' : 'text-primary'}`}>
-                                                ₹{watch('overrideTotal')
-                                                    ? (watch('isOverrideInclusive') ? watch('overrideTotal')! : watch('overrideTotal')! * (1 + priceDetails.taxRate / 100)).toFixed(2)
-                                                    : priceDetails.totalAmount.toFixed(2)
-                                                }
+                                                ₹{priceDetails.totalAmount.toFixed(2)}
                                             </span>
                                         </div>
                                     </div>
@@ -1835,15 +1832,39 @@ export default function CreateBooking() {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <input
-                                                        type="number"
-                                                        {...register('overrideTotal', {
-                                                            setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
-                                                            onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
-                                                        })}
-                                                        className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-extrabold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder-gray-400"
-                                                        placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
-                                                    />
+                                                    <div className="flex gap-2">
+                                                        <div className="relative flex-1">
+                                                            <input
+                                                                type="number"
+                                                                {...register('overrideTotal', {
+                                                                    setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
+                                                                    onBlur: () => { if (watch('overrideTotal')) handleCheckAvailability(); }
+                                                                })}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        handleCheckAvailability();
+                                                                    }
+                                                                }}
+                                                                className="w-full border-gray-200 dark:border-gray-700 dark:bg-gray-900/50 dark:text-white rounded-xl shadow-sm h-11 px-4 text-sm font-extrabold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder-gray-400"
+                                                                placeholder={watch('isOverrideInclusive') ? "Final Total amount" : "Base amount (add GST)"}
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCheckAvailability()}
+                                                            disabled={checkingAvailability}
+                                                            className="h-11 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                                                            title="Apply Override Price"
+                                                        >
+                                                            {checkingAvailability ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <CheckCircle className="h-4 w-4" />
+                                                            )}
+                                                            <span>Apply</span>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-405 mb-1.5">Reason for Override</label>
@@ -2033,7 +2054,7 @@ export default function CreateBooking() {
                                                     <span>Referral Discount</span><span>-₹{referralDiscountDisplay.toFixed(2)}</span>
                                                 </div>
                                             )}
-                                            {!isInclusive && (
+                                            {!isInclusive && details.taxAmount > 0 && (
                                                 <div className="flex justify-between text-sm border-b border-border pb-3">
                                                     <span className="text-muted-foreground font-medium">GST / Taxes ({details.taxRate}%)</span>
                                                     <span className="font-semibold text-foreground">+₹{details.taxAmount.toFixed(2)}</span>
@@ -2072,11 +2093,11 @@ export default function CreateBooking() {
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground font-medium">Override Base Tariff</span>
-                                            <span className="font-bold text-foreground">₹{(watch('isOverrideInclusive') ? (watch('overrideTotal')! / (1 + priceDetails.taxRate / 100)) : watch('overrideTotal')!).toFixed(2)}</span>
+                                            <span className="font-bold text-foreground">₹{priceDetails.baseAmount.toFixed(2)}</span>
                                         </div>
                                         <div className="flex justify-between text-sm border-b border-amber-200/40 dark:border-amber-900/20 pb-3">
                                             <span className="text-muted-foreground font-medium">GST Tax ({priceDetails.taxRate}%)</span>
-                                            <span className="font-bold text-foreground">₹{(watch('isOverrideInclusive') ? (watch('overrideTotal')! - watch('overrideTotal')! / (1 + priceDetails.taxRate / 100)) : (watch('overrideTotal')! * priceDetails.taxRate / 100)).toFixed(2)}</span>
+                                            <span className="font-bold text-foreground">₹{priceDetails.taxAmount.toFixed(2)}</span>
                                         </div>
                                         {(originalPriceDetails || priceDetails).offerDiscountAmount > 0 || (originalPriceDetails || priceDetails).discountAmount > 0 ? (
                                             <p className="text-[9px] text-muted-foreground italic">Discounts are bypassed when a manual override is active.</p>
@@ -2084,7 +2105,7 @@ export default function CreateBooking() {
                                         <div className="flex justify-between items-center pt-1">
                                             <span className="font-bold text-xs text-muted-foreground uppercase tracking-wider">Override Total</span>
                                             <span className="font-extrabold text-3xl tracking-tight text-amber-600 dark:text-amber-400">
-                                                ₹{(watch('isOverrideInclusive') ? watch('overrideTotal')! : watch('overrideTotal')! * (1 + priceDetails.taxRate / 100)).toFixed(2)}
+                                                ₹{priceDetails.totalAmount.toFixed(2)}
                                             </span>
                                         </div>
                                     </div>

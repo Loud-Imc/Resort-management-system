@@ -1439,7 +1439,7 @@ export class ReportsService {
                             width: '*',
                             stack: [
                                 { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
-                                { text: section ? `${section.toUpperCase()} REPORT` : 'PERFORMANCE ANALYTICS REPORT', style: 'brandSub', margin: [0, 5, 0, 0] }
+                                { text: section ? `${section.replace(/_/g, ' ').toUpperCase()} REPORT` : 'PERFORMANCE ANALYTICS REPORT', style: 'brandSub', margin: [0, 5, 0, 0] }
                             ]
                         },
                         {
@@ -1623,19 +1623,45 @@ export class ReportsService {
                         }
                     );
                 } else if (section === 'platform_fees_details') {
+                    const totalFees = details.platformFeeDetails.reduce((sum: number, p: any) => sum + Number(p.platformFee || 0), 0);
+                    const totalGst = Number((totalFees * 0.18).toFixed(2));
+                    const totalDeducted = Number((totalFees + totalGst).toFixed(2));
+
                     contentBlocks.push(
                         { text: 'PLATFORM FEES DETAILS', style: 'sectionHeader' },
                         {
                             table: {
-                                headerRows: 1, widths: ['auto', '*', 'auto', 'auto'],
+                                headerRows: 1, 
+                                widths: ['auto', '*', 'auto', 'auto', 'auto', 'auto'],
                                 body: [
-                                    [ { text: 'PAYMENT DATE', style: 'tableHeader' }, { text: 'BOOKING # / GUEST', style: 'tableHeader' }, { text: 'PAID AMOUNT', style: 'tableHeader', alignment: 'right' }, { text: 'PLATFORM FEE', style: 'tableHeader', alignment: 'right' } ],
-                                    ...details.platformFeeDetails.map((p: any) => [
-                                        { text: new Date(p.paymentDate).toLocaleDateString(), style: 'tableCell' },
-                                        { text: `#${p.booking?.bookingNumber} - ${p.booking?.user?.firstName} ${p.booking?.user?.lastName}`, style: 'tableCell' },
-                                        { text: `₹${Number(p.paidAmount).toLocaleString()}`, style: 'tableCell', alignment: 'right' },
-                                        { text: `₹${Number(p.platformFee).toLocaleString()}`, style: 'tableCellBold', alignment: 'right', color: '#ea580c' }
-                                    ])
+                                    [ 
+                                        { text: 'PAYMENT DATE', style: 'tableHeader' }, 
+                                        { text: 'BOOKING # / GUEST', style: 'tableHeader' }, 
+                                        { text: 'PAID AMOUNT', style: 'tableHeader', alignment: 'right' }, 
+                                        { text: 'PLATFORM FEE', style: 'tableHeader', alignment: 'right' },
+                                        { text: 'GST (18%)', style: 'tableHeader', alignment: 'right' },
+                                        { text: 'TOTAL DEDUCTED', style: 'tableHeader', alignment: 'right' }
+                                    ],
+                                    ...details.platformFeeDetails.map((p: any) => {
+                                        const fee = Number(p.platformFee || 0);
+                                        const feeGst = Number((fee * 0.18).toFixed(2));
+                                        const deducted = Number((fee + feeGst).toFixed(2));
+                                        const paidAmt = Number(p.amount ?? p.paidAmount ?? p.booking?.paidAmount ?? 0);
+                                        const guestName = p.booking?.user ? `${p.booking.user.firstName || ''} ${p.booking.user.lastName || ''}`.trim() : 'Guest';
+                                        return [
+                                            { text: new Date(p.paymentDate || p.createdAt).toLocaleDateString('en-IN'), style: 'tableCell' },
+                                            { text: `#${p.booking?.bookingNumber || 'N/A'}\n${guestName}`, style: 'tableCell' },
+                                            { text: `₹${paidAmt.toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right' },
+                                            { text: `₹${fee.toLocaleString('en-IN')}`, style: 'tableCellBold', alignment: 'right', color: '#ea580c' },
+                                            { text: `₹${feeGst.toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right' },
+                                            { text: `₹${deducted.toLocaleString('en-IN')}`, style: 'tableCellBold', alignment: 'right', color: '#e11d48' }
+                                        ];
+                                    }),
+                                    [
+                                        { text: 'Total Platform Fees:', colSpan: 5, style: 'tableCellBold', alignment: 'right' },
+                                        {}, {}, {}, {},
+                                        { text: `₹${totalDeducted.toLocaleString('en-IN')}`, style: 'tableCellBold', alignment: 'right', color: '#e11d48' }
+                                    ]
                                 ]
                             },
                             layout: {
@@ -1796,35 +1822,99 @@ export class ReportsService {
             }
         });
 
+        const creditNotes = await this.prisma.creditNote.findMany({
+            where: {
+                propertyId: propertyFilter.id ? propertyFilter.id : undefined,
+                createdAt: {
+                    gte: sDate,
+                    lte: eDate,
+                }
+            },
+            include: {
+                booking: {
+                    include: {
+                        user: true
+                    }
+                },
+                property: true
+            },
+            orderBy: {
+                createdAt: 'asc'
+            }
+        });
+
+        let property: any = null;
+        if (propertyId) {
+            property = await this.prisma.property.findUnique({ where: { id: propertyId } });
+        }
+
         const reportData = bookings.map(b => {
             const total = Number(b.totalAmount);
             const tax = Number(b.taxAmount || 0);
             const taxable = total - tax;
+            const effectiveTaxRate = b.baseAmount && Number(b.baseAmount) > 0 
+                ? Math.round((Number(b.taxAmount || 0) / Number(b.baseAmount)) * 100) 
+                : 0;
 
             return {
                 id: b.id,
                 bookingNumber: b.bookingNumber,
-                date: b.confirmedAt,
-                guestName: b.user ? `${b.user.firstName} ${b.user.lastName}` : 'Guest',
+                invoiceNumber: b.invoiceNumber || `INV-${b.bookingNumber}`,
+                date: b.confirmedAt || b.createdAt,
+                guestName: b.user ? `${b.user.firstName || ''} ${b.user.lastName || ''}`.trim() : (b.guestName || 'Guest'),
                 gstNumber: b.gstNumber || 'N/A',
+                supplyType: b.gstNumber ? 'B2B' : 'B2C',
                 propertyName: b.room?.property?.name || 'N/A',
                 roomType: b.room?.roomType?.name || 'N/A',
                 totalAmount: total,
                 taxableAmount: taxable,
                 taxAmount: tax,
+                taxRate: effectiveTaxRate,
             };
         });
 
+        const creditNoteData = creditNotes.map(cn => ({
+            id: cn.id,
+            creditNoteNumber: cn.creditNoteNumber,
+            invoiceNumber: cn.invoiceNumber,
+            bookingId: cn.bookingId,
+            bookingNumber: cn.booking?.bookingNumber || 'N/A',
+            guestName: cn.booking?.user ? `${cn.booking.user.firstName || ''} ${cn.booking.user.lastName || ''}`.trim() : (cn.booking?.guestName || 'Guest'),
+            gstNumber: cn.booking?.gstNumber || 'N/A',
+            supplyType: cn.booking?.gstNumber ? 'B2B' : 'B2C',
+            date: cn.createdAt,
+            originalAmount: Number(cn.originalAmount),
+            creditedAmount: Number(cn.creditedAmount),
+            taxAmount: Number(cn.taxAmount || 0),
+            refundPercentage: Number(cn.refundPercentage),
+            reason: cn.reason || 'Guest Cancellation'
+        }));
+
+        const totalVolume = reportData.reduce((sum, item) => sum + item.totalAmount, 0);
+        const totalTaxable = reportData.reduce((sum, item) => sum + item.taxableAmount, 0);
+        const totalTax = reportData.reduce((sum, item) => sum + item.taxAmount, 0);
+        const totalCreditNotes = creditNoteData.reduce((sum, item) => sum + item.creditedAmount, 0);
+        const totalTaxReversed = creditNoteData.reduce((sum, item) => sum + item.taxAmount, 0);
+
         const summary = {
-            totalVolume: reportData.reduce((sum, item) => sum + item.totalAmount, 0),
-            totalTaxable: reportData.reduce((sum, item) => sum + item.taxableAmount, 0),
-            totalTax: reportData.reduce((sum, item) => sum + item.taxAmount, 0),
+            totalVolume,
+            totalTaxable,
+            totalTax,
             bookingCount: reportData.length,
+            totalCreditNotes,
+            totalTaxReversed,
+            netTaxLiability: Math.max(0, totalTax - totalTaxReversed),
+            netTaxableAmount: Math.max(0, totalTaxable - (totalCreditNotes - totalTaxReversed)),
+            creditNoteCount: creditNoteData.length
         };
 
         return {
+            isGstApplicable: property ? Boolean(property.isGstApplicable && property.gstNumber) : true,
+            propertyGstNumber: property?.gstNumber || null,
+            propertyName: property?.name || null,
             summary,
-            details: reportData
+            details: reportData,
+            creditNotes: creditNoteData
         };
     }
 
@@ -1858,14 +1948,14 @@ export class ReportsService {
         const docDefinition: any = {
             pageSize: 'A4',
             pageOrientation: 'landscape',
-            pageMargins: [40, 60, 40, 60],
+            pageMargins: [40, 50, 40, 50],
             content: [
                 {
                     columns: [
                         {
                             width: '*',
                             stack: [
-                                { text: 'GST COMPLIANCE REPORT', style: 'docTitle' },
+                                { text: 'GST COMPLIANCE & TAX REPORT', style: 'docTitle' },
                                 { text: propertyName, style: 'propertyName' },
                                 { text: `GSTIN: ${propertyGst}`, style: 'gstInfo' }
                             ]
@@ -1874,12 +1964,12 @@ export class ReportsService {
                             width: 'auto',
                             stack: [
                                 { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
-                                { text: `Period: ${sDate.toLocaleDateString()} - ${eDate.toLocaleDateString()}`, style: 'docPeriod', margin: [0, 5, 0, 0] }
+                                { text: `Period: ${sDate.toLocaleDateString('en-IN')} - ${eDate.toLocaleDateString('en-IN')}`, style: 'docPeriod', margin: [0, 5, 0, 0] }
                             ],
                             alignment: 'right'
                         }
                     ],
-                    margin: [0, 0, 0, 30]
+                    margin: [0, 0, 0, 25]
                 },
 
                 // Summary Cards
@@ -1889,79 +1979,241 @@ export class ReportsService {
                             width: '*',
                             stack: [
                                 { text: 'TOTAL TAXABLE VALUE', style: 'kpiLabel' },
-                                { text: `₹${report.summary.totalTaxable.toLocaleString()}`, style: 'kpiValue' }
+                                { text: `₹${Number(report.summary.totalTaxable).toLocaleString('en-IN')}`, style: 'kpiValue' }
                             ]
                         },
                         {
                             width: '*',
                             stack: [
-                                { text: 'TOTAL GST COLLECTED', style: 'kpiLabel' },
-                                { text: `₹${report.summary.totalTax.toLocaleString()}`, style: 'kpiValue', color: '#0d9488' }
+                                { text: 'GROSS GST COLLECTED', style: 'kpiLabel' },
+                                { text: `₹${Number(report.summary.totalTax).toLocaleString('en-IN')}`, style: 'kpiValue', color: '#0d9488' }
                             ]
                         },
                         {
                             width: '*',
                             stack: [
-                                { text: 'GROSS VOLUME', style: 'kpiLabel' },
-                                { text: `₹${report.summary.totalVolume.toLocaleString()}`, style: 'kpiValue' }
+                                { text: 'CREDIT NOTES (TAX REVERSED)', style: 'kpiLabel' },
+                                { text: `₹${Number(report.summary.totalTaxReversed).toLocaleString('en-IN')}`, style: 'kpiValue', color: '#dc2626' }
+                            ]
+                        },
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'NET GST LIABILITY', style: 'kpiLabel' },
+                                { text: `₹${Number(report.summary.netTaxLiability).toLocaleString('en-IN')}`, style: 'kpiValue', color: '#2563eb' }
                             ]
                         }
                     ],
-                    margin: [0, 0, 0, 40]
+                    margin: [0, 0, 0, 30]
                 },
+
+                // Section Title: Outward Tax Invoices
+                { text: `OUTWARD TAX INVOICES (${report.details.length})`, style: 'sectionHeader', margin: [0, 0, 0, 10] },
 
                 // Detailed Table
                 {
                     table: {
                         headerRows: 1,
-                        widths: ['auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto'],
+                        widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto'],
                         body: [
                             [
                                 { text: 'DATE', style: 'tableHeader' },
+                                { text: 'INVOICE #', style: 'tableHeader' },
                                 { text: 'BOOKING #', style: 'tableHeader' },
-                                { text: 'GUEST NAME', style: 'tableHeader' },
-                                { text: 'GUEST GST', style: 'tableHeader' },
+                                { text: 'GUEST NAME / GSTIN', style: 'tableHeader' },
+                                { text: 'TYPE', style: 'tableHeader', alignment: 'center' },
                                 { text: 'TAXABLE', style: 'tableHeader', alignment: 'right' },
-                                { text: 'GST', style: 'tableHeader', alignment: 'right' },
+                                { text: 'GST RATE', style: 'tableHeader', alignment: 'center' },
+                                { text: 'GST AMOUNT', style: 'tableHeader', alignment: 'right' },
                                 { text: 'TOTAL', style: 'tableHeader', alignment: 'right' }
                             ],
                             ...report.details.map(item => [
-                                { text: item.date ? new Date(item.date).toLocaleDateString() : 'N/A', style: 'tableCell' },
-                                { text: item.bookingNumber, style: 'tableCell' },
-                                { text: item.guestName, style: 'tableCell' },
-                                { text: item.gstNumber, style: 'tableCell' },
-                                { text: `₹${item.taxableAmount.toLocaleString()}`, style: 'tableCell', alignment: 'right' },
-                                { text: `₹${item.taxAmount.toLocaleString()}`, style: 'tableCell', alignment: 'right' },
-                                { text: `₹${item.totalAmount.toLocaleString()}`, style: 'tableCellBold', alignment: 'right' }
+                                { text: item.date ? new Date(item.date).toLocaleDateString('en-IN') : 'N/A', style: 'tableCell' },
+                                { text: item.invoiceNumber || 'N/A', style: 'tableCellBold' },
+                                { text: `#${item.bookingNumber}`, style: 'tableCell' },
+                                { text: `${item.guestName}${item.gstNumber !== 'N/A' ? `\nGST: ${item.gstNumber}` : ''}`, style: 'tableCell' },
+                                { text: item.supplyType || 'B2C', style: 'tableCell', alignment: 'center' },
+                                { text: `₹${Number(item.taxableAmount).toLocaleString('en-IN', { minimumFractionDigits: item.taxableAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right' },
+                                { text: `${item.taxRate || 0}%`, style: 'tableCell', alignment: 'center' },
+                                { text: `₹${Number(item.taxAmount).toLocaleString('en-IN', { minimumFractionDigits: item.taxAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCellBold', alignment: 'right', color: '#0d9488' },
+                                { text: `₹${Number(item.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: item.totalAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCellBold', alignment: 'right' }
                             ])
                         ]
                     },
-                    layout: {
-                        fillColor: (i) => i === 0 ? '#093f4a' : (i % 2 === 0 ? '#f8fafc' : null),
-                        hLineColor: () => '#e2e8f0',
-                    }
+                    layout: 'lightHorizontalLines'
                 }
             ],
-            footer: (currentPage, pageCount) => ({
+            styles: {
+                docTitle: { fontSize: 18, bold: true, color: '#0f172a' },
+                propertyName: { fontSize: 12, bold: true, color: '#227c8a', margin: [0, 4, 0, 0] },
+                gstInfo: { fontSize: 9, color: '#64748b' },
+                docPeriod: { fontSize: 9, color: '#64748b' },
+                kpiLabel: { fontSize: 8, bold: true, color: '#64748b', letterSpacing: 0.5 },
+                kpiValue: { fontSize: 15, bold: true, color: '#0f172a', margin: [0, 4, 0, 0] },
+                sectionHeader: { fontSize: 11, bold: true, color: '#093f4a', letterSpacing: 0.5 },
+                tableHeader: { fontSize: 8, bold: true, color: '#093f4a', fillColor: '#f8fafc', margin: [0, 4, 0, 4] },
+                tableCell: { fontSize: 8, color: '#334155', margin: [0, 2, 0, 2] },
+                tableCellBold: { fontSize: 8, bold: true, color: '#0f172a', margin: [0, 2, 0, 2] },
+                footer: { fontSize: 8, color: '#cbd5e1' }
+            },
+            footer: (currentPage: number, pageCount: number) => ({
                 columns: [
                     { text: `Generated by Oreedu Analytics`, style: 'footer' },
                     { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'footer' }
                 ],
                 margin: [40, 0, 40, 0]
             }),
+            defaultStyle: { font: 'Roboto' }
+        };
+
+        const pdfDoc = await printer.createPdfKitDocument(docDefinition);
+        return new Promise((resolve, reject) => {
+            const chunks: any[] = [];
+            pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+            pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+            pdfDoc.on('error', (err: any) => reject(err));
+            pdfDoc.end();
+        });
+    }
+
+    async generateCreditNotesPdfReport(user: any, startDate: Date, endDate: Date, propertyId?: string): Promise<Buffer> {
+        const report = await this.getGstReport(user, startDate, endDate, propertyId);
+        const sDate = this.setStartOfDay(startDate);
+        const eDate = this.setEndOfDay(endDate);
+
+        let propertyName = "Global Network Analytics";
+        let propertyGst = "N/A";
+        if (propertyId) {
+            const property = await this.prisma.property.findUnique({ where: { id: propertyId } });
+            if (property) {
+                propertyName = property.name;
+                propertyGst = property.gstNumber || 'N/A';
+            }
+        }
+
+        const fonts = {
+            Roboto: {
+                normal: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Regular.ttf'),
+                bold: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Medium.ttf'),
+                italics: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-Italic.ttf'),
+                bolditalics: path.join(pdfmakeDir, 'fonts', 'Roboto', 'Roboto-MediumItalic.ttf')
+            }
+        };
+
+        const urlResolver = new URLResolver(virtualFs);
+        const printer = new PdfPrinter(fonts, virtualFs, urlResolver);
+
+        const docDefinition: any = {
+            pageSize: 'A4',
+            pageOrientation: 'landscape',
+            pageMargins: [40, 50, 40, 50],
+            content: [
+                {
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'CREDIT NOTES COMPLIANCE REPORT', style: 'docTitle' },
+                                { text: propertyName, style: 'propertyName' },
+                                { text: `GSTIN: ${propertyGst}`, style: 'gstInfo' }
+                            ]
+                        },
+                        {
+                            width: 'auto',
+                            stack: [
+                                { image: path.join(process.cwd(), 'src', 'assets', 'Route-guide.png'), width: 120 },
+                                { text: `Period: ${sDate.toLocaleDateString('en-IN')} - ${eDate.toLocaleDateString('en-IN')}`, style: 'docPeriod', margin: [0, 5, 0, 0] }
+                            ],
+                            alignment: 'right'
+                        }
+                    ],
+                    margin: [0, 0, 0, 25]
+                },
+
+                // Summary Cards
+                {
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'TOTAL CREDIT NOTES ISSUED', style: 'kpiLabel' },
+                                { text: `${report.summary.creditNoteCount || 0}`, style: 'kpiValue' }
+                            ]
+                        },
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'TOTAL AMOUNT CREDITED', style: 'kpiLabel' },
+                                { text: `₹${Number(report.summary.totalCreditNotes || 0).toLocaleString('en-IN')}`, style: 'kpiValue', color: '#dc2626' }
+                            ]
+                        },
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'TOTAL GST REVERSED / ADJUSTED', style: 'kpiLabel' },
+                                { text: `₹${Number(report.summary.totalTaxReversed || 0).toLocaleString('en-IN')}`, style: 'kpiValue', color: '#0d9488' }
+                            ]
+                        }
+                    ],
+                    margin: [0, 0, 0, 30]
+                },
+
+                // Detailed Table
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto'],
+                        body: [
+                            [
+                                { text: 'DATE', style: 'tableHeader' },
+                                { text: 'CREDIT NOTE #', style: 'tableHeader' },
+                                { text: 'ORIGINAL INVOICE', style: 'tableHeader' },
+                                { text: 'GUEST / GSTIN', style: 'tableHeader' },
+                                { text: 'REFUND %', style: 'tableHeader', alignment: 'center' },
+                                { text: 'ORIGINAL', style: 'tableHeader', alignment: 'right' },
+                                { text: 'GST REVERSED', style: 'tableHeader', alignment: 'right' },
+                                { text: 'CREDITED TOTAL', style: 'tableHeader', alignment: 'right' },
+                                { text: 'REASON', style: 'tableHeader' }
+                            ],
+                            ...(report.creditNotes || []).map(item => [
+                                { text: item.date ? new Date(item.date).toLocaleDateString('en-IN') : 'N/A', style: 'tableCell' },
+                                { text: item.creditNoteNumber || 'N/A', style: 'tableCellBold' },
+                                { text: item.invoiceNumber || 'N/A', style: 'tableCell' },
+                                { text: `${item.guestName}${item.gstNumber !== 'N/A' ? `\nGST: ${item.gstNumber}` : ''}`, style: 'tableCell' },
+                                { text: `${item.refundPercentage}%`, style: 'tableCell', alignment: 'center' },
+                                { text: `₹${Number(item.originalAmount).toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right' },
+                                { text: `₹${Number(item.taxAmount).toLocaleString('en-IN')}`, style: 'tableCellBold', alignment: 'right', color: '#0d9488' },
+                                { text: `₹${Number(item.creditedAmount).toLocaleString('en-IN')}`, style: 'tableCellBold', alignment: 'right', color: '#dc2626' },
+                                { text: item.reason || 'Cancellation', style: 'tableCell' }
+                            ]),
+                            ...((!report.creditNotes || report.creditNotes.length === 0) ? [[
+                                { text: 'No credit notes issued during this period.', colSpan: 9, alignment: 'center', style: 'tableCell', margin: [0, 10, 0, 10] },
+                                {}, {}, {}, {}, {}, {}, {}, {}
+                            ]] : [])
+                        ]
+                    },
+                    layout: 'lightHorizontalLines'
+                }
+            ],
             styles: {
-                brandLogo: { fontSize: 14, bold: true, color: '#227c8a' },
                 docTitle: { fontSize: 18, bold: true, color: '#0f172a' },
-                propertyName: { fontSize: 12, bold: true, color: '#1e293b', margin: [0, 5, 0, 0] },
-                gstInfo: { fontSize: 10, color: '#64748b' },
-                docPeriod: { fontSize: 10, color: '#64748b' },
-                kpiLabel: { fontSize: 8, bold: true, color: '#64748b', letterSpacing: 1 },
-                kpiValue: { fontSize: 16, bold: true, color: '#227c8a', margin: [0, 2, 0, 0] },
-                tableHeader: { fontSize: 9, bold: true, color: '#ffffff', margin: [0, 5, 0, 5] },
-                tableCell: { fontSize: 9, color: '#1e293b' },
-                tableCellBold: { fontSize: 9, bold: true, color: '#0f172a' },
+                propertyName: { fontSize: 12, bold: true, color: '#227c8a', margin: [0, 4, 0, 0] },
+                gstInfo: { fontSize: 9, color: '#64748b' },
+                docPeriod: { fontSize: 9, color: '#64748b' },
+                kpiLabel: { fontSize: 8, bold: true, color: '#64748b', letterSpacing: 0.5 },
+                kpiValue: { fontSize: 15, bold: true, color: '#0f172a', margin: [0, 4, 0, 0] },
+                tableHeader: { fontSize: 8, bold: true, color: '#093f4a', fillColor: '#f8fafc', margin: [0, 4, 0, 4] },
+                tableCell: { fontSize: 8, color: '#334155', margin: [0, 2, 0, 2] },
+                tableCellBold: { fontSize: 8, bold: true, color: '#0f172a', margin: [0, 2, 0, 2] },
                 footer: { fontSize: 8, color: '#cbd5e1' }
             },
+            footer: (currentPage: number, pageCount: number) => ({
+                columns: [
+                    { text: `Generated by Oreedu Analytics`, style: 'footer' },
+                    { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'footer' }
+                ],
+                margin: [40, 0, 40, 0]
+            }),
             defaultStyle: { font: 'Roboto' }
         };
 

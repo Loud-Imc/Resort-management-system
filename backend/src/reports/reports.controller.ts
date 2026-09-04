@@ -267,4 +267,29 @@ export class ReportsController {
 
         return new StreamableFile(buffer);
     }
+
+    @Get('export/credit-notes-pdf')
+    @Permissions(PERMISSIONS.REPORTS.VIEW_FINANCIAL)
+    @ApiOperation({ summary: 'Export Credit Notes compliance report to PDF' })
+    async exportCreditNotesPdf(
+        @Request() req,
+        @Res({ passthrough: true }) res: Response,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('propertyId') propertyId?: string,
+    ) {
+        const buffer = await this.reportsService.generateCreditNotesPdfReport(
+            req.user,
+            new Date(startDate),
+            new Date(endDate),
+            propertyId,
+        );
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename=Credit_Notes_Report_${startDate}_${endDate}.pdf`,
+        });
+
+        return new StreamableFile(buffer);
+    }
 }
