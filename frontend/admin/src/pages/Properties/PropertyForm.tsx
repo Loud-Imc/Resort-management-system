@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText, ShieldCheck } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import categoryService from '../../services/category';
@@ -83,6 +83,8 @@ export default function PropertyForm() {
         ownerAadhaarImage: '',
         ownerAadhaarImageBack: '',
         ownerAadhaarNumber: '',
+        isGstApplicable: false,
+        gstNumber: '',
     });
 
     useEffect(() => {
@@ -186,6 +188,8 @@ export default function PropertyForm() {
                 ownerAadhaarImage: property.ownerAadhaarImage || '',
                 ownerAadhaarImageBack: property.ownerAadhaarImageBack || '',
                 ownerAadhaarNumber: property.ownerAadhaarNumber || '',
+                isGstApplicable: (property as any).isGstApplicable ?? (Boolean(property.gstNumber && property.gstNumber.trim())),
+                gstNumber: property.gstNumber || '',
             });
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
@@ -197,6 +201,20 @@ export default function PropertyForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
+
+        // Validation for GST when enabled
+        if (formData.isGstApplicable) {
+            const trimmedGst = formData.gstNumber?.trim().toUpperCase();
+            if (!trimmedGst) {
+                toast.error('GST Identification Number (GSTIN) is required when GST is enabled');
+                return;
+            }
+            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+            if (!gstRegex.test(trimmedGst)) {
+                toast.error('Please enter a valid 15-character GSTIN (e.g. 32AAAAA0000A1Z5)');
+                return;
+            }
+        }
 
         try {
             setSaving(true);
@@ -211,6 +229,8 @@ export default function PropertyForm() {
                 groupPriceChild: formData.groupPriceChild ? Number(formData.groupPriceChild) : 0,
                 latitude: formData.latitude ? Number(formData.latitude) : undefined,
                 longitude: formData.longitude ? Number(formData.longitude) : undefined,
+                isGstApplicable: Boolean(formData.isGstApplicable),
+                gstNumber: formData.isGstApplicable && formData.gstNumber ? formData.gstNumber.trim().toUpperCase() : null,
             };
 
             if (isEdit && id) {
@@ -569,7 +589,77 @@ export default function PropertyForm() {
                                 </div>
                             )}
 
-                                 <div className="flex items-center justify-between mb-4">
+                            {/* GST Registration & GSTIN Settings */}
+                            <div className="p-5 rounded-2xl border border-teal-200 dark:border-teal-800 bg-teal-50/40 dark:bg-teal-950/20 mb-6 space-y-4 shadow-xs">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/60 dark:text-teal-300 shrink-0">
+                                            <ShieldCheck className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-foreground">GST Registration & Tax Invoicing</h4>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                {formData.isGstApplicable 
+                                                    ? 'GST Registered: Dynamic GST tiers apply on bookings & Tax Invoices issued' 
+                                                    : 'Non-GST: Zero GST applied & Bill of Supply issued'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center bg-background border border-border rounded-xl p-1 gap-1 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, isGstApplicable: false }))}
+                                            className={clsx(
+                                                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                                !formData.isGstApplicable ? "bg-foreground text-background shadow-xs" : "text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            Non-GST
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, isGstApplicable: true }))}
+                                            className={clsx(
+                                                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                                formData.isGstApplicable ? "bg-teal-600 text-white shadow-xs" : "text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            GST Registered
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {formData.isGstApplicable && (
+                                    <div className="pt-3 border-t border-teal-200/60 dark:border-teal-800/40 animate-in fade-in slide-in-from-top-2">
+                                        <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1.5">
+                                            Property GST Identification Number (GSTIN) <span className="text-red-500">*</span>
+                                        </label>
+                                        <div className="relative max-w-md">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-teal-600 dark:text-teal-400">
+                                                <FileText className="h-4 w-4" />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                maxLength={15}
+                                                name="gstNumber"
+                                                value={formData.gstNumber || ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                                                    setFormData(prev => ({ ...prev, gstNumber: val }));
+                                                }}
+                                                placeholder="e.g. 32AAAAA0000A1Z5"
+                                                className="w-full pl-10 pr-4 py-2.5 bg-background border border-teal-300 dark:border-teal-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none text-sm font-mono uppercase tracking-wider font-semibold"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-1.5">
+                                            Must be a valid 15-character GSTIN (e.g. 32AAAAA0000A1Z5) matching Indian GST compliance rules.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-between mb-4">
                                 <label className="flex items-center gap-2 text-sm font-bold text-muted-foreground cursor-pointer">
                                     <input
                                         type="checkbox"

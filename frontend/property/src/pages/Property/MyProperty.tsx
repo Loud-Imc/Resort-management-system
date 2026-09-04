@@ -1453,6 +1453,8 @@ export default function MyProperty() {
                             })}
                         </div>
                     </div>
+                )}
+
                 {/* Contact Admin GST Modal */}
                 {showGstContactModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">

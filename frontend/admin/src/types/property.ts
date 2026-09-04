@@ -74,6 +74,8 @@ export interface Property {
     ownerAadhaarImage?: string;
     ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;
+    isGstApplicable?: boolean;
+    gstNumber?: string;
 }
 
 export interface CreatePropertyDto {
@@ -111,6 +113,8 @@ export interface CreatePropertyDto {
     ownerAadhaarImage?: string;
     ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;
+    isGstApplicable?: boolean;
+    gstNumber?: string;
 }
 
 export interface UpdatePropertyDto extends Partial<CreatePropertyDto> {
