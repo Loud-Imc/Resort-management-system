@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText, ShieldCheck, AlertTriangle, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import categoryService from '../../services/category';
@@ -8,6 +8,7 @@ import { PropertyType, CreatePropertyDto } from '../../types/property';
 import { User } from '../../types/user';
 import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
+import DocumentViewerUpload, { MultiDocumentViewerUpload } from '../../components/DocumentViewerUpload';
 
 const mapSlugToPropertyType = (slug: string): PropertyType => {
     const s = slug.toUpperCase();
@@ -22,8 +23,6 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-
-
 
 const defaultAmenities = [
     'WiFi', 'Pool', 'Restaurant', 'Spa', 'Gym', 'Parking',
@@ -43,6 +42,11 @@ export default function PropertyForm() {
     const [propertyOwners, setPropertyOwners] = useState<User[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+
+    // Property status state for edit mode & reversion
+    const [propertyStatus, setPropertyStatus] = useState<string>('PENDING');
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const [showRevertModal, setShowRevertModal] = useState(false);
 
     // Check roles
     const isAdmin = user?.roles?.some(r => r === 'SuperAdmin' || r === 'Admin');
@@ -154,6 +158,7 @@ export default function PropertyForm() {
         try {
             setLoading(true);
             const property = await propertyService.getById(propertyId);
+            setPropertyStatus(property.status || 'PENDING');
             setFormData({
                 name: property.name,
                 type: property.type,
@@ -195,6 +200,21 @@ export default function PropertyForm() {
             setError(err.message || 'Failed to load property');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleStatusChange = async (newStatus: 'APPROVED' | 'REJECTED' | 'INACTIVE' | 'PENDING') => {
+        if (!id) return;
+        try {
+            setIsUpdatingStatus(true);
+            await propertyService.updateStatus(id, newStatus);
+            setPropertyStatus(newStatus);
+            toast.success(`Property status updated to ${newStatus}`);
+            setShowRevertModal(false);
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || err.message || 'Failed to update property status');
+        } finally {
+            setIsUpdatingStatus(false);
         }
     };
 
@@ -291,22 +311,134 @@ export default function PropertyForm() {
     return (
         <div className="max-w-4xl mx-auto">
             {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
-                <button
-                    onClick={() => navigate('/properties')}
-                    className="p-2 hover:bg-muted rounded-lg transition-colors"
-                >
-                    <ArrowLeft className="h-5 w-5 text-foreground" />
-                </button>
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">
-                        {isEdit ? 'Edit Property' : (isAdmin || isMarketing ? 'New Onboarding Request' : 'Add New Property')}
-                    </h1>
-                    <p className="text-muted-foreground">
-                        {isEdit ? 'Update property details' : (isAdmin || isMarketing ? 'Initiate property vetting & onboarding' : 'Create a new property listing')}
-                    </p>
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/properties')}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                    >
+                        <ArrowLeft className="h-5 w-5 text-foreground" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">
+                            {isEdit ? 'Edit Property' : (isAdmin || isMarketing ? 'New Onboarding Request' : 'Add New Property')}
+                        </h1>
+                        <p className="text-muted-foreground">
+                            {isEdit ? 'Update property details & verify documents' : (isAdmin || isMarketing ? 'Initiate property vetting & onboarding' : 'Create a new property listing')}
+                        </p>
+                    </div>
                 </div>
+
+                {/* Quick status indicator in header */}
+                {isEdit && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-muted-foreground">Status:</span>
+                        <span className={clsx(
+                            "px-3 py-1 rounded-full text-xs font-extrabold uppercase shadow-2xs",
+                            propertyStatus === 'APPROVED' ? "bg-emerald-500 text-white" :
+                            propertyStatus === 'PENDING' ? "bg-amber-500 text-white" :
+                            propertyStatus === 'REJECTED' ? "bg-rose-500 text-white" :
+                            "bg-gray-500 text-white"
+                        )}>
+                            {propertyStatus}
+                        </span>
+                    </div>
+                )}
             </div>
+
+            {/* Status & Oversight Banner */}
+            {isEdit && (
+                <div className={clsx(
+                    "mb-6 p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs transition-all",
+                    propertyStatus === 'APPROVED' ? "bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800" :
+                    propertyStatus === 'PENDING' ? "bg-amber-50/80 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800" :
+                    propertyStatus === 'REJECTED' ? "bg-rose-50/80 border-rose-200 dark:bg-rose-950/30 dark:border-rose-800" :
+                    "bg-gray-50/80 border-gray-200 dark:bg-gray-900/30 dark:border-gray-800"
+                )}>
+                    <div className="flex items-center gap-3">
+                        <div className={clsx(
+                            "p-2.5 rounded-xl shrink-0",
+                            propertyStatus === 'APPROVED' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" :
+                            propertyStatus === 'PENDING' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300" :
+                            propertyStatus === 'REJECTED' ? "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300" :
+                            "bg-gray-100 text-gray-700"
+                        )}>
+                            {propertyStatus === 'APPROVED' ? <CheckCircle className="h-5 w-5" /> :
+                             propertyStatus === 'PENDING' ? <AlertTriangle className="h-5 w-5" /> :
+                             <XCircle className="h-5 w-5" />}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Property Status:</span>
+                                <span className={clsx(
+                                    "px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase",
+                                    propertyStatus === 'APPROVED' ? "bg-emerald-600 text-white" :
+                                    propertyStatus === 'PENDING' ? "bg-amber-600 text-white" :
+                                    propertyStatus === 'REJECTED' ? "bg-rose-600 text-white" :
+                                    "bg-gray-600 text-white"
+                                )}>
+                                    {propertyStatus}
+                                </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                {propertyStatus === 'APPROVED'
+                                    ? 'Property is approved and live. If documents are invalid or random images were uploaded, revert status back to Pending.'
+                                    : propertyStatus === 'PENDING'
+                                    ? 'Property is currently Pending. Verify legal documents below before approving.'
+                                    : 'Property is currently marked Rejected.'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Status Action Buttons */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {propertyStatus === 'APPROVED' && (
+                            <button
+                                type="button"
+                                onClick={() => setShowRevertModal(true)}
+                                disabled={isUpdatingStatus}
+                                className="px-3.5 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                Revert Status to Pending
+                            </button>
+                        )}
+                        {propertyStatus === 'PENDING' && isAdmin && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => handleStatusChange('APPROVED')}
+                                    disabled={isUpdatingStatus}
+                                    className="px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                                >
+                                    <CheckCircle className="h-3.5 w-3.5" />
+                                    Approve Property
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleStatusChange('REJECTED')}
+                                    disabled={isUpdatingStatus}
+                                    className="px-3.5 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                                >
+                                    <XCircle className="h-3.5 w-3.5" />
+                                    Reject
+                                </button>
+                            </>
+                        )}
+                        {propertyStatus === 'REJECTED' && (
+                            <button
+                                type="button"
+                                onClick={() => handleStatusChange('PENDING')}
+                                disabled={isUpdatingStatus}
+                                className="px-3.5 py-2 text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border rounded-lg shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                Re-open as Pending
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Error */}
             {error && (
@@ -926,72 +1058,76 @@ export default function PropertyForm() {
 
                 {/* Compliance & Documents */}
                 <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
-                    <h2 className="text-lg font-bold text-card-foreground mb-4 flex items-center gap-2">
-                        <FileText className="h-5 w-5" />
-                        Compliance & Documents
-                    </h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-border">
                         <div>
-                            <label className="block text-sm font-bold text-muted-foreground mb-2">
-                                Trade / Business Licence
-                            </label>
-                            <ImageUpload
-                                images={formData.licenceImage ? [formData.licenceImage] : []}
-                                onChange={(urls) => setFormData(prev => ({ ...prev, licenceImage: urls[0] || '' }))}
-                                maxImages={1}
-                                allowAllFiles={true}
-                            />
-                            <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                Upload a clear image, scan or document of the property's business licence.
+                            <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-primary" />
+                                Compliance & Legal Documents
+                            </h2>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Review and verify property licence, KYC identities and compliance paperwork.
                             </p>
                         </div>
+                        {isEdit && propertyStatus === 'APPROVED' && (
+                            <button
+                                type="button"
+                                onClick={() => setShowRevertModal(true)}
+                                className="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900/80 border border-amber-300 dark:border-amber-800 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer w-fit shadow-2xs"
+                            >
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                                Invalid Documents? Revert to Pending
+                            </button>
+                        )}
+                    </div>
 
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-muted-foreground mb-2">
-                                Additional Compliance Documents
-                            </label>
-                            <ImageUpload
-                                images={formData.documents || []}
+                    <div className="space-y-6">
+                        {/* Trade / Business Licence */}
+                        <div>
+                            <DocumentViewerUpload
+                                label="Trade / Business Licence"
+                                description="Upload a clear image, scan or document of the property's business licence."
+                                url={formData.licenceImage}
+                                onChange={(url) => setFormData(prev => ({ ...prev, licenceImage: url }))}
+                                aspectRatio="aspect-[4/3]"
+                                allowAllFiles={true}
+                            />
+                        </div>
+
+                        {/* Additional Compliance Documents */}
+                        <div className="pt-4 border-t border-border">
+                            <MultiDocumentViewerUpload
+                                label="Additional Compliance Documents"
+                                description="Upload any other supporting compliance or legal documents (e.g. lease agreements, tax certificates, etc.)."
+                                documents={formData.documents || []}
                                 onChange={(urls) => setFormData(prev => ({ ...prev, documents: urls }))}
-                                maxImages={10}
-                                allowAllFiles={true}
+                                maxDocuments={10}
                             />
-                            <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                Upload any other supporting compliance or legal documents (e.g. lease agreements, tax certificates, etc.).
-                            </p>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-muted-foreground mb-2">
-                                Owner Aadhaar Card (Front)
-                            </label>
-                            <ImageUpload
-                                images={formData.ownerAadhaarImage ? [formData.ownerAadhaarImage] : []}
-                                onChange={(urls) => setFormData(prev => ({ ...prev, ownerAadhaarImage: urls[0] || '' }))}
-                                maxImages={1}
-                                allowAllFiles={true}
-                            />
-                            <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                Upload the front side of owner's Aadhaar card / document.
-                            </p>
-
-                            <div className="mt-4">
-                                <label className="block text-sm font-bold text-muted-foreground mb-2">
-                                    Owner Aadhaar Card (Back - Optional)
-                                </label>
-                                <ImageUpload
-                                    images={formData.ownerAadhaarImageBack ? [formData.ownerAadhaarImageBack] : []}
-                                    onChange={(urls) => setFormData(prev => ({ ...prev, ownerAadhaarImageBack: urls[0] || '' }))}
-                                    maxImages={1}
+                        {/* Owner Aadhaar Card (Front & Back) */}
+                        <div className="pt-4 border-t border-border space-y-4">
+                            <h3 className="text-sm font-bold text-card-foreground">Owner Aadhaar Identity Documents</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <DocumentViewerUpload
+                                    label="Owner Aadhaar Card (Front Side)"
+                                    description="Upload the front side of owner's Aadhaar card / document."
+                                    url={formData.ownerAadhaarImage}
+                                    onChange={(url) => setFormData(prev => ({ ...prev, ownerAadhaarImage: url }))}
+                                    aspectRatio="aspect-video"
                                     allowAllFiles={true}
                                 />
-                                <p className="text-xs text-muted-foreground mt-2 font-medium">
-                                    Upload the back side of owner's Aadhaar card / document.
-                                </p>
+
+                                <DocumentViewerUpload
+                                    label="Owner Aadhaar Card (Back Side - Optional)"
+                                    description="Upload the back side of owner's Aadhaar card / document."
+                                    url={formData.ownerAadhaarImageBack}
+                                    onChange={(url) => setFormData(prev => ({ ...prev, ownerAadhaarImageBack: url }))}
+                                    aspectRatio="aspect-video"
+                                    allowAllFiles={true}
+                                />
                             </div>
 
-                            <div className="mt-4">
+                            <div className="pt-2">
                                 <label className="block text-sm font-bold text-muted-foreground mb-1">
                                     Aadhaar Number
                                 </label>
@@ -1000,7 +1136,7 @@ export default function PropertyForm() {
                                     name="ownerAadhaarNumber"
                                     value={formData.ownerAadhaarNumber}
                                     onChange={handleChange}
-                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all max-w-md"
                                     placeholder="e.g. 1234 5678 9012"
                                 />
                             </div>
@@ -1013,14 +1149,14 @@ export default function PropertyForm() {
                     <button
                         type="button"
                         onClick={() => navigate('/properties')}
-                        className="px-6 py-2 bg-muted text-foreground border border-border rounded-lg hover:bg-muted/80 font-bold transition-all"
+                        className="px-6 py-2 bg-muted text-foreground border border-border rounded-lg hover:bg-muted/80 font-bold transition-all cursor-pointer"
                     >
                         Cancel
                     </button>
                     <button
                         type="submit"
                         disabled={saving}
-                        className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-bold transition-all shadow-md"
+                        className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-bold transition-all shadow-md cursor-pointer"
                     >
                         {saving ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1031,6 +1167,47 @@ export default function PropertyForm() {
                     </button>
                 </div>
             </form>
+
+            {/* Revert to Pending Confirmation Modal */}
+            {showRevertModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 text-amber-600">
+                            <div className="p-3 bg-amber-100 dark:bg-amber-950/50 rounded-xl">
+                                <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-card-foreground">Revert Property Status</h3>
+                                <p className="text-xs text-muted-foreground">Change status back to PENDING</p>
+                            </div>
+                        </div>
+
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                            If uploaded documents are invalid, illegible, or random images were submitted, reverting this property back to <strong className="text-amber-600 font-bold">PENDING</strong> will suspend property verification until corrected documents are re-uploaded.
+                        </p>
+
+                        <div className="flex justify-end gap-3 pt-3 border-t border-border">
+                            <button
+                                type="button"
+                                onClick={() => setShowRevertModal(false)}
+                                disabled={isUpdatingStatus}
+                                className="px-4 py-2 rounded-lg border border-border bg-muted text-foreground font-bold hover:bg-muted/80 text-sm transition-all cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleStatusChange('PENDING')}
+                                disabled={isUpdatingStatus}
+                                className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                                Yes, Revert to Pending
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

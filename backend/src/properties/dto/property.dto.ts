@@ -483,5 +483,9 @@ export class PropertyQueryDto {
     @IsBoolean()
     @Type(() => Boolean)
     isActive?: boolean;
+
+    @IsOptional()
+    @IsString()
+    readiness?: string;
 }
 
