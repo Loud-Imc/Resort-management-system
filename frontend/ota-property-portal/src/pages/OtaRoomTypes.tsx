@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { otaService } from '../services/otaService';
-import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star, Baby, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
+import { generateOccupancyCompositions } from '../utils/occupancy';
 
 const COMMON_HIGHLIGHTS = [
   'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
@@ -49,6 +50,7 @@ export default function OtaRoomTypes() {
   const [baseChildren, setBaseChildren] = useState('0');
   const [maxPhysicalAdults, setMaxPhysicalAdults] = useState('4');
   const [maxPhysicalChildren, setMaxPhysicalChildren] = useState('2');
+  const [maxPhysicalInfants, setMaxPhysicalInfants] = useState('1');
   const [extraAdultPrice, setExtraAdultPrice] = useState('0');
   const [extraChildPrice, setExtraChildPrice] = useState('0');
 
@@ -70,6 +72,37 @@ export default function OtaRoomTypes() {
   // Photos lists
   const [images, setImages] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  const watchedBaseAdults = Math.max(1, parseInt(baseAdults) || 2);
+  const watchedBaseChildren = Math.max(0, parseInt(baseChildren) || 0);
+  const watchedMaxPhysAdults = Math.max(1, parseInt(maxPhysicalAdults) || watchedBaseAdults);
+  const watchedMaxPhysChildren = Math.max(0, parseInt(maxPhysicalChildren) || watchedBaseChildren);
+  const watchedMaxPhysInfants = parseInt(maxPhysicalInfants) >= 0 ? parseInt(maxPhysicalInfants) : 1;
+
+  const [baseCompositions, setBaseCompositions] = useState<Array<{ adults: number; children: number; label: string }>>([]);
+  const [maxPhysicalCompositions, setMaxPhysicalCompositions] = useState<Array<{ adults: number; children: number; label: string }>>([]);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const preview = await otaService.previewOccupancy({
+          baseAdults: watchedBaseAdults,
+          baseChildren: watchedBaseChildren,
+          maxPhysicalAdults: watchedMaxPhysAdults,
+          maxPhysicalChildren: watchedMaxPhysChildren,
+          maxPhysicalInfants: watchedMaxPhysInfants,
+        });
+        if (preview) {
+          setBaseCompositions(preview.baseCompositions || []);
+          setMaxPhysicalCompositions(preview.maxPhysicalCompositions || []);
+        }
+      } catch (err) {
+        // Silent fallback in case of transient error
+      }
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [watchedBaseAdults, watchedBaseChildren, watchedMaxPhysAdults, watchedMaxPhysChildren, watchedMaxPhysInfants]);
 
   useEffect(() => {
     fetchInitialData();
@@ -104,6 +137,7 @@ export default function OtaRoomTypes() {
       setBaseChildren(rt.baseChildren ? rt.baseChildren.toString() : '0');
       setMaxPhysicalAdults(rt.maxPhysicalAdults ? rt.maxPhysicalAdults.toString() : '4');
       setMaxPhysicalChildren(rt.maxPhysicalChildren ? rt.maxPhysicalChildren.toString() : '2');
+      setMaxPhysicalInfants(rt.maxPhysicalInfants !== undefined && rt.maxPhysicalInfants !== null ? rt.maxPhysicalInfants.toString() : '1');
       setExtraAdultPrice(rt.extraAdultPrice ? rt.extraAdultPrice.toString() : '0');
       setExtraChildPrice(rt.extraChildPrice ? rt.extraChildPrice.toString() : '0');
       setIsPubliclyVisible(rt.isPubliclyVisible !== false);
@@ -126,6 +160,7 @@ export default function OtaRoomTypes() {
       setBaseChildren('0');
       setMaxPhysicalAdults('4');
       setMaxPhysicalChildren('2');
+      setMaxPhysicalInfants('1');
       setExtraAdultPrice('0');
       setExtraChildPrice('0');
       setIsPubliclyVisible(true);
@@ -158,6 +193,7 @@ export default function OtaRoomTypes() {
       const resolvedBaseChildren = parseInt(baseChildren) || 0;
       const resolvedMaxPhysAdults = parseInt(maxPhysicalAdults) || resolvedBaseAdults + 2;
       const resolvedMaxPhysChildren = parseInt(maxPhysicalChildren) || resolvedBaseChildren;
+      const resolvedMaxPhysInfants = parseInt(maxPhysicalInfants) >= 0 ? parseInt(maxPhysicalInfants) : 1;
 
       const payload = {
         name,
@@ -172,6 +208,7 @@ export default function OtaRoomTypes() {
         maxChildren: resolvedBaseChildren,
         maxPhysicalAdults: resolvedMaxPhysAdults,
         maxPhysicalChildren: resolvedMaxPhysChildren,
+        maxPhysicalInfants: resolvedMaxPhysInfants,
         freeChildrenCount: resolvedBaseChildren,
         extraAdultPrice: parseFloat(extraAdultPrice) || 0,
         extraChildPrice: parseFloat(extraChildPrice) || 0,
@@ -385,9 +422,9 @@ export default function OtaRoomTypes() {
               <h3 className="font-extrabold text-sm text-foreground">Occupancy Limits & Extras</h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5 p-4 bg-muted/20 border border-border rounded-xl">
-                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Base Included Occupancy</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3 p-4 bg-muted/20 border border-border rounded-xl">
+                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Base Included Occupancy</h4>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase text-muted-foreground">Base Adults</label>
@@ -410,11 +447,34 @@ export default function OtaRoomTypes() {
                     />
                   </div>
                 </div>
+
+                {/* Base Compositions Preview */}
+                <div className="pt-2.5 border-t border-border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Base Included Preview
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      {watchedBaseAdults}A + {watchedBaseChildren}C
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {baseCompositions.map((comp) => (
+                      <span
+                        key={`base-${comp.adults}-${comp.children}`}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                      >
+                        {comp.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1.5 p-4 bg-muted/20 border border-border rounded-xl">
-                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Maximum Room Capacity</h4>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-3 p-4 bg-muted/20 border border-border rounded-xl">
+                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Maximum Physical Room Capacity</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase text-muted-foreground">Max Adults</label>
                     <input
@@ -435,8 +495,49 @@ export default function OtaRoomTypes() {
                       onChange={(e) => setMaxPhysicalChildren(e.target.value)}
                     />
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                      <Baby className="h-3 w-3 text-primary" />
+                      Max Infants (0-2y)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg outline-none text-foreground font-semibold text-xs"
+                      value={maxPhysicalInfants}
+                      onChange={(e) => setMaxPhysicalInfants(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Max Physical Compositions Preview */}
+                <div className="pt-2.5 border-t border-border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-primary flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      Max Physical Preview
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                      {watchedMaxPhysAdults}A + {watchedMaxPhysChildren}C
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {maxPhysicalCompositions.map((comp) => (
+                      <span
+                        key={`max-${comp.adults}-${comp.children}`}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20"
+                      >
+                        {comp.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="pt-1 border-t border-border flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Baby className="h-3 w-3 text-pink-500" />
+                    <span>+ Up to <strong className="text-foreground">{watchedMaxPhysInfants} Infant(s)</strong> (Free)</span>
+                  </div>
                 </div>
               </div>
+            </div>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Extra Adult Charge (₹)</label>

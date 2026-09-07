@@ -96,6 +96,13 @@ export class CreateRoomTypeDto {
     @Type(() => Number)
     maxPhysicalChildren?: number;
 
+    @ApiProperty({ example: 1, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    @Type(() => Number)
+    maxPhysicalInfants?: number;
+
     @ApiProperty({ example: true })
     @IsBoolean()
     isPubliclyVisible: boolean;

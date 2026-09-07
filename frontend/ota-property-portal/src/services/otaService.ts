@@ -52,6 +52,24 @@ export const otaService = {
     const { data } = await api.delete(`/ota-portal/room-types/${id}`);
     return data;
   },
+  previewOccupancy: async (params: {
+    baseAdults?: number;
+    baseChildren?: number;
+    maxPhysicalAdults?: number;
+    maxPhysicalChildren?: number;
+    maxPhysicalInfants?: number;
+  }) => {
+    const { data } = await api.post<{
+      baseAdults: number;
+      baseChildren: number;
+      maxPhysicalAdults: number;
+      maxPhysicalChildren: number;
+      maxPhysicalInfants: number;
+      baseCompositions: Array<{ adults: number; children: number; label: string }>;
+      maxPhysicalCompositions: Array<{ adults: number; children: number; label: string }>;
+    }>('/room-types/preview-occupancy', params);
+    return data;
+  },
 
   // Rooms
   getRooms: async () => {

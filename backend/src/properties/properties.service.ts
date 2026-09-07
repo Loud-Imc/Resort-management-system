@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 import { RegisterPropertyDto } from './dto/register-property.dto';
 import { Prisma, PropertyStatus, RequestStatus } from '@prisma/client';
+import axios from 'axios';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { normalizePhone } from '../common/utils/phone';
@@ -86,6 +87,9 @@ export class PropertiesService {
 
         // Delete OTP after verification
         await this.prisma.oneTimePassword.delete({ where: { id: otp.id } });
+
+        return { success: true, message: 'Commission OTP verified' };
+    }
 
     /**
      * Public GSTIN Lookup & Address Autofill

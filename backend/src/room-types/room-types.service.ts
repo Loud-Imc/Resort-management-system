@@ -4,6 +4,8 @@ import { ChannelsService } from '../channels/channels.service';
 import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
+import { PreviewOccupancyDto } from './dto/preview-occupancy.dto';
+import { generateOccupancyCompositions } from '../common/utils/occupancy.util';
 
 @Injectable()
 export class RoomTypesService {
@@ -15,6 +17,69 @@ export class RoomTypesService {
         @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private outboxService?: ConnectivityOutboxService,
     ) { }
 
+    /**
+     * Preview occupancy compositions for mobile apps and web clients.
+     */
+    public previewOccupancy(dto: PreviewOccupancyDto) {
+        const baseAdults = Math.max(1, Number(dto.baseAdults ?? 2));
+        const baseChildren = Math.max(0, Number(dto.baseChildren ?? 0));
+        const maxPhysicalAdults = Math.max(1, Number(dto.maxPhysicalAdults ?? baseAdults));
+        const maxPhysicalChildren = Math.max(0, Number(dto.maxPhysicalChildren ?? baseChildren));
+        const maxPhysicalInfants = Math.max(0, Number(dto.maxPhysicalInfants ?? 1));
+
+        const baseCompositions = generateOccupancyCompositions(
+            baseAdults,
+            baseChildren,
+            baseAdults + baseChildren
+        );
+        const maxPhysicalCompositions = generateOccupancyCompositions(
+            maxPhysicalAdults,
+            maxPhysicalChildren,
+            maxPhysicalAdults + maxPhysicalChildren
+        );
+
+        return {
+            baseAdults,
+            baseChildren,
+            maxPhysicalAdults,
+            maxPhysicalChildren,
+            maxPhysicalInfants,
+            baseCompositions,
+            maxPhysicalCompositions,
+        };
+    }
+
+    /**
+     * Enrich RoomType entity with calculated occupancy compositions for mobile/web APIs.
+     */
+    public enrichRoomTypeWithOccupancy(roomType: any) {
+        if (!roomType) return roomType;
+        const baseAdults = Math.max(1, Number(roomType.baseAdults ?? roomType.maxAdults ?? 2));
+        const baseChildren = Math.max(0, Number(roomType.baseChildren ?? roomType.maxChildren ?? 0));
+        const maxPhysicalAdults = Math.max(1, Number(roomType.maxPhysicalAdults ?? baseAdults));
+        const maxPhysicalChildren = Math.max(0, Number(roomType.maxPhysicalChildren ?? baseChildren));
+        const maxPhysicalInfants = Math.max(0, Number(roomType.maxPhysicalInfants ?? 1));
+
+        const baseCompositions = generateOccupancyCompositions(
+            baseAdults,
+            baseChildren,
+            baseAdults + baseChildren
+        );
+        const maxPhysicalCompositions = generateOccupancyCompositions(
+            maxPhysicalAdults,
+            maxPhysicalChildren,
+            maxPhysicalAdults + maxPhysicalChildren
+        );
+
+        return {
+            ...roomType,
+            occupancyCompositions: {
+                base: baseCompositions,
+                maxPhysical: maxPhysicalCompositions,
+                maxPhysicalInfants,
+            },
+        };
+    }
 
     /**
      * Recompute and persist property.maxGroupCapacity as the SUM of
@@ -99,9 +164,9 @@ export class RoomTypesService {
                 this.logger.error(`Auto-sync failed for property ${roomType.propertyId} after room type creation: ${err.message}`, err.stack);
             });
 
-            return roomType;
+            return this.enrichRoomTypeWithOccupancy(roomType);
         } catch (error: any) {
-            this.logger.error(`Error creating room type: ${error.message}`, error.stack);
+            this.logger.error(`Failed to create room type: ${error.message}`, error.stack);
             if (error.code === 'P2002') {
                 throw new ConflictException('A room type with this name already exists for this property.');
             }
@@ -110,7 +175,7 @@ export class RoomTypesService {
     }
 
     async findAll(publicOnly = false, propertyId?: string) {
-        return this.prisma.roomType.findMany({
+        const roomTypes = await this.prisma.roomType.findMany({
             where: {
                 ...(publicOnly ? { isPubliclyVisible: true } : {}),
                 ...(propertyId ? { propertyId } : {}),
@@ -123,6 +188,7 @@ export class RoomTypesService {
                 cancellationPolicy: true,
             },
         });
+        return roomTypes.map((rt) => this.enrichRoomTypeWithOccupancy(rt));
     }
 
     async findAllAdmin(user: any, propertyId?: string) {
@@ -136,7 +202,7 @@ export class RoomTypesService {
             ];
         }
 
-        return this.prisma.roomType.findMany({
+        const roomTypes = await this.prisma.roomType.findMany({
             where: {
                 ...(propertyId ? { propertyId } : {}),
                 property: !isGlobalAdmin ? propertyFilter : undefined,
@@ -147,6 +213,7 @@ export class RoomTypesService {
                 cancellationPolicy: true,
             },
         });
+        return roomTypes.map((rt) => this.enrichRoomTypeWithOccupancy(rt));
     }
 
     async findOne(id: string, requestUser?: any) {
@@ -182,7 +249,7 @@ export class RoomTypesService {
             }
         }
 
-        return roomType;
+        return this.enrichRoomTypeWithOccupancy(roomType);
     }
 
     async update(id: string, updateRoomTypeDto: UpdateRoomTypeDto, requestUser?: any) {

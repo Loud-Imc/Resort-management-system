@@ -131,6 +131,7 @@ model RoomType {
   baseChildren               Int                 @default(1)
   maxPhysicalAdults          Int                 @default(4)
   maxPhysicalChildren        Int                 @default(2)
+  maxPhysicalInfants         Int                 @default(1)
   isPubliclyVisible          Boolean             @default(true)
   images                     String[]
   createdAt                  DateTime            @default(now())

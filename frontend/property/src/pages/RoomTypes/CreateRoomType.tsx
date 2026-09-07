@@ -6,12 +6,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
 import { useProperty } from '../../context/PropertyContext';
 import ImageUpload from '../../components/ImageUpload';
-import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag, Baby, Sparkles } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../types/room';
 import { cancellationPoliciesService, type CancellationPolicy } from '../../services/cancellationPolicies';
 import CancellationPolicyModal from '../../components/CancellationPolicyModal';
+import { generateOccupancyCompositions } from '../../utils/occupancy';
 
 const COMMON_HIGHLIGHTS = [
     'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
@@ -58,6 +59,7 @@ const roomTypeSchema = z.object({
     baseChildren: optionalNumPreprocess(0),
     maxPhysicalAdults: optionalNumPreprocess(),
     maxPhysicalChildren: optionalNumPreprocess(),
+    maxPhysicalInfants: optionalNumPreprocess(1),
     isPubliclyVisible: z.boolean(),
     extraAdultPrice: optionalNumPreprocess(0),
     extraChildPrice: optionalNumPreprocess(0),
@@ -122,6 +124,7 @@ export default function CreateRoomType() {
             maxAdults: 2, maxChildren: 0,
             baseAdults: 2, baseChildren: 1,
             maxPhysicalAdults: 4, maxPhysicalChildren: 2,
+            maxPhysicalInfants: 1,
             extraAdultPrice: 0, extraChildPrice: 0, freeChildrenCount: 0,
             amenities: [], highlights: [], inclusions: [],
             cancellationPolicy: '',
@@ -153,6 +156,7 @@ export default function CreateRoomType() {
                 baseChildren: existingRoomType.baseChildren ?? existingRoomType.maxChildren ?? 1,
                 maxPhysicalAdults: existingRoomType.maxPhysicalAdults ?? 4,
                 maxPhysicalChildren: existingRoomType.maxPhysicalChildren ?? 2,
+                maxPhysicalInfants: existingRoomType.maxPhysicalInfants ?? 1,
                 isPubliclyVisible: existingRoomType.isPubliclyVisible,
                 extraAdultPrice: Number(existingRoomType.extraAdultPrice) || 0,
                 extraChildPrice: Number(existingRoomType.extraChildPrice) || 0,
@@ -189,6 +193,47 @@ export default function CreateRoomType() {
     };
 
     const images = watch('images');
+    const watchedBaseAdultsVal = watch('baseAdults');
+    const watchedBaseChildrenVal = watch('baseChildren');
+    const watchedMaxPhysicalAdultsVal = watch('maxPhysicalAdults');
+    const watchedMaxPhysicalChildrenVal = watch('maxPhysicalChildren');
+    const watchedMaxPhysicalInfantsVal = watch('maxPhysicalInfants');
+
+    const watchedBaseAdults = watchedBaseAdultsVal !== undefined && watchedBaseAdultsVal !== null && watchedBaseAdultsVal !== '' && !isNaN(Number(watchedBaseAdultsVal)) ? Math.max(1, Number(watchedBaseAdultsVal)) : 2;
+    const watchedBaseChildren = watchedBaseChildrenVal !== undefined && watchedBaseChildrenVal !== null && watchedBaseChildrenVal !== '' && !isNaN(Number(watchedBaseChildrenVal)) ? Math.max(0, Number(watchedBaseChildrenVal)) : 0;
+    const watchedMaxPhysicalAdults = watchedMaxPhysicalAdultsVal !== undefined && watchedMaxPhysicalAdultsVal !== null && watchedMaxPhysicalAdultsVal !== '' && !isNaN(Number(watchedMaxPhysicalAdultsVal)) ? Math.max(1, Number(watchedMaxPhysicalAdultsVal)) : watchedBaseAdults;
+    const watchedMaxPhysicalChildren = watchedMaxPhysicalChildrenVal !== undefined && watchedMaxPhysicalChildrenVal !== null && watchedMaxPhysicalChildrenVal !== '' && !isNaN(Number(watchedMaxPhysicalChildrenVal)) ? Math.max(0, Number(watchedMaxPhysicalChildrenVal)) : watchedBaseChildren;
+    const watchedMaxPhysicalInfants = watchedMaxPhysicalInfantsVal !== undefined && watchedMaxPhysicalInfantsVal !== null && watchedMaxPhysicalInfantsVal !== '' && !isNaN(Number(watchedMaxPhysicalInfantsVal)) ? Math.max(0, Number(watchedMaxPhysicalInfantsVal)) : 1;
+
+    const [debouncedParams, setDebouncedParams] = useState({
+        baseAdults: watchedBaseAdults,
+        baseChildren: watchedBaseChildren,
+        maxPhysicalAdults: watchedMaxPhysicalAdults,
+        maxPhysicalChildren: watchedMaxPhysicalChildren,
+        maxPhysicalInfants: watchedMaxPhysicalInfants,
+    });
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedParams({
+                baseAdults: watchedBaseAdults,
+                baseChildren: watchedBaseChildren,
+                maxPhysicalAdults: watchedMaxPhysicalAdults,
+                maxPhysicalChildren: watchedMaxPhysicalChildren,
+                maxPhysicalInfants: watchedMaxPhysicalInfants,
+            });
+        }, 120);
+        return () => clearTimeout(timer);
+    }, [watchedBaseAdults, watchedBaseChildren, watchedMaxPhysicalAdults, watchedMaxPhysicalChildren, watchedMaxPhysicalInfants]);
+
+    const { data: backendPreview } = useQuery({
+        queryKey: ['previewOccupancy', debouncedParams],
+        queryFn: () => roomTypesService.previewOccupancy(debouncedParams),
+        staleTime: 60 * 1000,
+    });
+
+    const baseCompositions = backendPreview?.baseCompositions ?? [];
+    const maxPhysicalCompositions = backendPreview?.maxPhysicalCompositions ?? [];
 
     const saveMutation = useMutation({
         mutationFn: (data: RoomTypeFormData) => {
@@ -200,6 +245,7 @@ export default function CreateRoomType() {
                 baseChildren: resolvedBaseChildren,
                 maxPhysicalAdults: data.maxPhysicalAdults ?? resolvedBaseAdults,
                 maxPhysicalChildren: data.maxPhysicalChildren ?? resolvedBaseChildren,
+                maxPhysicalInfants: data.maxPhysicalInfants ?? 1,
                 extraAdultPrice: data.extraAdultPrice ?? 0,
                 extraChildPrice: data.extraChildPrice ?? 0,
                 maxAdults: resolvedBaseAdults,
@@ -398,6 +444,32 @@ export default function CreateRoomType() {
                                     {errors.baseChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.baseChildren.message)}</p>}
                                 </div>
                             </div>
+
+                            {/* Base Rate Included Compositions Preview */}
+                            <div className="pt-3 border-t border-blue-200/80 dark:border-slate-700 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5">
+                                        <Check className="h-3.5 w-3.5" />
+                                        Base Rate Included Compositions Preview
+                                    </span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
+                                        Base Cap: {watchedBaseAdults}A + {watchedBaseChildren}C
+                                    </span>
+                                </div>
+                                <p className="text-[10.5px] text-gray-600 dark:text-slate-400">
+                                    Guests staying under base room price with no extra person surcharge:
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                    {baseCompositions.map((comp) => (
+                                        <span
+                                            key={`base-${comp.adults}-${comp.children}`}
+                                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100/70 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                        >
+                                            {comp.label}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Maximum Physical Capacity */}
@@ -408,13 +480,13 @@ export default function CreateRoomType() {
                                     <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-slate-200">Maximum Physical Room Capacity (Hard Limit with Extra Beds)</h4>
                                 </div>
                                 <p className="text-[11px] text-gray-600 dark:text-slate-400 font-medium mt-1">
-                                    The absolute maximum number of people allowed in this room (including extra beds/extra mattresses). Bookings above this limit require booking an additional room.
+                                    The absolute maximum number of people allowed in this room (including extra beds/mattresses and cots). Bookings above this limit require booking an additional room.
                                 </p>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
-                                        Max Physical Adults Allowed <span className="text-gray-400 font-normal">(Optional)</span>
+                                        Max Physical Adults <span className="text-gray-400 font-normal">(Optional)</span>
                                     </label>
                                     <input
                                         type="number"
@@ -426,7 +498,7 @@ export default function CreateRoomType() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
-                                        Max Physical Children Allowed <span className="text-gray-400 font-normal">(Optional)</span>
+                                        Max Physical Children <span className="text-gray-400 font-normal">(Optional)</span>
                                     </label>
                                     <input
                                         type="number"
@@ -435,6 +507,51 @@ export default function CreateRoomType() {
                                         className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
                                     />
                                     {errors.maxPhysicalChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalChildren.message)}</p>}
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5 flex items-center gap-1.5">
+                                        <Baby className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />
+                                        Max Infants (0-2y) <span className="text-gray-400 font-normal">(Cots, Free)</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        {...register('maxPhysicalInfants', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    {errors.maxPhysicalInfants?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalInfants.message)}</p>}
+                                </div>
+                            </div>
+
+                            {/* Maximum Physical Compositions Preview */}
+                            <div className="pt-3 border-t border-gray-200 dark:border-slate-700 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-primary-800 dark:text-primary-400 flex items-center gap-1.5">
+                                        <Users className="h-3.5 w-3.5" />
+                                        Maximum Physical Compositions Preview
+                                    </span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary-50 text-primary-700 dark:bg-primary-950/80 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800">
+                                        Max Cap: {watchedMaxPhysicalAdults}A + {watchedMaxPhysicalChildren}C
+                                    </span>
+                                </div>
+                                <p className="text-[10.5px] text-gray-600 dark:text-slate-400">
+                                    Hard physical room limit (base beds + extra beds/mattresses):
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                    {maxPhysicalCompositions.map((comp) => (
+                                        <span
+                                            key={`max-${comp.adults}-${comp.children}`}
+                                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary-100/70 dark:bg-primary-950/60 text-primary-900 dark:text-primary-300 border border-primary-300 dark:border-primary-800"
+                                        >
+                                            {comp.label}
+                                        </span>
+                                    ))}
+                                </div>
+                                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 flex items-center gap-2">
+                                    <Baby className="h-3.5 w-3.5 text-pink-500" />
+                                    <span className="text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                                        + Up to <strong className="text-gray-900 dark:text-white font-bold">{watchedMaxPhysicalInfants} Infant(s)</strong> (0-2 yrs, Free in cots)
+                                    </span>
                                 </div>
                             </div>
                         </div>
