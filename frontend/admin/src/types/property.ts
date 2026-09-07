@@ -2,6 +2,18 @@
 
 export type PropertyType = 'RESORT' | 'HOMESTAY' | 'HOTEL' | 'VILLA' | 'OTHER';
 
+export interface PropertyReadinessSummary {
+    hasCoordinates: boolean;
+    hasImages: boolean;
+    hasRoomTypes: boolean;
+    hasRooms: boolean;
+    hasPolicies: boolean;
+    completedCount: number;
+    totalCount: number;
+    isComplete: boolean;
+    missing: string[];
+}
+
 export interface Property {
     id: string;
     name: string;
@@ -50,6 +62,8 @@ export interface Property {
         bookings: number;
         staff?: number;
         rooms: number;
+        roomTypes?: number;
+        cancellationPolicies?: number;
     };
     marketingCommission?: number;
     platformCommission?: number;
@@ -76,6 +90,7 @@ export interface Property {
     ownerAadhaarNumber?: string;
     isGstApplicable?: boolean;
     gstNumber?: string | null;
+    readiness?: PropertyReadinessSummary;
 }
 
 export interface CreatePropertyDto {
@@ -140,6 +155,7 @@ export interface PropertyQueryParams {
     isVerified?: boolean;
     isActive?: boolean;
     status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
+    readiness?: 'COMPLETED' | 'INCOMPLETE';
 }
 
 export interface PropertyListResponse {
