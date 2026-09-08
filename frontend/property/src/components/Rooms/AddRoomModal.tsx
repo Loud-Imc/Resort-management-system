@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -42,7 +42,6 @@ export default function AddRoomModal({
         register,
         handleSubmit,
         reset,
-        setValue,
         formState: { errors },
     } = useForm<RoomFormData>({
         resolver: zodResolver(roomSchema),

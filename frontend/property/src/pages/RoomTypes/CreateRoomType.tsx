@@ -6,13 +6,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
 import { useProperty } from '../../context/PropertyContext';
 import ImageUpload from '../../components/ImageUpload';
-import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag, Baby, Sparkles } from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
+import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag, Baby } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../types/room';
 import { cancellationPoliciesService, type CancellationPolicy } from '../../services/cancellationPolicies';
 import CancellationPolicyModal from '../../components/CancellationPolicyModal';
-import { generateOccupancyCompositions } from '../../utils/occupancy';
 
 const COMMON_HIGHLIGHTS = [
     'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
@@ -57,6 +56,10 @@ const roomTypeSchema = z.object({
     maxChildren: optionalNumPreprocess(0),
     baseAdults: optionalNumPreprocess(2),
     baseChildren: optionalNumPreprocess(0),
+    totalBaseOccupancy: optionalNumPreprocess(),
+    totalMaxOccupancy: optionalNumPreprocess(),
+    baseMaxAdults: optionalNumPreprocess(),
+    baseMaxChildren: optionalNumPreprocess(),
     maxPhysicalAdults: optionalNumPreprocess(),
     maxPhysicalChildren: optionalNumPreprocess(),
     maxPhysicalInfants: optionalNumPreprocess(1),
@@ -94,6 +97,16 @@ const roomTypeSchema = z.object({
 }, {
     message: "Please select a policy or provide a text override",
     path: ["cancellationPolicyId"]
+}).refine(data => {
+    const baseOcc = data.totalBaseOccupancy ?? (Number(data.baseAdults || 2) + Number(data.baseChildren || 0));
+    const maxOcc = data.totalMaxOccupancy ?? (Number(data.maxPhysicalAdults || data.maxAdults || 2) + Number(data.maxPhysicalChildren || data.maxChildren || 0));
+    if (maxOcc < baseOcc) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Total Max Occupancy cannot be less than Total Base Occupancy",
+    path: ["totalMaxOccupancy"]
 });
 
 type RoomTypeFormData = z.infer<typeof roomTypeSchema>;
@@ -122,7 +135,11 @@ export default function CreateRoomType() {
             basePrice: 0,
             originalPrice: null,
             maxAdults: 2, maxChildren: 0,
-            baseAdults: 2, baseChildren: 1,
+            baseAdults: 2, baseChildren: 0,
+            totalBaseOccupancy: 2,
+            totalMaxOccupancy: 4,
+            baseMaxAdults: undefined,
+            baseMaxChildren: undefined,
             maxPhysicalAdults: 4, maxPhysicalChildren: 2,
             maxPhysicalInfants: 1,
             extraAdultPrice: 0, extraChildPrice: 0, freeChildrenCount: 0,
@@ -145,6 +162,13 @@ export default function CreateRoomType() {
 
     useEffect(() => {
         if (existingRoomType && isEdit) {
+            const rawBaseA = existingRoomType.baseAdults ?? existingRoomType.maxAdults ?? 2;
+            const rawBaseC = existingRoomType.baseChildren ?? existingRoomType.maxChildren ?? 0;
+            const rawTotBase = existingRoomType.totalBaseOccupancy ?? (rawBaseA + rawBaseC);
+            const rawPhysA = existingRoomType.maxPhysicalAdults ?? 4;
+            const rawPhysC = existingRoomType.maxPhysicalChildren ?? 2;
+            const rawTotMax = existingRoomType.totalMaxOccupancy ?? (rawPhysA + rawPhysC);
+
             reset({
                 name: existingRoomType.name,
                 description: existingRoomType.description || '',
@@ -152,10 +176,14 @@ export default function CreateRoomType() {
                 originalPrice: existingRoomType.originalPrice ? Number(existingRoomType.originalPrice) : null,
                 maxAdults: existingRoomType.maxAdults,
                 maxChildren: existingRoomType.maxChildren,
-                baseAdults: existingRoomType.baseAdults ?? existingRoomType.maxAdults ?? 2,
-                baseChildren: existingRoomType.baseChildren ?? existingRoomType.maxChildren ?? 1,
-                maxPhysicalAdults: existingRoomType.maxPhysicalAdults ?? 4,
-                maxPhysicalChildren: existingRoomType.maxPhysicalChildren ?? 2,
+                baseAdults: rawBaseA,
+                baseChildren: rawBaseC,
+                totalBaseOccupancy: rawTotBase,
+                totalMaxOccupancy: rawTotMax,
+                baseMaxAdults: existingRoomType.baseMaxAdults ?? undefined,
+                baseMaxChildren: existingRoomType.baseMaxChildren ?? undefined,
+                maxPhysicalAdults: rawPhysA,
+                maxPhysicalChildren: rawPhysC,
                 maxPhysicalInfants: existingRoomType.maxPhysicalInfants ?? 1,
                 isPubliclyVisible: existingRoomType.isPubliclyVisible,
                 extraAdultPrice: Number(existingRoomType.extraAdultPrice) || 0,
@@ -195,14 +223,18 @@ export default function CreateRoomType() {
     const images = watch('images');
     const watchedBaseAdultsVal = watch('baseAdults');
     const watchedBaseChildrenVal = watch('baseChildren');
+    const watchedTotalBaseVal = watch('totalBaseOccupancy');
+    const watchedTotalMaxVal = watch('totalMaxOccupancy');
     const watchedMaxPhysicalAdultsVal = watch('maxPhysicalAdults');
     const watchedMaxPhysicalChildrenVal = watch('maxPhysicalChildren');
     const watchedMaxPhysicalInfantsVal = watch('maxPhysicalInfants');
 
     const watchedBaseAdults = watchedBaseAdultsVal !== undefined && watchedBaseAdultsVal !== null && watchedBaseAdultsVal !== '' && !isNaN(Number(watchedBaseAdultsVal)) ? Math.max(1, Number(watchedBaseAdultsVal)) : 2;
     const watchedBaseChildren = watchedBaseChildrenVal !== undefined && watchedBaseChildrenVal !== null && watchedBaseChildrenVal !== '' && !isNaN(Number(watchedBaseChildrenVal)) ? Math.max(0, Number(watchedBaseChildrenVal)) : 0;
+    const watchedTotalBase = watchedTotalBaseVal !== undefined && watchedTotalBaseVal !== null && watchedTotalBaseVal !== '' && !isNaN(Number(watchedTotalBaseVal)) ? Math.max(1, Number(watchedTotalBaseVal)) : (watchedBaseAdults + watchedBaseChildren);
     const watchedMaxPhysicalAdults = watchedMaxPhysicalAdultsVal !== undefined && watchedMaxPhysicalAdultsVal !== null && watchedMaxPhysicalAdultsVal !== '' && !isNaN(Number(watchedMaxPhysicalAdultsVal)) ? Math.max(1, Number(watchedMaxPhysicalAdultsVal)) : watchedBaseAdults;
     const watchedMaxPhysicalChildren = watchedMaxPhysicalChildrenVal !== undefined && watchedMaxPhysicalChildrenVal !== null && watchedMaxPhysicalChildrenVal !== '' && !isNaN(Number(watchedMaxPhysicalChildrenVal)) ? Math.max(0, Number(watchedMaxPhysicalChildrenVal)) : watchedBaseChildren;
+    const watchedTotalMax = watchedTotalMaxVal !== undefined && watchedTotalMaxVal !== null && watchedTotalMaxVal !== '' && !isNaN(Number(watchedTotalMaxVal)) ? Math.max(1, Number(watchedTotalMaxVal)) : (watchedMaxPhysicalAdults + watchedMaxPhysicalChildren);
     const watchedMaxPhysicalInfants = watchedMaxPhysicalInfantsVal !== undefined && watchedMaxPhysicalInfantsVal !== null && watchedMaxPhysicalInfantsVal !== '' && !isNaN(Number(watchedMaxPhysicalInfantsVal)) ? Math.max(0, Number(watchedMaxPhysicalInfantsVal)) : 1;
 
     const [debouncedParams, setDebouncedParams] = useState({
@@ -239,18 +271,28 @@ export default function CreateRoomType() {
         mutationFn: (data: RoomTypeFormData) => {
             const resolvedBaseAdults = data.baseAdults ?? 2;
             const resolvedBaseChildren = data.baseChildren ?? 0;
+            const resolvedTotalBase = data.totalBaseOccupancy ?? (resolvedBaseAdults + resolvedBaseChildren);
+            const resolvedMaxPhysA = data.maxPhysicalAdults ?? resolvedBaseAdults;
+            const resolvedMaxPhysC = data.maxPhysicalChildren ?? resolvedBaseChildren;
+            const resolvedTotalMax = data.totalMaxOccupancy ?? (resolvedMaxPhysA + resolvedMaxPhysC);
+
             const payload = {
                 ...data,
                 baseAdults: resolvedBaseAdults,
                 baseChildren: resolvedBaseChildren,
-                maxPhysicalAdults: data.maxPhysicalAdults ?? resolvedBaseAdults,
-                maxPhysicalChildren: data.maxPhysicalChildren ?? resolvedBaseChildren,
+                totalBaseOccupancy: resolvedTotalBase,
+                totalMaxOccupancy: resolvedTotalMax,
+                baseMaxAdults: data.baseMaxAdults ? Number(data.baseMaxAdults) : null,
+                baseMaxChildren: data.baseMaxChildren ? Number(data.baseMaxChildren) : null,
+                maxPhysicalAdults: resolvedMaxPhysA,
+                maxPhysicalChildren: resolvedMaxPhysC,
                 maxPhysicalInfants: data.maxPhysicalInfants ?? 1,
                 extraAdultPrice: data.extraAdultPrice ?? 0,
                 extraChildPrice: data.extraChildPrice ?? 0,
-                maxAdults: resolvedBaseAdults,
-                maxChildren: resolvedBaseChildren,
-                freeChildrenCount: resolvedBaseChildren,
+                maxAdults: resolvedMaxPhysA,
+                maxChildren: resolvedMaxPhysC,
+                freeChildrenCount: data.freeChildrenCount ?? 0,
+                groupMaxOccupancy: data.groupMaxOccupancy !== undefined ? data.groupMaxOccupancy : (isEdit ? existingRoomType?.groupMaxOccupancy : undefined),
                 originalPrice: (data.originalPrice === null || data.originalPrice === undefined) ? null : Number(data.originalPrice),
                 amenities: data.amenities.map(a => a.value).filter(v => v),
                 highlights: data.highlights.map(h => h.value).filter(v => v),
@@ -289,12 +331,11 @@ export default function CreateRoomType() {
                 </button>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? 'Edit' : 'Create'} Room Type</h1>
-                    <p className="text-sm text-gray-500 font-medium">Define room features, pricing, and availability</p>
+                    <p className="text-sm text-gray-500 font-medium">Define room features, pricing, and canonical V2 occupancy rules</p>
                 </div>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                {/* General Info */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-8">
                     <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-4">
                         <div className="w-1 h-6 bg-primary-600 rounded-full"></div>
@@ -326,58 +367,20 @@ export default function CreateRoomType() {
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
                             />
                             {errors.basePrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.basePrice.message)}</p>}
-                            <div className="mt-2 pl-1">
-                                <label className="inline-flex items-center cursor-pointer group">
-                                    <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
-                                    <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${watch('isGstInclusive') ? 'bg-green-600' : 'bg-red-500'}`}></div>
-                                    <span className="ml-2 text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors uppercase tracking-wider">Price is inclusive of GST</span>
-                                </label>
-                                {watch('isGstInclusive') && (
-                                    <p className="mt-1.5 text-[9px] text-gray-500 dark:text-gray-400 italic font-medium pl-1 animate-in fade-in slide-in-from-top-1 flex items-center gap-1">
-                                        <Info className="h-2.5 w-2.5 text-blue-500" />
-                                        When enabled, the Base Price is treated as the final amount including tax. The system back-calculates tax for reports.
-                                    </p>
-                                )}
-                            </div>
                         </div>
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
                                 Market Price (Static Strikethrough) (₹)
-                                <div className="group/info relative">
-                                    <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-10 font-medium shadow-xl">
-                                        Fixed strikethrough price (MRP) shown on website. For time-bound festival deals, use "Offers & Marketing".
-                                    </div>
-                                </div>
+                                <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
                             </label>
                             <input
                                 type="number"
-                                {...register('originalPrice', { valueAsNumber: true })}
-                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black placeholder:font-bold"
-                                placeholder="e.g. 6000"
+                                {...register('originalPrice')}
+                                placeholder="e.g. 5000 (Optional)"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.originalPrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400`}
                             />
                             {errors.originalPrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.originalPrice.message)}</p>}
-                        </div>
-
-                        {/* Offers & Marketing Section */}
-                        <div className="md:col-span-1 p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30 rounded-2xl flex items-start gap-3">
-                            <div className="p-2 bg-white dark:bg-orange-900/20 rounded-xl shadow-sm border border-orange-100 dark:border-orange-800">
-                                <Tag className="h-5 w-5 text-orange-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-sm font-black text-orange-900 dark:text-orange-400 uppercase tracking-wider mb-0.5">Dynamic Festival Pricing</h3>
-                                <p className="text-[10px] text-orange-700 dark:text-orange-500 font-medium leading-relaxed mb-2">
-                                    Schedule time-bound discounts for festivals or weekends. These will automatically override the base price.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/marketing/offers')}
-                                    className="text-[10px] font-black uppercase tracking-widest text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-all"
-                                >
-                                    Manage Scheduled Offers <ArrowLeft className="h-3 w-3 rotate-180" />
-                                </button>
-                            </div>
                         </div>
 
                         <div className="md:col-span-2">
@@ -407,173 +410,274 @@ export default function CreateRoomType() {
                             {errors.size?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.size.message)}</p>}
                         </div>
 
-                        {/* Base Included Occupancy */}
-                        <div className="md:col-span-2 p-5 bg-blue-50/70 dark:bg-slate-800/80 rounded-2xl border border-blue-200 dark:border-slate-700 space-y-3.5 shadow-sm">
-                            <div>
+                        {/* ========================================================================= */}
+                        {/* OCCUPANCY CONFIGURATION (CANONICAL V2)                                      */}
+                        {/* ========================================================================= */}
+
+                        {/* CARD 1: PHYSICAL CAPACITY (Hard Room Limits) */}
+                        <div className="md:col-span-2 p-5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
                                 <div className="flex items-center gap-2">
-                                    <Users className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400" />
-                                    <h4 className="text-xs font-black uppercase tracking-wider text-blue-900 dark:text-blue-300">Base Included Occupancy (Covered in Base Price)</h4>
+                                    <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">1. Physical Capacity (Hard Limits)</h4>
+                                        <p className="text-[11px] text-slate-500 font-medium">Absolute maximum physical guest capacity (including extra beds, mattresses, and cots).</p>
+                                    </div>
                                 </div>
-                                <p className="text-[11px] text-blue-700/90 dark:text-blue-300/80 font-medium mt-1">
-                                    The number of guests included in the standard room price. Any guest above this count will be charged an extra guest fee per night.
-                                </p>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
-                                        Base Included Adults <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        {...register('baseAdults', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
-                                    />
-                                    {errors.baseAdults?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.baseAdults.message)}</p>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
-                                        Base Included Children <span className="text-gray-400 font-normal">(Optional)</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        {...register('baseChildren', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
-                                    />
-                                    {errors.baseChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.baseChildren.message)}</p>}
-                                </div>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                    Physical Limit
+                                </span>
                             </div>
 
-                            {/* Base Rate Included Compositions Preview */}
-                            <div className="pt-3 border-t border-blue-200/80 dark:border-slate-700 space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5">
-                                        <Check className="h-3.5 w-3.5" />
-                                        Base Rate Included Compositions Preview
-                                    </span>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
-                                        Base Cap: {watchedBaseAdults}A + {watchedBaseChildren}C
-                                    </span>
-                                </div>
-                                <p className="text-[10.5px] text-gray-600 dark:text-slate-400">
-                                    Guests staying under base room price with no extra person surcharge:
-                                </p>
-                                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                                    {baseCompositions.map((comp) => (
-                                        <span
-                                            key={`base-${comp.adults}-${comp.children}`}
-                                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100/70 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
-                                        >
-                                            {comp.label}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Maximum Physical Capacity */}
-                        <div className="md:col-span-2 p-5 bg-gray-50/80 dark:bg-slate-800/50 rounded-2xl border border-gray-200 dark:border-slate-700/80 space-y-3.5 shadow-sm">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <Info className="h-4.5 w-4.5 text-gray-500 dark:text-gray-400" />
-                                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-slate-200">Maximum Physical Room Capacity (Hard Limit with Extra Beds)</h4>
-                                </div>
-                                <p className="text-[11px] text-gray-600 dark:text-slate-400 font-medium mt-1">
-                                    The absolute maximum number of people allowed in this room (including extra beds/mattresses and cots). Bookings above this limit require booking an additional room.
-                                </p>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
-                                        Max Physical Adults <span className="text-gray-400 font-normal">(Optional)</span>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Max Physical Adults <span className="text-red-500">*</span></span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Min 1</span>
                                     </label>
                                     <input
                                         type="number"
                                         min="1"
                                         {...register('maxPhysicalAdults', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
                                     />
+                                    <p className="text-[10px] text-slate-500 mt-1">Maximum adults physically allowed in this RoomType.</p>
                                     {errors.maxPhysicalAdults?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalAdults.message)}</p>}
                                 </div>
+
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
-                                        Max Physical Children <span className="text-gray-400 font-normal">(Optional)</span>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Max Physical Children</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Age 2-12</span>
                                     </label>
                                     <input
                                         type="number"
                                         min="0"
                                         {...register('maxPhysicalChildren', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
                                     />
+                                    <p className="text-[10px] text-slate-500 mt-1">Maximum children physically allowed in this RoomType.</p>
                                     {errors.maxPhysicalChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalChildren.message)}</p>}
                                 </div>
+
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5 flex items-center gap-1.5">
-                                        <Baby className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />
-                                        Max Infants (0-2y) <span className="text-gray-400 font-normal">(Cots, Free)</span>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Total Max Occupancy <span className="text-red-500">*</span></span>
+                                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">A + C Cap</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        {...register('totalMaxOccupancy', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Maximum physical number of adults + children combined.</p>
+                                    {errors.totalMaxOccupancy?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.totalMaxOccupancy.message)}</p>}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                                        <Baby className="h-3.5 w-3.5 text-pink-500" />
+                                        <span>Max Infants (0-2y)</span>
                                     </label>
                                     <input
                                         type="number"
                                         min="0"
                                         {...register('maxPhysicalInfants', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
                                     />
+                                    <p className="text-[10px] text-slate-500 mt-1">Infants in cots (always ₹0, do not consume A+C occupancy).</p>
                                     {errors.maxPhysicalInfants?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalInfants.message)}</p>}
                                 </div>
                             </div>
 
-                            {/* Maximum Physical Compositions Preview */}
-                            <div className="pt-3 border-t border-gray-200 dark:border-slate-700 space-y-2">
+                            {/* Live Physical Composition Preview */}
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-primary-800 dark:text-primary-400 flex items-center gap-1.5">
-                                        <Users className="h-3.5 w-3.5" />
-                                        Maximum Physical Compositions Preview
+                                    <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                                        <Users className="h-3.5 w-3.5 text-indigo-600" />
+                                        Physical Combinations Preview
                                     </span>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary-50 text-primary-700 dark:bg-primary-950/80 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800">
-                                        Max Cap: {watchedMaxPhysicalAdults}A + {watchedMaxPhysicalChildren}C
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                        Max Cap: {watchedMaxPhysicalAdults}A + {watchedMaxPhysicalChildren}C (Total: {watchedTotalMax})
                                     </span>
                                 </div>
-                                <p className="text-[10.5px] text-gray-600 dark:text-slate-400">
-                                    Hard physical room limit (base beds + extra beds/mattresses):
-                                </p>
                                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                                     {maxPhysicalCompositions.map((comp) => (
                                         <span
                                             key={`max-${comp.adults}-${comp.children}`}
-                                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary-100/70 dark:bg-primary-950/60 text-primary-900 dark:text-primary-300 border border-primary-300 dark:border-primary-800"
+                                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
                                         >
                                             {comp.label}
                                         </span>
                                     ))}
                                 </div>
-                                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 flex items-center gap-2">
+                                <div className="pt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
                                     <Baby className="h-3.5 w-3.5 text-pink-500" />
-                                    <span className="text-[11px] font-medium text-gray-600 dark:text-slate-300">
-                                        + Up to <strong className="text-gray-900 dark:text-white font-bold">{watchedMaxPhysicalInfants} Infant(s)</strong> (0-2 yrs, Free in cots)
-                                    </span>
+                                    <span>+ Up to <strong className="text-slate-900 dark:text-white font-bold">{watchedMaxPhysicalInfants} Infant(s)</strong> (0-2 yrs, Free in cots)</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
-                                Extra Adult Price (₹) <span className="text-gray-400 font-normal text-xs">(Optional)</span>
-                            </label>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1.5">
-                                Set a price to enable the "Extra Adults" field when creating bookings. Leave empty/0 if extra adults are not allowed.
-                            </p>
-                            <input type="number" min="0" {...register('extraAdultPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
+                        {/* CARD 2: BASE RATE OCCUPANCY (Pricing Inclusion) */}
+                        <div className="md:col-span-2 p-5 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200/80 dark:border-emerald-900/60 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/60 pb-3">
+                                <div className="flex items-center gap-2">
+                                    <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-200">2. Base Rate Occupancy (Included in Base Price)</h4>
+                                        <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 font-medium">Number of adults + children included in standard room rate without extra person charges.</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                    Included in Base Rate
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Total Base Occupancy <span className="text-red-500">*</span></span>
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Base Cap</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        {...register('totalBaseOccupancy', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Number of adults + children included in the base room price.</p>
+                                    {errors.totalBaseOccupancy?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.totalBaseOccupancy.message)}</p>}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Base Max Adults</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        placeholder="None (Up to Base Cap)"
+                                        {...register('baseMaxAdults', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm placeholder:text-slate-400"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Optional pricing restriction. Adults above this count incur extra adult charge.</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Base Max Children</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="None (Up to Base Cap)"
+                                        {...register('baseMaxChildren', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm placeholder:text-slate-400"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Optional pricing restriction. Children above this count incur extra child charge.</p>
+                                </div>
+                            </div>
+
+                            {/* Base Rate Validation Warnings */}
+                            {watchedTotalMax < watchedTotalBase && (
+                                <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-2 text-red-800 dark:text-red-200 text-xs font-bold">
+                                    <Info className="h-4 w-4 shrink-0 text-red-500" />
+                                    <span>Configuration Error: Total Max Occupancy ({watchedTotalMax}) cannot be less than Total Base Occupancy ({watchedTotalBase}).</span>
+                                </div>
+                            )}
+
+                            {watchedTotalBase > watchedMaxPhysicalAdults && (
+                                <div className="p-3 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-2 text-amber-800 dark:text-amber-200 text-xs font-semibold">
+                                    <Info className="h-4 w-4 shrink-0 text-amber-500" />
+                                    <span>Channex Sync Notice: Total Base Occupancy ({watchedTotalBase}) exceeds Max Physical Adults ({watchedMaxPhysicalAdults}). Channex requires base occupancy ≤ adult physical occupancy for OTA channels.</span>
+                                </div>
+                            )}
+
+                            {/* Live Base Rate Composition Preview */}
+                            <div className="pt-3 border-t border-emerald-200/60 dark:border-emerald-900/60 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                                        <Check className="h-3.5 w-3.5" />
+                                        Base Rate Included Compositions Preview
+                                    </span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                        Base Cap: {watchedTotalBase} Guests Included
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                    {baseCompositions.map((comp) => (
+                                        <span
+                                            key={`base-${comp.adults}-${comp.children}`}
+                                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100/80 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                        >
+                                            {comp.label}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
-                                Extra Child Price (₹) <span className="text-gray-400 font-normal text-xs">(Optional)</span>
-                            </label>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1.5">
-                                Set a price to enable the "Extra Children" field when creating bookings. Leave empty/0 if extra children are not allowed.
-                            </p>
-                            <input type="number" min="0" {...register('extraChildPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })} className="w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
+                        {/* CARD 3: CHILD & EXTRA GUEST PRICING */}
+                        <div className="md:col-span-2 p-5 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/70 dark:border-amber-900/50 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-3">
+                                <div className="flex items-center gap-2">
+                                    <Tag className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">3. Child & Extra Guest Pricing</h4>
+                                        <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 font-medium">Extra guest charges for adults/children beyond base rate occupancy or free allowance.</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                    Extra Guest Rates
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Free Children Count</span>
+                                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Waived Charge</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        {...register('freeChildrenCount', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Number of children aged 2–12 whose child charge is waived.</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Extra Adult Price (₹)</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        {...register('extraAdultPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Charge per adult exceeding base rate capacity.</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span>Extra Child Price (₹)</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        {...register('extraChildPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Charge per child exceeding base capacity and free allowance.</p>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">

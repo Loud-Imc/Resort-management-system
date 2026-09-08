@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,7 +14,6 @@ import { offlineCpsService, type OfflineCP } from '../../services/offlineCps';
 import { uploadService } from '../../services/uploads';
 import { Loader2, Calendar, Users, UserPlus, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, X, Info, BedDouble, FileText } from 'lucide-react';
 import clsx from 'clsx';
-import SearchableSelect from '../../components/SearchableSelect';
 import BookingAvailabilityCalendar from '../../components/bookings/BookingAvailabilityCalendar';
 import type { PriceCalculationResult, CreateBookingDto } from '../../types/booking';
 import type { RoomType } from '../../types/room';
@@ -340,9 +339,13 @@ export default function CreateBooking() {
             adultsCount,
             childrenCount,
             baseAdultsPerRoom,
+            baseChildrenPerRoom,
             maxPhysicalAdultsPerRoom,
+            maxPhysicalChildrenPerRoom,
             totalBaseAdults,
+            totalBaseChildren,
             totalMaxPhysicalAdults,
+            totalMaxPhysicalChildren,
             minRoomsByMaxCap,
             roomsByBaseCap,
             isPhysicallyInsufficient,
@@ -2097,7 +2100,7 @@ export default function CreateBooking() {
                                                      />
                                                      <button
                                                          type="button"
-                                                         onClick={handleCheckAvailability}
+                                                         onClick={() => handleCheckAvailability()}
                                                          className="shrink-0 whitespace-nowrap px-5 py-2.5 bg-muted text-foreground hover:bg-muted/80 rounded-xl text-xs font-bold transition-all border border-border shadow-sm active:scale-95 cursor-pointer"
                                                      >
                                                          Apply

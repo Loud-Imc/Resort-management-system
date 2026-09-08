@@ -1,10 +1,10 @@
 # RouteGuide Occupancy Renovation — Permanent Source of Truth
 **Document Identifier**: `docs/occupancy-renovation/00-SOURCE-OF-TRUTH.md`  
-**Status**: ARCHITECTURE INVESTIGATION & CONTEXT SOURCE OF TRUTH (NOT IMPLEMENTATION)  
-**Version**: `v0.5`  
+**Status**: ACTIVE IMPLEMENTATION SOURCE OF TRUTH  
+**Version**: `v1.1`  
 **Last Updated**: September 2026  
-**Latest Completed Task**: Task 3 Exception & Field-Consumer Audit (`docs/occupancy-renovation/04-LEGACY-PRODUCTION-EXCEPTION-AUDIT.md`)  
-**Next Expected Task**: Task 4 — Formal Resolution of the Mixed-Excess Pricing Business Rule & Backfill Policy  
+**Latest Completed Task**: Combined Phase 2 (Phase 3 Pricing Integration + Phase 4 Availability/Search Integration)  
+**Next Expected Task**: Combined Phase 3 (Phase 5 Booking Integration + Phase 6 V1 Compatibility/Migration)  
 
 > [!IMPORTANT]
 > **CRITICAL RECOVERY DIRECTIVE FOR FUTURE AGENTS / SESSIONS**:
@@ -451,9 +451,244 @@ The following platform areas are architecturally decoupled from occupancy decisi
      - In early group/dorm inventory, `maxAdults` (e.g. 10, 20) was deliberately used to hold physical capacity. A naive migration that discards `maxAdults` in favor of unmanaged `maxPhysicalAdults` (4) would break capacity from 20 to 4.
      - In 11 recent double rooms, `maxPhysicalAdults = 1` was written due to a UI form counter starting at 1. `baseAdults = 2` holds the intended base capacity.
      - In adult-only rooms where `maxChildren = 0` and `freeChildrenCount = 0`, `baseChildren = 1` was an unintended Prisma schema default.
-5. **Task 4 [NEXT]**: Formal resolution of the mixed-excess pricing business rule & property backfill policy.
-6. **Task 5**: Finalization of the normalized occupancy persistence schema.
-7. **Task 6**: Design of the shadow-run comparison engine.
+5. **Task 5 (Architecture Specification) [COMPLETED]**: Occupancy Versioning & Migration Architecture.
+   - **Report**: [`docs/occupancy-renovation/05-OCCUPANCY-VERSIONING-AND-MIGRATION-ARCHITECTURE.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/05-OCCUPANCY-VERSIONING-AND-MIGRATION-ARCHITECTURE.md)
+   - **Key Confirmed Findings**: ONE Canonical Engine; Direct Additive Columns (Option A); Property-Level Activation; Group Booking Isolated.
+6. **Task 6 (Final Implementation Specification) [COMPLETED]**: Final Canonical Occupancy Model & Implementation Specification.
+   - **Report**: [`docs/occupancy-renovation/06-FINAL-CANONICAL-OCCUPANCY-IMPLEMENTATION-SPEC.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/06-FINAL-CANONICAL-OCCUPANCY-IMPLEMENTATION-SPEC.md)
+   - **Key Confirmed Findings**:
+     - Complete mathematical definitions for 8-tuple $\langle B, M, P_A, P_C, P_I, bMA, bMC, FC \rangle$.
+     - Exact deterministic surcharge algorithm with mixed excess charged as Extra Adult.
+     - `freeChildrenCount` governs free children (ages 2–6); infants (ages 0–2) are $₹0$ and independent.
+     - Multi-room accommodation solution ranking policy (cheapest highlighted with `isRecommended: true`).
+     - Prisma search pre-filtering formula avoiding legacy false negatives.
+     - Direct additive schema specification and Decision Verification Checklist.
+7. **Combined Phase 1 [COMPLETED]**: Phase 1 (V2 Database/Foundation) + Phase 2 (Canonical Occupancy Engine).
+   - **Schema Changes**: Added additive nullable V2 fields (`occupancyVersion`, `totalBaseOccupancy`, `totalMaxOccupancy`, `baseMaxAdults`, `baseMaxChildren`) to `RoomType` and `occupancyVersion` to `Property`. Legacy fields fully preserved.
+   - **Migration**: Created [`backend/prisma/migrations/20260908150000_add_v2_canonical_occupancy_fields/migration.sql`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/prisma/migrations/20260908150000_add_v2_canonical_occupancy_fields/migration.sql).
+   - **Canonical Engine**: Implemented pure canonical engine in [`backend/src/common/utils/occupancy-solver.util.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/common/utils/occupancy-solver.util.ts).
+   - **Unit Tests**: 33 unit tests in [`backend/src/common/utils/occupancy-solver.util.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/common/utils/occupancy-solver.util.spec.ts) passing 100%.
+8. **Combined Phase 2 [COMPLETED]**: Phase 3 (Pricing Integration) + Phase 4 (Availability/Search Integration).
+   - **Property-Level Runtime Switch**: `Property.occupancyVersion` is the authoritative runtime activation switch. All RoomTypes under a V2 property execute the canonical V2 engine (with V2 readiness and non-null validation enforced). V1 properties remain 100% legacy even if individual RoomTypes have V2 fields.
+   - **Pricing Integration**: Integrated `calculateCanonicalSurcharges` and `validatePhysicalFeasibility` into [`backend/src/bookings/pricing.service.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/pricing.service.ts). V2 pricing validates physical boundaries, enforces totalBaseOccupancy and base demographic caps, applies mixed excess rule (charged as Extra Adult), handles free children without expanding base, and prices infants at ₹0.
+   - **Availability / Search Integration**: Integrated `solveAccommodationOptions` into [`backend/src/bookings/availability.service.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/availability.service.ts). Implemented non-lossy candidate prefilter based on property version. The canonical solver evaluates all valid solutions, supports repeated and mixed room types (Case J), unequal distributions (Case I), and treats requested room count as a ranking preference (Case K). The cheapest solution is tagged with `isRecommended: true` and `badge: "Best Value"` (Case L). `groupMaxOccupancy` is strictly isolated from standard search (Case M). Candidate prefilter is non-lossy (Case N). V1 search loop remains 100% isolated and unchanged (Case O).
+   - **API DTOs**: Additively added optional `infantsCount` / `infants` to [`CalculatePriceDto`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/dto/calculate-price.dto.ts) and [`SearchRoomsDto`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/dto/search-rooms.dto.ts), and wired them through [`BookingsController`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/bookings.controller.ts).
+   - **Tests**: Added comprehensive unit tests in [`backend/src/bookings/pricing.service.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/pricing.service.spec.ts) (Cases A–H) and [`backend/src/bookings/availability.service.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/availability.service.spec.ts) (Cases G, H, I, J, K, L, M, N, O). **70/70 total targeted tests passing**.
+   - **Build**: `npm run build` succeeds with zero errors.
+- **Current State**: Implemented on branch `wip-rebuilding-occupancy-rule` as an isolated utility.
+- **Test Status**: **28 unit tests passing** (`occupancy-solver.util.spec.ts`).
+- **Proven Capabilities**:
+  - Deterministic bounded backtracking partition.
+  - Distinct multiset combination generation ($[A, B]$ evaluated once, no $[B, A]$ duplicates).
+  - Heterogeneous / asymmetric capacity support.
+  - Real inventory quantity bounding per room type.
+  - Independent infant placement and cot limit enforcement.
+  - Requested room count ranking metadata.
+- **DO NOT MODIFY THE SOLVER** during documentation or audit phases.
+
+---
+
+## 12. Availability Architecture
+
+- **Intended Role**: `AvailabilityService` must be strictly responsible for **physical inventory existence** (querying enabled rooms, subtracting active overlapping bookings, holds, and maintenance blocks across stay dates).
+- **Decoupling**: The legacy SQL query filter (`WHERE maxAdults >= ceil(A/R)`) creates false negatives and will eventually be bypassed in favor of feeding available quantities to the Solver.
+
+---
+
+## 13. Search Architecture
+
+- **Core Paradigm Shift**: Search returns **Accommodation Solutions** (which can be a single room, multiple rooms of the same type, or a mixed combination) with exact pricing and guest assignments.
+- **Preference-Based Ranking**:
+  1. Exact match with requested room count.
+  2. Compactness (fewer rooms first).
+  3. Total price per night (lowest first).
+
+---
+
+## 14. Booking Architecture
+
+At booking checkout:
+1. Client submits selected Accommodation Solution.
+2. Server validates single-room physical bounds for every room in the allocation.
+3. Server re-verifies real-time physical inventory availability.
+4. Server recalculates and confirms pricing server-side.
+5. Server assigns physical rooms using PMS Consolidation Sorting.
+6. Server atomically commits `Booking` and `BookingRoom` records.
+
+---
+
+## 15. External Integrations & Contracts
+
+| External Channel | Contractual Dependency | Current Mapping in Codebase | Renovation Safety Constraint |
+| :--- | :--- | :--- | :--- |
+| **Channex Channel Manager** | REST Room Type & Rate Plan APIs | `occ_adults: maxAdults`, `occ_children: maxChildren`, `occ_infants: freeChildrenCount`, `default_occupancy: maxAdults` | **DO NOT DELETE OR RENAME `maxAdults`, `maxChildren`, or `freeChildrenCount`**. Channex contract requires formal verification before any modification. |
+| **Connectivity Partner APIs** | JSON Schema for external OTAs/PMSs | `occupancy: { maxAdults, maxChildren, baseAdults, baseChildren }` | Must maintain existing JSON response shape; new total occupancy fields will be additive. |
+| **Channel Partner Portal** | Frontend Room Selection & Pricing | Reads `room.maxAdults`, `room.maxChildren` | Pricing will route through central server-side calculation. |
+
+---
+
+## 16. Production Migration Philosophy
+
+- **No Immediate Destructive Rewrites**: Existing ~300 production property records must not be deleted, renamed, or modified destructively.
+- **Conceptual Pipeline**:
+  $$\text{Legacy Data} \longrightarrow \text{Compatibility Adapter} \longrightarrow \text{Normalized Domain Model} \longrightarrow \text{Shadow Run} \longrightarrow \text{Cutover}$$
+- **Database Schema**: Any schema modifications must be additive (nullable columns with runtime fallbacks).
+- **Migration SQL / Backfill Formulas**: **ARE NOT YET APPROVED** and must await semantic audit completion.
+
+---
+
+## 17. Shadow / Dual-Run Validation Strategy
+
+```
+Phase 1: Shadow Execution
+├── Legacy search flow executes and returns live response to guest.
+├── New solver flow executes asynchronously in the background on the same query.
+└── Discrepancies in availability or pricing are logged for audit.
+
+Phase 2: Staging Feature Flag
+├── Enable solver via environment flag (ENABLE_OCCUPANCY_SOLVER=true) on staging.
+└── Property owners and QA test complex mixed-room combinations.
+
+Phase 3: Phased Production Cutover
+├── Enable on property-direct booking pages first.
+└── Enable on global search results.
+
+Phase 4: Legacy Disablement
+└── Disable legacy code paths only after 100% parity is verified in production.
+```
+
+---
+
+## 18. Deprecation Candidates
+
+| Existing Code / Field | Reason for Potential Deprecation | Dependent Subsystems | Status | Safety Condition for Deletion |
+| :--- | :--- | :--- | :--- | :--- |
+| `availability.service.ts:1059-1060` | SQL WHERE `maxAdults >= ceil(A/R)` drops valid rooms | Public Search | Active in Prod | Delete only after Solver search cutover is live. |
+| `bookings.service.ts:195` | `Math.ceil(adults / maxAdults)` blocks multi-guest single rooms | Public Booking | Active in Prod | Delete only after Solution booking validator is live. |
+| `pricing.service.ts:292-304` | Independent A/C base subtraction penalizes mixed guests | Central Pricing | Active in Prod | Replace only after headcount-first pricing engine is verified. |
+| `freeChildrenCount` | Legacy free child counter | Channex sync | Active in Prod | Keep permanently if required by Channex contract. |
+
+---
+
+## 19. Safe & Low-Impact Subsystems
+
+The following platform areas are architecturally decoupled from occupancy decision logic and must remain untouched:
+- Authentication, Sessions, Password resets (`backend/src/auth/`).
+- Razorpay payments, manual payment verification (`backend/src/payments/`).
+- Property settlements, partner payouts, financial reconciliations (`backend/src/financials/`).
+- WhatsApp notifications, SMS messaging, Email templates (`backend/src/notifications/`, `mail/`).
+- Reviews, ratings, guest feedback (`backend/src/reviews/`).
+- PMS room status transitions, housekeeping, key management (`backend/src/rooms/`).
+
+---
+
+## 20. APPROVED Decisions Checklist
+*(Formally agreed — DO NOT ALTER without business approval)*
+
+- [x] **[APPROVED]** Total Base Occupancy ($B$) is the total headcount of Adults + Children covered by the base room rate.
+- [x] **[APPROVED]** Total Maximum Physical Occupancy ($M$) is the hard physical ceiling on Adults + Children in the room.
+- [x] **[APPROVED]** Infants are an independent dimension (do not consume $A+C$ capacity, ₹0 price, bounded by `maxPhysicalInfants`).
+- [x] **[APPROVED]** Physical adult and child limits (`maxPhysicalAdults`, `maxPhysicalChildren`) are hard physical boundaries.
+- [x] **[APPROVED]** Base demographic restrictions (`baseMaxAdults?`, `baseMaxChildren?`) are pricing rules, not physical limits.
+- [x] **[APPROVED]** Discovery and search must return complete **Accommodation Solutions** (single, multi-room, mixed).
+- [x] **[APPROVED]** Requested room count is a preference / ranking signal, not an automatic hard filter.
+- [x] **[APPROVED]** Existing production code and data must remain intact and protected during the renovation.
+- [x] **[APPROVED]** Side-by-side / shadow validation is required before production cutover.
+- [x] **[APPROVED]** Legacy fields must initially be preserved for backward compatibility.
+
+---
+
+## 21. UNAPPROVED Proposals & Technical Assumptions
+*(Proposals from earlier blueprints requiring formal validation — DO NOT TREAT AS APPROVED FACTS)*
+
+- [ ] **[NOT APPROVED]** Exact database schema design (direct on `RoomType` vs separate table vs in-memory adapter).
+- [ ] **[NOT APPROVED]** Default fallback formulas (e.g. `baseMaxAdults = totalBaseOccupancy`).
+- [ ] **[NOT APPROVED]** Automatic conversion of old `baseAdults`/`baseChildren` into new demographic restrictions.
+- [ ] **[NOT APPROVED]** SQL migration and backfill scripts.
+- [ ] **[NOT APPROVED]** Adult-first mixed excess pricing rule.
+- [ ] **[NOT APPROVED]** Mapping `freeChildrenCount` to `maxPhysicalInfants` in Channex.
+- [ ] **[NOT APPROVED]** Deprecation or removal of `freeChildrenCount`.
+- [ ] **[NOT APPROVED]** Exact Accommodation Solution database persistence schema.
+- [ ] **[NOT APPROVED]** Exact ranking algorithm weights.
+
+---
+
+## 22. Open Business Questions Requiring RouteGuide Decisions
+
+1. **Mixed-Excess Pricing Allocation**:
+   When guest headcount exceeds base occupancy across categories (e.g., $2A + 2C$ in a room with $B = 3, \text{BaseMaxA} = 2, \text{BaseMaxC} = 1$), which guest is billed as the extra guest? Adult or Child?
+2. **Persistence Location of Occupancy Envelopes**:
+   Should `totalBaseOccupancy` and `totalMaxOccupancy` be stored as new columns on `RoomType` or in a dedicated configuration model?
+3. **Channex Channel Manager Contract Rules**:
+   What exact fields does Channex require for OTA distribution, and can rate plans accept total occupancy rather than adult count?
+4. **Search Lead Price Display Policy**:
+   When a search query matches via 1 room + extra fee (e.g., ₹1300) vs 2 rooms (e.g., ₹2000), should the property card display the single-room inclusive rate as the starting price?
+
+---
+
+## 23. Renovation Task Roadmap & Status
+
+1. **Task 1 [COMPLETED]**: Complete Semantic & Dependency Validation Audit across database schema, services, DTOs, frontend forms, pricing, search, booking, Channex, and connectivity.
+   - **Report**: [`docs/occupancy-renovation/01-SEMANTIC-AUDIT.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/01-SEMANTIC-AUDIT.md)
+   - **Key Confirmed Findings**: Search & booking false negatives stem from `WHERE maxAdults >= ceil(A/R)` legacy SQL filters (`availability.service.ts:1059`, `bookings.service.ts:195`). Pricing calculates adult/child surcharges independently (`pricing.service.ts:292, 299`). Frontend UIs auto-clone `baseAdults` into `maxAdults`.
+2. **Task 2 [COMPLETED]**: Verification of Channex & Connectivity API Contractual Payloads.
+   - **Report**: [`docs/occupancy-renovation/02-EXTERNAL-CONTRACT-AUDIT.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/02-EXTERNAL-CONTRACT-AUDIT.md)
+   - **Key Confirmed Findings**: Channex `occ_infants` represents baby cots (not free children); `occ_adults` represents all adult sleeping spaces (convertible for children); Channex rate plan `occupancy` is an integer headcount tier; `freeChildrenCount` is completely unused internally and was only consumed by Channex sync; Connectivity API is safe for additive occupancy extensions.
+3. **Task 3 [COMPLETED]**: Production Occupancy Data Audit & Migration Feasibility.
+   - **Report**: [`docs/occupancy-renovation/03-PRODUCTION-DATA-AUDIT.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/03-PRODUCTION-DATA-AUDIT.md)
+   - **Key Confirmed Findings**: Migration feasibility classified as **`SAFE WITH EXCEPTIONS (FEASIBLE WITH DUAL-RUN ADAPTER)`**; 100% of existing configurations map without data loss; Advanced demographic restrictions (`baseMaxAdults = baseAdults`, `baseMaxChildren = baseChildren`) guarantee exact historical price parity.
+4. **Task 3 Follow-up [COMPLETED]**: Legacy Production Exception Audit & Field-Consumer Analysis.
+   - **Report**: [`docs/occupancy-renovation/04-LEGACY-PRODUCTION-EXCEPTION-AUDIT.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/04-LEGACY-PRODUCTION-EXCEPTION-AUDIT.md)
+   - **Key Confirmed Findings**:
+     - Exactly **28 unique RoomTypes (10.5%)** have legacy exceptions across the 266 production catalog.
+     - **119 out of 125 total platform bookings (95.2%)** were transacted against these exceptional room types (chiefly `WAYANAD VISTA PALM VIEW VILLA` and `New Serene Lake Resort`).
+     - In early group/dorm inventory, `maxAdults` (e.g. 10, 20) was deliberately used to hold physical capacity. A naive migration that discards `maxAdults` in favor of unmanaged `maxPhysicalAdults` (4) would break capacity from 20 to 4.
+     - In 11 recent double rooms, `maxPhysicalAdults = 1` was written due to a UI form counter starting at 1. `baseAdults = 2` holds the intended base capacity.
+     - In adult-only rooms where `maxChildren = 0` and `freeChildrenCount = 0`, `baseChildren = 1` was an unintended Prisma schema default.
+5. **Task 5 (Architecture Specification) [COMPLETED]**: Occupancy Versioning & Migration Architecture.
+   - **Report**: [`docs/occupancy-renovation/05-OCCUPANCY-VERSIONING-AND-MIGRATION-ARCHITECTURE.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/05-OCCUPANCY-VERSIONING-AND-MIGRATION-ARCHITECTURE.md)
+   - **Key Confirmed Findings**: ONE Canonical Engine; Direct Additive Columns (Option A); Property-Level Activation; Group Booking Isolated.
+6. **Task 6 (Final Implementation Specification) [COMPLETED]**: Final Canonical Occupancy Model & Implementation Specification.
+   - **Report**: [`docs/occupancy-renovation/06-FINAL-CANONICAL-OCCUPANCY-IMPLEMENTATION-SPEC.md`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/docs/occupancy-renovation/06-FINAL-CANONICAL-OCCUPANCY-IMPLEMENTATION-SPEC.md)
+   - **Key Confirmed Findings**:
+     - Complete mathematical definitions for 8-tuple $\langle B, M, P_A, P_C, P_I, bMA, bMC, FC \rangle$.
+     - Exact deterministic surcharge algorithm with mixed excess charged as Extra Adult.
+     - `freeChildrenCount` governs free children (ages 2–6); infants (ages 0–2) are $₹0$ and independent.
+     - Multi-room accommodation solution ranking policy (cheapest highlighted with `isRecommended: true`).
+     - Prisma search pre-filtering formula avoiding legacy false negatives.
+     - Direct additive schema specification and Decision Verification Checklist.
+7. **Combined Phase 1 [COMPLETED]**: Phase 1 (V2 Database/Foundation) + Phase 2 (Canonical Occupancy Engine).
+   - **Schema Changes**: Added additive nullable V2 fields (`occupancyVersion`, `totalBaseOccupancy`, `totalMaxOccupancy`, `baseMaxAdults`, `baseMaxChildren`) to `RoomType` and `occupancyVersion` to `Property`. Legacy fields fully preserved.
+   - **Migration**: Created [`backend/prisma/migrations/20260908150000_add_v2_canonical_occupancy_fields/migration.sql`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/prisma/migrations/20260908150000_add_v2_canonical_occupancy_fields/migration.sql).
+   - **Canonical Engine**: Implemented pure canonical engine in [`backend/src/common/utils/occupancy-solver.util.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/common/utils/occupancy-solver.util.ts).
+   - **Unit Tests**: 33 unit tests in [`backend/src/common/utils/occupancy-solver.util.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/common/utils/occupancy-solver.util.spec.ts) passing 100%.
+8. **Combined Phase 2 [COMPLETED]**: Phase 3 (Pricing Integration) + Phase 4 (Availability/Search Integration).
+   - **Property-Level Runtime Switch**: `Property.occupancyVersion` is the authoritative runtime activation switch. All RoomTypes under a V2 property execute the canonical V2 engine (with V2 readiness and non-null validation enforced). V1 properties remain 100% legacy even if individual RoomTypes have V2 fields.
+   - **Pricing Integration**: Integrated `calculateCanonicalSurcharges` and `validatePhysicalFeasibility` into [`backend/src/bookings/pricing.service.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/pricing.service.ts). V2 pricing validates physical boundaries, enforces totalBaseOccupancy and base demographic caps, applies mixed excess rule (charged as Extra Adult), handles free children without expanding base, and prices infants at ₹0.
+   - **Availability / Search Integration**: Integrated `solveAccommodationOptions` into [`backend/src/bookings/availability.service.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/availability.service.ts). Implemented non-lossy candidate prefilter based on property version. The canonical solver evaluates all valid solutions, supports repeated and mixed room types (Case J), unequal distributions (Case I), and treats requested room count as a ranking preference (Case K). The cheapest solution is tagged with `isRecommended: true` and `badge: "Best Value"` (Case L). `groupMaxOccupancy` is strictly isolated from standard search (Case M). Candidate prefilter is non-lossy (Case N). V1 search loop remains 100% isolated and unchanged (Case O).
+   - **API DTOs**: Additively added optional `infantsCount` / `infants` to [`CalculatePriceDto`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/dto/calculate-price.dto.ts) and [`SearchRoomsDto`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/dto/search-rooms.dto.ts), and wired them through [`BookingsController`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/bookings.controller.ts).
+   - **Tests**: Added comprehensive unit tests in [`backend/src/bookings/pricing.service.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/pricing.service.spec.ts) (Cases A–H) and [`backend/src/bookings/availability.service.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/availability.service.spec.ts) (Cases G, H, I, J, K, L, M, N, O). **70/70 total targeted tests passing**.
+   - **Build**: `npm run build` succeeds with zero errors.
+9. **Combined Phase 3 [COMPLETED]**: Phase 5 (Booking Integration) + Phase 6 (V1 Compatibility/Migration).
+   - **Booking Integration**: Integrated `validatePhysicalFeasibility` and authoritative server-side canonical pricing (`PricingService.calculatePrice`) into `BookingsService.create()` and `BookingsService.reschedule()`.
+     - **Property-Level Boundary**: `Property.occupancyVersion === 'V2'` is the runtime activation boundary. Under a V2 property, all RoomTypes are verified for V2 readiness.
+     - **Authoritative Server Pricing**: Client-supplied prices cannot manipulate or override authoritative backend price calculation for public/unauthorized guests.
+     - **Availability & Physical Revalidation**: Revalidates real-time availability and physical boundaries ($A \le P_A, C \le P_C, A+C \le M, I \le P_I$) at booking and rescheduling time.
+     - **Infant Handling**: Additively added `infantsCount` across `CreateBookingDto`, `RescheduleBookingDto`, and `Booking` schema. Infants are $₹0$ and decoupled from $A+C$ physical/base headcount.
+     - **Historical Immutability**: Historical bookings remain immutable; existing financial snapshots are preserved.
+     - **Group Booking Isolation**: Dedicated group booking remains isolated via `groupMaxOccupancy`.
+   - **Migration & Compatibility Subsystem**: Implemented pure, non-mutating audit, readiness, and shadow validation in [`backend/src/common/utils/occupancy-migration.util.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/common/utils/occupancy-migration.util.ts).
+     - **Classification**: Categorizes legacy RoomTypes into `SAFE`, `REVIEW_REQUIRED`, or `INVALID`.
+     - **No Fabrication**: Strictly prevents fabricating arbitrary `totalBaseOccupancy` or `totalMaxOccupancy` for ambiguous/invalid legacy records.
+     - **Property Readiness Audit**: Provides boolean eligibility for V2 activation only when 100% of RoomTypes are valid and V2-ready.
+     - **Shadow Validation**: Read-only simulation comparing V1 vs V2 allowed combinations and price deltas.
+     - **Readiness Endpoints**: Exposed read-only GET endpoints in `PropertiesController` (`:id/occupancy-readiness` and `:id/occupancy-shadow-validation`).
+   - **Tests**: Comprehensive unit tests covering Booking Cases A–L and Migration Cases A–I across [`backend/src/bookings/bookings.service.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/bookings/bookings.service.spec.ts) and [`backend/src/common/utils/occupancy-migration.util.spec.ts`](file:///c:/Users/kamar/OneDrive/Desktop/Loud%20IMC%20projects/ResortProject/backend/src/common/utils/occupancy-migration.util.spec.ts). **91/91 targeted tests passing**.
+10. **Combined Phase 4 [COMPLETED & VERIFIED]**: Phase 7 (Channex Integration) + Phase 8 (Production Migration & Rollout).
+    - **Channex Canonical Mapping**: `maxPhysicalAdults` $\to$ `occ_adults`, `maxPhysicalChildren` $\to$ `occ_children`, `freeChildrenCount` $\to$ `occ_infants`, `totalBaseOccupancy` $\to$ `default_occupancy`.
+    - **Anti-Clamping Pre-Sync Validation**: Block sync if $B > P_A$ (`totalBaseOccupancy > maxPhysicalAdults`) or required canonical fields are missing. Values are never silently rewritten.
+    - **Property Activation Mechanism**: Implemented `activateV2Occupancy` and `deactivateV2Occupancy` in `PropertiesService` and `PropertiesController`. Requires 100% V2 readiness and Channex compatibility.
+    - **Tests**: 114/114 targeted tests passing across 7 suites. Full backend suite reports 352 passing tests. Production build succeeds cleanly.
 
 ---
 
@@ -469,11 +704,11 @@ The following platform areas are architecturally decoupled from occupancy decisi
 
 ```yaml
 Document: docs/occupancy-renovation/00-SOURCE-OF-TRUTH.md
-Status: ARCHITECTURE INVESTIGATION — NOT IMPLEMENTATION
-Version: v0.5
+Status: ACTIVE IMPLEMENTATION SOURCE OF TRUTH
+Version: v1.3
 Last Updated: September 2026
-Latest Completed Task: Task 3 Exception & Field-Consumer Audit (docs/occupancy-renovation/04-LEGACY-PRODUCTION-EXCEPTION-AUDIT.md)
-Next Expected Task: Task 4 — Formal Resolution of the Mixed-Excess Pricing Business Rule & Backfill Policy
+Latest Completed Task: Combined Phase 4 (Phase 7 Channex Integration + Phase 8 Production Migration/Rollout)
+All 8 Phases Status: IMPLEMENTED & VERIFIED
 ```
 
 > [!NOTE]

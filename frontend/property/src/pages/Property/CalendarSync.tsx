@@ -477,7 +477,7 @@ export default function CalendarSync() {
                     {/* Pause Sync button hidden per request */}
                     {false && (
                     <button
-                      onClick={() => handleDisableChannelSync(activeChannelMapping.channelName)}
+                      onClick={() => activeChannelMapping && handleDisableChannelSync(activeChannelMapping.channelName || '')}
                       className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-2xl transition-colors shrink-0 cursor-pointer"
                       title="Pause Sync"
                     >

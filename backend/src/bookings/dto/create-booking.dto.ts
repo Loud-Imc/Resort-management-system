@@ -115,6 +115,13 @@ export class CreateBookingDto {
     @Type(() => Number)
     extraChildrenCount?: number;
 
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    infantsCount?: number;
+
     @ApiProperty({ type: [GuestInfoDto] })
     @IsArray()
     @ValidateNested({ each: true })

@@ -101,7 +101,9 @@ export class RoomTypesService {
         for (const rt of roomTypes) {
             const physAdults = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
             const physChildren = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
-            const capacityPerRoom = Number(physAdults) + Number(physChildren);
+            const capacityPerRoom = (rt.groupMaxOccupancy !== null && rt.groupMaxOccupancy !== undefined)
+                ? Number(rt.groupMaxOccupancy)
+                : (Number(physAdults) + Number(physChildren));
             const activeRoomCount = rt.rooms ? rt.rooms.length : 0;
             total += capacityPerRoom * activeRoomCount;
         }
@@ -143,7 +145,9 @@ export class RoomTypesService {
 
             const physAdults = rest.maxPhysicalAdults ?? rest.maxAdults ?? 2;
             const physChildren = rest.maxPhysicalChildren ?? rest.maxChildren ?? 0;
-            const computedGroupMax = Number(physAdults) + Number(physChildren);
+            const computedGroupMax = (createRoomTypeDto.groupMaxOccupancy !== undefined && createRoomTypeDto.groupMaxOccupancy !== null)
+                ? Number(createRoomTypeDto.groupMaxOccupancy)
+                : (Number(physAdults) + Number(physChildren));
 
             const data: any = {
                 ...rest,
@@ -264,9 +268,18 @@ export class RoomTypesService {
             const physAdults = updateRoomTypeDto.maxPhysicalAdults ?? updateRoomTypeDto.maxAdults ?? existing.maxPhysicalAdults ?? existing.maxAdults ?? 2;
             const physChildren = updateRoomTypeDto.maxPhysicalChildren ?? updateRoomTypeDto.maxChildren ?? existing.maxPhysicalChildren ?? existing.maxChildren ?? 0;
 
+            let resolvedGroupMax: number | null = null;
+            if (updateRoomTypeDto.groupMaxOccupancy !== undefined) {
+                resolvedGroupMax = updateRoomTypeDto.groupMaxOccupancy !== null ? Number(updateRoomTypeDto.groupMaxOccupancy) : null;
+            } else if (existing.groupMaxOccupancy !== null && existing.groupMaxOccupancy !== undefined) {
+                resolvedGroupMax = Number(existing.groupMaxOccupancy);
+            } else {
+                resolvedGroupMax = Number(physAdults) + Number(physChildren);
+            }
+
             const data: any = {
                 ...updateRoomTypeDto,
-                groupMaxOccupancy: Number(physAdults) + Number(physChildren),
+                groupMaxOccupancy: resolvedGroupMax,
                 cancellationPolicyText: updateRoomTypeDto.cancellationPolicy,
             };
 

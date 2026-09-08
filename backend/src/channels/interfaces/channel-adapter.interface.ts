@@ -64,8 +64,16 @@ export interface IChannelAdapter {
    */
   createRemoteRoomType?(
     externalPropertyId: string,
-    roomType: RoomType,
+    roomType: RoomType & { rooms?: any[]; property?: Partial<Property> },
   ): Promise<{ externalRoomTypeId: string; externalRatePlanId?: string }>;
+
+  /**
+   * Programmatically update an existing remote room type inside the channel manager via API
+   */
+  updateRemoteRoomType?(
+    externalRoomTypeId: string,
+    roomType: RoomType & { property?: Partial<Property> },
+  ): Promise<boolean>;
 
   /**
    * Push inventory availability to the external channel API (e.g. Channex, STAAH)

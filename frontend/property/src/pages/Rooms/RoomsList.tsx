@@ -80,7 +80,7 @@ export default function RoomsList() {
         if (!rawRooms) return [];
         if (!searchQuery) return rawRooms;
         return rawRooms.filter(r => 
-            (r.roomNumber || r.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (r.roomNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (r.roomType?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
         );
     }, [rawRooms, searchQuery]);

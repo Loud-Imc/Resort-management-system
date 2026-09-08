@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { otaService } from '../services/otaService';
-import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star, Baby, Sparkles } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star, Baby } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
-import { generateOccupancyCompositions } from '../utils/occupancy';
 
 const COMMON_HIGHLIGHTS = [
   'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
@@ -53,6 +52,7 @@ export default function OtaRoomTypes() {
   const [maxPhysicalInfants, setMaxPhysicalInfants] = useState('1');
   const [extraAdultPrice, setExtraAdultPrice] = useState('0');
   const [extraChildPrice, setExtraChildPrice] = useState('0');
+  const [freeChildrenCount, setFreeChildrenCount] = useState('0');
 
   // Policy & features
   const [cancellationPolicyId, setCancellationPolicyId] = useState('');
@@ -138,6 +138,7 @@ export default function OtaRoomTypes() {
       setMaxPhysicalAdults(rt.maxPhysicalAdults ? rt.maxPhysicalAdults.toString() : '4');
       setMaxPhysicalChildren(rt.maxPhysicalChildren ? rt.maxPhysicalChildren.toString() : '2');
       setMaxPhysicalInfants(rt.maxPhysicalInfants !== undefined && rt.maxPhysicalInfants !== null ? rt.maxPhysicalInfants.toString() : '1');
+      setFreeChildrenCount(rt.freeChildrenCount !== undefined && rt.freeChildrenCount !== null ? rt.freeChildrenCount.toString() : '0');
       setExtraAdultPrice(rt.extraAdultPrice ? rt.extraAdultPrice.toString() : '0');
       setExtraChildPrice(rt.extraChildPrice ? rt.extraChildPrice.toString() : '0');
       setIsPubliclyVisible(rt.isPubliclyVisible !== false);
@@ -161,6 +162,7 @@ export default function OtaRoomTypes() {
       setMaxPhysicalAdults('4');
       setMaxPhysicalChildren('2');
       setMaxPhysicalInfants('1');
+      setFreeChildrenCount('0');
       setExtraAdultPrice('0');
       setExtraChildPrice('0');
       setIsPubliclyVisible(true);
@@ -194,6 +196,7 @@ export default function OtaRoomTypes() {
       const resolvedMaxPhysAdults = parseInt(maxPhysicalAdults) || resolvedBaseAdults + 2;
       const resolvedMaxPhysChildren = parseInt(maxPhysicalChildren) || resolvedBaseChildren;
       const resolvedMaxPhysInfants = parseInt(maxPhysicalInfants) >= 0 ? parseInt(maxPhysicalInfants) : 1;
+      const resolvedFreeChildren = parseInt(freeChildrenCount) >= 0 ? parseInt(freeChildrenCount) : 0;
 
       const payload = {
         name,
@@ -204,18 +207,20 @@ export default function OtaRoomTypes() {
         size: parseFloat(size),
         baseAdults: resolvedBaseAdults,
         baseChildren: resolvedBaseChildren,
-        maxAdults: resolvedBaseAdults,
-        maxChildren: resolvedBaseChildren,
+        maxAdults: resolvedMaxPhysAdults,
+        maxChildren: resolvedMaxPhysChildren,
         maxPhysicalAdults: resolvedMaxPhysAdults,
         maxPhysicalChildren: resolvedMaxPhysChildren,
         maxPhysicalInfants: resolvedMaxPhysInfants,
-        freeChildrenCount: resolvedBaseChildren,
+        freeChildrenCount: resolvedFreeChildren,
         extraAdultPrice: parseFloat(extraAdultPrice) || 0,
         extraChildPrice: parseFloat(extraChildPrice) || 0,
         isPubliclyVisible,
         isAvailableForGroupBooking,
         allowPayAtProperty,
-        groupMaxOccupancy: (resolvedMaxPhysAdults || 0) + (resolvedMaxPhysChildren || 0),
+        groupMaxOccupancy: groupMaxOccupancy && parseInt(groupMaxOccupancy) > 0
+          ? parseInt(groupMaxOccupancy)
+          : (selectedRoomType?.groupMaxOccupancy ?? ((resolvedMaxPhysAdults || 0) + (resolvedMaxPhysChildren || 0))),
         cancellationPolicyId: cancellationPolicyId || null,
         amenities: selectedAmenities,
         highlights: selectedHighlights,
@@ -539,6 +544,7 @@ export default function OtaRoomTypes() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Extra Adult Charge (₹)</label>
                 <input
@@ -558,6 +564,17 @@ export default function OtaRoomTypes() {
                   className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
                   value={extraChildPrice}
                   onChange={(e) => setExtraChildPrice(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Free Children Count (₹0)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
+                  value={freeChildrenCount}
+                  onChange={(e) => setFreeChildrenCount(e.target.value)}
                 />
               </div>
             </div>

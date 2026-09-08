@@ -2,6 +2,11 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { format } from 'date-fns';
 import { DateUtils } from '../common/utils/date.utils';
+import {
+    validatePhysicalFeasibility,
+    calculateCanonicalSurcharges,
+    solveAccommodationOptions,
+} from '../common/utils/occupancy-solver.util';
 
 export interface PricingBreakdown {
     baseAmount: number;
@@ -114,8 +119,9 @@ export class PricingService {
         isOverrideInclusive: boolean = true,
         extraAdultsCount?: number,
         extraChildrenCount?: number,
+        infantsCount: number = 0,
     ): Promise<PricingBreakdown> {
-        console.log(`[PricingService] calculatePrice inputs - gen: ${generalCode} (${typeof generalCode}), coup: ${couponCode} (${typeof couponCode}), ref: ${referralCode} (${typeof referralCode})`);
+        console.log(`[PricingService] calculatePrice inputs - gen: ${generalCode} (${typeof generalCode}), coup: ${couponCode} (${typeof couponCode}), ref: ${referralCode} (${typeof referralCode}), infants: ${infantsCount}`);
         // Resolve generalCode if provided
         if (generalCode && !couponCode && !referralCode) {
             const trimmed = generalCode.trim().toUpperCase();
@@ -158,6 +164,25 @@ export class PricingService {
             throw new BadRequestException('Property information missing for this room type');
         }
 
+        // Property.occupancyVersion is the authoritative RUNTIME ACTIVATION switch.
+        // RoomType.occupancyVersion represents configuration/readiness state.
+        const isV2 = (roomType.property as any)?.occupancyVersion === 'V2';
+
+        if (isV2) {
+            // Under a V2 Property, all RoomTypes must be V2-ready with non-null canonical fields
+            if (
+                roomType.occupancyVersion !== 'V2' ||
+                roomType.totalBaseOccupancy === null || roomType.totalBaseOccupancy === undefined ||
+                roomType.totalMaxOccupancy === null || roomType.totalMaxOccupancy === undefined ||
+                roomType.maxPhysicalAdults === null || roomType.maxPhysicalAdults === undefined ||
+                roomType.maxPhysicalChildren === null || roomType.maxPhysicalChildren === undefined
+            ) {
+                throw new BadRequestException(
+                    `RoomType ${roomTypeId} (${roomType.name}) under V2 Property (${roomType.property.name}) is not V2-ready or is missing required canonical occupancy fields (totalBaseOccupancy, totalMaxOccupancy, maxPhysicalAdults, maxPhysicalChildren).`
+                );
+            }
+        }
+
         const baseCurrency = (roomType.property as any).baseCurrency || 'INR';
 
         // 2. Calculate number of nights
@@ -173,11 +198,6 @@ export class PricingService {
         if (numberOfNights < 0) {
             throw new BadRequestException('Check-out date cannot be before check-in date');
         }
-
-        // For standard bookings: guests beyond maxAdults/maxChildren are permitted
-        // but incur extra charges (calculated below). Group bookings use groupSize capacity.
-        // Removed the strict groupSize > maxGroupCap validation because it incorrectly limits multi-room group bookings 
-        // to a single room's capacity. Aggregate capacity is handled by AvailabilityService.
 
         // 3. Normalize prices if room type is GST inclusive
         let effectiveBasePrice = Number(roomType.basePrice);
@@ -220,9 +240,6 @@ export class PricingService {
         let finalRoomCount = Math.max(1, calculatedRoomCount);
 
         if (isGroupBooking && groupSize) {
-            // ... (group booking logic stays same, using property-level prices which we current assume are exclusive)
-            // If the user wants property-level group prices to be inclusive too, we'd need another flag.
-            // For now focusing on RoomType prices as requested.
             if (!roomType.isAvailableForGroupBooking) {
                 console.warn(`[PricingService] Group booking attempted on non-group roomType: ${roomTypeId}`);
                 throw new BadRequestException('This room type is not available for group booking pool');
@@ -242,9 +259,9 @@ export class PricingService {
                 }
             }
 
-            // 1. Target room count was already pre-calculated above for slab accuracy
+            // Target room count was already pre-calculated above for slab accuracy
 
-            // 2. Calculate the total inclusive price for the group per night
+            // Calculate the total inclusive price for the group per night
             let totalInclusivePerNight = 0;
             if (propertyGroupPriceAdult === null || propertyGroupPriceAdult === undefined) {
                 if (propertyGroupPricePerHead === null || propertyGroupPricePerHead === undefined) {
@@ -264,7 +281,7 @@ export class PricingService {
                 }
             }
 
-            // 3. Convert inclusive total to base total using accurate roomCount-based slab
+            // Convert inclusive total to base total using accurate roomCount-based slab
             if (isGroupInclusive) {
                 const normalized = await this.calculateReverseGST(totalInclusivePerNight, 1, finalRoomCount, groupSize);
                 basePricePerNight = Number((normalized.baseAmount / groupSize).toFixed(2));
@@ -287,20 +304,90 @@ export class PricingService {
             basePricePerNight = effectiveBasePrice * rooms;
             baseAmount = basePricePerNight * Math.max(1, numberOfNights);
 
-            // 4. Calculate extra adult charges
-            // Use explicit extraAdultsCount if provided, else fallback to total guest count minus base capacity
-            const effectiveBaseAdults = Number(roomType.baseAdults ?? roomType.maxAdults ?? 2) * rooms;
-            extraAdults = extraAdultsCount !== undefined && extraAdultsCount !== null
-                ? Math.max(0, Number(extraAdultsCount))
-                : Math.max(0, adultsCount - effectiveBaseAdults);
-            extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
+            if (isV2) {
+                // V2 Canonical Pricing Integration
+                if (extraAdultsCount !== undefined && extraAdultsCount !== null && extraChildrenCount !== undefined && extraChildrenCount !== null) {
+                    extraAdults = Math.max(0, Number(extraAdultsCount));
+                    extraChildren = Math.max(0, Number(extraChildrenCount));
+                } else if (rooms === 1) {
+                    // Single room physical validation & surcharge calculation
+                    const feasibility = validatePhysicalFeasibility(
+                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0 },
+                        {
+                            totalMaxOccupancy: roomType.totalMaxOccupancy,
+                            maxPhysicalAdults: roomType.maxPhysicalAdults,
+                            maxPhysicalChildren: roomType.maxPhysicalChildren,
+                            maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                        }
+                    );
+                    if (!feasibility.isValid) {
+                        throw new BadRequestException(`Occupancy exceeds physical capacity: ${feasibility.violations.join('; ')}`);
+                    }
 
-            // 5. Calculate extra child charges
-            const effectiveBaseChildren = Number(roomType.baseChildren ?? roomType.maxChildren ?? 1) * rooms;
-            extraChildren = extraChildrenCount !== undefined && extraChildrenCount !== null
-                ? Math.max(0, Number(extraChildrenCount))
-                : Math.max(0, childrenCount - effectiveBaseChildren);
-            extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
+                    const surcharges = calculateCanonicalSurcharges(
+                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0 },
+                        {
+                            totalBaseOccupancy: roomType.totalBaseOccupancy,
+                            totalMaxOccupancy: roomType.totalMaxOccupancy,
+                            maxPhysicalAdults: roomType.maxPhysicalAdults,
+                            maxPhysicalChildren: roomType.maxPhysicalChildren,
+                            maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                            baseMaxAdults: roomType.baseMaxAdults,
+                            baseMaxChildren: roomType.baseMaxChildren,
+                            freeChildrenCount: roomType.freeChildrenCount ?? 0,
+                            extraAdultPrice: effectiveExtraAdultPrice,
+                            extraChildPrice: effectiveExtraChildPrice,
+                        }
+                    );
+                    extraAdults = surcharges.extraAdultsCount;
+                    extraChildren = surcharges.extraChildrenCount;
+                } else {
+                    // Multi-room same type allocation via Canonical Solver
+                    const solutions = solveAccommodationOptions(
+                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0, requestedRooms: rooms },
+                        [{
+                            id: roomType.id,
+                            name: roomType.name,
+                            totalBaseOccupancy: roomType.totalBaseOccupancy,
+                            totalMaxOccupancy: roomType.totalMaxOccupancy,
+                            maxPhysicalAdults: roomType.maxPhysicalAdults,
+                            maxPhysicalChildren: roomType.maxPhysicalChildren,
+                            maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                            baseMaxAdults: roomType.baseMaxAdults,
+                            baseMaxChildren: roomType.baseMaxChildren,
+                            freeChildrenCount: roomType.freeChildrenCount ?? 0,
+                            basePrice: effectiveBasePrice,
+                            extraAdultPrice: effectiveExtraAdultPrice,
+                            extraChildPrice: effectiveExtraChildPrice,
+                            availableQuantity: rooms,
+                        }]
+                    );
+
+                    if (solutions.length === 0) {
+                        throw new BadRequestException(`Guest party (${adultsCount} adults, ${childrenCount} children, ${infantsCount || 0} infants) cannot be accommodated in ${rooms} room(s) of type ${roomType.name}`);
+                    }
+
+                    const chosenSol = solutions.find(s => s.totalRooms === rooms) || solutions[0];
+                    extraAdults = chosenSol.rooms.reduce((sum, r) => sum + r.extraAdults, 0);
+                    extraChildren = chosenSol.rooms.reduce((sum, r) => sum + r.extraChildren, 0);
+                }
+
+                extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
+                extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
+            } else {
+                // V1 Legacy Pricing Path (Unchanged)
+                const effectiveBaseAdults = Number(roomType.baseAdults ?? roomType.maxAdults ?? 2) * rooms;
+                extraAdults = extraAdultsCount !== undefined && extraAdultsCount !== null
+                    ? Math.max(0, Number(extraAdultsCount))
+                    : Math.max(0, adultsCount - effectiveBaseAdults);
+                extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
+
+                const effectiveBaseChildren = Number(roomType.baseChildren ?? roomType.maxChildren ?? 1) * rooms;
+                extraChildren = extraChildrenCount !== undefined && extraChildrenCount !== null
+                    ? Math.max(0, Number(extraChildrenCount))
+                    : Math.max(0, childrenCount - effectiveBaseChildren);
+                extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
+            }
         }
 
         // 6. Apply seasonal pricing rules if any

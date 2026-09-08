@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
+import OccupancyMigrationModal from '../../components/OccupancyMigrationModal';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -38,13 +39,13 @@ type FlagFilter =
 
 const FLAG_OPTIONS: { value: FlagFilter; label: string }[] = [
     { value: '',         label: 'All Statuses' },
-    { value: 'APPROVED', label: 'âœ… Approved' },
-    { value: 'PENDING',  label: 'ðŸ• Pending' },
-    { value: 'REJECTED', label: 'âŒ Rejected' },
-    { value: 'DISABLED', label: 'ðŸš« Disabled' },
-    { value: 'FEATURED', label: 'â­ Featured' },
-    { value: 'VERIFIED', label: 'ðŸ›¡ Verified' },
-    { value: 'UNIQUE',   label: 'âš¡ Unique (Sponsored)' },
+    { value: 'APPROVED', label: '✅ Approved' },
+    { value: 'PENDING',  label: '⏳ Pending' },
+    { value: 'REJECTED', label: '❌ Rejected' },
+    { value: 'DISABLED', label: '🚫 Disabled' },
+    { value: 'FEATURED', label: '⭐ Featured' },
+    { value: 'VERIFIED', label: '🛡️ Verified' },
+    { value: 'UNIQUE',   label: '⚡ Unique (Sponsored)' },
 ];
 
 /** Convert a FlagFilter into the right set of API query params */
@@ -86,6 +87,7 @@ export default function PropertiesList() {
     const [confirmEmailInput, setConfirmEmailInput] = useState('');
     const [newPasswordInput, setNewPasswordInput] = useState('');
     const [isSubmittingReset, setIsSubmittingReset] = useState(false);
+    const [occupancyModalProperty, setOccupancyModalProperty] = useState<Property | null>(null);
 
     const isManageable = user?.role === 'SuperAdmin' ||
         user?.role === 'Admin' ||
@@ -478,6 +480,15 @@ export default function PropertiesList() {
                                                 </button>
                                             )}
 
+                                            {/* Occupancy V2 Readiness & Migration */}
+                                            <button
+                                                onClick={() => setOccupancyModalProperty(property)}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 cursor-pointer"
+                                            >
+                                                <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                                Occupancy Readiness (V2)
+                                            </button>
+
                                             {/* Secondary Actions */}
                                             <div className="flex gap-2.5">
                                                 <button
@@ -650,6 +661,17 @@ export default function PropertiesList() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Occupancy V2 Readiness & Migration Modal */}
+            {occupancyModalProperty && (
+                <OccupancyMigrationModal
+                    propertyId={occupancyModalProperty.id}
+                    propertyName={occupancyModalProperty.name}
+                    isOpen={!!occupancyModalProperty}
+                    onClose={() => setOccupancyModalProperty(null)}
+                    onStatusChange={() => loadProperties(page)}
+                />
             )}
         </div>
     );

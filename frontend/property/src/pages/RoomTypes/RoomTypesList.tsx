@@ -10,13 +10,15 @@ import {
     Users,
     Image as ImageIcon,
     Building2,
-    BedDouble
+    BedDouble,
+    Sparkles
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProperty } from '../../context/PropertyContext';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import AddRoomModal from '../../components/Rooms/AddRoomModal';
+import OccupancyMigrationModal from '../../components/OccupancyMigrationModal';
 
 export default function RoomTypesList() {
     const { selectedProperty } = useProperty();
@@ -25,6 +27,7 @@ export default function RoomTypesList() {
     const [deletingType, setDeletingType] = useState<RoomType | null>(null);
     const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState(false);
     const [selectedRoomTypeIdForAdd, setSelectedRoomTypeIdForAdd] = useState<string | undefined>(undefined);
+    const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
     const { data: roomTypes, isLoading } = useQuery<RoomType[]>({
         queryKey: ['roomTypes', propertyId],
@@ -58,23 +61,36 @@ export default function RoomTypesList() {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Room Types</h1>
                     <p className="text-sm text-muted-foreground mt-1">Manage room categories, pricing, and amenities</p>
                 </div>
-                <Link
-                    to="/room-types/create"
-                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 font-bold shadow-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    Add Room Type
-                </Link>
+                <div className="flex items-center gap-3">
+                    {propertyId && (
+                        <button
+                            type="button"
+                            onClick={() => setIsMigrationModalOpen(true)}
+                            className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors flex items-center gap-2 font-bold shadow-sm text-xs cursor-pointer"
+                        >
+                            <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                            Occupancy Readiness (V2)
+                        </button>
+                    )}
+                    <Link
+                        to="/room-types/create"
+                        className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 font-bold shadow-sm text-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Add Room Type
+                    </Link>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {roomTypes?.map((type) => {
                     const roomCount = type.rooms?.length ?? type._count?.rooms ?? 0;
+                    const isV2Ready = type.occupancyVersion === 'V2' || (type.totalBaseOccupancy !== undefined && type.totalMaxOccupancy !== undefined);
 
                     return (
                         <div key={type.id} className="bg-card rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-full group hover:shadow-md transition-all">
@@ -103,6 +119,12 @@ export default function RoomTypesList() {
                                     </div>
                                 </div>
 
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${isV2Ready ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
+                                        {isV2Ready ? 'V2 Configured' : 'V1 Legacy'}
+                                    </span>
+                                </div>
+
                                 <p className="text-muted-foreground text-sm mb-3 line-clamp-2 font-medium">
                                     {type.description || 'No description provided.'}
                                 </p>
@@ -123,8 +145,11 @@ export default function RoomTypesList() {
 
                                 <div className="space-y-2 mb-4 text-xs font-bold text-muted-foreground">
                                     <div className="flex items-center gap-2">
-                                        <Users className="h-4 w-4" />
-                                        <span>Max {type.maxAdults} Adults, {type.maxChildren} Children</span>
+                                        <Users className="h-4 w-4 text-indigo-500" />
+                                        <span>Base: {type.totalBaseOccupancy || ((type.baseAdults || 2) + (type.baseChildren || 0))} | Max: {type.totalMaxOccupancy || ((type.maxPhysicalAdults || type.maxAdults || 2) + (type.maxPhysicalChildren || type.maxChildren || 0))} Guests</span>
+                                    </div>
+                                    <div className="text-[11px] font-medium text-slate-500 pl-6">
+                                        Phys: {type.maxPhysicalAdults || type.maxAdults || 2}A + {type.maxPhysicalChildren || type.maxChildren || 0}C (+{type.maxPhysicalInfants ?? 1} Inf)
                                     </div>
                                     {type.isAvailableForGroupBooking && (
                                         <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -234,6 +259,17 @@ export default function RoomTypesList() {
                     />
                 );
             })()}
+
+            {/* Occupancy V2 Migration Modal */}
+            {propertyId && (
+                <OccupancyMigrationModal
+                    propertyId={propertyId}
+                    propertyName={selectedProperty?.name || 'Property'}
+                    isOpen={isMigrationModalOpen}
+                    onClose={() => setIsMigrationModalOpen(false)}
+                    onStatusChange={() => queryClient.invalidateQueries({ queryKey: ['roomTypes'] })}
+                />
+            )}
         </div>
     );
 }

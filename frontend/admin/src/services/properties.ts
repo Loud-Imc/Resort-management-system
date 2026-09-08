@@ -112,7 +112,36 @@ export const propertyService = {
     async impersonate(propertyId: string): Promise<any> {
         const response = await api.post(`/properties/${propertyId}/impersonate`);
         return response.data;
+    },
+
+    // ============================================
+    // OCCUPANCY RENOVATION & V2 READINESS
+    // ============================================
+
+    // Audit property V2 occupancy readiness (Read-Only)
+    async getOccupancyReadiness(propertyId: string): Promise<any> {
+        const response = await api.get(`/properties/${propertyId}/occupancy-readiness`);
+        return response.data;
+    },
+
+    // Shadow validation comparing V1 vs V2 behavior (Read-Only)
+    async getOccupancyShadowValidation(propertyId: string): Promise<any> {
+        const response = await api.get(`/properties/${propertyId}/occupancy-shadow-validation`);
+        return response.data;
+    },
+
+    // Atomically activate Property to V2 Canonical Occupancy
+    async activateV2Occupancy(propertyId: string): Promise<any> {
+        const response = await api.patch(`/properties/${propertyId}/occupancy-version/activate`);
+        return response.data;
+    },
+
+    // Revert Property to V1 Legacy Occupancy
+    async deactivateV2Occupancy(propertyId: string): Promise<any> {
+        const response = await api.patch(`/properties/${propertyId}/occupancy-version/deactivate`);
+        return response.data;
     }
 };
 
 export default propertyService;
+

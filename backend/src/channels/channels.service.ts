@@ -229,7 +229,10 @@ export class ChannelsService {
         });
 
         if (!existingRoomMap) {
-          const remoteRoom = await adapter.createRemoteRoomType(externalPropertyId, roomType);
+          const remoteRoom = await adapter.createRemoteRoomType(externalPropertyId, {
+            ...roomType,
+            property,
+          });
           await this.prisma.channelRoomTypeMapping.create({
             data: {
               propertyMappingId: propertyMapping.id,
@@ -420,7 +423,10 @@ export class ChannelsService {
               where: { propertyMappingId_roomTypeId: { propertyMappingId: mapping.id, roomTypeId: roomType.id } },
             });
             if (!existingRmMap) {
-              const remoteRm = await adapter.createRemoteRoomType(mapping.externalPropertyId, roomType);
+              const remoteRm = await adapter.createRemoteRoomType(mapping.externalPropertyId, {
+                ...roomType,
+                property: fullProp,
+              });
               await this.prisma.channelRoomTypeMapping.create({
                 data: {
                   propertyMappingId: mapping.id,

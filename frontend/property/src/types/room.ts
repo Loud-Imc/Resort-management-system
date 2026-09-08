@@ -16,12 +16,21 @@ export interface RoomType {
     size?: number | null;
     basePrice: number;
     originalPrice?: number | null;
+    // Legacy V1 fields
     maxAdults: number;
     maxChildren: number;
     baseAdults?: number;
     baseChildren?: number;
-    maxPhysicalAdults?: number;
-    maxPhysicalChildren?: number;
+    // Canonical V2 fields
+    occupancyVersion?: 'V1' | 'V2' | string | null;
+    totalBaseOccupancy?: number | null;
+    totalMaxOccupancy?: number | null;
+    baseMaxAdults?: number | null;
+    baseMaxChildren?: number | null;
+    maxPhysicalAdults?: number | null;
+    maxPhysicalChildren?: number | null;
+    maxPhysicalInfants?: number | null;
+    freeChildrenCount: number;
     amenities: string[];
     highlights: string[];
     inclusions: string[];
@@ -34,7 +43,6 @@ export interface RoomType {
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
-    freeChildrenCount: number;
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive: boolean;
@@ -44,6 +52,7 @@ export interface RoomType {
         id: string;
         name: string;
         city: string;
+        occupancyVersion?: 'V1' | 'V2' | string | null;
     };
     rooms?: Room[];
     _count?: {
@@ -57,12 +66,21 @@ export interface CreateRoomTypeDto {
     size?: number | null;
     basePrice: number;
     originalPrice?: number | null;
+    // Legacy V1 fields
     maxAdults: number;
     maxChildren: number;
     baseAdults?: number;
     baseChildren?: number;
-    maxPhysicalAdults?: number;
-    maxPhysicalChildren?: number;
+    // Canonical V2 fields
+    occupancyVersion?: 'V1' | 'V2' | string | null;
+    totalBaseOccupancy?: number | null;
+    totalMaxOccupancy?: number | null;
+    baseMaxAdults?: number | null;
+    baseMaxChildren?: number | null;
+    maxPhysicalAdults?: number | null;
+    maxPhysicalChildren?: number | null;
+    maxPhysicalInfants?: number | null;
+    freeChildrenCount: number;
     amenities: string[];
     highlights: string[];
     inclusions: string[];
@@ -74,7 +92,6 @@ export interface CreateRoomTypeDto {
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
-    freeChildrenCount: number;
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive?: boolean;

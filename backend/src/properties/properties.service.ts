@@ -11,6 +11,11 @@ import { AuditService } from '../audit/audit.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { PricingService } from '../bookings/pricing.service';
 import { MailService } from '../mail/mail.service';
+import {
+    auditPropertyReadiness,
+    performShadowValidation,
+} from '../common/utils/occupancy-migration.util';
+import { validateAndMapChannexOccupancy } from '../channels/adapters/channex.adapter';
 
 import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 
@@ -1557,4 +1562,148 @@ export class PropertiesService {
             },
         });
     }
+
+    /**
+     * Read-only audit for property V2 occupancy readiness
+     */
+    async getOccupancyReadiness(propertyId: string) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            include: {
+                roomTypes: true,
+            },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        return auditPropertyReadiness(
+            property.id,
+            property.name,
+            (property as any).occupancyVersion || 'V1',
+            property.roomTypes as any
+        );
+    }
+
+    /**
+     * Read-only shadow validation simulating V1 vs V2 behavior across test guest parties
+     */
+    async getOccupancyShadowValidation(propertyId: string) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            include: {
+                roomTypes: true,
+            },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        const roomTypeShadows = property.roomTypes.map(rt => performShadowValidation(rt as any));
+        return {
+            propertyId: property.id,
+            propertyName: property.name,
+            propertyOccupancyVersion: (property as any).occupancyVersion || 'V1',
+            roomTypes: roomTypeShadows,
+        };
+    }
+
+    /**
+     * Atomically activates a Property to V2 Canonical Occupancy mode.
+     * 
+     * Requirements:
+     * 1. All RoomTypes must be V2-ready (auditPropertyReadiness eligible = true).
+     * 2. Canonical occupancy configuration passes validation.
+     * 3. Channex compatibility constraints satisfied (totalBaseOccupancy <= maxPhysicalAdults).
+     * 4. Atomic transaction updating Property and all its RoomTypes.
+     */
+    async activateV2Occupancy(propertyId: string, currentUser?: any) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            include: {
+                roomTypes: true,
+            },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        // 1. Audit Property Readiness
+        const auditResult = auditPropertyReadiness(
+            property.id,
+            property.name,
+            (property as any).occupancyVersion || 'V1',
+            property.roomTypes as any,
+        );
+
+        if (!auditResult.isEligibleForV2Activation) {
+            throw new BadRequestException({
+                message: `Property "${property.name}" cannot be activated to V2 occupancy. Not all RoomTypes are V2-ready.`,
+                blockingReasons: auditResult.blockingReasons,
+            });
+        }
+
+        // 2. Channex Compatibility Validation for all RoomTypes
+        for (const rt of property.roomTypes) {
+            try {
+                validateAndMapChannexOccupancy(rt, true);
+            } catch (err: any) {
+                throw new BadRequestException({
+                    message: `Property "${property.name}" cannot be activated to V2 occupancy due to Channex compatibility blocker on room type "${rt.name}": ${err.message}`,
+                    roomTypeId: rt.id,
+                    roomTypeName: rt.name,
+                });
+            }
+        }
+
+        // 3. Atomic activation in a Prisma transaction
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const prop = await tx.property.update({
+                where: { id: propertyId },
+                data: { occupancyVersion: 'V2' },
+            });
+            await tx.roomType.updateMany({
+                where: { propertyId: propertyId },
+                data: { occupancyVersion: 'V2' },
+            });
+            return prop;
+        });
+
+        this.logger.log(`[Occupancy Renovation] Property "${property.name}" (${property.id}) successfully activated to V2 canonical occupancy by user ${currentUser?.id || 'system'}`);
+
+        return {
+            success: true,
+            message: `Property "${property.name}" successfully activated to V2 canonical occupancy`,
+            propertyId: property.id,
+            occupancyVersion: updated.occupancyVersion,
+            activatedRoomTypesCount: property.roomTypes.length,
+        };
+    }
+
+    /**
+     * Reverts a Property to V1 Legacy Occupancy mode.
+     */
+    async deactivateV2Occupancy(propertyId: string, currentUser?: any) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        const updated = await this.prisma.property.update({
+            where: { id: propertyId },
+            data: { occupancyVersion: 'V1' },
+        });
+
+        this.logger.log(`[Occupancy Renovation] Property "${property.name}" (${property.id}) reverted to V1 legacy occupancy by user ${currentUser?.id || 'system'}`);
+
+        return {
+            success: true,
+            message: `Property "${property.name}" reverted to V1 legacy occupancy`,
+            propertyId: property.id,
+            occupancyVersion: updated.occupancyVersion,
+        };
+    }
 }
+
