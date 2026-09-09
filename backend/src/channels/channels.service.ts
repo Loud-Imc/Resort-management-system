@@ -752,88 +752,150 @@ export class ChannelsService {
       return { success: true, action: 'IGNORED_NON_BOOKING_EVENT' };
     }
 
-    // For Channex, we only process the core lightweight "booking" event.
-    // Other events like "booking_new", "booking_modified", "booking_cancelled" are redundant feed notifications and can be safely ignored.
-    if (channelName.toUpperCase() === 'CHANNEX' && eventName && eventName !== 'booking') {
-      this.logger.log(`[Webhook] Ignoring redundant booking event type: "${eventName}" for channel: ${channelName}`);
-      return { success: true, action: 'IGNORED_REDUNDANT_EVENT' };
-    }
-
-    // If this is a Channex lightweight booking event, fetch full details first from Channex API
-    if (channelName.toUpperCase() === 'CHANNEX' && payload.event === 'booking') {
+    // For Channex, process all booking lifecycle events (booking, booking_new, booking_modification, booking_cancellation, etc.)
+    if (channelName.toUpperCase() === 'CHANNEX') {
       const extPropId = payload.property_id || payload.payload?.property_id || '';
-      const bookingId = payload.payload?.booking_id || '';
-      const revisionId = payload.payload?.revision_id || '';
+      const bookingId = payload.payload?.booking_id || payload.booking_id || '';
+      const revisionId = payload.payload?.revision_id || payload.revision_id || '';
       
-      // If there are no booking identifiers, ignore
-      if (!bookingId && !revisionId) {
-        this.logger.log(`[Webhook] Acknowledged and ignored old data-less booking event (no booking_id/revision_id).`);
-        return { success: true, action: 'IGNORED_DATALESS_WEBHOOK' };
-      }
-
-      this.logger.log(`[Webhook] Fetching details for lightweight booking ${bookingId} (Revision: ${revisionId})...`);
-
       const mapping = await this.prisma.channelPropertyMapping.findFirst({
         where: {
-          externalPropertyId: extPropId,
+          ...(extPropId ? { externalPropertyId: extPropId } : {}),
           channelName: 'CHANNEX',
         },
       });
 
       if (!mapping || !mapping.apiKey) {
-        throw new NotFoundException(`No active Channex mapping or API key found for externalPropertyId: ${extPropId}`);
+        this.logger.warn(`[Webhook] No active Channex mapping or API key found for externalPropertyId: ${extPropId}`);
+        return { success: true, action: 'IGNORED_NO_MAPPING' };
       }
 
-      // Use booking_revisions endpoint if revisionId is present (required for Channex certification)
-      const fetchUrl = revisionId 
-        ? `${process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1'}/booking_revisions/${revisionId}`
-        : `${process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1'}/bookings/${bookingId}`;
+      const baseUrl = process.env.CHANNEX_BASE_URL || 'https://app.channex.io/api/v1';
 
-      const response = await fetch(fetchUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'user-api-key': mapping.apiKey,
-        },
-      });
+      // Case 1: If neither booking_id nor revision_id is in payload (lightweight event notification), pull unacknowledged revisions from /feed
+      if (!bookingId && !revisionId && !payload.data) {
+        this.logger.log(`[Webhook] Received lightweight Channex event "${eventName}" for property ${extPropId}. Polling /booking_revisions/feed...`);
+        
+        try {
+          const feedResponse = await fetch(`${baseUrl}/booking_revisions/feed`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'user-api-key': mapping.apiKey,
+            },
+          });
 
-      console.log('channex response : ', response);
+          if (!feedResponse.ok) {
+            this.logger.warn(`[Webhook] Failed to fetch feed from Channex: ${feedResponse.status} ${feedResponse.statusText}`);
+            return { success: true, action: 'FEED_FETCH_FAILED' };
+          }
 
-      if (response.status !== 200) {
-        throw new Error(`Failed to fetch booking details from Channex: ${response.status} ${response.statusText}`);
+          const feedJson = await feedResponse.json();
+          const revisions = feedJson.data || [];
+          this.logger.log(`[Webhook] Found ${revisions.length} unacknowledged revision(s) in Channex feed.`);
+
+          let processedCount = 0;
+          for (const rev of revisions) {
+            try {
+              const mappedPayload = {
+                id: rev.attributes?.booking_id || rev.relationships?.booking?.data?.id || rev.id,
+                booking_revision_id: rev.id,
+                property_id: rev.relationships?.property?.data?.id || extPropId,
+                status: rev.attributes?.status,
+                arrival_date: rev.attributes?.arrival_date,
+                departure_date: rev.attributes?.departure_date,
+                amount: rev.attributes?.amount,
+                currency: rev.attributes?.currency,
+                rooms: (rev.attributes?.rooms || []).map((r: any) => ({
+                  id: r.id,
+                  room_type_id: r.room_type_id,
+                  rate_plan_id: r.rate_plan_id,
+                  checkin_date: r.checkin_date || rev.attributes?.arrival_date,
+                  checkout_date: r.checkout_date || rev.attributes?.departure_date,
+                  amount: r.amount || 0,
+                  occupancy: r.occupancy || { adults: 2, children: 0 }
+                })),
+                customer: rev.attributes?.customer || {},
+                channel_name: rev.attributes?.channel_name || 'Booking.com',
+                notes: rev.attributes?.notes
+              };
+
+              await this.processSingleReservation(channelName, mappedPayload, headers);
+              processedCount++;
+            } catch (procErr: any) {
+              this.logger.error(`[Webhook] Error processing revision ${rev.id} from feed: ${procErr.message}`, procErr.stack);
+            }
+          }
+
+          return { success: true, action: 'PROCESSED_FEED', processedCount };
+        } catch (feedErr: any) {
+          this.logger.error(`[Webhook] Error polling Channex feed: ${feedErr.message}`, feedErr.stack);
+          return { success: true, action: 'FEED_ERROR' };
+        }
       }
 
-      const detailData = await response.json();
-      const bookingData = detailData?.data;
+      // Case 2: Specific booking_id or revision_id provided in lightweight webhook
+      if ((bookingId || revisionId) && !payload.data) {
+        this.logger.log(`[Webhook] Fetching details for lightweight booking ${bookingId} (Revision: ${revisionId})...`);
 
-      if (!bookingData) {
-        throw new NotFoundException(`Booking data not found in Channex response for ID: ${bookingId}`);
+        const fetchUrl = revisionId 
+          ? `${baseUrl}/booking_revisions/${revisionId}`
+          : `${baseUrl}/bookings/${bookingId}`;
+
+        const response = await fetch(fetchUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'user-api-key': mapping.apiKey,
+          },
+        });
+
+        if (response.status !== 200) {
+          throw new Error(`Failed to fetch booking details from Channex: ${response.status} ${response.statusText}`);
+        }
+
+        const detailData = await response.json();
+        const bookingData = detailData?.data;
+
+        if (!bookingData) {
+          throw new NotFoundException(`Booking data not found in Channex response for ID: ${bookingId || revisionId}`);
+        }
+
+        // Map to the format the adapter expects
+        payload = {
+          id: bookingData.attributes?.booking_id || bookingId || bookingData.id,
+          booking_revision_id: bookingData.id || revisionId,
+          property_id: bookingData.relationships?.property?.data?.id || extPropId,
+          status: bookingData.attributes.status,
+          arrival_date: bookingData.attributes.arrival_date,
+          departure_date: bookingData.attributes.departure_date,
+          amount: bookingData.attributes.amount,
+          currency: bookingData.attributes.currency,
+          rooms: (bookingData.attributes.rooms || []).map((r: any) => ({
+            id: r.id,
+            room_type_id: r.room_type_id,
+            rate_plan_id: r.rate_plan_id,
+            checkin_date: r.checkin_date || bookingData.attributes.arrival_date,
+            checkout_date: r.checkout_date || bookingData.attributes.departure_date,
+            amount: r.amount || 0,
+            occupancy: r.occupancy || { adults: 2, children: 0 }
+          })),
+          customer: bookingData.attributes.customer || {},
+          channel_name: bookingData.attributes.channel_name || 'Booking.com',
+          notes: bookingData.attributes.notes
+        };
+      } else if (payload.data) {
+        payload = payload.data;
       }
-
-      // Map to the format the adapter expects
-      payload = {
-        id: bookingData.attributes?.booking_id || bookingId || bookingData.id,
-        booking_revision_id: bookingData.id || revisionId,
-        property_id: bookingData.relationships?.property?.data?.id || extPropId,
-        status: bookingData.attributes.status,
-        arrival_date: bookingData.attributes.arrival_date,
-        departure_date: bookingData.attributes.departure_date,
-        amount: bookingData.attributes.amount,
-        currency: bookingData.attributes.currency,
-        rooms: (bookingData.attributes.rooms || []).map((r: any) => ({
-          id: r.id,
-          room_type_id: r.room_type_id,
-          rate_plan_id: r.rate_plan_id,
-          checkin_date: r.checkin_date || bookingData.attributes.arrival_date,
-          checkout_date: r.checkout_date || bookingData.attributes.departure_date,
-          amount: r.amount || 0,
-          occupancy: r.occupancy || { adults: 2, children: 0 }
-        })),
-        customer: bookingData.attributes.customer || {},
-        channel_name: bookingData.attributes.channel_name || 'Booking.com',
-        notes: bookingData.attributes.notes
-      };
     }
+
+    return this.processSingleReservation(channelName, payload, headers);
+  }
+
+  /**
+   * Process a parsed single reservation payload (create, modify, or cancel in PMS)
+   */
+  async processSingleReservation(channelName: string, payload: any, headers?: Record<string, any>) {
 
     const adapter = this.getAdapter(channelName);
     const res = await adapter.parseIncomingReservation(payload, headers);
