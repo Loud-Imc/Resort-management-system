@@ -5,7 +5,7 @@ import { ConnectivityOutboxService } from '../connectivity/services/connectivity
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 import { PreviewOccupancyDto } from './dto/preview-occupancy.dto';
-import { generateOccupancyCompositions } from '../common/utils/occupancy.util';
+import { generateOccupancyCompositions, OccupancyComposition } from '../common/utils/occupancy.util';
 
 @Injectable()
 export class RoomTypesService {
@@ -21,29 +21,67 @@ export class RoomTypesService {
      * Preview occupancy compositions for mobile apps and web clients.
      */
     public previewOccupancy(dto: PreviewOccupancyDto) {
-        const baseAdults = Math.max(1, Number(dto.baseAdults ?? 2));
-        const baseChildren = Math.max(0, Number(dto.baseChildren ?? 0));
-        const maxPhysicalAdults = Math.max(1, Number(dto.maxPhysicalAdults ?? baseAdults));
-        const maxPhysicalChildren = Math.max(0, Number(dto.maxPhysicalChildren ?? baseChildren));
-        const maxPhysicalInfants = Math.max(0, Number(dto.maxPhysicalInfants ?? 1));
+        const isPhysAdultsSet = dto.maxPhysicalAdults !== undefined && dto.maxPhysicalAdults !== null;
+        const isPhysChildrenSet = dto.maxPhysicalChildren !== undefined && dto.maxPhysicalChildren !== null;
+        const isTotalMaxSet = dto.totalMaxOccupancy !== undefined && dto.totalMaxOccupancy !== null;
+        const isTotalBaseSet = dto.totalBaseOccupancy !== undefined && dto.totalBaseOccupancy !== null;
 
-        const baseCompositions = generateOccupancyCompositions(
-            baseAdults,
-            baseChildren,
-            baseAdults + baseChildren
-        );
-        const maxPhysicalCompositions = generateOccupancyCompositions(
-            maxPhysicalAdults,
-            maxPhysicalChildren,
-            maxPhysicalAdults + maxPhysicalChildren
-        );
+        const totalMax = isTotalMaxSet
+            ? Math.max(1, Number(dto.totalMaxOccupancy))
+            : undefined;
+
+        const effectivePhysAdults = isPhysAdultsSet
+            ? Math.max(1, Number(dto.maxPhysicalAdults))
+            : (totalMax !== undefined ? totalMax : (dto.baseAdults !== undefined ? Math.max(1, Number(dto.baseAdults)) : undefined));
+
+        const effectivePhysChildren = isPhysChildrenSet
+            ? Math.max(0, Number(dto.maxPhysicalChildren))
+            : (totalMax !== undefined ? Math.max(0, totalMax - 1) : (dto.baseChildren !== undefined ? Math.max(0, Number(dto.baseChildren)) : undefined));
+
+        const maxPhysicalInfants = Math.max(0, Number(dto.maxPhysicalInfants ?? 0));
+
+        const totalBase = isTotalBaseSet
+            ? Math.max(1, Number(dto.totalBaseOccupancy))
+            : undefined;
+
+        let maxPhysicalCompositions: OccupancyComposition[] = [];
+        if (totalMax !== undefined && effectivePhysAdults !== undefined && effectivePhysChildren !== undefined) {
+            maxPhysicalCompositions = generateOccupancyCompositions(
+                effectivePhysAdults,
+                effectivePhysChildren,
+                totalMax
+            );
+        }
+
+        let baseCompositions: OccupancyComposition[] = [];
+        if (totalBase !== undefined) {
+            let baseEffectiveMaxAdults = effectivePhysAdults !== undefined ? effectivePhysAdults : totalBase;
+            let baseEffectiveMaxChildren = effectivePhysChildren !== undefined ? effectivePhysChildren : Math.max(0, totalBase - 1);
+
+            if (dto.baseMaxAdults !== undefined && dto.baseMaxAdults !== null) {
+                baseEffectiveMaxAdults = Math.min(baseEffectiveMaxAdults, Number(dto.baseMaxAdults));
+            }
+            if (dto.baseMaxChildren !== undefined && dto.baseMaxChildren !== null) {
+                baseEffectiveMaxChildren = Math.min(baseEffectiveMaxChildren, Number(dto.baseMaxChildren));
+            }
+
+            baseCompositions = generateOccupancyCompositions(
+                baseEffectiveMaxAdults,
+                baseEffectiveMaxChildren,
+                totalBase
+            );
+        }
 
         return {
-            baseAdults,
-            baseChildren,
-            maxPhysicalAdults,
-            maxPhysicalChildren,
+            baseAdults: dto.baseAdults,
+            baseChildren: dto.baseChildren,
+            maxPhysicalAdults: isPhysAdultsSet ? Number(dto.maxPhysicalAdults) : null,
+            maxPhysicalChildren: isPhysChildrenSet ? Number(dto.maxPhysicalChildren) : null,
             maxPhysicalInfants,
+            totalBaseOccupancy: totalBase,
+            totalMaxOccupancy: totalMax,
+            baseMaxAdults: dto.baseMaxAdults,
+            baseMaxChildren: dto.baseMaxChildren,
             baseCompositions,
             maxPhysicalCompositions,
         };
@@ -54,22 +92,57 @@ export class RoomTypesService {
      */
     public enrichRoomTypeWithOccupancy(roomType: any) {
         if (!roomType) return roomType;
-        const baseAdults = Math.max(1, Number(roomType.baseAdults ?? roomType.maxAdults ?? 2));
-        const baseChildren = Math.max(0, Number(roomType.baseChildren ?? roomType.maxChildren ?? 0));
-        const maxPhysicalAdults = Math.max(1, Number(roomType.maxPhysicalAdults ?? baseAdults));
-        const maxPhysicalChildren = Math.max(0, Number(roomType.maxPhysicalChildren ?? baseChildren));
+        const isTotalMaxSet = roomType.totalMaxOccupancy !== null && roomType.totalMaxOccupancy !== undefined;
+        const isTotalBaseSet = roomType.totalBaseOccupancy !== null && roomType.totalBaseOccupancy !== undefined;
+
+        const totalMax = isTotalMaxSet
+            ? Math.max(1, Number(roomType.totalMaxOccupancy))
+            : (roomType.maxPhysicalAdults !== null && roomType.maxPhysicalAdults !== undefined && roomType.maxPhysicalChildren !== null && roomType.maxPhysicalChildren !== undefined
+                ? Number(roomType.maxPhysicalAdults) + Number(roomType.maxPhysicalChildren)
+                : undefined);
+
+        const isPhysAdultsSet = roomType.maxPhysicalAdults !== null && roomType.maxPhysicalAdults !== undefined;
+        const isPhysChildrenSet = roomType.maxPhysicalChildren !== null && roomType.maxPhysicalChildren !== undefined;
+
+        const effectivePhysAdults = isPhysAdultsSet
+            ? Math.max(1, Number(roomType.maxPhysicalAdults))
+            : (totalMax !== undefined ? totalMax : Math.max(1, Number(roomType.maxAdults ?? 2)));
+
+        const effectivePhysChildren = isPhysChildrenSet
+            ? Math.max(0, Number(roomType.maxPhysicalChildren))
+            : (totalMax !== undefined ? Math.max(0, totalMax - 1) : Math.max(0, Number(roomType.maxChildren ?? 0)));
+
         const maxPhysicalInfants = Math.max(0, Number(roomType.maxPhysicalInfants ?? 1));
 
+        const totalBase = isTotalBaseSet
+            ? Math.max(1, Number(roomType.totalBaseOccupancy))
+            : (Math.max(1, Number(roomType.baseAdults ?? roomType.maxAdults ?? 2)) + Math.max(0, Number(roomType.baseChildren ?? roomType.maxChildren ?? 0)));
+
+        let baseEffectiveMaxAdults = effectivePhysAdults;
+        let baseEffectiveMaxChildren = effectivePhysChildren;
+
+        if (isTotalBaseSet) {
+            if (roomType.baseMaxAdults !== null && roomType.baseMaxAdults !== undefined) {
+                baseEffectiveMaxAdults = Math.min(effectivePhysAdults, Number(roomType.baseMaxAdults));
+            }
+            if (roomType.baseMaxChildren !== null && roomType.baseMaxChildren !== undefined) {
+                baseEffectiveMaxChildren = Math.min(effectivePhysChildren, Number(roomType.baseMaxChildren));
+            }
+        } else {
+            baseEffectiveMaxAdults = Math.max(1, Number(roomType.baseAdults ?? roomType.maxAdults ?? 2));
+            baseEffectiveMaxChildren = Math.max(0, Number(roomType.baseChildren ?? roomType.maxChildren ?? 0));
+        }
+
         const baseCompositions = generateOccupancyCompositions(
-            baseAdults,
-            baseChildren,
-            baseAdults + baseChildren
+            baseEffectiveMaxAdults,
+            baseEffectiveMaxChildren,
+            totalBase
         );
-        const maxPhysicalCompositions = generateOccupancyCompositions(
-            maxPhysicalAdults,
-            maxPhysicalChildren,
-            maxPhysicalAdults + maxPhysicalChildren
-        );
+        const maxPhysicalCompositions = totalMax !== undefined ? generateOccupancyCompositions(
+            effectivePhysAdults,
+            effectivePhysChildren,
+            totalMax
+        ) : [];
 
         return {
             ...roomType,
@@ -122,6 +195,112 @@ export class RoomTypesService {
         }
     }
 
+    private validateOccupancyHierarchy(data: {
+        maxPhysicalAdults?: number | null;
+        maxPhysicalChildren?: number | null;
+        maxPhysicalInfants?: number | null;
+        totalBaseOccupancy?: number | null;
+        totalMaxOccupancy?: number | null;
+        baseMaxAdults?: number | null;
+        baseMaxChildren?: number | null;
+    }, isCreate = false) {
+        const baseOcc = (data.totalBaseOccupancy !== undefined && data.totalBaseOccupancy !== null)
+            ? Number(data.totalBaseOccupancy)
+            : undefined;
+        const maxOcc = (data.totalMaxOccupancy !== undefined && data.totalMaxOccupancy !== null)
+            ? Number(data.totalMaxOccupancy)
+            : undefined;
+        const physAdults = (data.maxPhysicalAdults !== undefined && data.maxPhysicalAdults !== null)
+            ? Number(data.maxPhysicalAdults)
+            : undefined;
+        const physChildren = (data.maxPhysicalChildren !== undefined && data.maxPhysicalChildren !== null)
+            ? Number(data.maxPhysicalChildren)
+            : undefined;
+        const physInfants = (data.maxPhysicalInfants !== undefined && data.maxPhysicalInfants !== null)
+            ? Number(data.maxPhysicalInfants)
+            : undefined;
+
+        if (isCreate) {
+            if (baseOcc === undefined) {
+                throw new BadRequestException('Total Base Occupancy is required.');
+            }
+            if (baseOcc < 1) {
+                throw new BadRequestException('Total Base Occupancy must be at least 1.');
+            }
+            if (maxOcc === undefined) {
+                throw new BadRequestException('Total Max Occupancy is required.');
+            }
+            if (maxOcc < 1) {
+                throw new BadRequestException('Total Max Occupancy must be at least 1.');
+            }
+        } else {
+            if (baseOcc !== undefined && baseOcc < 1) {
+                throw new BadRequestException('Total Base Occupancy must be at least 1.');
+            }
+            if (maxOcc !== undefined && maxOcc < 1) {
+                throw new BadRequestException('Total Max Occupancy must be at least 1.');
+            }
+        }
+
+        if (baseOcc !== undefined && maxOcc !== undefined && maxOcc < baseOcc) {
+            throw new BadRequestException(`Total Max Occupancy cannot be less than Total Base Occupancy (${baseOcc}).`);
+        }
+
+        // Physical Adults validation (OPTIONAL)
+        if (physAdults !== undefined) {
+            if (physAdults < 1) {
+                throw new BadRequestException('Max Physical Adults must be at least 1.');
+            }
+            if (maxOcc !== undefined && physAdults > maxOcc) {
+                throw new BadRequestException(`Max Physical Adults cannot exceed Total Max Occupancy (${maxOcc}).`);
+            }
+        }
+
+        // Physical Children validation (OPTIONAL: 0 <= PC <= M - 1)
+        if (physChildren !== undefined) {
+            if (physChildren < 0) {
+                throw new BadRequestException('Max Physical Children cannot be negative.');
+            }
+            if (maxOcc !== undefined && physChildren > maxOcc - 1) {
+                throw new BadRequestException(`Max Physical Children cannot exceed Total Max Occupancy minus 1 (${maxOcc - 1}), because at least one adult is required.`);
+            }
+        }
+
+        // Physical Infants validation (OPTIONAL, independent of M)
+        if (physInfants !== undefined && physInfants < 0) {
+            throw new BadRequestException('Max Infants cannot be negative.');
+        }
+
+        // Base Max Adults / Base Max Children validation
+        if (baseOcc === undefined) {
+            if (data.baseMaxAdults !== undefined && data.baseMaxAdults !== null) {
+                throw new BadRequestException('Set Total Base Occupancy first.');
+            }
+            if (data.baseMaxChildren !== undefined && data.baseMaxChildren !== null) {
+                throw new BadRequestException('Set Total Base Occupancy first.');
+            }
+        } else {
+            if (data.baseMaxAdults !== undefined && data.baseMaxAdults !== null) {
+                const bma = Number(data.baseMaxAdults);
+                if (bma < 1) {
+                    throw new BadRequestException('Base Max Adults must be at least 1.');
+                }
+                if (bma > baseOcc) {
+                    throw new BadRequestException(`Base Max Adults cannot exceed Total Base Occupancy (${baseOcc}).`);
+                }
+            }
+            if (data.baseMaxChildren !== undefined && data.baseMaxChildren !== null) {
+                const bmc = Number(data.baseMaxChildren);
+                if (bmc < 0) {
+                    throw new BadRequestException('Base Max Children cannot be negative.');
+                }
+                if (bmc > baseOcc) {
+                    throw new BadRequestException(`Base Max Children cannot exceed Total Base Occupancy (${baseOcc}).`);
+                }
+            }
+        }
+    }
+
     async create(createRoomTypeDto: CreateRoomTypeDto, requestUser?: any) {
         if (requestUser) {
             const property = await this.prisma.property.findUnique({
@@ -139,18 +318,29 @@ export class RoomTypesService {
         }
 
         this.validatePricing(createRoomTypeDto.basePrice, createRoomTypeDto.originalPrice);
+        this.validateOccupancyHierarchy(createRoomTypeDto, true);
 
         try {
             const { cancellationPolicy, cancellationPolicyId, ...rest } = createRoomTypeDto;
 
-            const physAdults = rest.maxPhysicalAdults ?? rest.maxAdults ?? 2;
-            const physChildren = rest.maxPhysicalChildren ?? rest.maxChildren ?? 0;
+            const physAdults = (rest.maxPhysicalAdults !== undefined && rest.maxPhysicalAdults !== null)
+                ? Number(rest.maxPhysicalAdults)
+                : null;
+            const physChildren = (rest.maxPhysicalChildren !== undefined && rest.maxPhysicalChildren !== null)
+                ? Number(rest.maxPhysicalChildren)
+                : null;
+            const physInfants = (rest.maxPhysicalInfants !== undefined && rest.maxPhysicalInfants !== null)
+                ? Number(rest.maxPhysicalInfants)
+                : 0;
             const computedGroupMax = (createRoomTypeDto.groupMaxOccupancy !== undefined && createRoomTypeDto.groupMaxOccupancy !== null)
                 ? Number(createRoomTypeDto.groupMaxOccupancy)
-                : (Number(physAdults) + Number(physChildren));
+                : ((physAdults ?? rest.totalMaxOccupancy ?? 2) + (physChildren ?? 0));
 
             const data: any = {
                 ...rest,
+                maxPhysicalAdults: physAdults,
+                maxPhysicalChildren: physChildren,
+                maxPhysicalInfants: physInfants,
                 groupMaxOccupancy: computedGroupMax,
                 cancellationPolicyText: cancellationPolicy,
                 cancellationPolicyId: (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null,
@@ -265,8 +455,30 @@ export class RoomTypesService {
 
             this.validatePricing(basePrice, originalPrice);
 
-            const physAdults = updateRoomTypeDto.maxPhysicalAdults ?? updateRoomTypeDto.maxAdults ?? existing.maxPhysicalAdults ?? existing.maxAdults ?? 2;
-            const physChildren = updateRoomTypeDto.maxPhysicalChildren ?? updateRoomTypeDto.maxChildren ?? existing.maxPhysicalChildren ?? existing.maxChildren ?? 0;
+            const resolvedBaseOcc = updateRoomTypeDto.totalBaseOccupancy !== undefined ? updateRoomTypeDto.totalBaseOccupancy : existing.totalBaseOccupancy;
+            const resolvedMaxOcc = updateRoomTypeDto.totalMaxOccupancy !== undefined ? updateRoomTypeDto.totalMaxOccupancy : existing.totalMaxOccupancy;
+            const resolvedBMA = updateRoomTypeDto.baseMaxAdults !== undefined ? updateRoomTypeDto.baseMaxAdults : existing.baseMaxAdults;
+            const resolvedBMC = updateRoomTypeDto.baseMaxChildren !== undefined ? updateRoomTypeDto.baseMaxChildren : existing.baseMaxChildren;
+
+            const physAdults = updateRoomTypeDto.maxPhysicalAdults !== undefined
+                ? (updateRoomTypeDto.maxPhysicalAdults !== null ? Number(updateRoomTypeDto.maxPhysicalAdults) : null)
+                : existing.maxPhysicalAdults;
+            const physChildren = updateRoomTypeDto.maxPhysicalChildren !== undefined
+                ? (updateRoomTypeDto.maxPhysicalChildren !== null ? Number(updateRoomTypeDto.maxPhysicalChildren) : null)
+                : existing.maxPhysicalChildren;
+            const physInfants = updateRoomTypeDto.maxPhysicalInfants !== undefined
+                ? (updateRoomTypeDto.maxPhysicalInfants !== null ? Number(updateRoomTypeDto.maxPhysicalInfants) : null)
+                : existing.maxPhysicalInfants;
+
+            this.validateOccupancyHierarchy({
+                maxPhysicalAdults: physAdults,
+                maxPhysicalChildren: physChildren,
+                maxPhysicalInfants: physInfants,
+                totalBaseOccupancy: resolvedBaseOcc,
+                totalMaxOccupancy: resolvedMaxOcc,
+                baseMaxAdults: resolvedBMA,
+                baseMaxChildren: resolvedBMC,
+            }, false);
 
             let resolvedGroupMax: number | null = null;
             if (updateRoomTypeDto.groupMaxOccupancy !== undefined) {
@@ -274,7 +486,7 @@ export class RoomTypesService {
             } else if (existing.groupMaxOccupancy !== null && existing.groupMaxOccupancy !== undefined) {
                 resolvedGroupMax = Number(existing.groupMaxOccupancy);
             } else {
-                resolvedGroupMax = Number(physAdults) + Number(physChildren);
+                resolvedGroupMax = (Number(physAdults ?? resolvedMaxOcc ?? 2)) + (Number(physChildren ?? 0));
             }
 
             const data: any = {

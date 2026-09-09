@@ -37,13 +37,13 @@ export function generateOccupancyCompositions(
     const safeMaxAdults = Math.max(1, isNaN(maxAdults) ? 1 : maxAdults);
     const safeMaxChildren = Math.max(0, isNaN(maxChildren) ? 0 : maxChildren);
     const resolvedTotal = totalMaxCapacity !== undefined && !isNaN(totalMaxCapacity)
-        ? totalMaxCapacity
+        ? Math.max(1, totalMaxCapacity)
         : (safeMaxAdults + safeMaxChildren);
-    const safeTotalMax = Math.max(safeMaxAdults, resolvedTotal);
+    const safeTotalMax = resolvedTotal;
 
     const compositions: OccupancyComposition[] = [];
 
-    for (let a = 1; a <= safeMaxAdults; a++) {
+    for (let a = 1; a <= safeMaxAdults && a <= safeTotalMax; a++) {
         for (let c = 0; c <= safeMaxChildren; c++) {
             if (a + c <= safeTotalMax) {
                 const label = c === 0 ? `${a}A` : `${a}A + ${c}C`;

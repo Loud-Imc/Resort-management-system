@@ -51,31 +51,7 @@ export function validateAndMapChannexOccupancy(
   // V2 Property Validation & Mapping
   const rtName = roomType.name || roomType.id || 'RoomType';
 
-  // 1. maxPhysicalAdults exists and is valid (>= 1)
-  if (
-    roomType.maxPhysicalAdults === null ||
-    roomType.maxPhysicalAdults === undefined ||
-    Number(roomType.maxPhysicalAdults) < 1
-  ) {
-    throw new BadRequestException(
-      `Channex sync blocked for room type "${rtName}": maxPhysicalAdults is missing or less than 1 (${roomType.maxPhysicalAdults}).`,
-    );
-  }
-  const maxPhysicalAdults = Number(roomType.maxPhysicalAdults);
-
-  // 2. maxPhysicalChildren exists and is valid (>= 0)
-  if (
-    roomType.maxPhysicalChildren === null ||
-    roomType.maxPhysicalChildren === undefined ||
-    Number(roomType.maxPhysicalChildren) < 0
-  ) {
-    throw new BadRequestException(
-      `Channex sync blocked for room type "${rtName}": maxPhysicalChildren is missing or invalid (${roomType.maxPhysicalChildren}).`,
-    );
-  }
-  const maxPhysicalChildren = Number(roomType.maxPhysicalChildren);
-
-  // 3. totalBaseOccupancy exists and is valid for V2 (>= 1)
+  // 1. totalBaseOccupancy exists and is valid for V2 (>= 1)
   if (
     roomType.totalBaseOccupancy === null ||
     roomType.totalBaseOccupancy === undefined ||
@@ -87,7 +63,7 @@ export function validateAndMapChannexOccupancy(
   }
   const totalBaseOccupancy = Number(roomType.totalBaseOccupancy);
 
-  // 4. totalMaxOccupancy exists and is valid for V2 (>= totalBaseOccupancy)
+  // 2. totalMaxOccupancy exists and is valid for V2 (>= totalBaseOccupancy)
   if (
     roomType.totalMaxOccupancy === null ||
     roomType.totalMaxOccupancy === undefined ||
@@ -99,13 +75,46 @@ export function validateAndMapChannexOccupancy(
   }
   const totalMaxOccupancy = Number(roomType.totalMaxOccupancy);
 
-  if (totalMaxOccupancy > maxPhysicalAdults + maxPhysicalChildren) {
-    throw new BadRequestException(
-      `Channex sync blocked for room type "${rtName}": totalMaxOccupancy (${totalMaxOccupancy}) exceeds sum of physical limits (adults: ${maxPhysicalAdults} + children: ${maxPhysicalChildren} = ${maxPhysicalAdults + maxPhysicalChildren}).`,
-    );
+  // 3. Fallback derivation for occ_adults and occ_children:
+  // PA configured -> occ_adults = PA; null PA -> occ_adults = M
+  // PC configured -> occ_children = PC; null PC -> occ_children = max(0, M - 1)
+  let occ_adults: number;
+  if (roomType.maxPhysicalAdults !== null && roomType.maxPhysicalAdults !== undefined) {
+    const pa = Number(roomType.maxPhysicalAdults);
+    if (pa < 1) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalAdults cannot be less than 1 (${roomType.maxPhysicalAdults}).`,
+      );
+    }
+    if (pa > totalMaxOccupancy) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalAdults (${pa}) cannot exceed totalMaxOccupancy (${totalMaxOccupancy}).`,
+      );
+    }
+    occ_adults = pa;
+  } else {
+    occ_adults = totalMaxOccupancy;
   }
 
-  // 5. freeChildrenCount is valid (>= 0)
+  let occ_children: number;
+  if (roomType.maxPhysicalChildren !== null && roomType.maxPhysicalChildren !== undefined) {
+    const pc = Number(roomType.maxPhysicalChildren);
+    if (pc < 0) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalChildren cannot be negative (${roomType.maxPhysicalChildren}).`,
+      );
+    }
+    if (pc > totalMaxOccupancy - 1) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalChildren (${pc}) cannot exceed totalMaxOccupancy minus 1 (${totalMaxOccupancy - 1}).`,
+      );
+    }
+    occ_children = pc;
+  } else {
+    occ_children = Math.max(0, totalMaxOccupancy - 1);
+  }
+
+  // 4. freeChildrenCount is valid (>= 0)
   const freeChildrenCount =
     roomType.freeChildrenCount !== null && roomType.freeChildrenCount !== undefined
       ? Number(roomType.freeChildrenCount)
@@ -116,29 +125,27 @@ export function validateAndMapChannexOccupancy(
     );
   }
 
-  // 6. maxPhysicalInfants is valid (>= 0)
+  // 5. maxPhysicalInfants is valid (>= 0)
   const maxPhysicalInfants =
     roomType.maxPhysicalInfants !== null && roomType.maxPhysicalInfants !== undefined
       ? Number(roomType.maxPhysicalInfants)
-      : 1;
+      : 0;
   if (maxPhysicalInfants < 0) {
     throw new BadRequestException(
       `Channex sync blocked for room type "${rtName}": maxPhysicalInfants cannot be negative (${maxPhysicalInfants}).`,
     );
   }
 
-  // 7. Channex mapping constraints: default_occupancy cannot exceed occ_adults
+  // 6. Channex mapping constraints: default_occupancy cannot exceed occ_adults
   // In Channex, default_occupancy cannot exceed occ_adults.
-  // totalBaseOccupancy maps to default_occupancy, maxPhysicalAdults maps to occ_adults.
-  if (totalBaseOccupancy > maxPhysicalAdults) {
+  // totalBaseOccupancy maps to default_occupancy.
+  if (totalBaseOccupancy > occ_adults) {
     throw new BadRequestException(
-      `Channex sync blocked: totalBaseOccupancy (${totalBaseOccupancy}) exceeds maxPhysicalAdults (${maxPhysicalAdults}), but Channex default_occupancy cannot exceed occ_adults. Correct the V2 occupancy configuration before syncing.`,
+      `Channex sync blocked: totalBaseOccupancy (${totalBaseOccupancy}) exceeds occ_adults (${occ_adults}), but Channex default_occupancy cannot exceed occ_adults. Correct the V2 occupancy configuration before syncing.`,
     );
   }
 
-  // 8. Canonical RouteGuide values mapped directly without clamping or rewriting
-  const occ_adults = maxPhysicalAdults;
-  const occ_children = maxPhysicalChildren;
+  // 7. Canonical RouteGuide values mapped directly without clamping or rewriting
   const occ_infants = freeChildrenCount;
   const default_occupancy = totalBaseOccupancy;
 

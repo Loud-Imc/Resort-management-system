@@ -199,7 +199,7 @@ describe('Phase 7: Channex Canonical Occupancy Integration', () => {
 
       expect(() => validateAndMapChannexOccupancy(roomType, true)).toThrow(BadRequestException);
       expect(() => validateAndMapChannexOccupancy(roomType, true)).toThrow(
-        'Channex sync blocked: totalBaseOccupancy (4) exceeds maxPhysicalAdults (2), but Channex default_occupancy cannot exceed occ_adults. Correct the V2 occupancy configuration before syncing.',
+        'Channex sync blocked: totalBaseOccupancy (4) exceeds occ_adults (2), but Channex default_occupancy cannot exceed occ_adults. Correct the V2 occupancy configuration before syncing.',
       );
     });
   });
@@ -222,25 +222,99 @@ describe('Phase 7: Channex Canonical Occupancy Integration', () => {
     });
   });
 
-  describe('K. Missing/Incomplete V2 Occupancy -> Sync Blocked', () => {
-    it('should block sync if maxPhysicalAdults is missing', () => {
+  describe('K. Canonical Optional PA/PC Fallback Mapping (Non-Persisted)', () => {
+    it('Example A: M=5, PA=null, PC=null -> occ_adults=5, occ_children=4', () => {
       const roomType: any = {
-        name: 'Invalid Room',
+        name: 'Suite A',
         totalBaseOccupancy: 2,
-        totalMaxOccupancy: 4,
-        maxPhysicalChildren: 2,
+        totalMaxOccupancy: 5,
+        maxPhysicalAdults: null,
+        maxPhysicalChildren: null,
       };
 
-      expect(() => validateAndMapChannexOccupancy(roomType, true)).toThrow(
-        'Channex sync blocked for room type "Invalid Room": maxPhysicalAdults is missing or less than 1 (undefined).',
-      );
+      const result = validateAndMapChannexOccupancy(roomType, true);
+      expect(result.occ_adults).toBe(5);
+      expect(result.occ_children).toBe(4);
+      expect(result.default_occupancy).toBe(2);
+    });
+
+    it('Example B: M=5, PA=4, PC=null -> occ_adults=4, occ_children=4', () => {
+      const roomType: any = {
+        name: 'Suite B',
+        totalBaseOccupancy: 2,
+        totalMaxOccupancy: 5,
+        maxPhysicalAdults: 4,
+        maxPhysicalChildren: null,
+      };
+
+      const result = validateAndMapChannexOccupancy(roomType, true);
+      expect(result.occ_adults).toBe(4);
+      expect(result.occ_children).toBe(4);
+      expect(result.default_occupancy).toBe(2);
+    });
+
+    it('Example C: M=5, PA=null, PC=3 -> occ_adults=5, occ_children=3', () => {
+      const roomType: any = {
+        name: 'Suite C',
+        totalBaseOccupancy: 2,
+        totalMaxOccupancy: 5,
+        maxPhysicalAdults: null,
+        maxPhysicalChildren: 3,
+      };
+
+      const result = validateAndMapChannexOccupancy(roomType, true);
+      expect(result.occ_adults).toBe(5);
+      expect(result.occ_children).toBe(3);
+      expect(result.default_occupancy).toBe(2);
+    });
+
+    it('Example D: M=5, PA=4, PC=3 -> occ_adults=4, occ_children=3', () => {
+      const roomType: any = {
+        name: 'Suite D',
+        totalBaseOccupancy: 2,
+        totalMaxOccupancy: 5,
+        maxPhysicalAdults: 4,
+        maxPhysicalChildren: 3,
+      };
+
+      const result = validateAndMapChannexOccupancy(roomType, true);
+      expect(result.occ_adults).toBe(4);
+      expect(result.occ_children).toBe(3);
+      expect(result.default_occupancy).toBe(2);
+    });
+
+    it('Example E: M=1, PA=null, PC=null -> occ_adults=1, occ_children=0', () => {
+      const roomType: any = {
+        name: 'Single Pod',
+        totalBaseOccupancy: 1,
+        totalMaxOccupancy: 1,
+        maxPhysicalAdults: null,
+        maxPhysicalChildren: null,
+      };
+
+      const result = validateAndMapChannexOccupancy(roomType, true);
+      expect(result.occ_adults).toBe(1);
+      expect(result.occ_children).toBe(0);
+      expect(result.default_occupancy).toBe(1);
+    });
+
+    it('should allow PA+PC = 7 > M = 5 when PA=4, PC=3 (PA+PC sum is NOT compared)', () => {
+      const roomType: any = {
+        name: 'Independent Demographic Limits',
+        totalBaseOccupancy: 2,
+        totalMaxOccupancy: 5,
+        maxPhysicalAdults: 4,
+        maxPhysicalChildren: 3,
+      };
+
+      const result = validateAndMapChannexOccupancy(roomType, true);
+      expect(result.occ_adults).toBe(4);
+      expect(result.occ_children).toBe(3);
     });
 
     it('should block sync if totalBaseOccupancy is missing', () => {
       const roomType: any = {
         name: 'Invalid Room',
-        maxPhysicalAdults: 2,
-        maxPhysicalChildren: 2,
         totalMaxOccupancy: 4,
       };
 
@@ -254,26 +328,10 @@ describe('Phase 7: Channex Canonical Occupancy Integration', () => {
         name: 'Invalid Room',
         totalBaseOccupancy: 3,
         totalMaxOccupancy: 2,
-        maxPhysicalAdults: 3,
-        maxPhysicalChildren: 1,
       };
 
       expect(() => validateAndMapChannexOccupancy(roomType, true)).toThrow(
         'Channex sync blocked for room type "Invalid Room": totalMaxOccupancy (2) cannot be less than totalBaseOccupancy (3).',
-      );
-    });
-
-    it('should block sync if totalMaxOccupancy exceeds sum of physical limits', () => {
-      const roomType: any = {
-        name: 'Overcrowded Room',
-        totalBaseOccupancy: 2,
-        totalMaxOccupancy: 8,
-        maxPhysicalAdults: 3,
-        maxPhysicalChildren: 2,
-      };
-
-      expect(() => validateAndMapChannexOccupancy(roomType, true)).toThrow(
-        'Channex sync blocked for room type "Overcrowded Room": totalMaxOccupancy (8) exceeds sum of physical limits (adults: 3 + children: 2 = 5).',
       );
     });
   });

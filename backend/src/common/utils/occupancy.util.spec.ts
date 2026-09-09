@@ -72,6 +72,33 @@ describe('Occupancy Utility & Composition Generator', () => {
             expect(labels).toContain('2A + 2C'); // sum = 4 <= 4
             expect(labels).toContain('1A + 3C'); // sum = 4 <= 4
         });
+
+        it('should correctly generate only valid compositions for PA=5, PC=4, M=3 regression case', () => {
+            // For PA=5, PC=4, M=3:
+            // Valid combinations: 1A, 1A+1C, 1A+2C, 2A, 2A+1C, 3A
+            // Combinations must satisfy A >= 1, C >= 0, A <= 5, C <= 4, and A + C <= 3
+            const compositions = generateOccupancyCompositions(5, 4, 3);
+            const labels = compositions.map((c) => c.label);
+
+            expect(labels).toEqual([
+                '1A',
+                '1A + 1C',
+                '1A + 2C',
+                '2A',
+                '2A + 1C',
+                '3A',
+            ]);
+            expect(compositions.length).toBe(6);
+
+            // Verify no combination exceeds Total Max Occupancy (3)
+            for (const comp of compositions) {
+                expect(comp.adults + comp.children).toBeLessThanOrEqual(3);
+                expect(comp.adults).toBeGreaterThanOrEqual(1);
+                expect(comp.adults).toBeLessThanOrEqual(3);
+                expect(comp.children).toBeGreaterThanOrEqual(0);
+                expect(comp.children).toBeLessThanOrEqual(2);
+            }
+        });
     });
 
     describe('validateRoomOccupancy', () => {
