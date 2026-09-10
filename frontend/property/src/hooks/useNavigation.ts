@@ -17,7 +17,8 @@ import {
     Tag,
     Rocket,
     Plus,
-    PackageSearch
+    PackageSearch,
+    MessageSquare,
 } from 'lucide-react';
 
 export function useNavigation() {
@@ -47,6 +48,11 @@ export function useNavigation() {
                     label: 'Bookings',
                     path: '/bookings',
                     badge: unreadCount > 0 ? unreadCount : undefined
+                },
+                {
+                    icon: MessageSquare,
+                    label: 'OTA Messaging',
+                    path: '/ota-messages'
                 },
             ] : []),
 
