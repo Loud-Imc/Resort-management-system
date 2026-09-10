@@ -31,4 +31,24 @@ export const propertiesService = {
         const { data } = await api.get(`/properties/expand-url`, { params: { url } });
         return data;
     },
+
+    getOccupancyReadiness: async (propertyId: string): Promise<any> => {
+        const { data } = await api.get(`/properties/${propertyId}/occupancy-readiness`);
+        return data;
+    },
+
+    getOccupancyShadowValidation: async (propertyId: string): Promise<any> => {
+        const { data } = await api.get(`/properties/${propertyId}/occupancy-shadow-validation`);
+        return data;
+    },
+
+    activateV2Occupancy: async (propertyId: string): Promise<any> => {
+        const { data } = await api.patch(`/properties/${propertyId}/occupancy-version/activate`);
+        return data;
+    },
+
+    deactivateV2Occupancy: async (propertyId: string): Promise<any> => {
+        const { data } = await api.patch(`/properties/${propertyId}/occupancy-version/deactivate`);
+        return data;
+    },
 };

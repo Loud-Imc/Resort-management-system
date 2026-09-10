@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { otaService } from '../services/otaService';
-import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Info } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star, Baby, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -50,8 +50,10 @@ export default function OtaRoomTypes() {
   const [baseChildren, setBaseChildren] = useState('0');
   const [maxPhysicalAdults, setMaxPhysicalAdults] = useState('4');
   const [maxPhysicalChildren, setMaxPhysicalChildren] = useState('2');
+  const [maxPhysicalInfants, setMaxPhysicalInfants] = useState('1');
   const [extraAdultPrice, setExtraAdultPrice] = useState('0');
   const [extraChildPrice, setExtraChildPrice] = useState('0');
+  const [freeChildrenCount, setFreeChildrenCount] = useState('0');
 
   // Policy & features
   const [cancellationPolicyId, setCancellationPolicyId] = useState('');
@@ -71,6 +73,37 @@ export default function OtaRoomTypes() {
   // Photos lists
   const [images, setImages] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  const watchedBaseAdults = Math.max(1, parseInt(baseAdults) || 2);
+  const watchedBaseChildren = Math.max(0, parseInt(baseChildren) || 0);
+  const watchedMaxPhysAdults = Math.max(1, parseInt(maxPhysicalAdults) || watchedBaseAdults);
+  const watchedMaxPhysChildren = Math.max(0, parseInt(maxPhysicalChildren) || watchedBaseChildren);
+  const watchedMaxPhysInfants = parseInt(maxPhysicalInfants) >= 0 ? parseInt(maxPhysicalInfants) : 1;
+
+  const [baseCompositions, setBaseCompositions] = useState<Array<{ adults: number; children: number; label: string }>>([]);
+  const [maxPhysicalCompositions, setMaxPhysicalCompositions] = useState<Array<{ adults: number; children: number; label: string }>>([]);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const preview = await otaService.previewOccupancy({
+          baseAdults: watchedBaseAdults,
+          baseChildren: watchedBaseChildren,
+          maxPhysicalAdults: watchedMaxPhysAdults,
+          maxPhysicalChildren: watchedMaxPhysChildren,
+          maxPhysicalInfants: watchedMaxPhysInfants,
+        });
+        if (preview) {
+          setBaseCompositions(preview.baseCompositions || []);
+          setMaxPhysicalCompositions(preview.maxPhysicalCompositions || []);
+        }
+      } catch (err) {
+        // Silent fallback in case of transient error
+      }
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [watchedBaseAdults, watchedBaseChildren, watchedMaxPhysAdults, watchedMaxPhysChildren, watchedMaxPhysInfants]);
 
   useEffect(() => {
     fetchInitialData();
@@ -107,6 +140,8 @@ export default function OtaRoomTypes() {
       setBaseChildren(rt.baseChildren ? rt.baseChildren.toString() : '0');
       setMaxPhysicalAdults(rt.maxPhysicalAdults ? rt.maxPhysicalAdults.toString() : '4');
       setMaxPhysicalChildren(rt.maxPhysicalChildren ? rt.maxPhysicalChildren.toString() : '2');
+      setMaxPhysicalInfants(rt.maxPhysicalInfants !== undefined && rt.maxPhysicalInfants !== null ? rt.maxPhysicalInfants.toString() : '1');
+      setFreeChildrenCount(rt.freeChildrenCount !== undefined && rt.freeChildrenCount !== null ? rt.freeChildrenCount.toString() : '0');
       setExtraAdultPrice(rt.extraAdultPrice ? rt.extraAdultPrice.toString() : '0');
       setExtraChildPrice(rt.extraChildPrice ? rt.extraChildPrice.toString() : '0');
       setIsPubliclyVisible(rt.isPubliclyVisible !== false);
@@ -129,6 +164,8 @@ export default function OtaRoomTypes() {
       setBaseChildren('0');
       setMaxPhysicalAdults('4');
       setMaxPhysicalChildren('2');
+      setMaxPhysicalInfants('1');
+      setFreeChildrenCount('0');
       setExtraAdultPrice('0');
       setExtraChildPrice('0');
       setIsPubliclyVisible(true);
@@ -161,6 +198,8 @@ export default function OtaRoomTypes() {
       const resolvedBaseChildren = parseInt(baseChildren) || 0;
       const resolvedMaxPhysAdults = parseInt(maxPhysicalAdults) || resolvedBaseAdults + 2;
       const resolvedMaxPhysChildren = parseInt(maxPhysicalChildren) || resolvedBaseChildren;
+      const resolvedMaxPhysInfants = parseInt(maxPhysicalInfants) >= 0 ? parseInt(maxPhysicalInfants) : 1;
+      const resolvedFreeChildren = parseInt(freeChildrenCount) >= 0 ? parseInt(freeChildrenCount) : 0;
 
       const payload = {
         name,
@@ -171,17 +210,20 @@ export default function OtaRoomTypes() {
         size: parseFloat(size),
         baseAdults: resolvedBaseAdults,
         baseChildren: resolvedBaseChildren,
-        maxAdults: resolvedBaseAdults,
-        maxChildren: resolvedBaseChildren,
+        maxAdults: resolvedMaxPhysAdults,
+        maxChildren: resolvedMaxPhysChildren,
         maxPhysicalAdults: resolvedMaxPhysAdults,
         maxPhysicalChildren: resolvedMaxPhysChildren,
-        freeChildrenCount: resolvedBaseChildren,
+        maxPhysicalInfants: resolvedMaxPhysInfants,
+        freeChildrenCount: resolvedFreeChildren,
         extraAdultPrice: parseFloat(extraAdultPrice) || 0,
         extraChildPrice: parseFloat(extraChildPrice) || 0,
         isPubliclyVisible,
         isAvailableForGroupBooking,
         allowPayAtProperty,
-        groupMaxOccupancy: parseInt(groupMaxOccupancy) || 0,
+        groupMaxOccupancy: groupMaxOccupancy && parseInt(groupMaxOccupancy) > 0
+          ? parseInt(groupMaxOccupancy)
+          : (selectedRoomType?.groupMaxOccupancy ?? selectedRoomType?.totalMaxOccupancy ?? undefined),
         cancellationPolicyId: cancellationPolicyId || null,
         amenities: selectedAmenities,
         highlights: selectedHighlights,
@@ -244,8 +286,19 @@ export default function OtaRoomTypes() {
     }
   };
 
-  const handleDeleteImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
+  const handleDeleteImage = (idx: number) => {
+    setImages(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const setAsCoverImage = (idx: number) => {
+    if (idx === 0) return;
+    setImages(prev => {
+      const updated = [...prev];
+      const [selected] = updated.splice(idx, 1);
+      updated.unshift(selected);
+      return updated;
+    });
+    toast.success('Cover image updated');
   };
 
   const toggleArrayItem = (list: string[], setter: React.Dispatch<React.SetStateAction<string[]>>, item: string) => {
@@ -396,9 +449,9 @@ export default function OtaRoomTypes() {
               <h3 className="font-extrabold text-sm text-foreground">Occupancy Limits & Extras</h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5 p-4 bg-muted/20 border border-border rounded-xl">
-                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Base Included Occupancy</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3 p-4 bg-muted/20 border border-border rounded-xl">
+                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Base Included Occupancy</h4>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase text-muted-foreground">Base Adults</label>
@@ -421,11 +474,34 @@ export default function OtaRoomTypes() {
                     />
                   </div>
                 </div>
+
+                {/* Base Compositions Preview */}
+                <div className="pt-2.5 border-t border-border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Base Included Preview
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      {watchedBaseAdults}A + {watchedBaseChildren}C
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {baseCompositions.map((comp) => (
+                      <span
+                        key={`base-${comp.adults}-${comp.children}`}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                      >
+                        {comp.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1.5 p-4 bg-muted/20 border border-border rounded-xl">
-                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Maximum Room Capacity</h4>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-3 p-4 bg-muted/20 border border-border rounded-xl">
+                <h4 className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Maximum Physical Room Capacity</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase text-muted-foreground">Max Adults</label>
                     <input
@@ -446,9 +522,51 @@ export default function OtaRoomTypes() {
                       onChange={(e) => setMaxPhysicalChildren(e.target.value)}
                     />
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                      <Baby className="h-3 w-3 text-primary" />
+                      Max Infants (0-2y)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg outline-none text-foreground font-semibold text-xs"
+                      value={maxPhysicalInfants}
+                      onChange={(e) => setMaxPhysicalInfants(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Max Physical Compositions Preview */}
+                <div className="pt-2.5 border-t border-border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-primary flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      Max Physical Preview
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                      {watchedMaxPhysAdults}A + {watchedMaxPhysChildren}C
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {maxPhysicalCompositions.map((comp) => (
+                      <span
+                        key={`max-${comp.adults}-${comp.children}`}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20"
+                      >
+                        {comp.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="pt-1 border-t border-border flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Baby className="h-3 w-3 text-pink-500" />
+                    <span>+ Up to <strong className="text-foreground">{watchedMaxPhysInfants} Infant(s)</strong> (Free)</span>
+                  </div>
                 </div>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Extra Adult Charge (₹)</label>
                 <input
@@ -468,6 +586,17 @@ export default function OtaRoomTypes() {
                   className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
                   value={extraChildPrice}
                   onChange={(e) => setExtraChildPrice(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Free Children Count (₹0)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
+                  value={freeChildrenCount}
+                  onChange={(e) => setFreeChildrenCount(e.target.value)}
                 />
               </div>
             </div>
@@ -550,14 +679,19 @@ export default function OtaRoomTypes() {
 
               {isAvailableForGroupBooking && (
                 <div className="space-y-1.5 animate-in fade-in duration-200">
-                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Max Group Occupancy</label>
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
-                    value={groupMaxOccupancy}
-                    onChange={(e) => setGroupMaxOccupancy(e.target.value)}
-                  />
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Single Room Capacity (Auto-calculated)</label>
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-800 rounded-xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                      {selectedRoomType?.totalMaxOccupancy
+                        ? `${selectedRoomType.totalMaxOccupancy} Guests / Room`
+                        : `${(parseInt(maxPhysicalAdults) || 0) + (parseInt(maxPhysicalChildren) || 0)} Guests / Room`}
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      {selectedRoomType?.totalMaxOccupancy
+                        ? `(Total Max Occupancy: ${selectedRoomType.totalMaxOccupancy})`
+                        : `(${parseInt(maxPhysicalAdults) || 0} Adults + ${parseInt(maxPhysicalChildren) || 0} Children)`}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -738,6 +872,24 @@ export default function OtaRoomTypes() {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80';
                       }}
                     />
+                    {/* Cover badge */}
+                    {idx === 0 && (
+                      <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                        <Star className="h-2.5 w-2.5 fill-white" />
+                        Cover
+                      </div>
+                    )}
+                    {/* Set as cover button for non-first images */}
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setAsCoverImage(idx)}
+                        title="Set as main cover photo"
+                        className="absolute top-1.5 left-1.5 p-1 bg-amber-400 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer shadow-md"
+                      >
+                        <Star className="h-3 w-3" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleDeleteImage(idx)}

@@ -150,6 +150,19 @@ export class PropertiesController {
         return this.propertiesService.verifyCommissionOtp(phone, code);
     }
 
+    @Post('public/gst-lookup')
+    @ApiOperation({ summary: 'Lookup GST details and autofill address (Public)' })
+    gstLookup(@Body() body: any) {
+        const gstNumber = typeof body === 'string' ? body : (body?.gstNumber || body?.gstin || '');
+        return this.propertiesService.gstLookup(gstNumber);
+    }
+
+    @Get('public/gst-lookup')
+    @ApiOperation({ summary: 'Lookup GST details via GET (Public)' })
+    gstLookupGet(@Query('gstNumber') gstNumber: string) {
+        return this.propertiesService.gstLookup(gstNumber);
+    }
+
     @Get('homepage-featured')
     @ApiOperation({ summary: 'Get featured properties for homepage promo cards (single cascade)' })
     async getHomepageFeatured(
@@ -399,5 +412,44 @@ export class PropertiesController {
         return this.propertiesService.impersonate(req.user, id);
     }
 
+    // ============================================
+    // OCCUPANCY RENOVATION: READINESS & SHADOW VALIDATION
+    // ============================================
+
+    @Get(':id/occupancy-readiness')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.READ)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Audit property V2 occupancy readiness (Read-Only)' })
+    getOccupancyReadiness(@Param('id') id: string) {
+        return this.propertiesService.getOccupancyReadiness(id);
+    }
+
+    @Get(':id/occupancy-shadow-validation')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.READ)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Shadow validation of V1 vs V2 occupancy and pricing (Read-Only)' })
+    getOccupancyShadowValidation(@Param('id') id: string) {
+        return this.propertiesService.getOccupancyShadowValidation(id);
+    }
+
+    @Patch(':id/occupancy-version/activate')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Atomically activate Property to V2 Canonical Occupancy' })
+    activateV2Occupancy(@Param('id') id: string, @Request() req) {
+        return this.propertiesService.activateV2Occupancy(id, req?.user);
+    }
+
+    @Patch(':id/occupancy-version/deactivate')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.UPDATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Revert Property to V1 Legacy Occupancy' })
+    deactivateV2Occupancy(@Param('id') id: string, @Request() req) {
+        return this.propertiesService.deactivateV2Occupancy(id, req?.user);
+    }
 }
 

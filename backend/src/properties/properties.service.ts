@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto, UpdatePropertyDto, PropertyQueryDto } from './dto/property.dto';
 import { RegisterPropertyDto } from './dto/register-property.dto';
 import { Prisma, PropertyStatus, RequestStatus } from '@prisma/client';
+import axios from 'axios';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
 import { normalizePhone } from '../common/utils/phone';
@@ -10,6 +11,11 @@ import { AuditService } from '../audit/audit.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { PricingService } from '../bookings/pricing.service';
 import { MailService } from '../mail/mail.service';
+import {
+    auditPropertyReadiness,
+    performShadowValidation,
+} from '../common/utils/occupancy-migration.util';
+import { validateAndMapChannexOccupancy } from '../channels/adapters/channex.adapter';
 
 import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 
@@ -87,7 +93,82 @@ export class PropertiesService {
         // Delete OTP after verification
         await this.prisma.oneTimePassword.delete({ where: { id: otp.id } });
 
-        return { success: true, message: 'Commission verified successfully' };
+        return { success: true, message: 'Commission OTP verified' };
+    }
+
+    /**
+     * Public GSTIN Lookup & Address Autofill
+     */
+    async gstLookup(gstin: string) {
+        if (!gstin) throw new BadRequestException('GSTIN is required');
+        const cleanGst = gstin.trim().toUpperCase();
+        const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        if (!gstRegex.test(cleanGst)) {
+            throw new BadRequestException('Invalid GSTIN format. Expected 15-character alphanumeric GST number.');
+        }
+
+        const STATE_MAP: Record<string, string> = {
+            '01': 'Jammu and Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
+            '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan',
+            '09': 'Uttar Pradesh', '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh',
+            '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram', '16': 'Tripura',
+            '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal', '20': 'Jharkhand',
+            '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat',
+            '26': 'Dadra and Nagar Haveli and Daman and Diu', '27': 'Maharashtra', '29': 'Karnataka',
+            '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu',
+            '34': 'Puducherry', '35': 'Andaman and Nicobar Islands', '36': 'Telangana', '37': 'Andhra Pradesh',
+            '38': 'Ladakh'
+        };
+
+        const stateCode = cleanGst.substring(0, 2);
+        const derivedState = STATE_MAP[stateCode] || '';
+
+        // Try public GST lookup providers with timeout
+        try {
+            const resp = await axios.get(`https://api.gstincheck.co.in/check/${cleanGst}`, {
+                timeout: 5000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            if (resp.data && resp.data.data) {
+                const d = resp.data.data;
+                const addr = d.pradr?.addr || d.address || {};
+                const tradeName = d.tradeNam || d.lgnm || d.legalName || '';
+                const bno = addr.bno || '';
+                const bnm = addr.bnm || '';
+                const st = addr.st || '';
+                const loc = addr.loc || '';
+                const fullAddr = [bno, bnm, st, loc].filter(Boolean).join(', ');
+                const city = addr.dst || addr.city || loc || '';
+                const state = addr.stcd || derivedState;
+                const pincode = addr.pncd || addr.pincode || '';
+
+                return {
+                    success: true,
+                    gstNumber: cleanGst,
+                    tradeName: tradeName,
+                    legalName: d.lgnm || tradeName,
+                    address: fullAddr,
+                    city,
+                    state,
+                    pincode,
+                    status: d.sts || 'Active'
+                };
+            }
+        } catch (err: any) {
+            this.logger.warn(`Public GST API lookup failed for ${cleanGst}: ${err.message}. Using structured fallback.`);
+        }
+
+        return {
+            success: true,
+            gstNumber: cleanGst,
+            tradeName: '',
+            legalName: '',
+            address: '',
+            city: '',
+            state: derivedState,
+            pincode: '',
+            status: 'Valid Structure'
+        };
     }
 
     // Generate URL-friendly slug from name
@@ -1546,4 +1627,148 @@ export class PropertiesService {
             },
         });
     }
+
+    /**
+     * Read-only audit for property V2 occupancy readiness
+     */
+    async getOccupancyReadiness(propertyId: string) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            include: {
+                roomTypes: true,
+            },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        return auditPropertyReadiness(
+            property.id,
+            property.name,
+            (property as any).occupancyVersion || 'V1',
+            property.roomTypes as any
+        );
+    }
+
+    /**
+     * Read-only shadow validation simulating V1 vs V2 behavior across test guest parties
+     */
+    async getOccupancyShadowValidation(propertyId: string) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            include: {
+                roomTypes: true,
+            },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        const roomTypeShadows = property.roomTypes.map(rt => performShadowValidation(rt as any));
+        return {
+            propertyId: property.id,
+            propertyName: property.name,
+            propertyOccupancyVersion: (property as any).occupancyVersion || 'V1',
+            roomTypes: roomTypeShadows,
+        };
+    }
+
+    /**
+     * Atomically activates a Property to V2 Canonical Occupancy mode.
+     * 
+     * Requirements:
+     * 1. All RoomTypes must be V2-ready (auditPropertyReadiness eligible = true).
+     * 2. Canonical occupancy configuration passes validation.
+     * 3. Channex compatibility constraints satisfied (totalBaseOccupancy <= maxPhysicalAdults).
+     * 4. Atomic transaction updating Property and all its RoomTypes.
+     */
+    async activateV2Occupancy(propertyId: string, currentUser?: any) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+            include: {
+                roomTypes: true,
+            },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        // 1. Audit Property Readiness
+        const auditResult = auditPropertyReadiness(
+            property.id,
+            property.name,
+            (property as any).occupancyVersion || 'V1',
+            property.roomTypes as any,
+        );
+
+        if (!auditResult.isEligibleForV2Activation) {
+            throw new BadRequestException({
+                message: `Property "${property.name}" cannot be activated to V2 occupancy. Not all RoomTypes are V2-ready.`,
+                blockingReasons: auditResult.blockingReasons,
+            });
+        }
+
+        // 2. Channex Compatibility Validation for all RoomTypes
+        for (const rt of property.roomTypes) {
+            try {
+                validateAndMapChannexOccupancy(rt, true);
+            } catch (err: any) {
+                throw new BadRequestException({
+                    message: `Property "${property.name}" cannot be activated to V2 occupancy due to Channex compatibility blocker on room type "${rt.name}": ${err.message}`,
+                    roomTypeId: rt.id,
+                    roomTypeName: rt.name,
+                });
+            }
+        }
+
+        // 3. Atomic activation in a Prisma transaction
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const prop = await tx.property.update({
+                where: { id: propertyId },
+                data: { occupancyVersion: 'V2' },
+            });
+            await tx.roomType.updateMany({
+                where: { propertyId: propertyId },
+                data: { occupancyVersion: 'V2' },
+            });
+            return prop;
+        });
+
+        this.logger.log(`[Occupancy Renovation] Property "${property.name}" (${property.id}) successfully activated to V2 canonical occupancy by user ${currentUser?.id || 'system'}`);
+
+        return {
+            success: true,
+            message: `Property "${property.name}" successfully activated to V2 canonical occupancy`,
+            propertyId: property.id,
+            occupancyVersion: updated.occupancyVersion,
+            activatedRoomTypesCount: property.roomTypes.length,
+        };
+    }
+
+    /**
+     * Reverts a Property to V1 Legacy Occupancy mode.
+     */
+    async deactivateV2Occupancy(propertyId: string, currentUser?: any) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId },
+        });
+        if (!property) {
+            throw new NotFoundException(`Property ${propertyId} not found`);
+        }
+
+        const updated = await this.prisma.property.update({
+            where: { id: propertyId },
+            data: { occupancyVersion: 'V1' },
+        });
+
+        this.logger.log(`[Occupancy Renovation] Property "${property.name}" (${property.id}) reverted to V1 legacy occupancy by user ${currentUser?.id || 'system'}`);
+
+        return {
+            success: true,
+            message: `Property "${property.name}" reverted to V1 legacy occupancy`,
+            propertyId: property.id,
+            occupancyVersion: updated.occupancyVersion,
+        };
+    }
 }
+

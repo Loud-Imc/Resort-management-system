@@ -4,6 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RoomTypesService } from './room-types.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
+import { PreviewOccupancyDto } from './dto/preview-occupancy.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
@@ -12,6 +13,18 @@ import { PERMISSIONS } from '../auth/constants/permissions.constant';
 @Controller('room-types')
 export class RoomTypesController {
     constructor(private readonly roomTypesService: RoomTypesService) { }
+
+    @Get('preview-occupancy')
+    @ApiOperation({ summary: 'Calculate and preview occupancy compositions (GET)' })
+    previewOccupancyGet(@Query() query: PreviewOccupancyDto) {
+        return this.roomTypesService.previewOccupancy(query);
+    }
+
+    @Post('preview-occupancy')
+    @ApiOperation({ summary: 'Calculate and preview occupancy compositions (POST)' })
+    previewOccupancyPost(@Body() body: PreviewOccupancyDto) {
+        return this.roomTypesService.previewOccupancy(body);
+    }
 
     @Post()
     @UseGuards(AuthGuard('jwt'), PermissionsGuard)

@@ -15,6 +15,8 @@ interface SearchContextType {
     setAdults: (v: number) => void;
     children: number;
     setChildren: (v: number) => void;
+    infants: number;
+    setInfants: (v: number) => void;
     rooms: number;
     setRooms: (v: number) => void;
     isGroupBooking: boolean;
@@ -49,6 +51,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }, []);
     const [adults, setAdults] = useState(2);
     const [childrenCount, setChildrenCount] = useState(0);
+    const [infantsCount, setInfantsCount] = useState(0);
     const [rooms, setRooms] = useState(1);
     const [isGroupBooking, setIsGroupBooking] = useState(false);
     const [groupSize, setGroupSize] = useState(10);
@@ -63,6 +66,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const cout = searchParams.get('checkOut');
         const adl = searchParams.get('adults');
         const chi = searchParams.get('children');
+        const inf = searchParams.get('infants');
         const rms = searchParams.get('rooms');
         const isGrp = searchParams.get('isGroupBooking') === 'true';
         const grpSz = searchParams.get('groupSize');
@@ -82,6 +86,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         if (adl) setAdults(parseInt(adl) || 2);
         if (chi) setChildrenCount(parseInt(chi) || 0);
+        if (inf) setInfantsCount(parseInt(inf) || 0);
         if (rms) setRooms(parseInt(rms) || 1);
         setIsGroupBooking(isGrp);
         if (grpSz) setGroupSize(parseInt(grpSz) || 10);
@@ -97,6 +102,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCheckOut(null);
         setAdults(2);
         setChildrenCount(0);
+        setInfantsCount(0);
         setRooms(1);
         setIsGroupBooking(false);
         setGroupSize(10);
@@ -119,6 +125,8 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         adults, setAdults,
         children: childrenCount,
         setChildren: setChildrenCount,
+        infants: infantsCount,
+        setInfants: setInfantsCount,
         rooms, setRooms,
         isGroupBooking, setIsGroupBooking,
         groupSize, setGroupSize,

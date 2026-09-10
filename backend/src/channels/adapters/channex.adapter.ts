@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import {
   IChannelAdapter,
   InventoryUpdateDto,
@@ -6,6 +6,157 @@ import {
   NormalizedChannelReservationDto,
 } from '../interfaces/channel-adapter.interface';
 import { ChannelPropertyMapping, ChannelRoomTypeMapping, Property, RoomType } from '@prisma/client';
+
+export interface ChannexOccupancyPayload {
+  occ_adults: number;
+  occ_children: number;
+  occ_infants: number;
+  default_occupancy: number;
+  ratePlanOccupancy: number;
+}
+
+/**
+ * Validates and maps RouteGuide canonical occupancy fields to Channex payload.
+ * 
+ * Rules:
+ * 1. For V1 properties: preserves legacy behavior.
+ * 2. For V2 properties:
+ *    - maxPhysicalAdults -> occ_adults
+ *    - maxPhysicalChildren -> occ_children
+ *    - freeChildrenCount -> occ_infants
+ *    - totalBaseOccupancy -> default_occupancy
+ * 3. Channex Invariant: default_occupancy <= occ_adults.
+ *    If totalBaseOccupancy > maxPhysicalAdults:
+ *    DO NOT clamp or silently rewrite. Block sync and throw clear actionable error.
+ */
+export function validateAndMapChannexOccupancy(
+  roomType: Partial<RoomType>,
+  isV2Property: boolean,
+): ChannexOccupancyPayload {
+  if (!isV2Property) {
+    // V1 legacy behavior
+    const occ_adults = Math.max(1, roomType.maxAdults || 2);
+    const occ_children = Math.max(0, roomType.maxChildren || 2);
+    const occ_infants = Math.max(0, roomType.freeChildrenCount || 0);
+    const default_occupancy = Math.max(1, roomType.maxAdults || 2);
+    return {
+      occ_adults,
+      occ_children,
+      occ_infants,
+      default_occupancy,
+      ratePlanOccupancy: default_occupancy,
+    };
+  }
+
+  // V2 Property Validation & Mapping
+  const rtName = roomType.name || roomType.id || 'RoomType';
+
+  // 1. totalBaseOccupancy exists and is valid for V2 (>= 1)
+  if (
+    roomType.totalBaseOccupancy === null ||
+    roomType.totalBaseOccupancy === undefined ||
+    Number(roomType.totalBaseOccupancy) < 1
+  ) {
+    throw new BadRequestException(
+      `Channex sync blocked for room type "${rtName}": totalBaseOccupancy is missing or less than 1 (${roomType.totalBaseOccupancy}).`,
+    );
+  }
+  const totalBaseOccupancy = Number(roomType.totalBaseOccupancy);
+
+  // 2. totalMaxOccupancy exists and is valid for V2 (>= totalBaseOccupancy)
+  if (
+    roomType.totalMaxOccupancy === null ||
+    roomType.totalMaxOccupancy === undefined ||
+    Number(roomType.totalMaxOccupancy) < totalBaseOccupancy
+  ) {
+    throw new BadRequestException(
+      `Channex sync blocked for room type "${rtName}": totalMaxOccupancy (${roomType.totalMaxOccupancy}) cannot be less than totalBaseOccupancy (${totalBaseOccupancy}).`,
+    );
+  }
+  const totalMaxOccupancy = Number(roomType.totalMaxOccupancy);
+
+  // 3. Fallback derivation for occ_adults and occ_children:
+  // PA configured -> occ_adults = PA; null PA -> occ_adults = M
+  // PC configured -> occ_children = PC; null PC -> occ_children = max(0, M - 1)
+  let occ_adults: number;
+  if (roomType.maxPhysicalAdults !== null && roomType.maxPhysicalAdults !== undefined) {
+    const pa = Number(roomType.maxPhysicalAdults);
+    if (pa < 1) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalAdults cannot be less than 1 (${roomType.maxPhysicalAdults}).`,
+      );
+    }
+    if (pa > totalMaxOccupancy) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalAdults (${pa}) cannot exceed totalMaxOccupancy (${totalMaxOccupancy}).`,
+      );
+    }
+    occ_adults = pa;
+  } else {
+    occ_adults = totalMaxOccupancy;
+  }
+
+  let occ_children: number;
+  if (roomType.maxPhysicalChildren !== null && roomType.maxPhysicalChildren !== undefined) {
+    const pc = Number(roomType.maxPhysicalChildren);
+    if (pc < 0) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalChildren cannot be negative (${roomType.maxPhysicalChildren}).`,
+      );
+    }
+    if (pc > totalMaxOccupancy - 1) {
+      throw new BadRequestException(
+        `Channex sync blocked for room type "${rtName}": maxPhysicalChildren (${pc}) cannot exceed totalMaxOccupancy minus 1 (${totalMaxOccupancy - 1}).`,
+      );
+    }
+    occ_children = pc;
+  } else {
+    occ_children = Math.max(0, totalMaxOccupancy - 1);
+  }
+
+  // 4. freeChildrenCount is valid (>= 0)
+  const freeChildrenCount =
+    roomType.freeChildrenCount !== null && roomType.freeChildrenCount !== undefined
+      ? Number(roomType.freeChildrenCount)
+      : 0;
+  if (freeChildrenCount < 0) {
+    throw new BadRequestException(
+      `Channex sync blocked for room type "${rtName}": freeChildrenCount cannot be negative (${freeChildrenCount}).`,
+    );
+  }
+
+  // 5. maxPhysicalInfants is valid (>= 0)
+  const maxPhysicalInfants =
+    roomType.maxPhysicalInfants !== null && roomType.maxPhysicalInfants !== undefined
+      ? Number(roomType.maxPhysicalInfants)
+      : 0;
+  if (maxPhysicalInfants < 0) {
+    throw new BadRequestException(
+      `Channex sync blocked for room type "${rtName}": maxPhysicalInfants cannot be negative (${maxPhysicalInfants}).`,
+    );
+  }
+
+  // 6. Channex mapping constraints: default_occupancy cannot exceed occ_adults
+  // In Channex, default_occupancy cannot exceed occ_adults.
+  // totalBaseOccupancy maps to default_occupancy.
+  if (totalBaseOccupancy > occ_adults) {
+    throw new BadRequestException(
+      `Channex sync blocked: totalBaseOccupancy (${totalBaseOccupancy}) exceeds occ_adults (${occ_adults}), but Channex default_occupancy cannot exceed occ_adults. Correct the V2 occupancy configuration before syncing.`,
+    );
+  }
+
+  // 7. Canonical RouteGuide values mapped directly without clamping or rewriting
+  const occ_infants = freeChildrenCount;
+  const default_occupancy = totalBaseOccupancy;
+
+  return {
+    occ_adults,
+    occ_children,
+    occ_infants,
+    default_occupancy,
+    ratePlanOccupancy: default_occupancy,
+  };
+}
 
 @Injectable()
 export class ChannexAdapter implements IChannelAdapter {
@@ -117,25 +268,33 @@ export class ChannexAdapter implements IChannelAdapter {
     return { externalPropertyId };
   }
 
-  async createRemoteRoomType(externalPropertyId: string, roomType: RoomType & { rooms?: any[] }): Promise<{ externalRoomTypeId: string; externalRatePlanId?: string }> {
+  async createRemoteRoomType(
+    externalPropertyId: string,
+    roomType: RoomType & { rooms?: any[]; property?: Partial<Property> },
+  ): Promise<{ externalRoomTypeId: string; externalRatePlanId?: string }> {
     const userApiKey = process.env.CHANNEX_USER_API_KEY;
     if (!userApiKey) {
       throw new Error('CHANNEX_USER_API_KEY is missing in .env');
     }
+
+    const isV2Property = roomType.property?.occupancyVersion === 'V2';
+    const occupancy = validateAndMapChannexOccupancy(roomType, isV2Property);
 
     const payload = {
       room_type: {
         property_id: externalPropertyId,
         title: roomType.name,
         count_of_rooms: Math.max(1, roomType.rooms?.length || 5),
-        occ_adults: Math.max(1, roomType.maxAdults || 2),
-        occ_children: Math.max(0, roomType.maxChildren || 2),
-        occ_infants: Math.max(0, roomType.freeChildrenCount || 0),
-        default_occupancy: Math.max(1, roomType.maxAdults || 2),
+        occ_adults: occupancy.occ_adults,
+        occ_children: occupancy.occ_children,
+        occ_infants: occupancy.occ_infants,
+        default_occupancy: occupancy.default_occupancy,
       },
     };
 
-    this.logger.log(`[Channex] Auto-creating remote room type '${roomType.name}' under Channex Property ID ${externalPropertyId} [occ_infants: ${payload.room_type.occ_infants}]`);
+    this.logger.log(
+      `[Channex] Auto-creating remote room type '${roomType.name}' under Channex Property ID ${externalPropertyId} [isV2: ${isV2Property}, occ_adults: ${payload.room_type.occ_adults}, default_occupancy: ${payload.room_type.default_occupancy}, occ_infants: ${payload.room_type.occ_infants}]`,
+    );
     const response = await fetch(`${this.baseUrl}/room_types`, {
       method: 'POST',
       headers: {
@@ -166,11 +325,11 @@ export class ChannexAdapter implements IChannelAdapter {
           currency: 'INR',
           options: [
             {
-              occupancy: Math.max(1, roomType.maxAdults || 2),
+              occupancy: occupancy.ratePlanOccupancy,
               is_primary: true,
               rate: Number(roomType.basePrice || 2500),
-            }
-          ]
+            },
+          ],
         },
       };
       const rpRes = await fetch(`${this.baseUrl}/rate_plans`, {
@@ -194,6 +353,49 @@ export class ChannexAdapter implements IChannelAdapter {
     }
 
     return { externalRoomTypeId, externalRatePlanId };
+  }
+
+  async updateRemoteRoomType(
+    externalRoomTypeId: string,
+    roomType: RoomType & { property?: Partial<Property> },
+  ): Promise<boolean> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) {
+      throw new Error('CHANNEX_USER_API_KEY is missing in .env');
+    }
+
+    const isV2Property = roomType.property?.occupancyVersion === 'V2';
+    const occupancy = validateAndMapChannexOccupancy(roomType, isV2Property);
+
+    const payload = {
+      room_type: {
+        title: roomType.name,
+        occ_adults: occupancy.occ_adults,
+        occ_children: occupancy.occ_children,
+        occ_infants: occupancy.occ_infants,
+        default_occupancy: occupancy.default_occupancy,
+      },
+    };
+
+    this.logger.log(
+      `[Channex] Updating remote room type ID ${externalRoomTypeId} [isV2: ${isV2Property}, occ_adults: ${occupancy.occ_adults}, default_occupancy: ${occupancy.default_occupancy}]`,
+    );
+    const response = await this.fetchWithRetry(`${this.baseUrl}/room_types/${externalRoomTypeId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'user-api-key': userApiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      this.logger.error(`[Channex] Failed to update room type ${externalRoomTypeId}: ${response.status} ${errText}`);
+      throw new Error(`Channex RoomType Update Failed: ${errText}`);
+    }
+
+    return true;
   }
 
   /**
@@ -339,11 +541,32 @@ export class ChannexAdapter implements IChannelAdapter {
     const checkOutDate = firstRoom.checkout_date || booking.departure_date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
     const numberOfNights = Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86400000));
 
+    // Determine specific OTA Platform Name
+    let rawOta = String(
+      booking?.channel_name ||
+      booking?.source ||
+      booking?.ota_name ||
+      booking?.channel?.title ||
+      booking?.channel?.name ||
+      booking?.ota ||
+      ''
+    ).trim();
+
+    const otaLower = rawOta.toLowerCase();
+    let detectedOta = rawOta;
+    if (otaLower.includes('booking')) detectedOta = 'Booking.com';
+    else if (otaLower.includes('airbnb')) detectedOta = 'Airbnb';
+    else if (otaLower.includes('agoda')) detectedOta = 'Agoda';
+    else if (otaLower.includes('expedia')) detectedOta = 'Expedia';
+    else if (otaLower.includes('makemytrip') || otaLower.includes('mmt')) detectedOta = 'MakeMyTrip';
+    else if (otaLower.includes('goibibo')) detectedOta = 'Goibibo';
+    else if (!detectedOta || detectedOta.toLowerCase() === 'channex') detectedOta = 'Booking.com';
+
     return {
       externalBookingId: String(booking.id || payload.id || `ch-${Date.now()}`),
       externalRevisionId: String(booking.booking_revision_id || booking.revision_id || payload.booking_revision_id || payload.revision_id || ''),
-      channelName: 'CHANNEX',
-      sourceName: String(booking?.channel_name || booking?.source || booking?.ota_name || booking?.channel?.title || booking?.channel?.name || 'Channex OTA').trim(),
+      channelName: detectedOta,
+      sourceName: detectedOta,
       externalPropertyId: String(booking.property_id || payload.property_id || ''),
       externalRoomTypeId: String(firstRoom.room_type_id || firstRoom.id || ''),
       checkInDate: new Date(checkInDate),
@@ -575,5 +798,116 @@ export class ChannexAdapter implements IChannelAdapter {
 
     const resData = await response.json();
     return resData.data.token;
+  }
+
+  // --- OTA Messaging & Guest Request API Integrations ---
+
+  async getMessageThreads(externalPropertyId: string): Promise<any[]> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return [];
+
+    try {
+      this.logger.log(`[Channex] Fetching message threads for property ${externalPropertyId}`);
+      const response = await this.fetchWithRetry(
+        `${this.baseUrl}/message_threads?filter[property_id]=${externalPropertyId}`,
+        {
+          headers: {
+            'user-api-key': userApiKey,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        this.logger.warn(`[Channex] Failed to fetch message threads: ${response.status}`);
+        return [];
+      }
+
+      const res = await response.json();
+      return res.data || [];
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error fetching message threads: ${error.message}`);
+      return [];
+    }
+  }
+
+  async getMessageThread(threadId: string): Promise<any | null> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return null;
+
+    try {
+      const response = await this.fetchWithRetry(`${this.baseUrl}/message_threads/${threadId}`, {
+        headers: {
+          'user-api-key': userApiKey,
+        },
+      });
+
+      if (!response.ok) return null;
+      const res = await response.json();
+      return res.data || null;
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error fetching thread ${threadId}: ${error.message}`);
+      return null;
+    }
+  }
+
+  async getMessagesForThread(threadId: string): Promise<any[]> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return [];
+
+    try {
+      const response = await this.fetchWithRetry(
+        `${this.baseUrl}/messages?filter[message_thread_id]=${threadId}`,
+        {
+          headers: {
+            'user-api-key': userApiKey,
+          },
+        }
+      );
+
+      if (!response.ok) return [];
+      const res = await response.json();
+      return res.data || [];
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error fetching messages for thread ${threadId}: ${error.message}`);
+      return [];
+    }
+  }
+
+  async sendMessageToThread(threadId: string, message: string): Promise<any> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) {
+      throw new Error('CHANNEX_USER_API_KEY is not configured');
+    }
+
+    try {
+      this.logger.log(`[Channex] Sending message to thread ${threadId}`);
+      const payload = {
+        message: {
+          message_thread_id: threadId,
+          message: message,
+        },
+      };
+
+      const response = await this.fetchWithRetry(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'user-api-key': userApiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        this.logger.error(`[Channex] Failed to send message to thread ${threadId}: ${errText}`);
+        throw new Error(`Failed to send message: ${errText}`);
+      }
+
+      const res = await response.json();
+      return res.data;
+    } catch (error: any) {
+      this.logger.error(`[Channex] Error sending message to thread ${threadId}: ${error.message}`);
+      throw error;
+    }
   }
 }

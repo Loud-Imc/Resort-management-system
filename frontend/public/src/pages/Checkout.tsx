@@ -106,6 +106,7 @@ export default function Checkout() {
 
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
+    const infants = Number(searchParams.get('infants')) || 0;
     const roomsCount = Number(searchParams.get('roomsCount') || searchParams.get('rooms')) || undefined;
     const isGroupBooking = searchParams.get('isGroupBooking') === 'true';
     const groupSize = Number(searchParams.get('groupSize')) || 10;
@@ -127,13 +128,14 @@ export default function Checkout() {
 
     // Fetch NON-COUPON pricing (Permanent baseline)
     const { data: basePricing } = useQuery<any>({
-        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children, roomsCount, selectedCurrency],
+        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children, infants, roomsCount, selectedCurrency],
         queryFn: () => bookingService.calculatePrice({
             roomTypeId: roomId!,
             checkInDate: checkIn,
             checkOutDate: checkOut,
             adultsCount: adults,
             childrenCount: children,
+            infantsCount: infants,
             roomsCount,
             currency: selectedCurrency,
             isGroupBooking,
@@ -144,7 +146,7 @@ export default function Checkout() {
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
+        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
         queryFn: async () => {
             console.log('[Checkout] Fetching pricing with appliedCode:', appliedCode);
             const res = await bookingService.calculatePrice({
@@ -153,6 +155,7 @@ export default function Checkout() {
                 checkOutDate: checkOut,
                 adultsCount: Number(adults),
                 childrenCount: Number(children),
+                infantsCount: Number(infants),
                 roomsCount,
                 generalCode: appliedCode || undefined,
                 currency: selectedCurrency,
@@ -238,6 +241,7 @@ export default function Checkout() {
                 checkOutDate: checkOut,
                 adultsCount: adults,
                 childrenCount: children,
+                infantsCount: infants,
                 guestName: `${userData.firstName} ${userData.lastName}`,
                 guestEmail: userData.email,
                 guestPhone: userData.phone,
@@ -767,7 +771,7 @@ export default function Checkout() {
                                         {isGroupBooking ? `Property: ${selectedRoom.property?.name || 'Selected Property'}` : selectedRoom.description?.slice(0, 50) + '...'}
                                     </p>
                                     <p className="text-sm text-gray-500 font-medium mt-1">
-                                        {nights} {nights === 1 ? 'Night' : 'Nights'} • {roomsCount || effectivePricing?.roomCount || 1} {(roomsCount || effectivePricing?.roomCount || 1) === 1 ? 'Room' : 'Rooms'} • {adults + children} Guests {children > 0 ? `(${adults} Adults, ${children} Children)` : `(${adults} Adults)`}
+                                        {nights} {nights === 1 ? 'Night' : 'Nights'} • {roomsCount || effectivePricing?.roomCount || 1} {(roomsCount || effectivePricing?.roomCount || 1) === 1 ? 'Room' : 'Rooms'} • {adults + children} Guests {children > 0 ? `(${adults} Adults, ${children} Children${infants > 0 ? `, ${infants} Infants` : ''})` : infants > 0 ? `(${adults} Adults, ${infants} Infants)` : `(${adults} Adults)`}
                                     </p>
                                 </div>
 
@@ -805,6 +809,12 @@ export default function Checkout() {
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-600">Extra Child Charges</span>
                                             <span>{formatPrice(effectivePricing.extraChildAmount, selectedCurrency, rates)}</span>
+                                        </div>
+                                    )}
+                                    {infants > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Infants ({infants} in cot)</span>
+                                            <span className="text-emerald-600 font-semibold">Free (₹0)</span>
                                         </div>
                                     )}
                                     {effectivePricing?.offerDiscountAmount > 0 && (

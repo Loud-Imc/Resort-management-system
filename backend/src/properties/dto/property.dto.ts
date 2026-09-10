@@ -378,6 +378,9 @@ export class UpdatePropertyDto {
     @IsOptional()
     @IsString()
     gstNumber?: string;
+
+    @IsOptional()
+    documentDetails?: Record<string, { expiryDate?: string; label?: string }>;
 }
 
 export class PropertyQueryDto {

@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "restriction_rules" (
+CREATE TABLE IF NOT EXISTS "restriction_rules" (
     "id" TEXT NOT NULL,
     "propertyId" TEXT NOT NULL,
     "roomTypeId" TEXT,
@@ -12,16 +12,24 @@ CREATE TABLE "restriction_rules" (
     "closedToDeparture" BOOLEAN NOT NULL DEFAULT false,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "restriction_rules_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE INDEX "restriction_rules_propertyId_startDate_endDate_idx" ON "restriction_rules"("propertyId", "startDate", "endDate");
+CREATE INDEX IF NOT EXISTS "restriction_rules_propertyId_startDate_endDate_idx" ON "restriction_rules"("propertyId", "startDate", "endDate");
 
 -- AddForeignKey
-ALTER TABLE "restriction_rules" ADD CONSTRAINT "restriction_rules_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "properties"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'restriction_rules_propertyId_fkey') THEN
+        ALTER TABLE "restriction_rules" ADD CONSTRAINT "restriction_rules_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "properties"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "restriction_rules" ADD CONSTRAINT "restriction_rules_roomTypeId_fkey" FOREIGN KEY ("roomTypeId") REFERENCES "room_types"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'restriction_rules_roomTypeId_fkey') THEN
+        ALTER TABLE "restriction_rules" ADD CONSTRAINT "restriction_rules_roomTypeId_fkey" FOREIGN KEY ("roomTypeId") REFERENCES "room_types"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;

@@ -47,7 +47,7 @@ async function cleanProdDb() {
 
     // 3. Identify Bookings to delete implicitly tied to these properties
     const bookingsToDelete = await prisma.booking.findMany({
-        where: { room: { propertyId: { not: KEEP_PROPERTY_ID } } },
+        where: { propertyId: { not: KEEP_PROPERTY_ID } },
         select: { id: true }
     });
     const deleteBookingIds = bookingsToDelete.map(b => b.id);

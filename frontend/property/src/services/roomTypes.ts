@@ -30,4 +30,23 @@ export const roomTypesService = {
     delete: async (id: string) => {
         await api.delete(`/room-types/${id}`);
     },
+
+    previewOccupancy: async (params: {
+        baseAdults?: number;
+        baseChildren?: number;
+        maxPhysicalAdults?: number;
+        maxPhysicalChildren?: number;
+        maxPhysicalInfants?: number;
+    }) => {
+        const { data } = await api.post<{
+            baseAdults: number;
+            baseChildren: number;
+            maxPhysicalAdults: number;
+            maxPhysicalChildren: number;
+            maxPhysicalInfants: number;
+            baseCompositions: Array<{ adults: number; children: number; label: string }>;
+            maxPhysicalCompositions: Array<{ adults: number; children: number; label: string }>;
+        }>('/room-types/preview-occupancy', params);
+        return data;
+    },
 };

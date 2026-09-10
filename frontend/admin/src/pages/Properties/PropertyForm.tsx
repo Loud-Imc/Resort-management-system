@@ -1140,6 +1140,24 @@ export default function PropertyForm() {
                                     placeholder="e.g. 1234 5678 9012"
                                 />
                             </div>
+
+                            <div className="mt-4">
+                                <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                    GST Number (GSTIN)
+                                </label>
+                                <input
+                                    type="text"
+                                    name="gstNumber"
+                                    value={formData.gstNumber || ''}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-mono tracking-widest"
+                                    placeholder="e.g. 22AAAAA0000A1Z5"
+                                    maxLength={15}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    15-digit Goods and Services Tax Identification Number.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

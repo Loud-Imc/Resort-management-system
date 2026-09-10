@@ -42,6 +42,7 @@ export interface Property {
     isVerified: boolean;
     isFeatured: boolean;
     isPmsActive?: boolean;
+    occupancyVersion?: 'V1' | 'V2' | string;
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     ownerId: string;
     owner?: {

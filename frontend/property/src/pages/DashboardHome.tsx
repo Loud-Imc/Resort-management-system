@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService } from '../services/reports';
-import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays } from 'lucide-react';
+import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
 import clsx from 'clsx';
@@ -170,9 +170,50 @@ export default function DashboardHome() {
         );
     }
 
+    // Document expiry alerts
+    const docAlerts = (() => {
+        const details = (selectedProperty as any)?.documentDetails;
+        if (!details || typeof details !== 'object') return [];
+        const now = new Date();
+        const in30 = new Date();
+        in30.setDate(in30.getDate() + 30);
+        return Object.entries(details as Record<string, string>).map(([key, dateStr]) => {
+            if (!dateStr) return null;
+            const expiry = new Date(dateStr as string);
+            const label = key === 'licenceImage' ? 'Property Licence' : key.startsWith('document_') ? `Additional Document ${parseInt(key.replace('document_', '')) + 1}` : key;
+            if (expiry < now) return { label, dateStr: dateStr as string, type: 'expired' as const };
+            if (expiry <= in30) return { label, dateStr: dateStr as string, type: 'expiring' as const };
+            return null;
+        }).filter(Boolean) as { label: string; dateStr: string; type: 'expired' | 'expiring' }[];
+    })();
+
     return (
         <div className="space-y-6">
             <PropertyReadiness />
+
+            {/* Document Expiry Alerts */}
+            {docAlerts.length > 0 && (
+                <div className="space-y-2">
+                    {docAlerts.map((alert, i) => (
+                        <div
+                            key={i}
+                            className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-medium ${
+                                alert.type === 'expired'
+                                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
+                                    : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400'
+                            }`}
+                        >
+                            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                            <span>
+                                {alert.type === 'expired'
+                                    ? <><strong>{alert.label}</strong> has <strong>expired</strong> on {new Date(alert.dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}. Please update this document. </>
+                                    : <><strong>{alert.label}</strong> is expiring on <strong>{new Date(alert.dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>. Please renew it soon. </>
+                                }
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Header */}
             <div className="flex items-center justify-between">

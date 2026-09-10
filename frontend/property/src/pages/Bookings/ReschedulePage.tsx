@@ -354,7 +354,7 @@ export default function ReschedulePage() {
                     roomNumber: br.room?.roomNumber,
                     roomType: br.room?.roomType?.name || 'Standard',
                     capacity: br.room?.roomType
-                        ? (br.room.roomType.groupMaxOccupancy || (br.room.roomType.maxAdults + (br.room.roomType.maxChildren || 0)))
+                        ? (br.room.roomType.groupMaxOccupancy || (br.room.roomType as any).totalMaxOccupancy || (br.room.roomType.maxAdults + (br.room.roomType.maxChildren || 0)))
                         : 2,
                 });
             }

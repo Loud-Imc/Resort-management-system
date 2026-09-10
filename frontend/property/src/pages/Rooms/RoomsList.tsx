@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { roomsService } from '../../services/rooms';
-import type { Room } from '../../types/room';
+import { roomTypesService } from '../../services/roomTypes';
+import type { Room, RoomType } from '../../types/room';
 import { RoomStatus } from '../../types/room';
 import {
     Loader2,
@@ -18,9 +19,10 @@ import {
     Trash2,
     Calendar,
     CalendarDays,
-    Archive
+    Archive,
+    X
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { format, isAfter } from 'date-fns';
@@ -32,9 +34,13 @@ import ConfirmModal from '../../components/ConfirmModal';
 export default function RoomsList() {
     const { selectedProperty } = useProperty();
     const propertyId = selectedProperty?.id;
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlRoomTypeId = searchParams.get('roomTypeId') || '';
 
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [statusFilter, setStatusFilter] = useState<string>('');
+    const [roomTypeFilter, setRoomTypeFilter] = useState<string>(urlRoomTypeId);
+    const [searchQuery, setSearchQuery] = useState<string>('');
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [blockingRoom, setBlockingRoom] = useState<Room | null>(null);
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
@@ -47,16 +53,41 @@ export default function RoomsList() {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
-    const { data: rooms, isLoading, error } = useQuery<Room[]>({
-        queryKey: ['rooms', statusFilter, propertyId, format(selectedDate, 'yyyy-MM-dd'), showDisabled],
+    // Sync roomTypeFilter with URL search params
+    useEffect(() => {
+        setRoomTypeFilter(searchParams.get('roomTypeId') || '');
+    }, [searchParams]);
+
+    const { data: roomTypes } = useQuery<RoomType[]>({
+        queryKey: ['roomTypes', propertyId],
+        queryFn: () => roomTypesService.getAllAdmin({ propertyId }),
+        enabled: !!propertyId,
+    });
+
+    const { data: rawRooms, isLoading, error } = useQuery<Room[]>({
+        queryKey: ['rooms', statusFilter, roomTypeFilter, propertyId, format(selectedDate, 'yyyy-MM-dd'), showDisabled],
         queryFn: () => roomsService.getAll({
             status: statusFilter || undefined,
+            roomTypeId: roomTypeFilter || undefined,
             propertyId: propertyId || undefined,
             date: format(selectedDate, 'yyyy-MM-dd'),
             isEnabled: showDisabled ? undefined : true,
         }),
         enabled: !!propertyId,
     });
+
+    const rooms = useMemo(() => {
+        if (!rawRooms) return [];
+        if (!searchQuery) return rawRooms;
+        return rawRooms.filter(r => 
+            (r.roomNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (r.roomType?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [rawRooms, searchQuery]);
+
+    const selectedRoomTypeObject = useMemo(() => {
+        return roomTypes?.find(rt => rt.id === roomTypeFilter);
+    }, [roomTypes, roomTypeFilter]);
 
     const deleteMutation = useMutation({
         mutationFn: roomsService.delete,
@@ -174,8 +205,10 @@ export default function RoomsList() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <input
                             type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search by room number..."
-                            className="w-full pl-10 pr-4 py-2 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                            className="w-full pl-10 pr-4 py-2 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
                         />
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -188,31 +221,87 @@ export default function RoomsList() {
                                 className="bg-transparent text-sm text-foreground focus:outline-none focus:ring-0 border-none p-0 cursor-pointer"
                             />
                         </div>
-                        <Filter className="h-4 w-4 text-muted-foreground ml-2" />
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="bg-background text-foreground border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                        >
-                            <option value="">All Statuses</option>
-                            <option value="AVAILABLE">Available</option>
-                            <option value="OCCUPIED">Occupied</option>
-                            <option value="RESERVED">Reserved</option>
-                            <option value="OUT_TODAY">Out Today</option>
-                            <option value="MAINTENANCE">Maintenance</option>
-                            <option value="BLOCKED">Blocked</option>
-                        </select>
+
+                        {/* Room Type Filter Dropdown */}
+                        <div className="flex items-center gap-1.5">
+                            <BedDouble className="h-4 w-4 text-muted-foreground ml-1" />
+                            <select
+                                value={roomTypeFilter}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setRoomTypeFilter(val);
+                                    const nextParams = new URLSearchParams(searchParams);
+                                    if (val) {
+                                        nextParams.set('roomTypeId', val);
+                                    } else {
+                                        nextParams.delete('roomTypeId');
+                                    }
+                                    setSearchParams(nextParams);
+                                }}
+                                className="bg-background text-foreground border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all font-semibold cursor-pointer"
+                            >
+                                <option value="">All Room Types</option>
+                                {roomTypes?.map((type) => (
+                                    <option key={type.id} value={type.id}>
+                                        {type.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                            <Filter className="h-4 w-4 text-muted-foreground ml-1" />
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="bg-background text-foreground border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all font-semibold cursor-pointer"
+                            >
+                                <option value="">All Statuses</option>
+                                <option value="AVAILABLE">Available</option>
+                                <option value="OCCUPIED">Occupied</option>
+                                <option value="RESERVED">Reserved</option>
+                                <option value="OUT_TODAY">Out Today</option>
+                                <option value="MAINTENANCE">Maintenance</option>
+                                <option value="BLOCKED">Blocked</option>
+                            </select>
+                        </div>
+
                         <label className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold cursor-pointer ml-2">
                             <input
                                 type="checkbox"
                                 checked={showDisabled}
                                 onChange={(e) => setShowDisabled(e.target.checked)}
-                                className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                                className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
                             />
                             Show Disabled Rooms
                         </label>
                     </div>
                 </div>
+
+                {/* Active Filter Banner when filtering by Room Type */}
+                {selectedRoomTypeObject && (
+                    <div className="px-4 py-2.5 bg-blue-50/60 dark:bg-blue-950/20 border-b border-border flex items-center justify-between text-xs animate-in fade-in">
+                        <span className="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                            <BedDouble className="h-4 w-4" />
+                            Showing rooms for room type: <strong className="font-black underline">{selectedRoomTypeObject.name}</strong>
+                            <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full font-black text-[10px]">
+                                {rooms.length} {rooms.length === 1 ? 'room' : 'rooms'} found
+                            </span>
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setRoomTypeFilter('');
+                                const nextParams = new URLSearchParams(searchParams);
+                                nextParams.delete('roomTypeId');
+                                setSearchParams(nextParams);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 font-bold flex items-center gap-1 hover:underline cursor-pointer bg-blue-100/50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors"
+                        >
+                            <X className="h-3.5 w-3.5" /> Clear Filter
+                        </button>
+                    </div>
+                )}
 
                 {/* Grid View for Rooms */}
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

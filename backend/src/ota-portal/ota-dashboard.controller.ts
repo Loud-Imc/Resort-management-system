@@ -123,6 +123,7 @@ export class OtaDashboardController {
       propertyName: property.name,
       propertySlug: property.slug,
       isPmsActive: property.isPmsActive,
+      documentDetails: property.documentDetails,
       setupStatus: {
         hasCoordinates,
         hasRoomTypes,

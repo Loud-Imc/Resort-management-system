@@ -51,6 +51,21 @@ export const bookingsService = {
         return response.data;
     },
 
+    searchRooms: async (data: {
+        propertyId: string;
+        checkInDate: string;
+        checkOutDate: string;
+        adults: number;
+        children?: number;
+        rooms?: number;
+        includeSoldOut?: boolean;
+        isGroupBooking?: boolean;
+        groupSize?: number;
+    }) => {
+        const response = await api.post<{ availableRoomTypes: any[] }>('/bookings/search', data);
+        return response.data;
+    },
+
     calculatePrice: async (data: PriceCalculationDto) => {
         const response = await api.post<PriceCalculationResult>('/bookings/calculate-price', data);
         return response.data;

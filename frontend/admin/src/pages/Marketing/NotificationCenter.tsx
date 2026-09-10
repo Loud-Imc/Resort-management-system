@@ -14,7 +14,8 @@ import {
     BellRing,
     CheckCircle2,
     Search,
-    X
+    X,
+    AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -22,7 +23,7 @@ import clsx from 'clsx';
 export default function NotificationCenter() {
     const [title, setTitle] = useState('');
     const [message, setMessage] = useState('');
-    const [targetType, setTargetType] = useState<'ALL' | 'ROLE' | 'PROPERTY' | 'USER'>('ALL');
+    const [targetType, setTargetType] = useState<'ALL' | 'ROLE' | 'PROPERTY' | 'USER' | 'INCOMPLETE_READINESS'>('ALL');
     const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
     const [selectedPropertyId, setSelectedPropertyId] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -96,6 +97,8 @@ export default function NotificationCenter() {
         } else if (targetType === 'USER') {
             if (selectedUserIds.length === 0) return toast.error('Select at least one user');
             payload.targetUsers = selectedUserIds;
+        } else if (targetType === 'INCOMPLETE_READINESS') {
+            payload.targetIncompleteReadiness = true;
         }
 
         broadcastMutation.mutate(payload);
@@ -188,25 +191,28 @@ export default function NotificationCenter() {
                             </h2>
                         </div>
                         <div className="p-6 space-y-6">
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-3 gap-2">
                                 {[
                                     { id: 'ALL', label: 'Everyone', icon: Users },
                                     { id: 'ROLE', label: 'By Role', icon: Shield },
                                     { id: 'PROPERTY', label: 'Property', icon: Building2 },
                                     { id: 'USER', label: 'Individuals', icon: UserIcon },
+                                    { id: 'INCOMPLETE_READINESS', label: 'Incomplete Readiness', icon: AlertTriangle },
                                 ].map((type) => (
                                     <button
                                         key={type.id}
                                         onClick={() => setTargetType(type.id as any)}
                                         className={clsx(
                                             "flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5",
-                                            targetType === type.id 
-                                                ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                                            targetType === type.id
+                                                ? type.id === 'INCOMPLETE_READINESS'
+                                                    ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                                                    : "bg-primary text-primary-foreground border-primary shadow-sm"
                                                 : "bg-background border-border text-muted-foreground hover:bg-muted"
                                         )}
                                     >
                                         <type.icon className="h-5 w-5" />
-                                        <span className="text-xs font-semibold">{type.label}</span>
+                                        <span className="text-xs font-semibold text-center leading-tight">{type.label}</span>
                                     </button>
                                 ))}
                             </div>
@@ -219,6 +225,18 @@ export default function NotificationCenter() {
                                             Everyone on the platform
                                         </p>
                                         <p className="text-xs text-muted-foreground mt-1">This will be sent to all active users, property owners, and partners.</p>
+                                    </div>
+                                )}
+
+                                {targetType === 'INCOMPLETE_READINESS' && (
+                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl dark:bg-amber-900/10 dark:border-amber-800">
+                                        <p className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                                            <AlertTriangle className="h-4 w-4" />
+                                            Properties with Incomplete Readiness
+                                        </p>
+                                        <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                                            This notification will be sent to owners and staff of all properties that have not completed the Property Readiness Checklist (missing coordinates, images, room types, rooms, or cancellation policies).
+                                        </p>
                                     </div>
                                 )}
 

@@ -96,6 +96,46 @@ export class CreateRoomTypeDto {
     @Type(() => Number)
     maxPhysicalChildren?: number;
 
+    @ApiProperty({ example: 1, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    @Type(() => Number)
+    maxPhysicalInfants?: number;
+
+    @ApiProperty({ example: 'V1', enum: ['V1', 'V2'], required: false })
+    @IsString()
+    @IsOptional()
+    occupancyVersion?: string;
+
+    @ApiProperty({ example: 3, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(1)
+    @Type(() => Number)
+    totalBaseOccupancy?: number;
+
+    @ApiProperty({ example: 4, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(1)
+    @Type(() => Number)
+    totalMaxOccupancy?: number;
+
+    @ApiProperty({ example: 2, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(1)
+    @Type(() => Number)
+    baseMaxAdults?: number | null;
+
+    @ApiProperty({ example: 1, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    @Type(() => Number)
+    baseMaxChildren?: number | null;
+
     @ApiProperty({ example: true })
     @IsBoolean()
     isPubliclyVisible: boolean;

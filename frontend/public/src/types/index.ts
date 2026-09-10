@@ -87,6 +87,7 @@ export interface CreateBookingDto {
     checkOutDate: string;
     adultsCount: number;
     childrenCount: number;
+    infantsCount?: number;
     guestName: string;
     guestEmail: string;
     guestPhone: string;

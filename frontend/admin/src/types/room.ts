@@ -13,8 +13,21 @@ export interface RoomType {
     description?: string;
     size?: number | null;
     basePrice: number;
+    // Legacy V1 fields
     maxAdults: number;
     maxChildren: number;
+    baseAdults?: number;
+    baseChildren?: number;
+    // Canonical V2 fields
+    occupancyVersion?: 'V1' | 'V2' | string | null;
+    totalBaseOccupancy?: number | null;
+    totalMaxOccupancy?: number | null;
+    baseMaxAdults?: number | null;
+    baseMaxChildren?: number | null;
+    maxPhysicalAdults?: number | null;
+    maxPhysicalChildren?: number | null;
+    maxPhysicalInfants?: number | null;
+    freeChildrenCount: number;
     amenities: string[];
     highlights: string[];
     inclusions: string[];
@@ -25,12 +38,12 @@ export interface RoomType {
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
-    freeChildrenCount: number;
     propertyId: string;
     property?: {
         id: string;
         name: string;
         city: string;
+        occupancyVersion?: 'V1' | 'V2' | string | null;
     };
 }
 
@@ -39,8 +52,21 @@ export interface CreateRoomTypeDto {
     description?: string;
     size?: number | null;
     basePrice: number;
+    // Legacy V1 fields
     maxAdults: number;
     maxChildren: number;
+    baseAdults?: number;
+    baseChildren?: number;
+    // Canonical V2 fields
+    occupancyVersion?: 'V1' | 'V2' | string | null;
+    totalBaseOccupancy?: number | null;
+    totalMaxOccupancy?: number | null;
+    baseMaxAdults?: number | null;
+    baseMaxChildren?: number | null;
+    maxPhysicalAdults?: number | null;
+    maxPhysicalChildren?: number | null;
+    maxPhysicalInfants?: number | null;
+    freeChildrenCount: number;
     amenities: string[];
     highlights: string[];
     inclusions: string[];
@@ -51,7 +77,6 @@ export interface CreateRoomTypeDto {
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
-    freeChildrenCount: number;
     propertyId?: string;
 }
 

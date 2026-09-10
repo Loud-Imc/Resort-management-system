@@ -229,7 +229,10 @@ export class ChannelsService {
         });
 
         if (!existingRoomMap) {
-          const remoteRoom = await adapter.createRemoteRoomType(externalPropertyId, roomType);
+          const remoteRoom = await adapter.createRemoteRoomType(externalPropertyId, {
+            ...roomType,
+            property,
+          });
           await this.prisma.channelRoomTypeMapping.create({
             data: {
               propertyMappingId: propertyMapping.id,
@@ -420,7 +423,10 @@ export class ChannelsService {
               where: { propertyMappingId_roomTypeId: { propertyMappingId: mapping.id, roomTypeId: roomType.id } },
             });
             if (!existingRmMap) {
-              const remoteRm = await adapter.createRemoteRoomType(mapping.externalPropertyId, roomType);
+              const remoteRm = await adapter.createRemoteRoomType(mapping.externalPropertyId, {
+                ...roomType,
+                property: fullProp,
+              });
               await this.prisma.channelRoomTypeMapping.create({
                 data: {
                   propertyMappingId: mapping.id,
@@ -745,8 +751,18 @@ export class ChannelsService {
    * Handle incoming reservation webhook from an OTA / Channel Manager (e.g. Channex)
    */
   async handleIncomingReservation(channelName: string, payload: any, headers?: Record<string, any>) {
-    // Ignore non-booking webhook events (like ari_changes, channel_sync_error, new_message, etc.)
+    // Check for message webhook events
     const eventName = payload?.event || '';
+    if (
+      eventName === 'new_message' ||
+      eventName === 'message_thread_created' ||
+      eventName === 'message_created' ||
+      eventName.startsWith('message')
+    ) {
+      this.logger.log(`[Webhook] Received OTA message event "${eventName}" for channel: ${channelName}`);
+      return this.handleIncomingOtaMessageWebhook(payload);
+    }
+
     if (eventName && !eventName.startsWith('booking') && !eventName.startsWith('reservation')) {
       this.logger.log(`[Webhook] Ignoring non-booking event type: "${eventName}" for channel: ${channelName}`);
       return { success: true, action: 'IGNORED_NON_BOOKING_EVENT' };
@@ -1361,6 +1377,27 @@ export class ChannelsService {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
+    // Check for overlapping active restrictions
+    const overlapping = await this.prisma.stopSellRestriction.findMany({
+      where: {
+        propertyId,
+        roomTypeId: roomTypeId || null,
+        isActive: true,
+        startDate: { lte: end },
+        endDate: { gte: start },
+      },
+    });
+
+    if (overlapping.length > 0) {
+      const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const conflicts = overlapping
+        .map(r => `${fmt(new Date(r.startDate))} – ${fmt(new Date(r.endDate))}`)
+        .join(', ');
+      throw new BadRequestException(
+        `Stop sell already exists for the selected date range. Conflicting period(s): ${conflicts}`
+      );
+    }
+
     const restriction = await this.prisma.stopSellRestriction.create({
       data: {
         propertyId,
@@ -1394,5 +1431,355 @@ export class ChannelsService {
       include: { roomType: true },
       orderBy: { startDate: 'asc' },
     });
+  }
+
+  // =========================================================================
+  // --- OTA Messaging & Guest Request Processing (2-Way Live Sync) ---
+  // =========================================================================
+
+  async handleIncomingOtaMessageWebhook(payload: any) {
+    try {
+      const msgData = payload?.data || payload?.payload || payload;
+      const threadId = msgData?.message_thread_id || msgData?.thread_id || msgData?.id;
+      const propertyId = msgData?.property_id;
+
+      if (!threadId) {
+        this.logger.warn(`[OTA Message] Webhook received without threadId: ${JSON.stringify(payload)}`);
+        return { success: false, message: 'Missing threadId' };
+      }
+
+      let propertyMapping: any = null;
+      if (propertyId) {
+        propertyMapping = await this.prisma.channelPropertyMapping.findFirst({
+          where: { externalPropertyId: String(propertyId), channelName: 'CHANNEX' },
+        });
+      }
+
+      if (!propertyMapping) {
+        const anyMapping = await this.prisma.channelPropertyMapping.findFirst({
+          where: { channelName: 'CHANNEX', isActive: true },
+        });
+        propertyMapping = anyMapping;
+      }
+
+      if (propertyMapping) {
+        await this.syncThreadMessages(threadId, propertyMapping.propertyId);
+      }
+
+      return { success: true, action: 'OTA_MESSAGE_SYNCED' };
+    } catch (err: any) {
+      this.logger.error(`[OTA Message] Error handling message webhook: ${err.message}`, err.stack);
+      return { success: false, error: err.message };
+    }
+  }
+
+  async syncPropertyMessages(propertyId: string) {
+    const mapping = await this.prisma.channelPropertyMapping.findFirst({
+      where: { propertyId, channelName: 'CHANNEX', isActive: true },
+    });
+
+    if (!mapping) {
+      this.logger.debug(`[OTA Message] No active Channex mapping for property ${propertyId}`);
+      return [];
+    }
+
+    try {
+      const rawThreads = await this.channexAdapter.getMessageThreads(mapping.externalPropertyId);
+      this.logger.log(`[OTA Message] Fetched ${rawThreads.length} threads from Channex for property ${propertyId}`);
+
+      for (const t of rawThreads) {
+        await this.syncThreadMessages(t.id, propertyId, t);
+      }
+
+      return this.getPropertyMessageThreads(propertyId);
+    } catch (err: any) {
+      this.logger.error(`[OTA Message] Failed to sync messages for property ${propertyId}: ${err.message}`);
+      throw err;
+    }
+  }
+
+  async syncThreadMessages(externalThreadId: string, internalPropertyId: string, threadData?: any) {
+    try {
+      let t = threadData;
+      if (!t) {
+        t = await this.channexAdapter.getMessageThread(externalThreadId);
+      }
+      if (!t) return null;
+
+      const extBookingId = t.booking_id || t.reservation_id;
+      let matchingBooking: any = null;
+
+      if (extBookingId) {
+        matchingBooking = await this.prisma.booking.findFirst({
+          where: {
+            OR: [
+              { externalBookingId: String(extBookingId) },
+              { bookingNumber: String(extBookingId) },
+            ],
+          },
+          include: { user: true },
+        });
+      }
+
+      const otaChannelName = t.channel_name || t.ota_name || matchingBooking?.channelName || 'Booking.com';
+
+      const thread = await this.prisma.otaMessageThread.upsert({
+        where: { externalThreadId: String(t.id) },
+        update: {
+          bookingId: matchingBooking?.id || undefined,
+          guestName: t.guest_name || t.customer_name || matchingBooking?.user?.name || 'OTA Guest',
+          subject: t.subject || t.title || 'Guest Inquiry',
+          channel: otaChannelName,
+          status: t.status || 'OPEN',
+          lastMessageAt: t.last_message_at ? new Date(t.last_message_at) : new Date(),
+        },
+        create: {
+          propertyId: internalPropertyId,
+          bookingId: matchingBooking?.id || null,
+          externalThreadId: String(t.id),
+          externalBookingId: extBookingId ? String(extBookingId) : null,
+          guestName: t.guest_name || t.customer_name || matchingBooking?.user?.name || 'OTA Guest',
+          subject: t.subject || t.title || 'Guest Inquiry',
+          channel: otaChannelName,
+          status: t.status || 'OPEN',
+          lastMessageAt: t.last_message_at ? new Date(t.last_message_at) : new Date(),
+        },
+      });
+
+      const rawMessages = await this.channexAdapter.getMessagesForThread(externalThreadId);
+      for (const m of rawMessages) {
+        const isStaff = m.sender_type === 'property' || m.sender_type === 'pms' || m.sender === 'property';
+        const isSystem = m.sender_type === 'system' || m.is_system;
+
+        let senderType = 'GUEST';
+        if (isStaff) senderType = 'PROPERTY';
+        else if (isSystem) senderType = 'OTA_SYSTEM';
+
+        await this.prisma.otaMessage.upsert({
+          where: { externalMessageId: String(m.id) },
+          update: {
+            body: m.message || m.body || '',
+            sentAt: m.inserted_at ? new Date(m.inserted_at) : new Date(),
+            rawPayload: m,
+          },
+          create: {
+            threadId: thread.id,
+            externalMessageId: String(m.id),
+            senderType,
+            senderName: m.sender_name || (senderType === 'PROPERTY' ? 'Staff' : 'Guest'),
+            body: m.message || m.body || '',
+            sentAt: m.inserted_at ? new Date(m.inserted_at) : new Date(),
+            rawPayload: m,
+          },
+        });
+
+        await this.parseAndCreateGuestRequestIfNeeded(thread, m, matchingBooking);
+      }
+
+      return thread;
+    } catch (err: any) {
+      this.logger.error(`[OTA Message] Error syncing thread ${externalThreadId}: ${err.message}`);
+      return null;
+    }
+  }
+
+  private async parseAndCreateGuestRequestIfNeeded(thread: any, message: any, booking: any) {
+    const body = String(message.message || message.body || '').trim();
+    if (!body) return;
+
+    const lower = body.toLowerCase();
+    const isDateChange = lower.includes('request to change dates') || lower.includes('change date') || lower.includes('change the dates');
+    const isFeeWaiver = lower.includes('waive') || lower.includes('free cancellation') || lower.includes('cancellation fee');
+    const isEarlyCheckIn = lower.includes('early check-in') || lower.includes('early arrival');
+
+    if (!isDateChange && !isFeeWaiver && !isEarlyCheckIn) return;
+
+    const extReqId = `req-${message.id}`;
+    const existing = await this.prisma.otaGuestRequest.findUnique({
+      where: { externalRequestId: extReqId },
+    });
+    if (existing) return;
+
+    let reqType: any = 'OTHER';
+    let title = 'Guest Request';
+    const requestedDetails: any = { rawMessage: body };
+
+    if (isDateChange) {
+      reqType = 'DATE_CHANGE';
+      title = 'Request to Change Dates';
+
+      const dateRegex = /(\d{1,2}\s+[A-Za-z]+|\d{4}-\d{2}-\d{2})\s*(?:to|-|until|–)\s*(\d{1,2}\s+[A-Za-z]+|\d{4}-\d{2}-\d{2})/i;
+      const match = body.match(dateRegex);
+      if (match) {
+        requestedDetails.requestedCheckIn = match[1];
+        requestedDetails.requestedCheckOut = match[2];
+      }
+      if (booking) {
+        requestedDetails.originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
+        requestedDetails.originalCheckOut = format(new Date(booking.checkOutDate), 'yyyy-MM-dd');
+      }
+    } else if (isFeeWaiver) {
+      reqType = 'CANCELLATION_FEE_WAIVER';
+      title = 'Cancellation Fee Waiver Request';
+    } else if (isEarlyCheckIn) {
+      reqType = 'EARLY_CHECKIN';
+      title = 'Early Check-in Request';
+    }
+
+    await this.prisma.otaGuestRequest.create({
+      data: {
+        propertyId: thread.propertyId,
+        bookingId: thread.bookingId || null,
+        threadId: thread.id,
+        externalRequestId: extReqId,
+        requestType: reqType,
+        status: 'PENDING',
+        title,
+        description: body,
+        requestedDetails,
+        expiresAt: addDays(new Date(), 2),
+      },
+    });
+
+    this.logger.log(`[OTA Guest Request] Created structured request: "${title}" for thread ${thread.id}`);
+  }
+
+  async getPropertyMessageThreads(propertyId: string) {
+    return this.prisma.otaMessageThread.findMany({
+      where: { propertyId },
+      include: {
+        booking: {
+          include: {
+            roomType: true,
+            room: true,
+          },
+        },
+        messages: {
+          orderBy: { sentAt: 'asc' },
+        },
+        requests: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+    });
+  }
+
+  async getBookingMessages(bookingId: string) {
+    return this.prisma.otaMessageThread.findMany({
+      where: { bookingId },
+      include: {
+        messages: {
+          orderBy: { sentAt: 'asc' },
+        },
+        requests: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+    });
+  }
+
+  async sendOtaMessage(threadId: string, messageText: string, senderName = 'Property Staff', userId?: string) {
+    const thread = await this.prisma.otaMessageThread.findUnique({
+      where: { id: threadId },
+    });
+
+    if (!thread) {
+      throw new NotFoundException(`Message thread ${threadId} not found`);
+    }
+
+    await this.channexAdapter.sendMessageToThread(thread.externalThreadId, messageText);
+
+    const createdMsg = await this.prisma.otaMessage.create({
+      data: {
+        threadId: thread.id,
+        senderType: 'PROPERTY',
+        senderName,
+        body: messageText,
+        sentAt: new Date(),
+      },
+    });
+
+    await this.prisma.otaMessageThread.update({
+      where: { id: thread.id },
+      data: { lastMessageAt: new Date() },
+    });
+
+    return createdMsg;
+  }
+
+  async respondToOtaRequest(requestId: string, action: 'accept' | 'decline', note?: string, userId?: string) {
+    const request = await this.prisma.otaGuestRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        booking: true,
+        thread: true,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException(`OTA Request ${requestId} not found`);
+    }
+
+    const newStatus: any = action === 'accept' ? 'ACCEPTED' : 'DECLINED';
+
+    const updated = await this.prisma.otaGuestRequest.update({
+      where: { id: requestId },
+      data: {
+        status: newStatus,
+        respondedAt: new Date(),
+        respondedById: userId || null,
+        responseNote: note || null,
+      },
+    });
+
+    if (action === 'accept' && request.requestType === 'DATE_CHANGE' && request.booking) {
+      const details: any = request.requestedDetails || {};
+      if (details.requestedCheckIn && details.requestedCheckOut) {
+        const newIn = new Date(details.requestedCheckIn);
+        const newOut = new Date(details.requestedCheckOut);
+
+        if (!isNaN(newIn.getTime()) && !isNaN(newOut.getTime())) {
+          const oldIn = request.booking.checkInDate;
+          const oldOut = request.booking.checkOutDate;
+          const nights = Math.max(1, differenceInDays(newOut, newIn));
+
+          await this.prisma.booking.update({
+            where: { id: request.booking.id },
+            data: {
+              checkInDate: newIn,
+              checkOutDate: newOut,
+              numberOfNights: nights,
+            },
+          });
+
+          await this.pushAvailabilityForDates(
+            request.booking.propertyId!,
+            request.booking.roomTypeId,
+            newIn,
+            newOut,
+            oldIn,
+            oldOut,
+          );
+
+          this.logger.log(`[OTA Request] Updated stay dates for booking ${request.booking.bookingNumber} to ${details.requestedCheckIn} -> ${details.requestedCheckOut}`);
+        }
+      }
+    }
+
+    if (request.thread) {
+      const replyMsg = action === 'accept'
+        ? `Dear Guest, your request "${request.title}" has been ACCEPTED by the property.${note ? ` Note: ${note}` : ''}`
+        : `Dear Guest, we regret to inform you that your request "${request.title}" could not be accommodated.${note ? ` Note: ${note}` : ''}`;
+
+      try {
+        await this.sendOtaMessage(request.thread.id, replyMsg, 'Property Staff', userId);
+      } catch (e: any) {
+        this.logger.warn(`[OTA Request] Could not send auto-reply to OTA thread: ${e.message}`);
+      }
+    }
+
+    return updated;
   }
 }

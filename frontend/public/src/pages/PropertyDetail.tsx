@@ -149,6 +149,7 @@ export default function PropertyDetail() {
         checkOut, setCheckOut,
         adults, setAdults,
         children, setChildren,
+        infants, setInfants,
         rooms, setRooms,
         isGroupBooking, setIsGroupBooking,
         groupSize, setGroupSize
@@ -1036,7 +1037,7 @@ export default function PropertyDetail() {
                                                                 ) : (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
-                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&roomsCount=${rooms}&isGroupBooking=false` : '#'}
+                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&infants=${infants}&roomsCount=${rooms}&isGroupBooking=false` : '#'}
                                                                         className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-lg shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
                                                                         {(!checkIn || !checkOut) ? 'See Availability' : 'Book Now'}
@@ -1356,7 +1357,7 @@ export default function PropertyDetail() {
                                         </div>
                                     </div>
 
-                                    <div className={clsx("grid gap-3", !isGroupBooking ? "grid-cols-3" : "grid-cols-2")}>
+                                    <div className={clsx("grid gap-3", !isGroupBooking ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
                                         <div className="space-y-1.5">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (13+)</label>
                                             <div className="relative">
@@ -1374,7 +1375,7 @@ export default function PropertyDetail() {
                                             </div>
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Children (6-12)</label>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Children (2-12)</label>
                                             <div className="relative">
                                                 <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                                                 <input
@@ -1384,6 +1385,21 @@ export default function PropertyDetail() {
                                                         const val = Math.max(0, parseInt(e.target.value) || 0);
                                                         setChildren(val);
                                                         if (isGroupBooking) setGroupSize(adults + val);
+                                                    }}
+                                                    className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Infants (0-2y, Free)</label>
+                                            <div className="relative">
+                                                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-pink-400 pointer-events-none" />
+                                                <input
+                                                    type="number"
+                                                    value={infants}
+                                                    onChange={(e) => {
+                                                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                        setInfants(val);
                                                     }}
                                                     className="w-full pl-9 pr-2 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                                                 />

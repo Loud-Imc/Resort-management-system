@@ -26,6 +26,13 @@ export class SearchRoomsDto {
     @IsOptional()
     children: number;
 
+    @ApiProperty({ example: 0, required: false })
+    @IsNumber()
+    @Min(0)
+    @Type(() => Number)
+    @IsOptional()
+    infants?: number;
+
     @ApiProperty({ example: 1, required: false })
     @IsOptional()
     @IsNumber()

@@ -55,6 +55,7 @@ model User {
   propertyStaff             PropertyStaff[]
   approvedRefunds           RefundRequest[]              @relation("RefundApprover")
   requestedRefunds          RefundRequest[]              @relation("RefundRequester")
+  otaRequestsResponded      OtaGuestRequest[]            @relation("OtaRequestResponder")
   reviews                   Review[]
   createdBlocks             RoomBlock[]
   roles                     UserRole[]
@@ -132,6 +133,12 @@ model RoomType {
   baseChildren               Int                 @default(1)
   maxPhysicalAdults          Int                 @default(4)
   maxPhysicalChildren        Int                 @default(2)
+  maxPhysicalInfants         Int                 @default(1)
+  occupancyVersion           String              @default("V1")
+  totalBaseOccupancy         Int?
+  totalMaxOccupancy          Int?
+  baseMaxAdults              Int?
+  baseMaxChildren            Int?
   isPubliclyVisible          Boolean             @default(true)
   images                     String[]
   createdAt                  DateTime            @default(now())
@@ -231,6 +238,7 @@ model Booking {
   numberOfNights          Int
   adultsCount             Int
   childrenCount           Int
+  infantsCount            Int                    @default(0)
   extraAdultsCount        Int                    @default(0)
   extraChildrenCount      Int                    @default(0)
   baseAmount              Decimal                @db.Decimal(10, 2)
@@ -295,6 +303,8 @@ model Booking {
   invoiceDate             DateTime?
   financialYear           String?
   isHistoricalEntry       Boolean                @default(false)
+  isDeleted               Boolean                @default(false)
+  deletedAt               DateTime?
   transactionDate         DateTime?
   createdBy               String?
   externalBookingId       String?                @unique
@@ -318,6 +328,8 @@ model Booking {
   creditNotes             CreditNote[]
   review                  Review?
   roomBlocks              RoomBlock[]
+  otaThreads              OtaMessageThread[]
+  otaRequests             OtaGuestRequest[]
   bookingRooms            BookingRoom[]
   expenses                Expense[]
   connectivityReservationMapping ConnectivityReservationMapping?
@@ -570,6 +582,7 @@ model Property {
   gstNumber                   String?
   licenceImage                String?
   documents                   String[]             @default([])
+  documentDetails             Json?
   ownerAadhaarImage           String?
   ownerAadhaarImageBack       String?
   ownerAadhaarNumber          String?
@@ -581,6 +594,7 @@ model Property {
   defaultCheckInTime          String               @default("14:00")
   defaultCheckOutTime         String               @default("11:00")
   isGroupGstInclusive         Boolean              @default(false)
+  occupancyVersion            String               @default("V1")
   bookings                    Booking[]
   creditNotes                 CreditNote[]
   cancellationPolicies        CancellationPolicy[] @relation("PropertyPolicies")
@@ -608,6 +622,8 @@ model Property {
   connectivityConnections   ConnectivityPartnerConnection[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
   restrictionRules           RestrictionRule[]
+  otaThreads                 OtaMessageThread[]
+  otaRequests                OtaGuestRequest[]
 
   @@map("properties")
 }
@@ -1684,5 +1700,93 @@ model RestrictionRule {
 
   @@index([propertyId, startDate, endDate])
   @@map("restriction_rules")
+}
+
+enum OtaRequestType {
+  DATE_CHANGE
+  CANCELLATION_FEE_WAIVER
+  EARLY_CHECKIN
+  LATE_CHECKOUT
+  ROOM_PREFERENCE
+  OTHER
+}
+
+enum OtaRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model OtaMessageThread {
+  id                 String             @id @default(uuid())
+  propertyId         String
+  bookingId          String?
+  channelName        String             @default("CHANNEX")
+  externalThreadId   String             @unique
+  externalBookingId  String?
+  guestName          String?
+  subject            String?
+  channel            String?
+  status             String             @default("OPEN")
+  lastMessageAt      DateTime?
+  unreadCount        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  property           Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  booking            Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  messages           OtaMessage[]
+  requests           OtaGuestRequest[]
+
+  @@index([propertyId])
+  @@index([bookingId])
+  @@map("ota_message_threads")
+}
+
+model OtaMessage {
+  id                 String             @id @default(uuid())
+  threadId           String
+  externalMessageId  String?            @unique
+  senderType         String
+  senderName         String?
+  body               String
+  sentAt             DateTime           @default(now())
+  isRead             Boolean            @default(false)
+  rawPayload         Json?
+  createdAt          DateTime           @default(now())
+
+  thread             OtaMessageThread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@map("ota_messages")
+}
+
+model OtaGuestRequest {
+  id                 String             @id @default(uuid())
+  propertyId         String
+  bookingId          String?
+  threadId           String?
+  externalRequestId  String?            @unique
+  requestType        OtaRequestType
+  status             OtaRequestStatus   @default(PENDING)
+  title              String
+  description        String
+  requestedDetails   Json
+  expiresAt          DateTime?
+  respondedAt        DateTime?
+  respondedById      String?
+  responseNote       String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  property           Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  booking            Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  thread             OtaMessageThread?  @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  respondedBy        User?              @relation("OtaRequestResponder", fields: [respondedById], references: [id])
+
+  @@index([propertyId, status])
+  @@index([bookingId])
+  @@map("ota_guest_requests")
 }
 

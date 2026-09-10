@@ -53,6 +53,13 @@ export class RescheduleBookingDto {
     @Min(0)
     @IsOptional()
     @Type(() => Number)
+    infantsCount?: number;
+
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
     extraAdultsCount?: number;
 
     @ApiProperty({ example: 0, required: false })

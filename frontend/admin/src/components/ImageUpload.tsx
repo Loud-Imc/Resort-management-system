@@ -76,7 +76,13 @@ export default function ImageUpload({
                     }
                 }
 
-                const response: any = await uploadService.upload(file);
+                let uploadFile = file;
+                if (file.type.startsWith('image/')) {
+                    const { compressImageClientSide } = await import('../utils/imageCompressor');
+                    uploadFile = await compressImageClientSide(file, 1920, 1920, 0.82);
+                }
+
+                const response: any = await uploadService.upload(uploadFile);
                 newImages.push(response.url);
             }
 

@@ -188,6 +188,7 @@ export class BookingsController {
             dto.propertyId,
             dto.isGroupBooking || false,
             dto.groupSize,
+            dto.infants || 0,
         );
 
         return {
@@ -218,6 +219,7 @@ export class BookingsController {
             dto.isOverrideInclusive ?? true,
             dto.extraAdultsCount,
             dto.extraChildrenCount,
+            dto.infantsCount || 0,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {

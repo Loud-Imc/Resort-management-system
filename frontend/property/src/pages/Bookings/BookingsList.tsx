@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
 import { bookingsService } from '../../services/bookings';
@@ -18,7 +18,8 @@ import {
     Eye,
     AlertCircle,
     Trash2,
-    Pencil
+    Pencil,
+    History
 } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -256,31 +257,9 @@ export default function BookingsList() {
     const totalItems = bookings?.total || 0;
     const totalPages = bookings?.totalPages || 0;
 
-    const filteredBookings = [...bookingsData].sort((a, b) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+    const filteredBookings = bookingsData;
         
-        const dateA = new Date(a.checkInDate);
-        dateA.setHours(0, 0, 0, 0);
-        
-        const dateB = new Date(b.checkInDate);
-        dateB.setHours(0, 0, 0, 0);
-        
-        const isPastA = dateA.getTime() < today.getTime();
-        const isPastB = dateB.getTime() < today.getTime();
 
-        // If one is past and the other is not, the upcoming/today comes first
-        if (isPastA && !isPastB) return 1;
-        if (!isPastA && isPastB) return -1;
-
-        // If both are upcoming/today, sort ascending (today, tomorrow, next week...)
-        if (!isPastA && !isPastB) {
-            return dateA.getTime() - dateB.getTime();
-        }
-
-        // If both are past, sort descending (yesterday, last week...)
-        return dateB.getTime() - dateA.getTime();
-    });
 
     const checkOutMutation = useMutation({
         mutationFn: bookingsService.checkOut,
@@ -492,9 +471,38 @@ export default function BookingsList() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredBookings.map((booking: Booking, index: number) => (
-                                    <tr key={booking.id} onClick={(e) => handleRowClick(e, booking.id)} className="hover:bg-muted/30 transition-colors cursor-pointer">
-                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                                    filteredBookings.map((booking: Booking, index: number) => {
+                                        const bDate = new Date(booking.checkInDate);
+                                        bDate.setHours(0, 0, 0, 0);
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const isPast = bDate.getTime() < today.getTime();
+                                        
+                                        const prevBooking = index > 0 ? filteredBookings[index - 1] : null;
+                                        const prevDate = prevBooking ? new Date(prevBooking.checkInDate) : null;
+                                        if (prevDate) prevDate.setHours(0, 0, 0, 0);
+                                        const isPrevPast = prevDate ? prevDate.getTime() < today.getTime() : false;
+                                        
+                                        const showPastDivider = isPast && (index === 0 || !isPrevPast);
+
+                                        return (
+                                            <Fragment key={booking.id}>
+                                                {showPastDivider && (
+                                                    <tr key="past-bookings-divider" className="bg-muted/40 border-y border-border/80">
+                                                        <td colSpan={7} className="px-4 lg:px-6 py-2.5">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="h-px bg-border flex-1" />
+                                                                <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 bg-background px-3 py-1 rounded-full border border-border shadow-xs">
+                                                                    <History className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                    Past Bookings
+                                                                </span>
+                                                                <div className="h-px bg-border flex-1" />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                <tr key={booking.id} onClick={(e) => handleRowClick(e, booking.id)} className="hover:bg-muted/30 transition-colors cursor-pointer">
+                                                    <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>
                                             <div className="text-xs text-muted-foreground mt-0.5">
                                                 {booking.isManualBooking ? 'Manual' : 'Online'}
@@ -725,8 +733,10 @@ export default function BookingsList() {
                                             </div>
                                         </td>
                                     </tr>
-                                ))
-                                )}
+                                </Fragment>
+                            );
+                        })
+                    )}
                             </tbody>
                         </table>
                     </div>
