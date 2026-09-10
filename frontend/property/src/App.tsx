@@ -41,6 +41,7 @@ import DeleteAccount from './pages/DeleteAccount';
 import OffersList from './pages/Marketing/OffersList';
 import CreateOffer from './pages/Marketing/CreateOffer';
 import PromotionsConsole from './pages/Promotions/PromotionsConsole';
+import OtaMessagesPage from './pages/Channels/OtaMessagesPage';
 import ScrollToTop from './components/ScrollToTop';
 
 const queryClient = new QueryClient();
@@ -108,6 +109,7 @@ function App() {
                     {/* My Property */}
                     <Route path="my-property" element={<MyProperty />} />
                     <Route path="calendar-sync" element={<CalendarSync />} />
+                    <Route path="ota-messages" element={<OtaMessagesPage />} />
 
                     {/* Notifications */}
                     <Route path="notifications" element={<Notifications />} />
