@@ -81,6 +81,7 @@ export interface Property {
     ownerAadhaarImage?: string;
     ownerAadhaarImageBack?: string;
     ownerAadhaarNumber?: string;
+    isGstApplicable?: boolean;
     gstNumber?: string;
 }
 

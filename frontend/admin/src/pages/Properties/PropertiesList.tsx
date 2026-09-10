@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight, Sparkles, AlertTriangle } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { useAuth } from '../../context/AuthContext';
@@ -40,7 +40,7 @@ type FlagFilter =
 const FLAG_OPTIONS: { value: FlagFilter; label: string }[] = [
     { value: '',         label: 'All Statuses' },
     { value: 'APPROVED', label: '✅ Approved' },
-    { value: 'PENDING',  label: '⏳ Pending' },
+    { value: 'PENDING',  label: '🕒 Pending' },
     { value: 'REJECTED', label: '❌ Rejected' },
     { value: 'DISABLED', label: '🚫 Disabled' },
     { value: 'FEATURED', label: '⭐ Featured' },
@@ -78,6 +78,7 @@ export default function PropertiesList() {
     const [stateFilter, setStateFilter] = useState('');
     const [typeFilter, setTypeFilter] = useState<PropertyType | ''>('');
     const [flagFilter, setFlagFilter] = useState<FlagFilter>('');
+    const [readinessFilter, setReadinessFilter] = useState<'' | 'COMPLETED' | 'INCOMPLETE'>('');
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -105,6 +106,7 @@ export default function PropertiesList() {
                 city: cityFilter.trim() || undefined,
                 state: stateFilter.trim() || undefined,
                 type: typeFilter || undefined,
+                readiness: readinessFilter || undefined,
                 page: targetPage,
                 limit: ITEMS_PER_PAGE,
                 ...flagToParams(flagFilter),
@@ -123,14 +125,14 @@ export default function PropertiesList() {
             setLoading(false);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [search, cityFilter, stateFilter, typeFilter, flagFilter, isManageable]);
+    }, [search, cityFilter, stateFilter, typeFilter, flagFilter, readinessFilter, isManageable]);
 
     // When dropdown-only filters change, reset to page 1 and re-fetch
     useEffect(() => {
         setPage(1);
         loadProperties(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [typeFilter, flagFilter]);
+    }, [typeFilter, flagFilter, readinessFilter]);
 
     // When page changes (from pagination buttons), fetch that page
     useEffect(() => {
@@ -255,7 +257,7 @@ export default function PropertiesList() {
             {/* Filters */}
             <div className="bg-card rounded-xl shadow-sm p-4 border border-border">
                 <div className="flex flex-col gap-3">
-                    {/* Row 1: Fuzzy search + Type + Status */}
+                    {/* Row 1: Fuzzy search + Type + Status + Readiness */}
                     <div className="flex flex-col sm:flex-row gap-3">
                         <input
                             type="text"
@@ -285,6 +287,16 @@ export default function PropertiesList() {
                             {FLAG_OPTIONS.map(opt => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
+                        </select>
+
+                        <select
+                            value={readinessFilter}
+                            onChange={(e) => setReadinessFilter(e.target.value as any)}
+                            className="px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-medium"
+                        >
+                            <option value="">All Readiness</option>
+                            <option value="COMPLETED">✅ Readiness Complete</option>
+                            <option value="INCOMPLETE">⚠️ Readiness Incomplete</option>
                         </select>
                     </div>
 
@@ -353,105 +365,145 @@ export default function PropertiesList() {
                         {properties.map((property) => (
                             <div
                                 key={property.id}
-                                className="bg-card rounded-xl shadow-sm border border-border overflow-hidden hover:shadow-md transition-all group"
+                                className="bg-card rounded-xl shadow-sm border border-border overflow-hidden hover:shadow-md transition-all group flex flex-col justify-between"
                             >
-                                {/* Cover Image */}
-                                <div className="h-40 bg-muted relative">
-                                    {property.coverImage ? (
-                                        <img
-                                            src={property.coverImage}
-                                            alt={property.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Building2 className="h-12 w-12 text-muted-foreground opacity-50" />
-                                        </div>
-                                    )}
+                                <div>
+                                    {/* Cover Image */}
+                                    <div className="h-40 bg-muted relative">
+                                        {property.coverImage ? (
+                                            <img
+                                                src={property.coverImage}
+                                                alt={property.name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Building2 className="h-12 w-12 text-muted-foreground opacity-50" />
+                                            </div>
+                                        )}
 
-                                    {/* Type/Category Badge */}
-                                    <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold rounded shadow-sm ${propertyTypeColors[property.type]} opacity-90`}>
-                                        {property.category?.name || propertyTypeLabels[property.type]}
-                                    </span>
-
-                                    {/* Status Badges */}
-                                    <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                                        {property.isFeatured && (
-                                            <span className="bg-amber-500 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
-                                                <Star className="h-3 w-3 fill-current" />
-                                                Featured
-                                            </span>
-                                        )}
-                                        {property.isSponsored && (
-                                            <span className="bg-indigo-600 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
-                                                <Zap className="h-3 w-3 fill-current" />
-                                                Unique
-                                            </span>
-                                        )}
-                                        {property.isVerified && (
-                                            <span className="bg-green-500 text-white px-2 py-1 text-xs rounded flex items-center gap-1 shadow-sm">
-                                                <ShieldCheck className="h-3 w-3" />
-                                                Verified
-                                            </span>
-                                        )}
-                                        <span className={clsx(
-                                            "px-2 py-1 text-xs rounded font-bold shadow-sm",
-                                            property.status === 'APPROVED' ? 'bg-green-500 text-white' :
-                                            property.status === 'PENDING'  ? 'bg-amber-500 text-white' :
-                                            property.status === 'REJECTED' ? 'bg-red-500 text-white' :
-                                                                             'bg-gray-500 text-white'
-                                        )}>
-                                            {property.status}
+                                        {/* Type/Category Badge */}
+                                        <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold rounded shadow-sm ${propertyTypeColors[property.type]} opacity-90`}>
+                                            {property.category?.name || propertyTypeLabels[property.type]}
                                         </span>
-                                        {property.status === 'APPROVED' && (
+
+                                        {/* Status Badges */}
+                                        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                                            {property.isFeatured && (
+                                                <span className="bg-amber-500 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
+                                                    <Star className="h-3 w-3 fill-current" />
+                                                    Featured
+                                                </span>
+                                            )}
+                                            {property.isSponsored && (
+                                                <span className="bg-indigo-600 text-white px-2 py-1 text-xs rounded font-bold flex items-center gap-1 shadow-sm">
+                                                    <Zap className="h-3 w-3 fill-current" />
+                                                    Unique
+                                                </span>
+                                            )}
+                                            {property.isVerified && (
+                                                <span className="bg-green-500 text-white px-2 py-1 text-xs rounded flex items-center gap-1 shadow-sm">
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                    Verified
+                                                </span>
+                                            )}
                                             <span className={clsx(
                                                 "px-2 py-1 text-xs rounded font-bold shadow-sm",
-                                                property.isPmsActive ? 'bg-indigo-600 text-white' : 'bg-slate-650 text-white'
+                                                property.status === 'APPROVED' ? 'bg-green-500 text-white' :
+                                                property.status === 'PENDING'  ? 'bg-amber-500 text-white' :
+                                                property.status === 'REJECTED' ? 'bg-red-500 text-white' :
+                                                                                 'bg-gray-500 text-white'
                                             )}>
-                                                {property.isPmsActive ? 'PMS Active' : 'OTA Only'}
+                                                {property.status}
                                             </span>
-                                        )}
-                                        {!property.isActive && property.status === 'APPROVED' && (
-                                            <span className="bg-red-600 text-white px-2 py-1 text-xs rounded font-bold">
-                                                Disabled
+                                            {property.status === 'APPROVED' && (
+                                                <span className={clsx(
+                                                    "px-2 py-1 text-xs rounded font-bold shadow-sm",
+                                                    property.isPmsActive ? 'bg-indigo-600 text-white' : 'bg-slate-650 text-white'
+                                                )}>
+                                                    {property.isPmsActive ? 'PMS Active' : 'OTA Only'}
+                                                </span>
+                                            )}
+                                            {!property.isActive && property.status === 'APPROVED' && (
+                                                <span className="bg-red-600 text-white px-2 py-1 text-xs rounded font-bold">
+                                                    Disabled
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="p-4">
+                                        <h3 className="font-bold text-card-foreground truncate text-lg">{property.name}</h3>
+                                        <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
+                                            <MapPin className="h-4 w-4 shrink-0" />
+                                            <span className="truncate font-medium">{property.city}, {property.state}</span>
+                                        </div>
+                                        
+                                        {(property.addedBy || property.propertyRequest?.referredBy || property.propertyRequest?.requestedBy) && (() => {
+                                            const onboarder = property.addedBy || property.propertyRequest?.referredBy || property.propertyRequest?.requestedBy;
+                                            const roleLabel = property.addedBy ? 'Manual' : property.propertyRequest?.referredBy ? 'Referral' : 'Self';
+                                            return (
+                                                <div className="flex items-center gap-1.5 text-xs text-primary/80 mt-2 font-medium bg-primary/5 px-2 py-1 rounded-md w-fit border border-primary/10">
+                                                    <User className="h-3 w-3 shrink-0" />
+                                                    <span className="truncate">Onboarded by: {onboarder.firstName} {onboarder.lastName || ''} <span className="opacity-70">({roleLabel})</span></span>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Stats */}
+                                        <div className="flex flex-wrap items-center gap-2 mt-4 text-sm text-muted-foreground font-medium">
+                                            <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">{property._count?.rooms || 0} rooms</span>
+                                            <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">{property._count?.bookings || 0} bookings</span>
+                                            <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md border border-primary/20">
+                                                {property.platformCommission || 0}% Comm.
                                             </span>
+                                            {property.rating && (
+                                                <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">
+                                                    <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                                                    {property.rating}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Property Readiness Checklist Indicator for Sales / Admin */}
+                                        {property.readiness && (
+                                            <div className={clsx(
+                                                "mt-3.5 p-2.5 rounded-lg text-xs border transition-all",
+                                                property.readiness.isComplete
+                                                    ? "bg-emerald-50/80 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300"
+                                                    : "bg-amber-50/80 border-amber-200 text-amber-900 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300"
+                                            )}>
+                                                <div className="flex items-center justify-between font-bold">
+                                                    <span className="flex items-center gap-1.5">
+                                                        {property.readiness.isComplete ? (
+                                                            <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                        ) : (
+                                                            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                                        )}
+                                                        <span>Readiness Checklist</span>
+                                                    </span>
+                                                    <span className={clsx(
+                                                        "px-2 py-0.5 rounded-md text-[11px] font-extrabold shadow-2xs",
+                                                        property.readiness.isComplete
+                                                            ? "bg-emerald-200/80 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+                                                            : "bg-amber-200/80 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200"
+                                                    )}>
+                                                        {property.readiness.completedCount}/{property.readiness.totalCount} Complete
+                                                    </span>
+                                                </div>
+                                                {!property.readiness.isComplete && property.readiness.missing && property.readiness.missing.length > 0 && (
+                                                    <div className="mt-1.5 pt-1.5 border-t border-amber-200/60 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-300/90 leading-tight">
+                                                        <span className="font-bold">Missing: </span>
+                                                        <span>{property.readiness.missing.join(', ')}</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Content */}
-                                <div className="p-4">
-                                    <h3 className="font-bold text-card-foreground truncate text-lg">{property.name}</h3>
-                                    <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
-                                        <MapPin className="h-4 w-4 shrink-0" />
-                                        <span className="truncate font-medium">{property.city}, {property.state}</span>
-                                    </div>
-                                    
-                                    {(property.addedBy || property.propertyRequest?.referredBy || property.propertyRequest?.requestedBy) && (() => {
-                                        const onboarder = property.addedBy || property.propertyRequest?.referredBy || property.propertyRequest?.requestedBy;
-                                        const roleLabel = property.addedBy ? 'Manual' : property.propertyRequest?.referredBy ? 'Referral' : 'Self';
-                                        return (
-                                            <div className="flex items-center gap-1.5 text-xs text-primary/80 mt-2 font-medium bg-primary/5 px-2 py-1 rounded-md w-fit border border-primary/10">
-                                                <User className="h-3 w-3 shrink-0" />
-                                                <span className="truncate">Onboarded by: {onboarder.firstName} {onboarder.lastName || ''} <span className="opacity-70">({roleLabel})</span></span>
-                                            </div>
-                                        );
-                                    })()}
-
-                                    {/* Stats */}
-                                    <div className="flex flex-wrap items-center gap-2 mt-4 text-sm text-muted-foreground font-medium">
-                                        <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">{property._count?.rooms || 0} rooms</span>
-                                        <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">{property._count?.bookings || 0} bookings</span>
-                                        <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md border border-primary/20">
-                                            {property.platformCommission || 0}% Comm.
-                                        </span>
-                                        {property.rating && (
-                                            <span className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-md">
-                                                <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                                                {property.rating}
-                                            </span>
-                                        )}
-                                    </div>
+                                <div className="p-4 pt-0">
 
                                     <div className="flex flex-col gap-3 mt-5 pt-4 border-t border-border">
                                         <div className="space-y-3">

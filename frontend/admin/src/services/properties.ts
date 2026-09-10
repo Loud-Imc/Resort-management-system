@@ -74,8 +74,8 @@ export const propertyService = {
         return response.data;
     },
 
-    // Admin: Update property status (Approve/Reject)
-    async updateStatus(id: string, status: 'APPROVED' | 'REJECTED' | 'INACTIVE'): Promise<Property> {
+    // Admin: Update property status (Approve/Reject/Pending)
+    async updateStatus(id: string, status: 'APPROVED' | 'REJECTED' | 'INACTIVE' | 'PENDING'): Promise<Property> {
         const response = await api.patch(`/properties/${id}/status`, { status });
         return response.data;
     },

@@ -310,6 +310,7 @@ export class PropertiesService {
                     amenities: details.amenities || [],
                     licenceImage: details.licenceImage || null,
                     documents: details.documents || [],
+                    isGstApplicable: details.isGstApplicable !== undefined ? Boolean(details.isGstApplicable) : Boolean(details.gstNumber && details.gstNumber.trim()),
                     gstNumber: details.gstNumber || null,
                     ownerAadhaarNumber: details.ownerAadhaarNumber || null,
                     ownerAadhaarImage: details.ownerAadhaarImage || null,
@@ -1090,6 +1091,37 @@ export class PropertiesService {
             }),
         };
 
+        // Readiness checklist filter
+        if (query.readiness === 'COMPLETED') {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                { latitude: { not: null } },
+                { longitude: { not: null } },
+                { coverImage: { not: null } },
+                { coverImage: { not: '' } },
+                { images: { isEmpty: false } },
+                { roomTypes: { some: {} } },
+                { rooms: { some: {} } },
+                { cancellationPolicies: { some: {} } },
+            ];
+        } else if (query.readiness === 'INCOMPLETE') {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                {
+                    OR: [
+                        { latitude: null },
+                        { longitude: null },
+                        { coverImage: null },
+                        { coverImage: '' },
+                        { images: { isEmpty: true } },
+                        { roomTypes: { none: {} } },
+                        { rooms: { none: {} } },
+                        { cancellationPolicies: { none: {} } },
+                    ],
+                },
+            ];
+        }
+
         const [properties, total] = await Promise.all([
             this.prisma.property.findMany({
                 where,
@@ -1111,15 +1143,48 @@ export class PropertiesService {
                     },
                     category: true,
                     _count: {
-                        select: { rooms: true, bookings: true },
+                        select: { rooms: true, bookings: true, roomTypes: true, cancellationPolicies: true },
                     },
                 },
             }),
             this.prisma.property.count({ where }),
         ]);
 
+        const enriched = properties.map(p => {
+            const hasCoordinates = !!p.latitude && !!p.longitude;
+            const hasImages = !!p.coverImage && (p.images?.length || 0) > 0;
+            const hasRoomTypes = (p._count?.roomTypes || 0) > 0;
+            const hasRooms = (p._count?.rooms || 0) > 0;
+            const hasPolicies = (p._count?.cancellationPolicies || 0) > 0;
+
+            const missing: string[] = [];
+            if (!hasCoordinates) missing.push('Map Coordinates');
+            if (!hasImages) missing.push('Images');
+            if (!hasRoomTypes) missing.push('Room Types');
+            if (!hasRooms) missing.push('Rooms');
+            if (!hasPolicies) missing.push('Cancellation Policy');
+
+            const completedCount = 5 - missing.length;
+            const isComplete = missing.length === 0;
+
+            return {
+                ...p,
+                readiness: {
+                    hasCoordinates,
+                    hasImages,
+                    hasRoomTypes,
+                    hasRooms,
+                    hasPolicies,
+                    completedCount,
+                    totalCount: 5,
+                    isComplete,
+                    missing,
+                },
+            };
+        });
+
         return {
-            data: properties,
+            data: enriched,
             meta: {
                 total,
                 page,
@@ -1387,7 +1452,7 @@ export class PropertiesService {
             where: { id },
             data: {
                 status,
-                isVerified: status === PropertyStatus.APPROVED ? true : undefined,
+                isVerified: status === PropertyStatus.APPROVED ? true : false,
             },
         });
 

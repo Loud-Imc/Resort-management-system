@@ -162,20 +162,32 @@ export class FinancialsService {
         if (!booking.property) throw new BadRequestException('Property details not found for this booking');
 
         // Logic for Reconciled Settlement:
-        // 1. grossAmount is the TOTAL value of the booking
+        // 1. grossAmount is the TOTAL value of the booking (Base + Property GST)
         const grossAmount = booking.totalAmount;
+        const propertyTaxCollected = booking.taxAmount || new Decimal(0);
+        
+        // Base Amount = Total Amount - Property Tax
+        const baseAmount = grossAmount.minus(propertyTaxCollected);
         
         // 2. collectedAmount is what the Admin/Platform actually holds (payoutStatus PENDING)
         const collectedAmount = booking.payments
             .filter(p => p.payoutStatus === 'PENDING')
             .reduce((acc, p) => acc.add(p.amount), new Decimal(0));
 
-        // 3. Platform Fee: Zero for manual bookings, else percentage of TOTAL
+        // 3. Platform Fee: Calculated strictly on Base Amount (excluding GST)
         let platformFee = new Decimal(0);
+        let commissionGst = new Decimal(0);
+
         if (!booking.isManualBooking) {
             const platformFeeRate = (booking.property as any).platformCommission || 0;
-            platformFee = grossAmount.mul(platformFeeRate).div(100);
+            // Commission on Base Amount
+            platformFee = baseAmount.mul(platformFeeRate).div(100);
+            // 18% GST on Routeguide Platform Commission
+            commissionGst = platformFee.mul(18).div(100);
         }
+
+        // Total deduction from property = Platform Commission + GST on Commission
+        const totalPlatformDeduction = platformFee.add(commissionGst);
 
         // 4. CP Commission: Sum of all commissions for this booking
         const cpCommission = booking.cpTransactions.reduce(
@@ -183,10 +195,8 @@ export class FinancialsService {
             new Decimal(0)
         );
 
-        // 5. netPayout: What we strictly owe to the property from the funds we hold.
-        // NOTE: The platformFee is the TOTAL commission taken from the property.
-        // CP Commission is internally paid by the platform from this fee.
-        const netPayout = collectedAmount.minus(platformFee);
+        // 5. netPayout: Collected Amount - Total Platform Deduction
+        const netPayout = collectedAmount.minus(totalPlatformDeduction);
 
         return this.prisma.propertySettlement.create({
             data: {
@@ -195,6 +205,8 @@ export class FinancialsService {
                 grossAmount,
                 collectedAmount,
                 platformFee,
+                commissionGst,
+                propertyTaxCollected,
                 cpCommission,
                 netPayout,
                 status: SettlementStatus.CALCULATED,

@@ -166,4 +166,37 @@ export class ChannelsController {
   async deleteStopSell(@Param('id') id: string) {
     return this.channelsService.deleteStopSell(id);
   }
+
+  // --- OTA Messaging & Guest Request Endpoints ---
+
+  @Get('bookings/:bookingId/messages')
+  async getBookingMessages(@Param('bookingId') bookingId: string) {
+    return this.channelsService.getBookingMessages(bookingId);
+  }
+
+  @Get('properties/:propertyId/threads')
+  async getPropertyThreads(@Param('propertyId') propertyId: string) {
+    return this.channelsService.getPropertyMessageThreads(propertyId);
+  }
+
+  @Post('requests/:requestId/respond')
+  async respondToOtaRequest(
+    @Param('requestId') requestId: string,
+    @Body() body: { action: 'accept' | 'decline'; note?: string; userId?: string },
+  ) {
+    return this.channelsService.respondToOtaRequest(requestId, body.action, body.note, body.userId);
+  }
+
+  @Post('threads/:threadId/messages')
+  async sendOtaMessage(
+    @Param('threadId') threadId: string,
+    @Body() body: { message: string; senderName?: string; userId?: string },
+  ) {
+    return this.channelsService.sendOtaMessage(threadId, body.message, body.senderName, body.userId);
+  }
+
+  @Post('properties/:propertyId/messages/sync')
+  async syncPropertyMessages(@Param('propertyId') propertyId: string) {
+    return this.channelsService.syncPropertyMessages(propertyId);
+  }
 }

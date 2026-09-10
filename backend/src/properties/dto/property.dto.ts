@@ -190,6 +190,16 @@ export class CreatePropertyDto {
     @IsOptional()
     @IsString()
     ownerAadhaarNumber?: string;
+
+    @ApiProperty({ description: 'Whether GST is applicable for this property' })
+    @IsOptional()
+    @IsBoolean()
+    isGstApplicable?: boolean;
+
+    @ApiProperty({ description: 'Property GSTIN' })
+    @IsOptional()
+    @IsString()
+    gstNumber?: string;
 }
 
 export class UpdatePropertyDto {
@@ -362,6 +372,10 @@ export class UpdatePropertyDto {
     ownerAadhaarNumber?: string;
 
     @IsOptional()
+    @IsBoolean()
+    isGstApplicable?: boolean;
+
+    @IsOptional()
     @IsString()
     gstNumber?: string;
 
@@ -472,5 +486,9 @@ export class PropertyQueryDto {
     @IsBoolean()
     @Type(() => Boolean)
     isActive?: boolean;
+
+    @IsOptional()
+    @IsString()
+    readiness?: string;
 }
 

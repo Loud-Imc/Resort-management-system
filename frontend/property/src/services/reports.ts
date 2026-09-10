@@ -172,4 +172,18 @@ export const reportsService = {
         link.click();
         link.remove();
     },
+
+    exportCreditNotesPdf: async (startDate: string, endDate: string, propertyId?: string) => {
+        const { data } = await api.get('/reports/export/credit-notes-pdf', {
+            params: { startDate, endDate, propertyId },
+            responseType: 'blob',
+        });
+        const url = window.URL.createObjectURL(new Blob([data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Credit_Notes_Report_${startDate}_${endDate}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    },
 };

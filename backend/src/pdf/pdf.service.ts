@@ -145,9 +145,17 @@ export class PdfService {
     guestInstructions.push(...adminInstructions);
 
     const isCheckedIn = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(booking.status);
-    const docTitle = isCheckedIn 
-      ? 'INVOICE' 
-      : (isPartner ? 'PERFORMA INVOICE' : 'BOOKING CONFIRMATION');
+    const isGstProperty = Boolean(property?.isGstApplicable && property?.gstNumber);
+
+    const effectiveTaxRate = booking.taxRate ?? (
+        Number(booking.baseAmount || 0) > 0
+            ? Math.round((Number(booking.taxAmount || 0) / Number(booking.baseAmount || 0)) * 100)
+            : 0
+    );
+
+    const docTitle = isGstProperty 
+      ? (isCheckedIn ? 'TAX INVOICE' : (isPartner ? 'PERFORMA INVOICE' : 'BOOKING CONFIRMATION'))
+      : (isCheckedIn ? 'BILL OF SUPPLY' : (isPartner ? 'BOOKING SUMMARY' : 'BOOKING CONFIRMATION'));
 
     const docDefinition: any = {
       pageSize: 'A4',
@@ -160,8 +168,6 @@ export class PdfService {
               width: '*',
               stack: (() => {
                 const cpLogoUrl = booking.channelPartner?.logo;
-                this.logger.log(`[generateBookingConfirmation] cpLogoUrl from booking: ${cpLogoUrl}`);
-                this.logger.log(`[generateBookingConfirmation] booking.channelPartner: ${JSON.stringify(booking.channelPartner ? { id: booking.channelPartner.id, logo: booking.channelPartner.logo } : null)}`);
                 const cpLogoBase64 = cpLogoUrl ? this.getExternalLogoBase64(cpLogoUrl) : null;
                 const routeGuideLogoBase64 = this.getLogoBase64();
 
@@ -206,8 +212,9 @@ export class PdfService {
               width: 'auto',
               stack: [
                 { text: docTitle, style: 'docTitle' },
-                { text: `ID: #${booking.bookingNumber || 'N/A'}`, style: 'bookingId' },
-                { text: `Date: ${new Date().toLocaleDateString('en-IN')}`, style: 'docDate' },
+                ...(booking.invoiceNumber ? [{ text: `Invoice No: ${booking.invoiceNumber}`, style: 'invoiceNo' }] : []),
+                { text: `Booking ID: #${booking.bookingNumber || 'N/A'}`, style: 'bookingId' },
+                { text: `Date: ${new Date(booking.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, style: 'docDate' },
               ],
               alignment: 'right',
             },
@@ -215,22 +222,23 @@ export class PdfService {
           margin: [0, 0, 0, 12],
         },
 
-        // Status Banner
+        // Elegant Theme Divider Line
         {
           table: {
             widths: ['*'],
             body: [
               [
                 {
-                  text: (booking.status || 'PENDING').replace('_', ' '),
-                  style: 'statusBanner',
-                  fillColor: booking.status === 'CONFIRMED' ? '#227c8a' : (booking.status === 'RESERVED' ? '#f59e0b' : '#333333'),
+                  text: '',
+                  fillColor: '#227c8a',
+                  margin: [0, 0, 0, 0],
+                  fontSize: 1,
                 },
               ],
             ],
           },
           layout: 'noBorders',
-          margin: [0, 0, 0, 10],
+          margin: [0, 4, 0, 12],
         },
 
         // Main info grid
@@ -246,7 +254,7 @@ export class PdfService {
                     { text: `${user?.firstName || 'Guest'} ${user?.lastName || ''}`, style: 'guestName' },
                     { text: user?.email || 'N/A', style: 'guestInfo' },
                     { text: user?.phone || 'N/A', style: 'guestInfo' },
-                    ...(booking.gstNumber ? [{ text: `GST: ${booking.gstNumber}`, style: 'guestInfo' }] : []),
+                    ...(booking.gstNumber ? [{ text: `Guest GSTIN (B2B): ${booking.gstNumber}`, style: 'guestGst' }] : (isGstProperty ? [{ text: 'Supply Type: Consumer (B2C)', style: 'guestInfo' }] : [])),
                   ]
                 }
               ],
@@ -258,6 +266,7 @@ export class PdfService {
                     { text: property?.name || 'Property Name', style: 'propertyName' },
                     { text: property?.address || 'Address not available', style: 'propertyAddress' },
                     { text: `${property?.city || ''}, ${property?.state || ''}`, style: 'propertyAddress' },
+                    ...(isGstProperty ? [{ text: `Property GSTIN: ${property.gstNumber}`, style: 'propertyGst' }] : [{ text: 'GST: Non-GST / Exempted Property', style: 'propertyGst' }]),
                     ...(propertyImageBase64 ? [{
                       image: propertyImageBase64,
                       width: 200,
@@ -333,13 +342,15 @@ export class PdfService {
                 { text: 'Amount', style: 'tableHeader', alignment: 'right' },
               ],
               [
-                { text: 'Accommodation Charges', style: 'tableCell' },
-                { text: `₹${Number(booking.baseAmount || 0).toLocaleString()}`, style: 'tableCell', alignment: 'right' },
+                { text: isGstProperty ? 'Accommodation Charges (SAC 996311)' : 'Accommodation Charges', style: 'tableCell' },
+                { text: `₹${Number(booking.baseAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: Number(booking.baseAmount) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right' },
               ],
-              [
-                { text: 'Taxes & Service Fees', style: 'tableCell' },
-                { text: `₹${Number(booking.taxAmount || 0).toLocaleString()}`, style: 'tableCell', alignment: 'right' },
-              ],
+              ...(isGstProperty ? [
+                [
+                  { text: `GST (${effectiveTaxRate}%)`, style: 'tableCell' },
+                  { text: `₹${Number(booking.taxAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: Number(booking.taxAmount) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right' },
+                ]
+              ] : []),
               ...(booking.offerDiscountAmount > 0 ? [[
                 { text: 'Seasonal Offer Discount', style: 'tableCell', color: '#22c55e' },
                 { text: `-₹${Number(booking.offerDiscountAmount).toLocaleString()}`, style: 'tableCell', alignment: 'right', color: '#22c55e' },
@@ -427,14 +438,17 @@ export class PdfService {
         brandLogo: { fontSize: 22, bold: true, color: '#227c8a', letterSpacing: 2 },
         brandTagline: { fontSize: 8, color: '#64748b', margin: [0, -3, 0, 0] },
         docTitle: { fontSize: 13, bold: true, color: '#0f172a' },
+        invoiceNo: { fontSize: 10, bold: true, color: '#0f172a', margin: [0, 2, 0, 0] },
         bookingId: { fontSize: 10, bold: true, color: '#227c8a', margin: [0, 2, 0, 0] },
         docDate: { fontSize: 8, color: '#64748b' },
         statusBanner: { color: 'white', fontSize: 11, bold: true, alignment: 'center', margin: [0, 5, 0, 5] },
         sectionHeader: { fontSize: 8, bold: true, color: '#64748b', letterSpacing: 1, margin: [0, 0, 0, 5] },
         guestName: { fontSize: 11, bold: true, color: '#0f172a' },
         guestInfo: { fontSize: 9, color: '#475569' },
+        guestGst: { fontSize: 9, bold: true, color: '#227c8a' },
         propertyName: { fontSize: 11, bold: true, color: '#0f172a' },
         propertyAddress: { fontSize: 9, color: '#475569' },
+        propertyGst: { fontSize: 9, bold: true, color: '#227c8a' },
         roomName: { fontSize: 10, bold: true, color: '#0f172a' },
         guestCount: { fontSize: 9, color: '#475569' },
         groupBookingInfo: { fontSize: 9, bold: true, color: '#227c8a' },
@@ -449,13 +463,14 @@ export class PdfService {
         tablePaidValue: { fontSize: 10, bold: true, color: '#059669' },
         tableBalanceLabel: { fontSize: 9, bold: true, color: '#d97706' },
         tableBalanceValue: { fontSize: 10, bold: true, color: '#d97706' },
-        infoTitle: { fontSize: 9, bold: true, color: '#0f172a', margin: [0, 0, 0, 6] },
-        infoList: { fontSize: 8, color: '#475569', lineHeight: 1.3 },
-        qrLabel: { fontSize: 7, color: '#94a3b8', italic: true },
-        footer: { fontSize: 7, color: '#cbd5e1' },
-        footerText: { fontSize: 7, color: '#cbd5e1' },
+        infoTitle: { fontSize: 9, bold: true, color: '#0f172a', margin: [0, 0, 0, 4] },
+        infoList: { fontSize: 8, color: '#64748b', lineHeight: 1.3 },
+        qrLabel: { fontSize: 7, color: '#94a3b8' },
+        footerText: { fontSize: 8, color: '#94a3b8' },
       },
-      defaultStyle: { font: 'Roboto' },
+      defaultStyle: {
+        font: 'Roboto'
+      }
     };
 
     try {
@@ -825,6 +840,189 @@ export class PdfService {
       });
     } catch (error) {
       this.logger.error(`Error creating PDF document: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async generateCreditNotePdf(creditNote: any, booking: any): Promise<Buffer> {
+    const property = booking.property || booking.room?.property || booking.room?.roomType?.property;
+    const user = booking.user;
+    const routeGuideLogoBase64 = this.getLogoBase64();
+
+    const originalAmount = Number(creditNote.originalAmount || 0);
+    const creditedAmount = Number(creditNote.creditedAmount || 0);
+    const taxAmount = Number(creditNote.taxAmount || 0);
+    const totalRefund = creditedAmount + taxAmount;
+
+    const docDefinition: any = {
+      pageSize: 'A4',
+      pageMargins: [30, 25, 30, 25],
+      content: [
+        {
+          columns: [
+            {
+              width: '*',
+              stack: [
+                routeGuideLogoBase64 
+                  ? { image: `data:image/png;base64,${routeGuideLogoBase64}`, width: 120 }
+                  : { text: 'Oreedu', style: 'brandLogo' },
+                { text: 'Travel | Discover | Belong', style: 'brandTagline', margin: [0, 5, 0, 0] }
+              ]
+            },
+            {
+              width: 'auto',
+              stack: [
+                { text: 'GST CREDIT NOTE', style: 'docTitle', color: '#dc2626' },
+                { text: `Credit Note No: ${creditNote.creditNoteNumber}`, style: 'invoiceNo' },
+                { text: `Original Invoice Ref: ${creditNote.invoiceNumber}`, style: 'bookingId' },
+                { text: `Booking ID: #${booking.bookingNumber || 'N/A'}`, style: 'bookingId' },
+                { text: `Date: ${new Date(creditNote.createdAt || Date.now()).toLocaleDateString('en-IN')}`, style: 'docDate' },
+              ],
+              alignment: 'right',
+            }
+          ],
+          margin: [0, 0, 0, 15]
+        },
+
+        // Status Banner
+        {
+          table: {
+            widths: ['*'],
+            body: [
+              [
+                {
+                  text: 'CREDIT NOTE ISSUED / BOOKING CANCELLED',
+                  style: 'statusBanner',
+                  fillColor: '#dc2626',
+                }
+              ]
+            ]
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 12]
+        },
+
+        // Details grid
+        {
+          table: {
+            widths: [150, '*'],
+            body: [
+              [
+                { text: 'ISSUED TO (GUEST)', style: 'sectionHeader' },
+                {
+                  stack: [
+                    { text: `${user?.firstName || 'Guest'} ${user?.lastName || ''}`, style: 'guestName' },
+                    { text: user?.email || 'N/A', style: 'guestInfo' },
+                    { text: user?.phone || 'N/A', style: 'guestInfo' },
+                    ...(booking.gstNumber ? [{ text: `Guest GSTIN: ${booking.gstNumber}`, style: 'guestGst' }] : []),
+                  ]
+                }
+              ],
+              [
+                { text: 'ISSUED BY (PROPERTY)', style: 'sectionHeader', margin: [0, 10, 0, 0] },
+                {
+                  stack: [
+                    { text: property?.name || 'Property Name', style: 'propertyName' },
+                    { text: property?.address || 'Address not available', style: 'propertyAddress' },
+                    ...(property?.gstNumber ? [{ text: `Property GSTIN: ${property.gstNumber}`, style: 'propertyGst' }] : [{ text: 'Non-GST Property', style: 'propertyGst' }]),
+                  ],
+                  margin: [0, 10, 0, 0]
+                }
+              ],
+              [
+                { text: 'CANCELLATION DETAILS', style: 'sectionHeader', margin: [0, 10, 0, 0] },
+                {
+                  stack: [
+                    { text: `Refund Percentage: ${creditNote.refundPercentage}%`, style: 'roomName' },
+                    { text: `Reason: ${creditNote.reason || 'Guest Cancellation'}`, style: 'guestInfo' },
+                  ],
+                  margin: [0, 10, 0, 0]
+                }
+              ]
+            ]
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 15]
+        },
+
+        // Credit Note Summary Table
+        { text: 'CREDIT & ADJUSTMENT BREAKDOWN', style: 'sectionHeader', margin: [0, 0, 0, 6] },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['*', 'auto'],
+            body: [
+              [
+                { text: 'Description', style: 'tableHeader' },
+                { text: 'Amount', style: 'tableHeader', alignment: 'right' }
+              ],
+              [
+                { text: 'Original Invoice Total', style: 'tableCell' },
+                { text: `₹${originalAmount.toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right' }
+              ],
+              [
+                { text: `Base Tariff Credited (${creditNote.refundPercentage}%)`, style: 'tableCell', color: '#dc2626' },
+                { text: `-₹${creditedAmount.toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right', color: '#dc2626' }
+              ],
+              ...(taxAmount > 0 ? [
+                [
+                  { text: `GST Reversal / Adjusted`, style: 'tableCell', color: '#dc2626' },
+                  { text: `-₹${taxAmount.toLocaleString('en-IN')}`, style: 'tableCell', alignment: 'right', color: '#dc2626' }
+                ]
+              ] : []),
+              [
+                { text: 'Total Refund / Credit Value', style: 'tableTotalLabel', color: '#dc2626' },
+                { text: `₹${totalRefund.toLocaleString('en-IN')}`, style: 'tableTotalValue', alignment: 'right', color: '#dc2626' }
+              ]
+            ]
+          },
+          layout: {
+            hLineWidth: (i) => (i === 0 || i === 1 || i >= 4) ? 0.5 : 0,
+            vLineWidth: () => 0,
+            hLineColor: () => '#e2e8f0',
+            paddingTop: () => 5,
+            paddingBottom: () => 5,
+          },
+          margin: [0, 0, 0, 15]
+        }
+      ],
+      styles: {
+        brandLogo: { fontSize: 22, bold: true, color: '#227c8a', letterSpacing: 2 },
+        brandTagline: { fontSize: 8, color: '#64748b', margin: [0, -3, 0, 0] },
+        docTitle: { fontSize: 13, bold: true, color: '#0f172a' },
+        invoiceNo: { fontSize: 10, bold: true, color: '#0f172a', margin: [0, 2, 0, 0] },
+        bookingId: { fontSize: 10, bold: true, color: '#227c8a', margin: [0, 2, 0, 0] },
+        docDate: { fontSize: 8, color: '#64748b' },
+        statusBanner: { color: 'white', fontSize: 11, bold: true, alignment: 'center', margin: [0, 5, 0, 5] },
+        sectionHeader: { fontSize: 8, bold: true, color: '#64748b', letterSpacing: 1, margin: [0, 0, 0, 5] },
+        guestName: { fontSize: 11, bold: true, color: '#0f172a' },
+        guestInfo: { fontSize: 9, color: '#475569' },
+        guestGst: { fontSize: 9, bold: true, color: '#227c8a' },
+        propertyName: { fontSize: 11, bold: true, color: '#0f172a' },
+        propertyAddress: { fontSize: 9, color: '#475569' },
+        propertyGst: { fontSize: 9, bold: true, color: '#227c8a' },
+        roomName: { fontSize: 10, bold: true, color: '#0f172a' },
+        tableHeader: { fontSize: 9, bold: true, color: '#475569', margin: [0, 3, 0, 3] },
+        tableCell: { fontSize: 9, color: '#1e293b' },
+        tableTotalLabel: { fontSize: 10, bold: true, color: '#0f172a', margin: [0, 3, 0, 3] },
+        tableTotalValue: { fontSize: 11, bold: true, color: '#0f172a', margin: [0, 3, 0, 3] },
+      },
+      defaultStyle: {
+        font: 'Roboto'
+      }
+    };
+
+    try {
+      const pdfDoc = await this.printer.createPdfKitDocument(docDefinition);
+      return new Promise((resolve, reject) => {
+        const chunks: any[] = [];
+        pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
+        pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        pdfDoc.on('error', (err: any) => reject(err));
+        pdfDoc.end();
+      });
+    } catch (error) {
+      this.logger.error(`Error generating Credit Note PDF: ${error.message}`);
       throw error;
     }
   }

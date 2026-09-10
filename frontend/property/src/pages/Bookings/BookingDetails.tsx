@@ -27,6 +27,7 @@ import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { CheckInVerificationModal } from '../../components/bookings/CheckInVerificationModal';
+import { OtaGuestMessagingSection } from '../../components/bookings/OtaGuestMessagingSection';
 
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
@@ -279,6 +280,14 @@ const BookingDetails = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Main Content Area */}
                 <div className="lg:col-span-2 space-y-8">
+                    {/* OTA Guest Requests & Two-Way Messages */}
+                    <OtaGuestMessagingSection
+                        bookingId={booking.id}
+                        propertyId={property?.id}
+                        externalBookingId={(booking as any).externalBookingId}
+                        channelName={(booking as any).channelName}
+                    />
+
                     {/* Stay Info Card */}
                     <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 md:p-10 shadow-sm relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">

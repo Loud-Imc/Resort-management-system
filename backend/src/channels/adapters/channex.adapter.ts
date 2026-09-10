@@ -541,11 +541,32 @@ export class ChannexAdapter implements IChannelAdapter {
     const checkOutDate = firstRoom.checkout_date || booking.departure_date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
     const numberOfNights = Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86400000));
 
+    // Determine specific OTA Platform Name
+    let rawOta = String(
+      booking?.channel_name ||
+      booking?.source ||
+      booking?.ota_name ||
+      booking?.channel?.title ||
+      booking?.channel?.name ||
+      booking?.ota ||
+      ''
+    ).trim();
+
+    const otaLower = rawOta.toLowerCase();
+    let detectedOta = rawOta;
+    if (otaLower.includes('booking')) detectedOta = 'Booking.com';
+    else if (otaLower.includes('airbnb')) detectedOta = 'Airbnb';
+    else if (otaLower.includes('agoda')) detectedOta = 'Agoda';
+    else if (otaLower.includes('expedia')) detectedOta = 'Expedia';
+    else if (otaLower.includes('makemytrip') || otaLower.includes('mmt')) detectedOta = 'MakeMyTrip';
+    else if (otaLower.includes('goibibo')) detectedOta = 'Goibibo';
+    else if (!detectedOta || detectedOta.toLowerCase() === 'channex') detectedOta = 'Booking.com';
+
     return {
       externalBookingId: String(booking.id || payload.id || `ch-${Date.now()}`),
       externalRevisionId: String(booking.booking_revision_id || booking.revision_id || payload.booking_revision_id || payload.revision_id || ''),
-      channelName: 'CHANNEX',
-      sourceName: String(booking?.channel_name || booking?.source || booking?.ota_name || booking?.channel?.title || booking?.channel?.name || 'Channex OTA').trim(),
+      channelName: detectedOta,
+      sourceName: detectedOta,
       externalPropertyId: String(booking.property_id || payload.property_id || ''),
       externalRoomTypeId: String(firstRoom.room_type_id || firstRoom.id || ''),
       checkInDate: new Date(checkInDate),
@@ -777,5 +798,116 @@ export class ChannexAdapter implements IChannelAdapter {
 
     const resData = await response.json();
     return resData.data.token;
+  }
+
+  // --- OTA Messaging & Guest Request API Integrations ---
+
+  async getMessageThreads(externalPropertyId: string): Promise<any[]> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return [];
+
+    try {
+      this.logger.log(`[Channex] Fetching message threads for property ${externalPropertyId}`);
+      const response = await this.fetchWithRetry(
+        `${this.baseUrl}/message_threads?filter[property_id]=${externalPropertyId}`,
+        {
+          headers: {
+            'user-api-key': userApiKey,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        this.logger.warn(`[Channex] Failed to fetch message threads: ${response.status}`);
+        return [];
+      }
+
+      const res = await response.json();
+      return res.data || [];
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error fetching message threads: ${error.message}`);
+      return [];
+    }
+  }
+
+  async getMessageThread(threadId: string): Promise<any | null> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return null;
+
+    try {
+      const response = await this.fetchWithRetry(`${this.baseUrl}/message_threads/${threadId}`, {
+        headers: {
+          'user-api-key': userApiKey,
+        },
+      });
+
+      if (!response.ok) return null;
+      const res = await response.json();
+      return res.data || null;
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error fetching thread ${threadId}: ${error.message}`);
+      return null;
+    }
+  }
+
+  async getMessagesForThread(threadId: string): Promise<any[]> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) return [];
+
+    try {
+      const response = await this.fetchWithRetry(
+        `${this.baseUrl}/messages?filter[message_thread_id]=${threadId}`,
+        {
+          headers: {
+            'user-api-key': userApiKey,
+          },
+        }
+      );
+
+      if (!response.ok) return [];
+      const res = await response.json();
+      return res.data || [];
+    } catch (error: any) {
+      this.logger.error(`[Channex] Network error fetching messages for thread ${threadId}: ${error.message}`);
+      return [];
+    }
+  }
+
+  async sendMessageToThread(threadId: string, message: string): Promise<any> {
+    const userApiKey = process.env.CHANNEX_USER_API_KEY;
+    if (!userApiKey) {
+      throw new Error('CHANNEX_USER_API_KEY is not configured');
+    }
+
+    try {
+      this.logger.log(`[Channex] Sending message to thread ${threadId}`);
+      const payload = {
+        message: {
+          message_thread_id: threadId,
+          message: message,
+        },
+      };
+
+      const response = await this.fetchWithRetry(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'user-api-key': userApiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        this.logger.error(`[Channex] Failed to send message to thread ${threadId}: ${errText}`);
+        throw new Error(`Failed to send message: ${errText}`);
+      }
+
+      const res = await response.json();
+      return res.data;
+    } catch (error: any) {
+      this.logger.error(`[Channex] Error sending message to thread ${threadId}: ${error.message}`);
+      throw error;
+    }
   }
 }

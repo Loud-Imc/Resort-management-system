@@ -153,6 +153,8 @@ export interface Property {
     groupPriceAdult?: number;
     groupPriceChild?: number;
     isGroupGstInclusive?: boolean;
+    isGstApplicable?: boolean;
+    gstNumber?: string;
     isFeatured?: boolean;
     isSponsored?: boolean;
     isPlaceholder?: boolean;

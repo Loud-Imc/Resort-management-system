@@ -51,9 +51,11 @@ model User {
   approvedSettlements       PropertySettlement[]         @relation("SettlementApprover")
   createdSettlements        PropertySettlement[]         @relation("SettlementCreator")
   payoutSettlements         PropertySettlement[]         @relation("SettlementPayoutProcessor")
+  issuedCreditNotes         CreditNote[]                 @relation("CreditNoteIssuer")
   propertyStaff             PropertyStaff[]
   approvedRefunds           RefundRequest[]              @relation("RefundApprover")
   requestedRefunds          RefundRequest[]              @relation("RefundRequester")
+  otaRequestsResponded      OtaGuestRequest[]            @relation("OtaRequestResponder")
   reviews                   Review[]
   createdBlocks             RoomBlock[]
   roles                     UserRole[]
@@ -297,6 +299,9 @@ model Booking {
   commissionableAmount    Decimal                @default(0) @db.Decimal(10, 2)
   paymentMethod           BookingPaymentMethod?
   gstNumber               String?
+  invoiceNumber           String?
+  invoiceDate             DateTime?
+  financialYear           String?
   isHistoricalEntry       Boolean                @default(false)
   isDeleted               Boolean                @default(false)
   deletedAt               DateTime?
@@ -320,8 +325,11 @@ model Booking {
   manualPaymentRequests   ManualPaymentRequest[]
   payments                Payment[]
   propertySettlement      PropertySettlement?
+  creditNotes             CreditNote[]
   review                  Review?
   roomBlocks              RoomBlock[]
+  otaThreads              OtaMessageThread[]
+  otaRequests             OtaGuestRequest[]
   bookingRooms            BookingRoom[]
   expenses                Expense[]
   connectivityReservationMapping ConnectivityReservationMapping?
@@ -570,6 +578,7 @@ model Property {
   baseCurrency                String               @default("INR")
   taxRate                     Float                @default(12)
   defaultCancellationPolicyId String?
+  isGstApplicable             Boolean              @default(false)
   gstNumber                   String?
   licenceImage                String?
   documents                   String[]             @default([])
@@ -587,6 +596,7 @@ model Property {
   isGroupGstInclusive         Boolean              @default(false)
   occupancyVersion            String               @default("V1")
   bookings                    Booking[]
+  creditNotes                 CreditNote[]
   cancellationPolicies        CancellationPolicy[] @relation("PropertyPolicies")
   events                      Event[]
   expenseCategories           ExpenseCategory[]
@@ -612,6 +622,8 @@ model Property {
   connectivityConnections   ConnectivityPartnerConnection[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
   restrictionRules           RestrictionRule[]
+  otaThreads                 OtaMessageThread[]
+  otaRequests                OtaGuestRequest[]
 
   @@map("properties")
 }
@@ -937,30 +949,58 @@ model GlobalSetting {
 }
 
 model PropertySettlement {
-  id           String           @id @default(uuid())
-  propertyId   String
-  bookingId    String           @unique
-  grossAmount  Decimal          @db.Decimal(10, 2)
-  collectedAmount Decimal        @db.Decimal(10, 2) @default(0)
-  platformFee  Decimal          @db.Decimal(10, 2)
-  cpCommission Decimal          @db.Decimal(10, 2)
-  netPayout    Decimal          @db.Decimal(10, 2)
-  status       SettlementStatus @default(CALCULATED)
-  createdById  String?
-  approvedById String?
-  payoutById   String?
-  processedAt  DateTime?
-  referenceId  String?
-  method       String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  approvedBy   User?            @relation("SettlementApprover", fields: [approvedById], references: [id])
-  booking      Booking          @relation(fields: [bookingId], references: [id])
-  createdBy    User?            @relation("SettlementCreator", fields: [createdById], references: [id])
-  payoutBy     User?            @relation("SettlementPayoutProcessor", fields: [payoutById], references: [id])
-  property     Property         @relation(fields: [propertyId], references: [id])
+  id                    String           @id @default(uuid())
+  propertyId            String
+  bookingId             String           @unique
+  grossAmount           Decimal          @db.Decimal(10, 2)
+  collectedAmount       Decimal          @db.Decimal(10, 2) @default(0)
+  platformFee           Decimal          @db.Decimal(10, 2)
+  commissionGst         Decimal          @db.Decimal(10, 2) @default(0)
+  propertyTaxCollected  Decimal          @db.Decimal(10, 2) @default(0)
+  cpCommission          Decimal          @db.Decimal(10, 2)
+  netPayout             Decimal          @db.Decimal(10, 2)
+  status                SettlementStatus @default(CALCULATED)
+  createdById           String?
+  approvedById          String?
+  payoutById            String?
+  processedAt           DateTime?
+  referenceId           String?
+  method                String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  approvedBy            User?            @relation("SettlementApprover", fields: [approvedById], references: [id])
+  booking               Booking          @relation(fields: [bookingId], references: [id])
+  createdBy             User?            @relation("SettlementCreator", fields: [createdById], references: [id])
+  payoutBy              User?            @relation("SettlementPayoutProcessor", fields: [payoutById], references: [id])
+  property              Property         @relation(fields: [propertyId], references: [id])
 
   @@map("property_settlements")
+}
+
+model CreditNote {
+  id                 String   @id @default(uuid())
+  creditNoteNumber   String   @unique
+  financialYear      String
+  bookingId          String
+  propertyId         String
+  invoiceNumber      String
+  originalAmount     Decimal  @db.Decimal(10, 2)
+  creditedAmount     Decimal  @db.Decimal(10, 2)
+  taxAmount          Decimal  @default(0) @db.Decimal(10, 2)
+  refundPercentage   Decimal  @db.Decimal(5, 2)
+  reason             String?
+  issuedById         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  booking            Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  property           Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  issuedBy           User?    @relation("CreditNoteIssuer", fields: [issuedById], references: [id])
+
+  @@index([bookingId])
+  @@index([propertyId])
+  @@index([financialYear])
+  @@map("credit_notes")
 }
 
 model CPRedemptionRequest {
@@ -1660,5 +1700,93 @@ model RestrictionRule {
 
   @@index([propertyId, startDate, endDate])
   @@map("restriction_rules")
+}
+
+enum OtaRequestType {
+  DATE_CHANGE
+  CANCELLATION_FEE_WAIVER
+  EARLY_CHECKIN
+  LATE_CHECKOUT
+  ROOM_PREFERENCE
+  OTHER
+}
+
+enum OtaRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model OtaMessageThread {
+  id                 String             @id @default(uuid())
+  propertyId         String
+  bookingId          String?
+  channelName        String             @default("CHANNEX")
+  externalThreadId   String             @unique
+  externalBookingId  String?
+  guestName          String?
+  subject            String?
+  channel            String?
+  status             String             @default("OPEN")
+  lastMessageAt      DateTime?
+  unreadCount        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  property           Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  booking            Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  messages           OtaMessage[]
+  requests           OtaGuestRequest[]
+
+  @@index([propertyId])
+  @@index([bookingId])
+  @@map("ota_message_threads")
+}
+
+model OtaMessage {
+  id                 String             @id @default(uuid())
+  threadId           String
+  externalMessageId  String?            @unique
+  senderType         String
+  senderName         String?
+  body               String
+  sentAt             DateTime           @default(now())
+  isRead             Boolean            @default(false)
+  rawPayload         Json?
+  createdAt          DateTime           @default(now())
+
+  thread             OtaMessageThread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@map("ota_messages")
+}
+
+model OtaGuestRequest {
+  id                 String             @id @default(uuid())
+  propertyId         String
+  bookingId          String?
+  threadId           String?
+  externalRequestId  String?            @unique
+  requestType        OtaRequestType
+  status             OtaRequestStatus   @default(PENDING)
+  title              String
+  description        String
+  requestedDetails   Json
+  expiresAt          DateTime?
+  respondedAt        DateTime?
+  respondedById      String?
+  responseNote       String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  property           Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  booking            Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  thread             OtaMessageThread?  @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  respondedBy        User?              @relation("OtaRequestResponder", fields: [respondedById], references: [id])
+
+  @@index([propertyId, status])
+  @@index([bookingId])
+  @@map("ota_guest_requests")
 }
 

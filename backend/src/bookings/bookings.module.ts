@@ -3,6 +3,7 @@ import { BookingsService } from './bookings.service';
 import { BookingsController } from './bookings.controller';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
+import { InvoiceNumberService } from './invoice-number.service';
 import { AuditModule } from '../audit/audit.module';
 import { ChannelPartnersModule } from '../channel-partners/channel-partners.module';
 import { PaymentsModule } from '../payments/payments.module';
@@ -22,7 +23,7 @@ import { ConnectivityModule } from '../connectivity/connectivity.module';
         forwardRef(() => ConnectivityModule),
     ],
     controllers: [BookingsController],
-    providers: [BookingsService, AvailabilityService, PricingService],
-    exports: [BookingsService, AvailabilityService, PricingService],
+    providers: [BookingsService, AvailabilityService, PricingService, InvoiceNumberService],
+    exports: [BookingsService, AvailabilityService, PricingService, InvoiceNumberService],
 })
 export class BookingsModule { }

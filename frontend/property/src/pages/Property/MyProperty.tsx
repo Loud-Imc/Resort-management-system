@@ -10,7 +10,7 @@ import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
     Camera, X, CheckCircle, XCircle, Star, Image as ImageIcon,
     Plus, Clock, Percent, ShieldAlert, Trash2, FileText,
-    Users, Navigation
+    Users, Navigation, AlertCircle, Lock, Copy, Check, ShieldCheck, Send
 } from 'lucide-react';
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
@@ -83,6 +83,11 @@ export default function MyProperty() {
     const [defaultCheckInTime, setDefaultCheckInTime] = useState<string>('14:00');
     const [defaultCheckOutTime, setDefaultCheckOutTime] = useState<string>('11:00');
     const [isGroupGstInclusive, setIsGroupGstInclusive] = useState(false);
+    const [isGstApplicable, setIsGstApplicable] = useState(false);
+    const [gstNumber, setGstNumber] = useState('');
+    const [gstError, setGstError] = useState<string | null>(null);
+    const [showGstContactModal, setShowGstContactModal] = useState(false);
+    const [copiedGst, setCopiedGst] = useState(false);
     const [amenities, setAmenities] = useState<string[]>([]);
     const [newAmenity, setNewAmenity] = useState('');
     const [images, setImages] = useState<string[]>([]);
@@ -169,6 +174,8 @@ export default function MyProperty() {
                     defaultCheckInTime: reqDetails.defaultCheckInTime || '14:00',
                     defaultCheckOutTime: reqDetails.defaultCheckOutTime || '11:00',
                     isGroupGstInclusive: reqDetails.isGroupGstInclusive || false,
+                    isGstApplicable: reqDetails.isGstApplicable ?? (Boolean(reqDetails.gstNumber && reqDetails.gstNumber.trim())),
+                    gstNumber: reqDetails.gstNumber || '',
                     platformCommission: (selectedProperty as any).platformCommission || 10.00,
                     policies: reqDetails.policies || {}
                 };
@@ -200,6 +207,8 @@ export default function MyProperty() {
         setEmail(p.email ?? '');
         setWhatsappNumber(p.whatsappNumber ?? '');
         setPlatformCommission(p.platformCommission !== undefined && p.platformCommission !== null ? Number(p.platformCommission) : 10);
+        setIsGstApplicable((p as any).isGstApplicable ?? (Boolean(p.gstNumber && p.gstNumber.trim())));
+        setGstNumber(p.gstNumber ?? '');
         setAmenities(p.amenities ?? []);
         setImages(p.images ?? []);
         setCoverImage(p.coverImage ?? '');
@@ -305,6 +314,27 @@ export default function MyProperty() {
             }
         }
 
+        // Validation for GST (if platform admin edits it)
+        if (isPlatformAdmin && isGstApplicable) {
+            const trimmedGst = gstNumber?.trim().toUpperCase();
+            if (!trimmedGst) {
+                setGstError('GST Identification Number (GSTIN) is required when GST is enabled.');
+                const el = document.getElementById('myproperty-gst-input');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el?.focus();
+                return;
+            }
+            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+            if (!gstRegex.test(trimmedGst)) {
+                setGstError('Please enter a valid 15-character GSTIN (e.g. 32AAAAA0000A1Z5)');
+                const el = document.getElementById('myproperty-gst-input');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el?.focus();
+                return;
+            }
+        }
+        setGstError(null);
+
         try {
             setSaving(true);
             const payload: any = {
@@ -326,9 +356,11 @@ export default function MyProperty() {
                 }
             };
 
-            // Only include commission if platform admin
+            // Only include commission and GST if platform admin
             if (isPlatformAdmin) {
                 payload.platformCommission = platformCommission;
+                payload.isGstApplicable = isGstApplicable;
+                payload.gstNumber = gstNumber ? gstNumber.trim().toUpperCase() : null;
             }
 
             if (selectedProperty.isRequest) {
@@ -605,90 +637,351 @@ export default function MyProperty() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 pt-2">
-                    <input
-                        id="allowsGroupBooking"
-                        type="checkbox"
-                        checked={allowsGroupBooking}
-                        onChange={(e) => setAllowsGroupBooking(e.target.checked)}
-                        disabled={!editMode}
-                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                    />
-                    <label htmlFor="allowsGroupBooking" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Allow Group Bookings (Multiple people in one booking)
-                    </label>
-                </div>
-
-                {allowsGroupBooking && (
-                    <div className="pl-6 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                        <div className="space-y-2">
-                            <label className="block text-xs font-bold text-primary uppercase tracking-wider">Total Group Capacity</label>
+                {/* GST Applicability & GSTIN Settings */}
+                {isGstApplicable ? (
+                    <div className="p-4 sm:p-5 rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 to-emerald-50/40 dark:bg-gray-800/80 dark:border-teal-900/50 space-y-4 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
-                                <Users className="h-4 w-4 text-gray-400" />
-                                <span className="text-lg font-black text-gray-900 dark:text-white">
-                                    {maxGroupCapacity || 0} guests
-                                </span>
+                                <div className="p-2.5 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300 shrink-0">
+                                    <ShieldCheck className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">GST Registration & Invoicing</h3>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300">
+                                            <Check className="h-3 w-3" /> GST APPLIED
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        GST applicable: Dynamic GST tiers apply on rooms & Tax Invoices issued
+                                    </p>
+                                </div>
                             </div>
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic leading-relaxed">
-                                Auto-calculated from the <span className="font-bold text-primary">Max Group Occupancy</span> set on each room type in the group pool.
-                                To change this number, go to <span className="font-bold">Room Types → Edit</span> a room type, enable
-                                <span className="font-bold"> "Enable Group Bookings"</span> and set its Max Group Occupancy.
-                            </p>
+
+                            {editMode && isPlatformAdmin ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 rounded">
+                                        Admin Control
+                                    </span>
+                                    <div className="flex items-center bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800 rounded-xl p-1 gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsGstApplicable(false)}
+                                            className={clsx(
+                                                "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                                !isGstApplicable ? "bg-gray-900 text-white shadow-xs" : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                                            )}
+                                        >
+                                            Non-GST
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsGstApplicable(true)}
+                                            className={clsx(
+                                                "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                                isGstApplicable ? "bg-teal-600 text-white shadow-xs" : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                                            )}
+                                        >
+                                            Active
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-gray-800/80 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 self-start sm:self-auto">
+                                    <Lock className="h-3.5 w-3.5 text-gray-400" />
+                                    <span className="text-[11px] font-semibold">Non-editable</span>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="block text-xs font-bold text-primary uppercase tracking-wider">Group Price (Adult)</label>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm font-bold text-gray-400">₹</span>
-                                    <input
-                                        type="number"
-                                        value={groupPriceAdult}
-                                        onChange={(e) => setGroupPriceAdult(e.target.value === '' ? '' : parseInt(e.target.value))}
-                                        disabled={!editMode}
-                                        placeholder="e.g. 600"
-                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceAdult === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm font-bold`}
-                                    />
-                                </div>
-                                {allowsGroupBooking && groupPriceAdult === '' && (
-                                    <p className="text-[10px] text-red-500 font-bold animate-pulse">Required for Group Bookings</p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <label className="block text-xs font-bold text-primary uppercase tracking-wider">Group Price (Child)</label>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm font-bold text-gray-400">₹</span>
-                                    <input
-                                        type="number"
-                                        value={groupPriceChild}
-                                        onChange={(e) => setGroupPriceChild(e.target.value === '' ? '' : parseInt(e.target.value))}
-                                        disabled={!editMode}
-                                        placeholder="e.g. 400"
-                                        className={`w-full px-3 py-2 border ${allowsGroupBooking && groupPriceChild === '' ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'} text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm font-bold`}
-                                    />
-                                </div>
-                                {allowsGroupBooking && groupPriceChild === '' && (
-                                    <p className="text-[10px] text-red-500 font-bold animate-pulse">Required for Group Bookings</p>
-                                )}
-                            </div>
-                        </div>
-                        <p className="text-[10px] text-gray-400 font-medium italic">* These prices override individual room rates during group bookings.</p>
-                        
-                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                            <input
-                                type="checkbox"
-                                id="isGroupGstInclusive"
-                                checked={isGroupGstInclusive}
-                                onChange={(e) => setIsGroupGstInclusive(e.target.checked)}
-                                disabled={!editMode}
-                                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary"
-                            />
-                            <label htmlFor="isGroupGstInclusive" className="text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
-                                These prices are inclusive of GST
+                        {/* GSTIN Details Box */}
+                        <div className="pt-3 border-t border-teal-100 dark:border-teal-900/40">
+                            <label className="block text-xs font-bold text-teal-900 dark:text-teal-300 uppercase tracking-wider mb-1.5">
+                                Property GST Identification Number (GSTIN)
                             </label>
+                            {editMode && isPlatformAdmin ? (
+                                <div>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <FileText className="h-4 w-4 text-teal-600" />
+                                        </div>
+                                        <input
+                                            id="myproperty-gst-input"
+                                            type="text"
+                                            maxLength={15}
+                                            value={gstNumber}
+                                            onChange={(e) => {
+                                                setGstError(null);
+                                                setGstNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+                                            }}
+                                            placeholder="e.g. 32AAAAA0000A1Z5"
+                                            className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 text-sm font-mono uppercase tracking-wider ${
+                                                gstError
+                                                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20 text-gray-900 dark:text-white'
+                                                    : 'border-teal-300 dark:border-teal-700 focus:ring-teal-500 text-gray-900 dark:text-white bg-white dark:bg-gray-800'
+                                            }`}
+                                        />
+                                    </div>
+                                    {gstError && (
+                                        <p className="text-xs text-red-600 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{gstError}</span>
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-gray-800 border border-teal-200/90 dark:border-teal-800/60 rounded-xl shadow-xs">
+                                    <div className="flex items-center gap-3">
+                                        <div className="font-mono text-sm sm:text-base font-extrabold text-teal-950 dark:text-teal-100 tracking-wider">
+                                            {gstNumber || '32AAAAA0000A1Z5 (Applied)'}
+                                        </div>
+                                        {gstNumber && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(gstNumber);
+                                                    setCopiedGst(true);
+                                                    toast.success('GSTIN copied to clipboard');
+                                                    setTimeout(() => setCopiedGst(false), 2000);
+                                                }}
+                                                className="text-xs text-teal-600 hover:text-teal-800 dark:text-teal-400 flex items-center gap-1 font-semibold transition-colors px-2 py-0.5 rounded hover:bg-teal-50 dark:hover:bg-teal-900/30 cursor-pointer"
+                                                title="Copy GSTIN"
+                                            >
+                                                {copiedGst ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                                <span>{copiedGst ? 'Copied' : 'Copy'}</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowGstContactModal(true)}
+                                        className="text-xs text-gray-500 hover:text-primary dark:text-gray-400 font-medium underline underline-offset-2 transition-colors cursor-pointer self-start sm:self-auto"
+                                    >
+                                        Need to update GSTIN? Contact Admin
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-4 sm:p-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/60 space-y-3 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-gray-200/80 text-gray-600 dark:bg-gray-700 dark:text-gray-300 shrink-0">
+                                    <FileText className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">GST Registration & Invoicing</h3>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 uppercase">
+                                            GST Not Applied
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Non-GST Property • Zero GST applied & Bill of Supply issued
+                                    </p>
+                                </div>
+                            </div>
+
+                            {editMode && isPlatformAdmin && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 rounded">
+                                        Admin Control
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsGstApplicable(true)}
+                                        className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                    >
+                                        Enable GST
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-3.5 bg-white dark:bg-gray-800/90 border border-gray-200/80 dark:border-gray-700 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
+                                <p className="font-semibold text-gray-800 dark:text-gray-200">GST is currently not applied for this property.</p>
+                                <p className="text-gray-500 dark:text-gray-400">To add your GSTIN and enable Tax Invoices on guest bookings, please contact the platform administrator.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowGstContactModal(true)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground font-bold text-xs rounded-xl transition-all shrink-0 cursor-pointer shadow-xs"
+                            >
+                                <Mail className="h-3.5 w-3.5" />
+                                <span>Contact Admin to Update GST</span>
+                            </button>
                         </div>
                     </div>
                 )}
+
+                {/* Highlighted Group Bookings Section */}
+                <div className={clsx(
+                    "p-5 sm:p-6 rounded-2xl border transition-all space-y-5 shadow-xs",
+                    allowsGroupBooking
+                        ? "border-indigo-200/90 dark:border-indigo-900/50 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 dark:from-gray-800 dark:via-gray-800 dark:to-indigo-950/20"
+                        : "border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40"
+                )}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5">
+                            <div className={clsx(
+                                "p-2.5 rounded-xl shrink-0 transition-colors",
+                                allowsGroupBooking
+                                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300"
+                                    : "bg-gray-200/80 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                            )}>
+                                <Users className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">Group Bookings & Whole Property Pricing</h3>
+                                    <span className={clsx(
+                                        "px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide",
+                                        allowsGroupBooking
+                                            ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300"
+                                            : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                                    )}>
+                                        {allowsGroupBooking ? 'Active' : 'Disabled'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    Allow guests to book the entire resort or pooled rooms for multiple people in one booking
+                                </p>
+                            </div>
+                        </div>
+
+                        {editMode ? (
+                            <label htmlFor="allowsGroupBooking" className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-800 rounded-xl cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-all self-start sm:self-auto shrink-0 shadow-2xs">
+                                <input
+                                    id="allowsGroupBooking"
+                                    type="checkbox"
+                                    checked={allowsGroupBooking}
+                                    onChange={(e) => setAllowsGroupBooking(e.target.checked)}
+                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                    {allowsGroupBooking ? 'Enabled' : 'Enable Group Bookings'}
+                                </span>
+                            </label>
+                        ) : null}
+                    </div>
+
+                    {allowsGroupBooking && (
+                        <div className="pt-4 border-t border-indigo-100 dark:border-indigo-900/40 space-y-5 animate-in fade-in slide-in-from-top-1 duration-200">
+                            {/* Capacity Stat */}
+                            <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider">
+                                        Total Pooled Group Capacity
+                                    </label>
+                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Auto-calculated from <span className="font-semibold text-indigo-600 dark:text-indigo-400">Max Group Occupancy</span> across eligible room types
+                                    </p>
+                                </div>
+                                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 rounded-xl">
+                                    <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                    <span className="text-base sm:text-lg font-black text-indigo-950 dark:text-indigo-100">
+                                        {maxGroupCapacity || 0} guests
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Rates Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 space-y-2">
+                                    <label className="block text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                                        Group Price / Adult <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-sm">
+                                            ₹
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={groupPriceAdult}
+                                            onChange={(e) => setGroupPriceAdult(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                            disabled={!editMode}
+                                            placeholder="e.g. 1200"
+                                            className={clsx(
+                                                "w-full pl-8 pr-4 py-2.5 border rounded-xl text-sm font-bold text-gray-900 dark:text-white bg-white dark:bg-gray-700 outline-none transition-all",
+                                                editMode
+                                                    ? (groupPriceAdult === '' ? 'border-red-500 bg-red-50/20 ring-2 ring-red-500/20' : 'border-indigo-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500')
+                                                    : 'border-transparent bg-transparent shadow-none pl-6 text-base font-extrabold'
+                                            )}
+                                        />
+                                    </div>
+                                    {editMode && groupPriceAdult === '' && (
+                                        <p className="text-[10px] text-red-500 font-bold">Required when group bookings are active</p>
+                                    )}
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 space-y-2">
+                                    <label className="block text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                                        Group Price / Child <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-sm">
+                                            ₹
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={groupPriceChild}
+                                            onChange={(e) => setGroupPriceChild(e.target.value === '' ? '' : parseInt(e.target.value))}
+                                            disabled={!editMode}
+                                            placeholder="e.g. 400"
+                                            className={clsx(
+                                                "w-full pl-8 pr-4 py-2.5 border rounded-xl text-sm font-bold text-gray-900 dark:text-white bg-white dark:bg-gray-700 outline-none transition-all",
+                                                editMode
+                                                    ? (groupPriceChild === '' ? 'border-red-500 bg-red-50/20 ring-2 ring-red-500/20' : 'border-indigo-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500')
+                                                    : 'border-transparent bg-transparent shadow-none pl-6 text-base font-extrabold'
+                                            )}
+                                        />
+                                    </div>
+                                    {editMode && groupPriceChild === '' && (
+                                        <p className="text-[10px] text-red-500 font-bold">Required when group bookings are active</p>
+                                    )}
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+                                * These group rates override individual room rates during group checkout.
+                            </p>
+
+                            {/* GST Inclusivity Setting for Group Pricing */}
+                            <div className="pt-3 border-t border-indigo-100/80 dark:border-indigo-900/30">
+                                {isGstApplicable ? (
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white/90 dark:bg-gray-800/90 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                                        <div className="flex items-center gap-2.5">
+                                            <input
+                                                type="checkbox"
+                                                id="isGroupGstInclusive"
+                                                checked={isGroupGstInclusive}
+                                                onChange={(e) => setIsGroupGstInclusive(e.target.checked)}
+                                                disabled={!editMode}
+                                                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            />
+                                            <label htmlFor="isGroupGstInclusive" className="text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200 cursor-pointer">
+                                                These group prices are inclusive of GST
+                                            </label>
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 pl-6 sm:pl-0">
+                                            {isGroupGstInclusive
+                                                ? 'GST will be reverse-calculated from entered prices'
+                                                : 'GST slab will be added on top of entered prices'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 p-3 bg-gray-100/80 dark:bg-gray-700/40 rounded-xl text-xs text-gray-600 dark:text-gray-300">
+                                        <span className="font-bold text-[10px] uppercase tracking-wider bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded">
+                                            Non-GST Property
+                                        </span>
+                                        <span>Entered group prices are net payable without tax (Zero GST applied & Bill of Supply issued).</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
@@ -1240,6 +1533,73 @@ export default function MyProperty() {
                                     </div>
                                 );
                             })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Contact Admin GST Modal */}
+                {showGstContactModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-teal-50/50 dark:bg-gray-900/50">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
+                                        <ShieldCheck className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-900 dark:text-white">GST Registration Update</h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Admin Managed Compliance</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowGstContactModal(false)}
+                                    className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                                    To ensure tax compliance and invoice accuracy, GST updates (GSTIN, legal trade name, or tax applicability) are verified and processed by the platform administration.
+                                </p>
+
+                                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 space-y-2 text-xs">
+                                    <div className="flex justify-between items-center text-gray-500 dark:text-gray-400">
+                                        <span>Property:</span>
+                                        <span className="font-bold text-gray-900 dark:text-white">{name || 'Your Property'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-gray-500 dark:text-gray-400">
+                                        <span>Support Email:</span>
+                                        <span className="font-mono font-bold text-primary">support@oreedu.com</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-gray-500 dark:text-gray-400">
+                                        <span>Required Documents:</span>
+                                        <span className="font-semibold text-gray-700 dark:text-gray-300">GST Registration Certificate</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2 pt-2">
+                                    <a
+                                        href={`mailto:support@oreedu.com?subject=${encodeURIComponent(`GST Update Request - ${name || 'Property'}`)}&body=${encodeURIComponent(`Hello Platform Support Team,\n\nWe would like to request an update to the GST registration details for our property:\n\n- Property Name: ${name || ''}\n- Property Email: ${email || ''}\n- GSTIN: [Enter 15-digit GSTIN]\n- Legal Business Name: [Enter Registered Business Name]\n\nPlease find our GST certificate attached.\n\nThank you,\n${name || 'Property Management'}`)}`}
+                                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm rounded-xl transition-all shadow-sm cursor-pointer"
+                                    >
+                                        <Send className="h-4 w-4" />
+                                        <span>Send Request via Email</span>
+                                    </a>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText('support@oreedu.com');
+                                            toast.success('Support email copied to clipboard');
+                                        }}
+                                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                                    >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        <span>Copy Support Email (support@oreedu.com)</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

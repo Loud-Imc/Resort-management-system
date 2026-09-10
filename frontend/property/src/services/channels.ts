@@ -119,4 +119,42 @@ export const channelsService = {
     const response = await api.delete(`/channels/stop-sell/${id}`);
     return response.data;
   },
+
+  getBookingMessages: async (bookingId: string): Promise<any[]> => {
+    const response = await api.get(`/channels/bookings/${bookingId}/messages`);
+    return response.data;
+  },
+
+  getPropertyThreads: async (propertyId: string): Promise<any[]> => {
+    const response = await api.get(`/channels/properties/${propertyId}/threads`);
+    return response.data;
+  },
+
+  getPropertyRequests: async (propertyId: string, status?: string): Promise<any[]> => {
+    const response = await api.get(`/channels/properties/${propertyId}/requests`, {
+      params: { status },
+    });
+    return response.data;
+  },
+
+  respondToRequest: async (requestId: string, action: 'accept' | 'decline', responseNote?: string): Promise<any> => {
+    const response = await api.post(`/channels/requests/${requestId}/respond`, {
+      action,
+      responseNote,
+    });
+    return response.data;
+  },
+
+  sendMessage: async (threadId: string, message: string): Promise<any> => {
+    const response = await api.post(`/channels/threads/${threadId}/messages`, {
+      message,
+    });
+    return response.data;
+  },
+
+  syncPropertyMessages: async (propertyId: string): Promise<any> => {
+    const response = await api.post(`/channels/properties/${propertyId}/sync-messages`);
+    return response.data;
+  },
 };
+
