@@ -172,11 +172,14 @@ export class RoomTypesService {
 
         let total = 0;
         for (const rt of roomTypes) {
-            const physAdults = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
-            const physChildren = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
-            const capacityPerRoom = (rt.groupMaxOccupancy !== null && rt.groupMaxOccupancy !== undefined)
-                ? Number(rt.groupMaxOccupancy)
-                : (Number(physAdults) + Number(physChildren));
+            const isV2 = (rt as any).totalMaxOccupancy !== null && (rt as any).totalMaxOccupancy !== undefined;
+            const physAdults = (rt as any).maxPhysicalAdults ?? rt.maxAdults ?? 2;
+            const physChildren = (rt as any).maxPhysicalChildren ?? rt.maxChildren ?? 0;
+            const capacityPerRoom = isV2
+                ? Number((rt as any).totalMaxOccupancy)
+                : (((rt as any).groupMaxOccupancy !== null && (rt as any).groupMaxOccupancy !== undefined)
+                    ? Number((rt as any).groupMaxOccupancy)
+                    : (Number(physAdults) + Number(physChildren)));
             const activeRoomCount = rt.rooms ? rt.rooms.length : 0;
             total += capacityPerRoom * activeRoomCount;
         }
@@ -332,9 +335,12 @@ export class RoomTypesService {
             const physInfants = (rest.maxPhysicalInfants !== undefined && rest.maxPhysicalInfants !== null)
                 ? Number(rest.maxPhysicalInfants)
                 : 0;
-            const computedGroupMax = (createRoomTypeDto.groupMaxOccupancy !== undefined && createRoomTypeDto.groupMaxOccupancy !== null)
-                ? Number(createRoomTypeDto.groupMaxOccupancy)
-                : ((physAdults ?? rest.totalMaxOccupancy ?? 2) + (physChildren ?? 0));
+            const isV2 = rest.totalMaxOccupancy !== undefined && rest.totalMaxOccupancy !== null;
+            const computedGroupMax = isV2
+                ? Number(rest.totalMaxOccupancy)
+                : ((createRoomTypeDto.groupMaxOccupancy !== undefined && createRoomTypeDto.groupMaxOccupancy !== null)
+                    ? Number(createRoomTypeDto.groupMaxOccupancy)
+                    : ((physAdults ?? 2) + (physChildren ?? 0)));
 
             const data: any = {
                 ...rest,
@@ -480,23 +486,31 @@ export class RoomTypesService {
                 baseMaxChildren: resolvedBMC,
             }, false);
 
+            const isV2 = resolvedMaxOcc !== null && resolvedMaxOcc !== undefined;
             let resolvedGroupMax: number | null = null;
-            if (updateRoomTypeDto.groupMaxOccupancy !== undefined) {
+            if (isV2) {
+                resolvedGroupMax = Number(resolvedMaxOcc);
+            } else if (updateRoomTypeDto.groupMaxOccupancy !== undefined) {
                 resolvedGroupMax = updateRoomTypeDto.groupMaxOccupancy !== null ? Number(updateRoomTypeDto.groupMaxOccupancy) : null;
             } else if (existing.groupMaxOccupancy !== null && existing.groupMaxOccupancy !== undefined) {
                 resolvedGroupMax = Number(existing.groupMaxOccupancy);
             } else {
-                resolvedGroupMax = (Number(physAdults ?? resolvedMaxOcc ?? 2)) + (Number(physChildren ?? 0));
+                resolvedGroupMax = (Number(physAdults ?? 2)) + (Number(physChildren ?? 0));
             }
 
+            const { cancellationPolicy, cancellationPolicyId, propertyId, ...rest } = updateRoomTypeDto;
+
             const data: any = {
-                ...updateRoomTypeDto,
+                ...rest,
                 groupMaxOccupancy: resolvedGroupMax,
-                cancellationPolicyText: updateRoomTypeDto.cancellationPolicy,
             };
 
-            if (updateRoomTypeDto.cancellationPolicyId !== undefined) {
-                data.cancellationPolicyId = (updateRoomTypeDto.cancellationPolicyId && updateRoomTypeDto.cancellationPolicyId.trim() !== '') ? updateRoomTypeDto.cancellationPolicyId : null;
+            if (cancellationPolicy !== undefined) {
+                data.cancellationPolicyText = cancellationPolicy;
+            }
+
+            if (cancellationPolicyId !== undefined) {
+                data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null;
             }
 
             const updated = await this.prisma.roomType.update({
@@ -507,7 +521,8 @@ export class RoomTypesService {
             // Sync whenever pool membership or capacity changes
             const poolChanged =
                 updateRoomTypeDto.isAvailableForGroupBooking !== undefined ||
-                updateRoomTypeDto.groupMaxOccupancy !== undefined;
+                updateRoomTypeDto.groupMaxOccupancy !== undefined ||
+                updateRoomTypeDto.totalMaxOccupancy !== undefined;
             if (poolChanged || existing.isAvailableForGroupBooking || updated.isAvailableForGroupBooking) {
                 await this.syncPropertyGroupCapacity(updated.propertyId);
             }

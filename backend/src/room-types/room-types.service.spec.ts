@@ -89,12 +89,12 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                     maxChildren: 3,
                     baseAdults: 2,
                     baseChildren: 0,
-                    groupMaxOccupancy: 7, // Fallback computed as 4 + 3 when groupMaxOccupancy is omitted
+                    groupMaxOccupancy: 5, // Canonical V2: groupMaxOccupancy = totalMaxOccupancy (5), NEVER PA + PC (7)
                 }),
             });
         });
 
-        it('7: preserves explicit groupMaxOccupancy on create', async () => {
+        it('7: sets canonical groupMaxOccupancy to totalMaxOccupancy on V2 create', async () => {
             const dto: any = {
                 propertyId: 'prop-1',
                 name: 'Presidential Villa',
@@ -104,7 +104,6 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 totalMaxOccupancy: 6,
                 maxPhysicalAdults: 6,
                 maxPhysicalChildren: 2,
-                groupMaxOccupancy: 15, // Explicit villa group buyout cap
                 isPubliclyVisible: true,
                 images: ['img1.jpg'],
                 amenities: ['Pool'],
@@ -114,14 +113,14 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
 
             expect(prisma.roomType.create).toHaveBeenCalledWith({
                 data: expect.objectContaining({
-                    groupMaxOccupancy: 15, // Preserves explicit 15, does not overwrite with 8
+                    groupMaxOccupancy: 6, // Canonical V2: groupMaxOccupancy = totalMaxOccupancy
                 }),
             });
         });
     });
 
     describe('Update RoomType Mapping', () => {
-        it('8 & 12: preserves existing groupMaxOccupancy and historical exception on update when omitted', async () => {
+        it('8 & 12: sets groupMaxOccupancy to totalMaxOccupancy on V2 update', async () => {
             // Existing legacy exceptional room type:
             prisma.roomType.findUnique.mockResolvedValue({
                 id: 'rt-legacy',
@@ -143,7 +142,6 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 maxPhysicalChildren: 2,
                 maxAdults: 4,
                 maxChildren: 2,
-                // groupMaxOccupancy omitted
             };
 
             await service.update('rt-legacy', updateDto);
@@ -151,7 +149,7 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             expect(prisma.roomType.update).toHaveBeenCalledWith({
                 where: { id: 'rt-legacy' },
                 data: expect.objectContaining({
-                    groupMaxOccupancy: 10, // Explicitly preserved existing 10, NOT overwritten with 6!
+                    groupMaxOccupancy: 5, // Canonical V2: groupMaxOccupancy updated to totalMaxOccupancy (5)
                     maxAdults: 4,
                     maxChildren: 2,
                     totalBaseOccupancy: 3,

@@ -84,10 +84,14 @@ export class AvailabilityService {
         let allAvailableRooms: any[] = [];
         for (const type of groupPoolTypes) {
             const availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut, includeAllStatus, excludeBookingId);
+            const isV2 = (type as any).totalMaxOccupancy !== null && (type as any).totalMaxOccupancy !== undefined;
+            const roomCapacity = isV2
+                ? Number((type as any).totalMaxOccupancy)
+                : ((type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0)));
             allAvailableRooms.push(...availableForType.map(r => ({
                 ...r,
                 roomType: type,
-                capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))
+                capacity: roomCapacity
             })));
         }
 
@@ -951,7 +955,10 @@ export class AvailabilityService {
                 let totalPoolCapacity = 0;
                 for (const rt of property.roomTypes) {
                     const availableCount = await this.getAvailableRoomCount(rt.id, checkInDate, checkOutDate);
-                    const roomCapacity = (rt as any).groupMaxOccupancy || (rt.maxAdults + rt.maxChildren);
+                    const isV2 = (rt as any).totalMaxOccupancy !== null && (rt as any).totalMaxOccupancy !== undefined;
+                    const roomCapacity = isV2
+                        ? Number((rt as any).totalMaxOccupancy)
+                        : ((rt as any).groupMaxOccupancy || (rt.maxAdults + rt.maxChildren));
                     totalPoolCapacity += availableCount * roomCapacity;
                 }
 

@@ -874,9 +874,14 @@ export class RoomsService {
 
             let total = 0;
             for (const rt of roomTypes) {
-                const physAdults = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
-                const physChildren = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
-                const capacityPerRoom = Number(physAdults) + Number(physChildren);
+                const isV2 = (rt as any).totalMaxOccupancy !== null && (rt as any).totalMaxOccupancy !== undefined;
+                const physAdults = (rt as any).maxPhysicalAdults ?? rt.maxAdults ?? 2;
+                const physChildren = (rt as any).maxPhysicalChildren ?? rt.maxChildren ?? 0;
+                const capacityPerRoom = isV2
+                    ? Number((rt as any).totalMaxOccupancy)
+                    : (((rt as any).groupMaxOccupancy !== null && (rt as any).groupMaxOccupancy !== undefined)
+                        ? Number((rt as any).groupMaxOccupancy)
+                        : (Number(physAdults) + Number(physChildren)));
                 const activeRoomCount = rt.rooms ? rt.rooms.length : 0;
                 total += capacityPerRoom * activeRoomCount;
             }

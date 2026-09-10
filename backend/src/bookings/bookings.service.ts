@@ -370,7 +370,10 @@ export class BookingsService {
                         throw new BadRequestException(`Room ${room.roomNumber || room.name} is no longer available for these dates`);
                     }
                     // Add capacity field for group allocation logic downstream if needed (though pricing uses guests)
-                    (room as any).capacity = (room.roomType as any).groupMaxOccupancy || (room.roomType.maxAdults + (room.roomType.maxChildren || 0));
+                    const isV2 = (room.roomType as any).totalMaxOccupancy !== null && (room.roomType as any).totalMaxOccupancy !== undefined;
+                    (room as any).capacity = isV2
+                        ? Number((room.roomType as any).totalMaxOccupancy)
+                        : ((room.roomType as any).groupMaxOccupancy || (room.roomType.maxAdults + (room.roomType.maxChildren || 0)));
                 }
             } else {
                 // Auto-allocation fallback
@@ -2669,7 +2672,10 @@ export class BookingsService {
                 let totalPoolCapacity = 0;
                 for (const room of roomsToAllocate) {
                     const rType = room.roomType || targetRoomType;
-                    totalPoolCapacity += rType.groupMaxOccupancy || ((rType.maxAdults || 2) + (rType.maxChildren || 0));
+                    const isV2 = (rType as any).totalMaxOccupancy !== null && (rType as any).totalMaxOccupancy !== undefined;
+                    totalPoolCapacity += isV2
+                        ? Number((rType as any).totalMaxOccupancy)
+                        : (rType.groupMaxOccupancy || ((rType.maxAdults || 2) + (rType.maxChildren || 0)));
                 }
                 const guestCount = parsedAdults + parsedChildren;
                 if (totalPoolCapacity > 0 && guestCount > totalPoolCapacity) {
@@ -3091,7 +3097,7 @@ export class BookingsService {
                     status: 'CANCELLED',
                     isDeleted: true,
                     deletedAt: new Date(),
-                }
+                } as any
             });
 
             // 3. Create a permanent audit log entry for this deletion

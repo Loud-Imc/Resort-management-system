@@ -220,7 +220,7 @@ export default function OtaRoomTypes() {
         allowPayAtProperty,
         groupMaxOccupancy: groupMaxOccupancy && parseInt(groupMaxOccupancy) > 0
           ? parseInt(groupMaxOccupancy)
-          : (selectedRoomType?.groupMaxOccupancy ?? ((resolvedMaxPhysAdults || 0) + (resolvedMaxPhysChildren || 0))),
+          : (selectedRoomType?.groupMaxOccupancy ?? selectedRoomType?.totalMaxOccupancy ?? undefined),
         cancellationPolicyId: cancellationPolicyId || null,
         amenities: selectedAmenities,
         highlights: selectedHighlights,
@@ -660,10 +660,14 @@ export default function OtaRoomTypes() {
                   <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Single Room Capacity (Auto-calculated)</label>
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-800 rounded-xl flex items-center justify-between">
                     <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                      {(parseInt(maxPhysicalAdults) || 0) + (parseInt(maxPhysicalChildren) || 0)} Guests / Room
+                      {selectedRoomType?.totalMaxOccupancy
+                        ? `${selectedRoomType.totalMaxOccupancy} Guests / Room`
+                        : `${(parseInt(maxPhysicalAdults) || 0) + (parseInt(maxPhysicalChildren) || 0)} Guests / Room`}
                     </span>
                     <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
-                      ({parseInt(maxPhysicalAdults) || 0} Adults + {parseInt(maxPhysicalChildren) || 0} Children)
+                      {selectedRoomType?.totalMaxOccupancy
+                        ? `(Total Max Occupancy: ${selectedRoomType.totalMaxOccupancy})`
+                        : `(${parseInt(maxPhysicalAdults) || 0} Adults + ${parseInt(maxPhysicalChildren) || 0} Children)`}
                     </span>
                   </div>
                 </div>

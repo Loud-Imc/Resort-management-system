@@ -1053,12 +1053,20 @@ export default function CreateRoomType() {
                                             <div className="flex items-center gap-2">
                                                 <Users className="h-4 w-4 text-emerald-600" />
                                                 <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                                                    {(Number(watch('maxPhysicalAdults') || watch('maxAdults') || 2)) + (Number(watch('maxPhysicalChildren') || watch('maxChildren') || 0))} Guests / Room
+                                                    {(watch('totalMaxOccupancy') !== undefined && watch('totalMaxOccupancy') !== null && watch('totalMaxOccupancy') !== '')
+                                                        ? Number(watch('totalMaxOccupancy'))
+                                                        : (Number(watch('maxPhysicalAdults') || watch('maxAdults') || 2) + Number(watch('maxPhysicalChildren') || watch('maxChildren') || 0))} Guests / Room
                                                 </span>
                                             </div>
-                                            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
-                                                ({watch('maxPhysicalAdults') || watch('maxAdults') || 2} Max Physical Adults + {watch('maxPhysicalChildren') || watch('maxChildren') || 0} Max Physical Children)
-                                            </span>
+                                            {(watch('totalMaxOccupancy') !== undefined && watch('totalMaxOccupancy') !== null && watch('totalMaxOccupancy') !== '') ? (
+                                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                                    (Total Max Occupancy: {watch('totalMaxOccupancy')})
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                                    ({watch('maxPhysicalAdults') || watch('maxAdults') || 2} Max Physical Adults + {watch('maxPhysicalChildren') || watch('maxChildren') || 0} Max Physical Children)
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
                                             Total group capacity for this room type will automatically multiply across all active rooms created under it.
