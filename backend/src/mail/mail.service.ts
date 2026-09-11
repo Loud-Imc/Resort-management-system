@@ -30,14 +30,103 @@ export class MailService {
     }
 
     /**
+     * Helper to render standardized luxury Oreedu email wrapper
+     */
+    private wrapEmailHtml(content: {
+        headerGradient?: string;
+        badgeText?: string;
+        badgeBg?: string;
+        badgeColor?: string;
+        title: string;
+        subtitle?: string;
+        bodyHtml: string;
+        footerNote?: string;
+    }): string {
+        const headerBg = content.headerGradient || 'linear-gradient(135deg, #093f4a 0%, #0e5b6a 100%)';
+        const year = new Date().getFullYear();
+
+        return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${content.title}</title>
+          <style>
+              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+              .wrapper { width: 100%; table-layout: fixed; background-color: #f8fafc; padding: 30px 0 50px 0; }
+              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #0f172a; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); border: 1px solid #e2e8f0; }
+              .header { background: ${headerBg}; padding: 36px 30px; text-align: center; color: #ffffff; }
+              .logo-container { margin-bottom: 12px; }
+              .brand-badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+              .header h1 { font-size: 24px; font-weight: 800; margin: 8px 0 4px 0; color: #ffffff; letter-spacing: -0.3px; }
+              .header p { font-size: 14px; margin: 0; color: rgba(255, 255, 255, 0.85); font-weight: 500; }
+              .content { padding: 36px 32px; }
+              .card { background-color: #f8fafc; border-radius: 14px; padding: 22px; margin: 24px 0; border: 1px solid #e2e8f0; }
+              .detail-table { width: 100%; border-spacing: 0; }
+              .detail-table td { padding: 11px 0; border-bottom: 1px solid #e2e8f0; }
+              .detail-table tr:last-child td { border-bottom: none; }
+              .label { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; width: 40%; }
+              .value { color: #0f172a; font-size: 14px; font-weight: 700; text-align: right; }
+              .btn-container { text-align: center; margin: 30px 0 10px 0; }
+              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 15px 34px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 4px 14px rgba(9, 63, 74, 0.25); text-align: center; }
+              .footer { text-align: center; padding: 28px 24px; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; background: #ffffff; }
+              .footer-brand { font-weight: 700; color: #475569; margin: 0 0 4px 0; font-size: 13px; }
+              .footer-sub { margin: 0; color: #94a3b8; }
+          </style>
+      </head>
+      <body>
+          <div class="wrapper">
+              <!--[if mso]>
+              <table align="center" width="600" style="border-spacing: 0; font-family: sans-serif;">
+              <tr><td style="padding: 0;">
+              <![endif]-->
+              <table class="main" width="100%" align="center">
+                  <tr>
+                      <td class="header">
+                          <div class="logo-container">
+                              <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                                  <tr>
+                                      <td align="center" style="font-size: 26px; font-weight: 900; letter-spacing: 3.5px; color: #ffffff; text-transform: uppercase; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                                          OREEDU
+                                      </td>
+                                  </tr>
+                              </table>
+                          </div>
+                          ${content.badgeText ? `
+                          <div>
+                              <span class="brand-badge" style="background: ${content.badgeBg || 'rgba(255,255,255,0.2)'}; color: ${content.badgeColor || '#ffffff'};">
+                                  ${content.badgeText}
+                              </span>
+                          </div>` : ''}
+                          <h1>${content.title}</h1>
+                          ${content.subtitle ? `<p>${content.subtitle}</p>` : ''}
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="content">
+                          ${content.bodyHtml}
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="footer">
+                          ${content.footerNote ? `<p style="margin: 0 0 10px 0; color: #64748b; font-size: 13px;">${content.footerNote}</p>` : ''}
+                          <p class="footer-brand">Oreedu Hospitality Technologies</p>
+                          <p class="footer-sub">© ${year} Oreedu. All rights reserved.</p>
+                      </td>
+                  </tr>
+              </table>
+              <!--[if mso]>
+              </td></tr></table>
+              <![endif]-->
+          </div>
+      </body>
+      </html>
+        `;
+    }
+
+    /**
      * Send email via MSG91 template API.
-     * Templates must be created in the MSG91 dashboard at control.msg91.com → Email
-     * Each template has a template_id and uses {{variable}} placeholders.
-     *
-     * @param to         Recipient email address
-     * @param toName     Recipient display name
-     * @param templateId MSG91 template ID (set in .env per email type)
-     * @param variables  Key-value pairs to inject into the template
      */
     private async sendEmailViaMSG91(
         to: string,
@@ -82,9 +171,11 @@ export class MailService {
     }
 
     async sendBookingConfirmation(booking: any, attachment?: { filename: string, content: Buffer }) {
-        console.log(`[MailService] Sending PREMIUM booking confirmation to ${booking.user.email}`);
-        const from = this.configService.get('EMAIL_FROM');
-        const to = booking.user.email;
+        console.log(`[MailService] Sending PREMIUM booking confirmation to ${booking.user?.email}`);
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
+        const to = booking.user?.email;
+        if (!to) return;
+
         const subject = `Booking Confirmed - ${booking.bookingNumber} at ${booking.property?.name || 'Oreedu'}`;
 
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -94,125 +185,76 @@ export class MailService {
         const paidAmount = Number(booking.paidAmount || 0);
         const totalAmount = Number(booking.totalAmount);
         const balance = totalAmount - paidAmount;
+        const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL') || 'https://myoreedu.com';
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f1f8fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f1f8fa; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #093f4a; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(9, 63, 74, 0.05); }
-              .header { background-color: #093f4a; padding: 40px 20px; text-align: center; }
-              .logo-text { color: #f1f8fa; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .hero h1 { font-size: 28px; margin: 0; color: #227c8a; font-weight: 800; }
-              .hero p { font-size: 16px; color: #62a1b1; margin-top: 10px; }
-              .content { padding: 0 40px 40px 40px; }
-              .details-box { background-color: #f1f8fa; border-radius: 12px; padding: 20px; margin: 30px 0; border: 1px solid #e3f1f4; }
-              
-              .detail-table { width: 100%; border-spacing: 0; }
-              .detail-table td { padding: 12px 0; border-bottom: 1px solid rgba(34, 124, 138, 0.1); }
-              .detail-table tr:last-child td { border-bottom: none; }
-              
-              .label { color: #62a1b1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 40%; }
-              .value { color: #093f4a; font-size: 15px; font-weight: 700; text-align: right; }
-              
-              .payment-status { text-align: center; margin-bottom: 25px; }
-              .badge { display: inline-block; padding: 8px 20px; border-radius: 25px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
-              .badge-full { background-color: #227c8a; color: #ffffff; }
-              .badge-partial { background-color: #fbbf24; color: #093f4a; }
-              
-              .amount-info { margin-top: 30px; text-align: right; }
-              .total-label { font-size: 14px; color: #62a1b1; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-              .total-amount { font-size: 32px; color: #227c8a; font-weight: 800; margin-top: 5px; }
-              .balance-text { font-size: 13px; color: #e11d48; font-weight: 700; margin-top: 8px; }
-              
-              .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #95c2ce; border-top: 1px solid #f1f8fa; }
-              .btn-wrapper { text-align: center; margin-top: 35px; }
-              .btn { display: inline-block; background-color: #227c8a; color: #ffffff !important; padding: 16px 35px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; box-shadow: 0 4px 12px rgba(34, 124, 138, 0.2); }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <!--[if mso]>
-              <table align="center" width="600" style="border-spacing: 0; font-family: sans-serif; color: #093f4a;">
-              <tr><td style="padding: 0;">
-              <![endif]-->
-              <table class="main" width="100%" align="center">
-                  <tr>
-                      <td class="header">
-                          <div class="logo-text">ROUTE GUIDE</div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="hero">
-                          <h1>Booking Confirmed!</h1>
-                          <p>We're thrilled to have you! Your stay at <strong>${booking.property?.name || 'our resort'}</strong> is all set.</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="payment-status">
-                              <span class="badge ${isPartial ? 'badge-partial' : 'badge-full'}">
-                                  ${isPartial ? 'Partial Payment Received' : 'Fully Paid & Confirmed'}
-                              </span>
-                          </div>
+        const bodyHtml = `
+            <div style="text-align: center; margin-bottom: 24px;">
+                <span style="display: inline-block; padding: 6px 18px; border-radius: 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; background: ${isPartial ? '#fef3c7' : '#dcfce7'}; color: ${isPartial ? '#92400e' : '#166534'};">
+                    ${isPartial ? 'Partial Payment Confirmed' : 'Fully Paid & Confirmed'}
+                </span>
+            </div>
 
-                          <div class="details-box">
-                              <table class="detail-table">
-                                  <tr>
-                                      <td class="label">Reservation #</td>
-                                      <td class="value">${booking.bookingNumber}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Guest Name</td>
-                                      <td class="value">${booking.user?.firstName} ${booking.user?.lastName}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Room Type</td>
-                                      <td class="value">${booking.roomType?.name}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Check-in</td>
-                                      <td class="value">${checkIn}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Check-out</td>
-                                      <td class="value">${checkOut}</td>
-                                  </tr>
-                              </table>
-                          </div>
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 20px;">
+                Hello <strong>${booking.user?.firstName || 'Guest'}</strong>, we're thrilled to have you! Your reservation at <strong>${booking.property?.name || 'our partner property'}</strong> is confirmed.
+            </p>
 
-                          <div class="amount-info">
-                              <div class="total-label">${isPartial ? 'Total Booking Amount' : 'Amount Paid'}</div>
-                              <div class="total-amount">₹${totalAmount.toLocaleString('en-IN')}</div>
-                              ${isPartial ? `
-                                <div style="color: #62a1b1; font-size: 13px; margin-top: 5px;">Paid: ₹${paidAmount.toLocaleString('en-IN')}</div>
-                                <div class="balance-text">Remaining Balance: ₹${balance.toLocaleString('en-IN')}</div>
-                              ` : ''}
-                          </div>
+            <div class="card">
+                <table class="detail-table">
+                    <tr>
+                        <td class="label">Reservation #</td>
+                        <td class="value">${booking.bookingNumber}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Guest Name</td>
+                        <td class="value">${booking.user?.firstName} ${booking.user?.lastName || ''}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Room Type</td>
+                        <td class="value">${booking.roomType?.name || 'Standard Accommodation'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Check-in</td>
+                        <td class="value">${checkIn}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Check-out</td>
+                        <td class="value">${checkOut}</td>
+                    </tr>
+                </table>
+            </div>
 
-                          <div class="btn-wrapper">
-                              <a href="${this.configService.get('FRONTEND_URL')}/bookings/${booking.id}" class="btn">View Reservation Details</a>
-                          </div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="footer">
-                          <p style="margin-bottom: 8px;">Questions? We're here to help.</p>
-                          <p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p>
-                      </td>
-                  </tr>
-              </table>
-              <!--[if mso]>
-              </td></tr></table>
-              <![endif]-->
-          </div>
-      </body>
-      </html>
-    `;
+            <div style="background: #f1f5f9; border-radius: 14px; padding: 20px; text-align: center; margin-top: 20px;">
+                <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">
+                    ${isPartial ? 'Total Booking Value' : 'Total Amount Paid'}
+                </div>
+                <div style="font-size: 32px; font-weight: 800; color: #093f4a; margin-top: 4px;">
+                    ₹${totalAmount.toLocaleString('en-IN')}
+                </div>
+                ${isPartial ? `
+                    <div style="color: #0d9488; font-size: 13px; font-weight: 700; margin-top: 6px;">
+                        Paid: ₹${paidAmount.toLocaleString('en-IN')}
+                    </div>
+                    <div style="color: #e11d48; font-size: 13px; font-weight: 700; margin-top: 2px;">
+                        Remaining Balance: ₹${balance.toLocaleString('en-IN')}
+                    </div>
+                ` : ''}
+            </div>
+
+            <div class="btn-container">
+                <a href="${frontendUrl}/confirmation?bookingId=${booking.id}" class="btn">View Reservation Details</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0e5b6a 100%)',
+            badgeText: 'Booking Confirmed',
+            badgeBg: '#14b8a6',
+            badgeColor: '#ffffff',
+            title: 'Your Stay is Confirmed! 🏨',
+            subtitle: `Reservation ${booking.bookingNumber} at ${booking.property?.name}`,
+            bodyHtml,
+            footerNote: "Need assistance? Reply directly to this email or visit our support portal."
+        });
 
         try {
             await this.transporter.sendMail({
@@ -229,8 +271,8 @@ export class MailService {
     }
 
     async sendPropertyNewBookingAlert(propertyEmail: string, booking: any, attachment?: { filename: string, content: Buffer }) {
-        console.log(`[MailService] Sending PREMIUM email to property ${propertyEmail} for booking ${booking.bookingNumber}`);
-        const from = this.configService.get('EMAIL_FROM');
+        console.log(`[MailService] Sending email to property ${propertyEmail} for booking ${booking.bookingNumber}`);
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const subject = `🚀 New Booking Received - ${booking.bookingNumber} at ${booking.property?.name}`;
 
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -239,115 +281,67 @@ export class MailService {
         const isPartial = booking.paymentStatus === 'PARTIAL';
         const paidAmount = Number(booking.paidAmount || 0);
         const totalAmount = Number(booking.totalAmount);
+        const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.myoreedu.com';
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f1f8fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f1f8fa; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #093f4a; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(9, 63, 74, 0.05); }
-              .header { background-color: #093f4a; padding: 30px 20px; text-align: center; }
-              .logo-text { color: #f1f8fa; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 35px 40px 15px 40px; text-align: center; }
-              .hero h1 { font-size: 24px; margin: 0; color: #227c8a; font-weight: 800; }
-              .hero p { font-size: 15px; color: #62a1b1; margin-top: 8px; }
-              .content { padding: 0 40px 40px 40px; }
-              .details-box { background-color: #f1f8fa; border-radius: 10px; padding: 15px; margin: 25px 0; border: 1px solid #e3f1f4; }
-              
-              .detail-table { width: 100%; border-spacing: 0; }
-              .detail-table td { padding: 10px 0; border-bottom: 1px solid rgba(34, 124, 138, 0.1); }
-              .detail-table tr:last-child td { border-bottom: none; }
-              
-              .label { color: #62a1b1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; width: 40%; }
-              .value { color: #093f4a; font-size: 14px; font-weight: 700; text-align: right; }
-              
-              .payment-info { background: #093f4a; padding: 20px; border-radius: 8px; margin-top: 25px; text-align: center; color: #ffffff; }
-              .stat-label { font-size: 11px; color: #95c2ce; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-              .stat-value { font-size: 24px; color: #ffffff; font-weight: 800; margin-top: 5px; display: block; }
-              .badge { display: inline-block; padding: 5px 15px; border-radius: 15px; font-size: 10px; font-weight: 800; text-transform: uppercase; margin-top: 10px; border: 1px solid rgba(255,255,255,0.2); }
-              .badge-full { background-color: #227c8a; color: #ffffff; }
-              .badge-partial { background-color: #fbbf24; color: #093f4a; }
-              
-              .footer { text-align: center; padding: 25px; font-size: 11px; color: #95c2ce; border-top: 1px solid #f1f8fa; }
-              .btn-wrapper { text-align: center; margin-top: 30px; }
-              .btn { display: inline-block; background-color: #227c8a; color: #ffffff !important; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px; }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <!--[if mso]>
-              <table align="center" width="600" style="border-spacing: 0; font-family: sans-serif;">
-              <tr><td style="padding: 0;">
-              <![endif]-->
-              <table class="main" width="100%" align="center">
-                  <tr>
-                      <td class="header">
-                          <div class="logo-text">ROUTE GUIDE</div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="hero">
-                          <h1>New Booking Received!</h1>
-                          <p>Great news! A new reservation has been made for <strong>${booking.property?.name}</strong>.</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="details-box">
-                              <table class="detail-table">
-                                  <tr>
-                                      <td class="label">Reservation #</td>
-                                      <td class="value">${booking.bookingNumber}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Guest Name</td>
-                                      <td class="value">${booking.user?.firstName} ${booking.user?.lastName}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Accommodation</td>
-                                      <td class="value">${booking.roomType?.name}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Dates</td>
-                                      <td class="value">${checkIn} - ${checkOut}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Source</td>
-                                      <td class="value">${booking.channelPartnerId ? 'Channel Partner' : 'Direct Booking'}</td>
-                                  </tr>
-                              </table>
-                          </div>
- 
-                          <div class="payment-info">
-                              <div class="stat-label">Total Booking Amount</div>
-                              <span class="stat-value">₹${totalAmount.toLocaleString('en-IN')}</span>
-                              <div class="badge ${isPartial ? 'badge-partial' : 'badge-full'}">
-                                  ${isPartial ? `PARTIAL PAYMENT: ₹${paidAmount.toLocaleString('en-IN')}` : 'FULL PAYMENT RECEIVED'}
-                              </div>
-                          </div>
- 
-                          <div class="btn-wrapper">
-                              <a href="${this.configService.get('FRONTEND_URL')}/property/bookings/${booking.id}" class="btn">Process Booking</a>
-                          </div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="footer">
-                          <p style="margin-bottom: 5px;">Oreedu Property Management System</p>
-                          <p>© ${new Date().getFullYear()} Oreedu. All rights reserved.</p>
-                      </td>
-                  </tr>
-              </table>
-              <!--[if mso]>
-              </td></tr></table>
-              <![endif]-->
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 20px;">
+                Great news! A new reservation has been made for <strong>${booking.property?.name}</strong>.
+            </p>
+
+            <div class="card">
+                <table class="detail-table">
+                    <tr>
+                        <td class="label">Reservation #</td>
+                        <td class="value">${booking.bookingNumber}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Guest Name</td>
+                        <td class="value">${booking.user?.firstName} ${booking.user?.lastName || ''}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Accommodation</td>
+                        <td class="value">${booking.roomType?.name || 'Standard'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Dates</td>
+                        <td class="value">${checkIn} – ${checkOut}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Source</td>
+                        <td class="value">${booking.channelPartnerId ? 'Channel Partner' : 'Direct Booking'}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="background: #093f4a; color: #ffffff; border-radius: 14px; padding: 22px; text-align: center; margin-top: 20px;">
+                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">
+                    Total Booking Amount
+                </div>
+                <div style="font-size: 28px; font-weight: 800; color: #ffffff; margin-top: 4px;">
+                    ₹${totalAmount.toLocaleString('en-IN')}
+                </div>
+                <div style="margin-top: 10px;">
+                    <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; background: ${isPartial ? '#fef3c7' : '#dcfce7'}; color: ${isPartial ? '#92400e' : '#166534'};">
+                        ${isPartial ? `Partial Paid: ₹${paidAmount.toLocaleString('en-IN')}` : 'Full Payment Received'}
+                    </span>
+                </div>
+            </div>
+
+            <div class="btn-container">
+                <a href="${propertyUrl}/bookings" class="btn">View & Process Booking</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Property Booking Alert',
+            badgeBg: '#38bdf8',
+            badgeColor: '#093f4a',
+            title: 'New Reservation Received! 🎉',
+            subtitle: `${booking.bookingNumber} • ${booking.property?.name}`,
+            bodyHtml,
+            footerNote: "Oreedu Property Management System"
+        });
 
         try {
             await this.transporter.sendMail({
@@ -363,109 +357,70 @@ export class MailService {
     }
 
     async sendChannelPartnerBookingAlert(cpEmail: string, booking: any, attachment?: { filename: string, content: Buffer }) {
-        console.log(`[MailService] Sending PREMIUM email to Channel Partner ${cpEmail} for booking ${booking.bookingNumber}`);
-        const from = this.configService.get('EMAIL_FROM');
+        console.log(`[MailService] Sending email to Channel Partner ${cpEmail} for booking ${booking.bookingNumber}`);
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const subject = `💰 New Referral Booking Earned! - ${booking.bookingNumber}`;
 
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const checkOut = new Date(booking.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const commission = Number(booking.cpCommission || 0).toLocaleString('en-IN');
         const totalAmount = Number(booking.totalAmount).toLocaleString('en-IN');
+        const cpUrl = this.configService.get('CHANNEL_PARTNER_URL') || 'https://cp.myoreedu.com';
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f8fafc; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #1e293b; border-radius: 16px; overflow: hidden; margin-top: 40px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); }
-              .header { background: linear-gradient(135deg, #093f4a 0%, #0c6a75 100%); padding: 40px 20px; text-align: center; }
-              .logo { color: #ffffff; font-size: 20px; font-weight: 800; letter-spacing: 3px; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .hero h1 { font-size: 32px; margin: 0; color: #0f172a; font-weight: 800; }
-              .hero p { font-size: 16px; color: #64748b; margin-top: 10px; }
-              .content { padding: 0 40px 40px 40px; }
-              
-              .earning-card { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border-radius: 12px; padding: 30px; margin: 30px 0; text-align: center; border: 1px solid #99f6e4; }
-              .earning-label { font-size: 12px; color: #0d9488; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-              .earning-amount { font-size: 42px; color: #0f766e; font-weight: 800; margin-top: 5px; }
-              
-              .details-box { border: 1px solid #f1f5f9; border-radius: 12px; padding: 20px; margin-bottom: 30px; }
-              .detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
-              .detail-row:last-child { border-bottom: none; }
-              .label { color: #64748b; font-size: 13px; font-weight: 600; width: 40%; }
-              .value { color: #1e293b; font-size: 14px; font-weight: 700; text-align: right; width: 60%; }
-              
-              .footer { text-align: center; padding: 30px; font-size: 12px; color: #94a3b8; background-color: #f8fafc; }
-              .btn { display: inline-block; background-color: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; margin-top: 20px; }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <table class="main" width="100%" align="center">
-                  <tr>
-                      <td class="header">
-                          <div class="logo">ROUTE GUIDE PARTNER</div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="hero">
-                          <p>Congratulations!</p>
-                          <h1>New Commission Earned!</h1>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="earning-card">
-                              <div class="earning-label">Estimated Commission</div>
-                              <div class="earning-amount">₹${commission}</div>
-                          </div>
+        const bodyHtml = `
+            <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border-radius: 14px; padding: 25px; text-align: center; border: 1px solid #99f6e4; margin-bottom: 24px;">
+                <div style="font-size: 12px; color: #0d9488; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">
+                    Estimated Commission
+                </div>
+                <div style="font-size: 38px; color: #0f766e; font-weight: 900; margin-top: 4px;">
+                    ₹${commission}
+                </div>
+            </div>
 
-                          <div class="details-box">
-                              <table width="100%">
-                                  <tr>
-                                      <td class="label" style="padding: 10px 0;">Booking Number</td>
-                                      <td class="value" style="padding: 10px 0; text-align: right;">${booking.bookingNumber}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label" style="padding: 10px 0;">Guest Name</td>
-                                      <td class="value" style="padding: 10px 0; text-align: right;">${booking.user?.firstName} ${booking.user?.lastName}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label" style="padding: 10px 0;">Property</td>
-                                      <td class="value" style="padding: 10px 0; text-align: right;">${booking.property?.name}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label" style="padding: 10px 0;">Total Amount</td>
-                                      <td class="value" style="padding: 10px 0; text-align: right;">₹${totalAmount}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label" style="padding: 10px 0;">Check-in / Out</td>
-                                      <td class="value" style="padding: 10px 0; text-align: right;">${checkIn} - ${checkOut}</td>
-                                  </tr>
-                              </table>
-                          </div>
+            <div class="card">
+                <table class="detail-table">
+                    <tr>
+                        <td class="label">Booking #</td>
+                        <td class="value">${booking.bookingNumber}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Guest Name</td>
+                        <td class="value">${booking.user?.firstName} ${booking.user?.lastName || ''}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Property</td>
+                        <td class="value">${booking.property?.name}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Total Booking</td>
+                        <td class="value">₹${totalAmount}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Dates</td>
+                        <td class="value">${checkIn} – ${checkOut}</td>
+                    </tr>
+                </table>
+            </div>
 
-                          <div style="text-align: center;">
-                              <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-                                  Your commission has been tracked and will be updated in your wallet once the guest completes their stay.
-                              </p>
-                              <a href="${this.configService.get('FRONTEND_URL')}/referrals" class="btn">View My Referrals</a>
-                          </div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="footer">
-                          <p>© ${new Date().getFullYear()} Oreedu Hospitality Network. All rights reserved.</p>
-                      </td>
-                  </tr>
-              </table>
-          </div>
-      </body>
-      </html>
-    `;
+            <p style="font-size: 14px; color: #64748b; line-height: 1.6; text-align: center; margin-top: 20px;">
+                Your referral commission has been tracked and will be settled to your wallet once the guest completes their stay.
+            </p>
+
+            <div class="btn-container">
+                <a href="${cpUrl}/referrals" class="btn">View My Referrals</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Oreedu Partner Network',
+            badgeBg: '#14b8a6',
+            badgeColor: '#ffffff',
+            title: 'Commission Earned! 💰',
+            subtitle: `Referral Booking ${booking.bookingNumber}`,
+            bodyHtml,
+            footerNote: "Oreedu Channel Partner Network"
+        });
 
         try {
             await this.transporter.sendMail({
@@ -481,109 +436,69 @@ export class MailService {
     }
 
     async sendBalancePaymentReminder(booking: any) {
-        console.log(`[MailService] Sending balance reminder to ${booking.user.email}`);
-        const from = this.configService.get('EMAIL_FROM');
-        const to = booking.user.email;
-        const subject = `Action Required: Balance Payment for your stay at ${booking.property?.name}`;
+        console.log(`[MailService] Sending balance reminder to ${booking.user?.email}`);
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
+        const to = booking.user?.email;
+        if (!to) return;
 
+        const subject = `Action Required: Balance Payment for your stay at ${booking.property?.name}`;
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const paidAmount = Number(booking.paidAmount || 0);
         const totalAmount = Number(booking.totalAmount);
         const balance = totalAmount - paidAmount;
-        const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL');
+        const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL') || 'https://myoreedu.com';
         const paymentLink = `${frontendUrl}/confirmation?bookingId=${booking.id}`;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f1f8fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f1f8fa; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #093f4a; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(9, 63, 74, 0.05); }
-              .header { background-color: #093f4a; padding: 40px 20px; text-align: center; }
-              .logo-text { color: #f1f8fa; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .hero h1 { font-size: 28px; margin: 0; color: #e11d48; font-weight: 800; }
-              .hero p { font-size: 16px; color: #62a1b1; margin-top: 10px; }
-              .content { padding: 0 40px 40px 40px; }
-              .details-box { background-color: #f1f8fa; border-radius: 12px; padding: 20px; margin: 30px 0; border: 1px solid #e3f1f4; }
-              
-              .detail-table { width: 100%; border-spacing: 0; }
-              .detail-table td { padding: 12px 0; border-bottom: 1px solid rgba(34, 124, 138, 0.1); }
-              .detail-table tr:last-child td { border-bottom: none; }
-              
-              .label { color: #62a1b1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 40%; }
-              .value { color: #093f4a; font-size: 15px; font-weight: 700; text-align: right; }
-              
-              .amount-info { margin-top: 30px; text-align: center; background: #fff1f2; padding: 25px; border-radius: 12px; border: 1px solid #fecdd3; }
-              .total-label { font-size: 14px; color: #e11d48; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-              .total-amount { font-size: 36px; color: #e11d48; font-weight: 800; margin-top: 5px; }
-              
-              .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #95c2ce; border-top: 1px solid #f1f8fa; }
-              .btn-wrapper { text-align: center; margin-top: 35px; }
-              .btn { display: inline-block; background-color: #e11d48; color: #ffffff !important; padding: 18px 40px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 18px; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.2); }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <table class="main" width="100%" align="center">
-                  <tr>
-                      <td class="header">
-                          <div class="logo-text">ROUTE GUIDE</div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="hero">
-                          <h1>Pending Balance Reminder</h1>
-                          <p>Your stay at <strong>${booking.property?.name}</strong> starts tomorrow! Please complete your balance payment to ensure a smooth check-in.</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="details-box">
-                              <table class="detail-table">
-                                  <tr>
-                                      <td class="label">Reservation #</td>
-                                      <td class="value">${booking.bookingNumber}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Check-in Date</td>
-                                      <td class="value">${checkIn}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Total Amount</td>
-                                      <td class="value">₹${totalAmount.toLocaleString('en-IN')}</td>
-                                  </tr>
-                                  <tr>
-                                      <td class="label">Paid Amount</td>
-                                      <td class="value">₹${paidAmount.toLocaleString('en-IN')}</td>
-                                  </tr>
-                              </table>
-                          </div>
- 
-                          <div class="amount-info">
-                              <div class="total-label">Balance Due</div>
-                              <div class="total-amount">₹${balance.toLocaleString('en-IN')}</div>
-                          </div>
- 
-                          <div class="btn-wrapper">
-                              <a href="${paymentLink}" class="btn">Pay Balance Now</a>
-                          </div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="footer">
-                          <p style="margin-bottom: 8px;">If you have already paid, please ignore this message.</p>
-                          <p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p>
-                      </td>
-                  </tr>
-              </table>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 20px;">
+                Your stay at <strong>${booking.property?.name}</strong> starts soon! Please settle your remaining balance to ensure a swift, contactless check-in.
+            </p>
+
+            <div class="card">
+                <table class="detail-table">
+                    <tr>
+                        <td class="label">Reservation #</td>
+                        <td class="value">${booking.bookingNumber}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Check-in Date</td>
+                        <td class="value">${checkIn}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Total Amount</td>
+                        <td class="value">₹${totalAmount.toLocaleString('en-IN')}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Paid Amount</td>
+                        <td class="value">₹${paidAmount.toLocaleString('en-IN')}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: 14px; padding: 22px; text-align: center; margin-top: 20px;">
+                <div style="font-size: 12px; font-weight: 800; color: #e11d48; text-transform: uppercase; letter-spacing: 1px;">
+                    Remaining Balance Due
+                </div>
+                <div style="font-size: 34px; font-weight: 900; color: #e11d48; margin-top: 4px;">
+                    ₹${balance.toLocaleString('en-IN')}
+                </div>
+            </div>
+
+            <div class="btn-container">
+                <a href="${paymentLink}" class="btn" style="background: #e11d48;">Pay Balance Now</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #881337 0%, #be123c 100%)',
+            badgeText: 'Payment Reminder',
+            badgeBg: '#fb7185',
+            badgeColor: '#881337',
+            title: 'Pending Balance Reminder 💳',
+            subtitle: `Reservation ${booking.bookingNumber}`,
+            bodyHtml,
+            footerNote: "If you have already settled this payment, please disregard this notice."
+        });
 
         try {
             await this.transporter.sendMail({
@@ -599,90 +514,58 @@ export class MailService {
     }
 
     async sendCancellationConfirmation(booking: any) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const to = booking.user?.email;
         if (!to) return;
 
         const subject = `Booking Cancelled - ${booking.bookingNumber} at ${booking.property?.name || 'Oreedu'}`;
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const checkOut = new Date(booking.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        const cancelledAt = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' } as any);
+        const cancelledAt = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
         const paidAmount = Number(booking.paidAmount || 0);
         const refundAmount = Number(booking.refundAmount || 0);
         const hasRefund = refundAmount > 0;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f1f8fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f1f8fa; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #093f4a; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(9, 63, 74, 0.05); }
-              .header { background-color: #374151; padding: 40px 20px; text-align: center; }
-              .logo-text { color: #f9fafb; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .hero h1 { font-size: 26px; margin: 0; color: #374151; font-weight: 800; }
-              .hero p { font-size: 15px; color: #6b7280; margin-top: 10px; }
-              .content { padding: 0 40px 40px 40px; }
-              .details-box { background-color: #f9fafb; border-radius: 12px; padding: 20px; margin: 25px 0; border: 1px solid #e5e7eb; }
-              .detail-table { width: 100%; border-spacing: 0; }
-              .detail-table td { padding: 11px 0; border-bottom: 1px solid #f3f4f6; }
-              .detail-table tr:last-child td { border-bottom: none; }
-              .label { color: #9ca3af; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 40%; }
-              .value { color: #111827; font-size: 14px; font-weight: 700; text-align: right; }
-              .refund-box { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 20px; margin-top: 20px; text-align: center; }
-              .refund-label { font-size: 12px; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 1px; }
-              .refund-amount { font-size: 30px; font-weight: 800; color: #047857; margin-top: 5px; }
-              .refund-note { font-size: 12px; color: #6b7280; margin-top: 8px; }
-              .no-refund-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 15px; margin-top: 20px; text-align: center; font-size: 13px; color: #92400e; }
-              .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <table class="main" width="100%" align="center">
-                  <tr><td class="header"><div class="logo-text">ROUTE GUIDE</div></td></tr>
-                  <tr>
-                      <td class="hero">
-                          <h1>Booking Cancelled</h1>
-                          <p>Your booking at <strong>${booking.property?.name || 'our property'}</strong> has been successfully cancelled.</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="details-box">
-                              <table class="detail-table">
-                                  <tr><td class="label">Booking #</td><td class="value">${booking.bookingNumber}</td></tr>
-                                  <tr><td class="label">Guest</td><td class="value">${booking.user?.firstName} ${booking.user?.lastName}</td></tr>
-                                  <tr><td class="label">Property</td><td class="value">${booking.property?.name || '—'}</td></tr>
-                                  <tr><td class="label">Room Type</td><td class="value">${booking.roomType?.name || '—'}</td></tr>
-                                  <tr><td class="label">Check-In</td><td class="value">${checkIn}</td></tr>
-                                  <tr><td class="label">Check-Out</td><td class="value">${checkOut}</td></tr>
-                                  <tr><td class="label">Amount Paid</td><td class="value">₹${paidAmount.toLocaleString('en-IN')}</td></tr>
-                                  <tr><td class="label">Cancelled On</td><td class="value">${cancelledAt}</td></tr>
-                              </table>
-                          </div>
-                          ${hasRefund ? `
-                          <div class="refund-box">
-                              <div class="refund-label">Refund Initiated</div>
-                              <div class="refund-amount">₹${refundAmount.toLocaleString('en-IN')}</div>
-                              <div class="refund-note">Your refund will be credited to the original payment method within 5–7 business days.</div>
-                          </div>
-                          ` : paidAmount > 0 ? `
-                          <div class="no-refund-box">
-                              ⚠️ Based on the cancellation policy, this booking is not eligible for a refund.
-                          </div>
-                          ` : ''}
-                      </td>
-                  </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p></td></tr>
-              </table>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 20px;">
+                Your booking at <strong>${booking.property?.name || 'our property'}</strong> has been successfully cancelled.
+            </p>
+
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Booking #</td><td class="value">${booking.bookingNumber}</td></tr>
+                    <tr><td class="label">Guest</td><td class="value">${booking.user?.firstName} ${booking.user?.lastName || ''}</td></tr>
+                    <tr><td class="label">Property</td><td class="value">${booking.property?.name || '—'}</td></tr>
+                    <tr><td class="label">Room Type</td><td class="value">${booking.roomType?.name || '—'}</td></tr>
+                    <tr><td class="label">Check-In</td><td class="value">${checkIn}</td></tr>
+                    <tr><td class="label">Check-Out</td><td class="value">${checkOut}</td></tr>
+                    <tr><td class="label">Amount Paid</td><td class="value">₹${paidAmount.toLocaleString('en-IN')}</td></tr>
+                    <tr><td class="label">Cancelled On</td><td class="value">${cancelledAt}</td></tr>
+                </table>
+            </div>
+
+            ${hasRefund ? `
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 14px; padding: 20px; margin-top: 20px; text-align: center;">
+                <div style="font-size: 12px; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 1px;">Refund Initiated</div>
+                <div style="font-size: 30px; font-weight: 800; color: #047857; margin-top: 4px;">₹${refundAmount.toLocaleString('en-IN')}</div>
+                <div style="font-size: 12px; color: #64748b; margin-top: 8px;">Credit will appear in your account within 5–7 business days.</div>
+            </div>
+            ` : paidAmount > 0 ? `
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 14px; padding: 16px; margin-top: 20px; text-align: center; font-size: 13px; color: #92400e;">
+                ⚠️ Based on the cancellation policy, this reservation is non-refundable.
+            </div>
+            ` : ''}
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #334155 0%, #475569 100%)',
+            badgeText: 'Cancellation Notice',
+            badgeBg: '#64748b',
+            badgeColor: '#ffffff',
+            title: 'Booking Cancelled',
+            subtitle: `Reservation ${booking.bookingNumber}`,
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to, subject, html });
@@ -693,83 +576,42 @@ export class MailService {
     }
 
     async sendRefundReceipt(booking: any, refundAmount: number, refundMode: string = 'Original Payment Method') {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const to = booking.user?.email;
         if (!to) return;
 
         const subject = `Refund Processed - ₹${refundAmount.toLocaleString('en-IN')} for Booking ${booking.bookingNumber}`;
-        const processedAt = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' } as any);
+        const processedAt = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f0fdf4; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f0fdf4; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #064e3b; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-              .header { background: linear-gradient(135deg, #047857, #059669); padding: 40px 20px; text-align: center; }
-              .logo-text { color: #ffffff; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .hero h1 { font-size: 26px; margin: 0; color: #065f46; font-weight: 800; }
-              .hero p { font-size: 15px; color: #6b7280; margin-top: 10px; }
-              .amount-card { background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 12px; padding: 30px; margin: 20px 40px; text-align: center; border: 1px solid #a7f3d0; }
-              .amount-label { font-size: 12px; color: #059669; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-              .amount-value { font-size: 40px; color: #047857; font-weight: 800; margin-top: 8px; }
-              .content { padding: 0 40px 40px 40px; }
-              .details-box { background-color: #f9fafb; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #e5e7eb; }
-              .detail-table { width: 100%; border-spacing: 0; }
-              .detail-table td { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
-              .detail-table tr:last-child td { border-bottom: none; }
-              .label { color: #9ca3af; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 40%; }
-              .value { color: #111827; font-size: 14px; font-weight: 700; text-align: right; }
-              .note { font-size: 12px; color: #6b7280; text-align: center; padding: 0 40px 30px 40px; line-height: 1.6; }
-              .footer { text-align: center; padding: 25px; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; background: #f9fafb; }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <table class="main" width="100%" align="center">
-                  <tr><td class="header"><div class="logo-text">ROUTE GUIDE</div></td></tr>
-                  <tr>
-                      <td class="hero">
-                          <h1>Refund Processed ✅</h1>
-                          <p>Your refund for booking <strong>${booking.bookingNumber}</strong> has been initiated.</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td>
-                          <div class="amount-card">
-                              <div class="amount-label">Refund Amount</div>
-                              <div class="amount-value">₹${refundAmount.toLocaleString('en-IN')}</div>
-                          </div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="details-box">
-                              <table class="detail-table">
-                                  <tr><td class="label">Booking #</td><td class="value">${booking.bookingNumber}</td></tr>
-                                  <tr><td class="label">Property</td><td class="value">${booking.property?.name || '—'}</td></tr>
-                                  <tr><td class="label">Refund Amount</td><td class="value">₹${refundAmount.toLocaleString('en-IN')}</td></tr>
-                                  <tr><td class="label">Refund To</td><td class="value">${refundMode}</td></tr>
-                                  <tr><td class="label">Processed On</td><td class="value">${processedAt}</td></tr>
-                              </table>
-                          </div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="note">
-                          Please allow 5–7 business days for the refund to reflect in your account. If you have any questions, please contact our support team.
-                      </td>
-                  </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p></td></tr>
-              </table>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 14px; padding: 25px; margin-bottom: 24px; text-align: center; border: 1px solid #a7f3d0;">
+                <div style="font-size: 12px; color: #059669; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Refund Amount</div>
+                <div style="font-size: 38px; color: #047857; font-weight: 900; margin-top: 4px;">₹${refundAmount.toLocaleString('en-IN')}</div>
+            </div>
+
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Booking #</td><td class="value">${booking.bookingNumber}</td></tr>
+                    <tr><td class="label">Property</td><td class="value">${booking.property?.name || '—'}</td></tr>
+                    <tr><td class="label">Refund To</td><td class="value">${refundMode}</td></tr>
+                    <tr><td class="label">Processed On</td><td class="value">${processedAt}</td></tr>
+                </table>
+            </div>
+
+            <p style="font-size: 13px; color: #64748b; line-height: 1.6; text-align: center; margin-top: 20px;">
+                Please allow 5–7 business days for the refund to reflect in your bank statement.
+            </p>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+            badgeText: 'Refund Processed',
+            badgeBg: '#34d399',
+            badgeColor: '#064e3b',
+            title: 'Refund Processed ✅',
+            subtitle: `Booking ${booking.bookingNumber}`,
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to, subject, html });
@@ -780,87 +622,55 @@ export class MailService {
     }
 
     async sendCheckInReminderEmail(booking: any) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const to = booking.user?.email;
         if (!to) return;
 
         const subject = `Reminder: Your stay at ${booking.property?.name} starts tomorrow!`;
         const checkIn = new Date(booking.checkInDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         const checkOut = new Date(booking.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL') || 'https://myoreedu.com';
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f0f9ff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f0f9ff; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-              .header { background: linear-gradient(135deg, #0369a1, #0284c7); padding: 40px 20px; text-align: center; }
-              .logo-text { color: #ffffff; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .hero h1 { font-size: 26px; margin: 0; color: #0c4a6e; font-weight: 800; }
-              .hero p { font-size: 15px; color: #6b7280; margin-top: 10px; }
-              .content { padding: 0 40px 40px 40px; }
-              .details-box { background-color: #f0f9ff; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #bae6fd; }
-              .detail-table { width: 100%; border-spacing: 0; }
-              .detail-table td { padding: 11px 0; border-bottom: 1px solid #e0f2fe; }
-              .detail-table tr:last-child td { border-bottom: none; }
-              .label { color: #7dd3fc; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 40%; }
-              .value { color: #0c4a6e; font-size: 14px; font-weight: 700; text-align: right; }
-              .checklist { background: #f9fafb; border-radius: 10px; padding: 20px; margin-top: 20px; border: 1px solid #e5e7eb; }
-              .checklist h3 { font-size: 13px; color: #374151; font-weight: 700; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px; }
-              .checklist ul { margin: 0; padding-left: 18px; }
-              .checklist li { font-size: 13px; color: #4b5563; margin-bottom: 8px; line-height: 1.5; }
-              .btn-wrapper { text-align: center; margin-top: 30px; }
-              .btn { display: inline-block; background-color: #0284c7; color: #ffffff !important; padding: 15px 35px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
-              .footer { text-align: center; padding: 25px; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <table class="main" width="100%" align="center">
-                  <tr><td class="header"><div class="logo-text">ROUTE GUIDE</div></td></tr>
-                  <tr>
-                      <td class="hero">
-                          <h1>🏨 See You Tomorrow!</h1>
-                          <p>We're excited to welcome you at <strong>${booking.property?.name}</strong>. Your stay begins tomorrow!</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="details-box">
-                              <table class="detail-table">
-                                  <tr><td class="label">Booking #</td><td class="value">${booking.bookingNumber}</td></tr>
-                                  <tr><td class="label">Guest</td><td class="value">${booking.user?.firstName} ${booking.user?.lastName}</td></tr>
-                                  <tr><td class="label">Property</td><td class="value">${booking.property?.name}</td></tr>
-                                  <tr><td class="label">Room Type</td><td class="value">${booking.roomType?.name || '—'}</td></tr>
-                                  <tr><td class="label">Check-In</td><td class="value">${checkIn}</td></tr>
-                                  <tr><td class="label">Check-Out</td><td class="value">${checkOut}</td></tr>
-                                  <tr><td class="label">Check-In Time</td><td class="value">2:00 PM onwards</td></tr>
-                              </table>
-                          </div>
-                          <div class="checklist">
-                              <h3>Before You Arrive</h3>
-                              <ul>
-                                  <li>Carry a valid photo ID for all guests at check-in.</li>
-                                  <li>Early check-in is subject to availability. Contact the property to arrange.</li>
-                                  <li>If you have any special requests, please inform the property in advance.</li>
-                                  ${booking.paymentStatus === 'PARTIAL' ? `<li>⚠️ Please ensure your balance payment is completed before check-in.</li>` : ''}
-                              </ul>
-                          </div>
-                          <div class="btn-wrapper">
-                              <a href="${this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL')}/bookings/${booking.id}" class="btn">View Booking Details</a>
-                          </div>
-                      </td>
-                  </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p></td></tr>
-              </table>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 20px;">
+                We're excited to welcome you at <strong>${booking.property?.name}</strong>. Your stay begins tomorrow!
+            </p>
+
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Booking #</td><td class="value">${booking.bookingNumber}</td></tr>
+                    <tr><td class="label">Guest</td><td class="value">${booking.user?.firstName} ${booking.user?.lastName || ''}</td></tr>
+                    <tr><td class="label">Property</td><td class="value">${booking.property?.name}</td></tr>
+                    <tr><td class="label">Room Type</td><td class="value">${booking.roomType?.name || '—'}</td></tr>
+                    <tr><td class="label">Check-In</td><td class="value">${checkIn}</td></tr>
+                    <tr><td class="label">Check-Out</td><td class="value">${checkOut}</td></tr>
+                    <tr><td class="label">Check-In Time</td><td class="value">2:00 PM onwards</td></tr>
+                </table>
+            </div>
+
+            <div style="background: #f8fafc; border-radius: 12px; padding: 18px; margin-top: 20px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 12px; color: #475569; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Before You Arrive</div>
+                <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #475569; line-height: 1.6;">
+                    <li>Carry valid government photo ID for all adult guests.</li>
+                    <li>Early check-in is subject to availability upon request.</li>
+                    ${booking.paymentStatus === 'PARTIAL' ? `<li style="color: #e11d48; font-weight: 700;">Please complete any pending balance before check-in.</li>` : ''}
+                </ul>
+            </div>
+
+            <div class="btn-container">
+                <a href="${frontendUrl}/confirmation?bookingId=${booking.id}" class="btn">View Reservation Details</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+            badgeText: 'Stay Reminder',
+            badgeBg: '#38bdf8',
+            badgeColor: '#082f49',
+            title: 'See You Tomorrow! 🏨',
+            subtitle: `Reservation ${booking.bookingNumber} at ${booking.property?.name}`,
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to, subject, html });
@@ -871,68 +681,37 @@ export class MailService {
     }
 
     async sendReviewRequestEmail(booking: any) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const to = booking.user?.email;
         if (!to) return;
 
-        const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL');
+        const frontendUrl = this.configService.get('PUBLIC_URL') || this.configService.get('FRONTEND_URL') || 'https://myoreedu.com';
         const reviewLink = `${frontendUrl}/properties/${booking.propertyId}?review=true&bookingId=${booking.id}`;
         const subject = `How was your stay at ${booking.property?.name}? ⭐`;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #fffbeb; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #fffbeb; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-              .header { background: linear-gradient(135deg, #d97706, #f59e0b); padding: 40px 20px; text-align: center; }
-              .logo-text { color: #ffffff; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .stars { font-size: 32px; letter-spacing: 4px; }
-              .hero h1 { font-size: 26px; margin: 15px 0 0 0; color: #78350f; font-weight: 800; }
-              .hero p { font-size: 15px; color: #6b7280; margin-top: 10px; line-height: 1.6; }
-              .content { padding: 0 40px 40px 40px; }
-              .stay-card { background: #fffbeb; border-radius: 10px; padding: 20px; margin: 20px 0; border: 1px solid #fde68a; text-align: center; }
-              .stay-prop { font-size: 18px; font-weight: 800; color: #78350f; }
-              .stay-dates { font-size: 13px; color: #92400e; margin-top: 5px; }
-              .btn-wrapper { text-align: center; margin-top: 30px; }
-              .btn { display: inline-block; background: linear-gradient(135deg, #d97706, #f59e0b); color: #ffffff !important; padding: 18px 45px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 16px; box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3); }
-              .footer { text-align: center; padding: 25px; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; }
-              .opt-out { font-size: 11px; color: #d1d5db; margin-top: 8px; }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <table class="main" width="100%" align="center">
-                  <tr><td class="header"><div class="logo-text">ROUTE GUIDE</div></td></tr>
-                  <tr>
-                      <td class="hero">
-                          <div class="stars">⭐⭐⭐⭐⭐</div>
-                          <h1>How Was Your Stay?</h1>
-                          <p>Hi ${booking.user?.firstName}, we'd love to hear about your experience. Your review helps other travellers and supports our partner properties.</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="stay-card">
-                              <div class="stay-prop">${booking.property?.name}</div>
-                              <div class="stay-dates">Booking #${booking.bookingNumber} · ${new Date(booking.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${new Date(booking.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                          </div>
-                          <div class="btn-wrapper">
-                              <a href="${reviewLink}" class="btn">✍️ Write My Review</a>
-                          </div>
-                          <p style="text-align:center; font-size: 12px; color: #9ca3af; margin-top: 20px;">It only takes a minute! Your honest feedback is greatly appreciated.</p>
-                      </td>
-                  </tr>
-                  <tr><td class="footer"><p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p><p class="opt-out">You received this because you stayed with us. We only send this once per stay.</p></td></tr>
-              </table>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 28px; letter-spacing: 4px;">⭐⭐⭐⭐⭐</div>
+            </div>
+
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; text-align: center; margin-bottom: 20px;">
+                Hi <strong>${booking.user?.firstName || 'there'}</strong>, we would love to hear about your experience at <strong>${booking.property?.name}</strong>. Your feedback helps other travellers make great memories.
+            </p>
+
+            <div class="btn-container">
+                <a href="${reviewLink}" class="btn" style="background: #d97706;">Write a Review</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+            badgeText: 'Guest Review',
+            badgeBg: '#fde68a',
+            badgeColor: '#78350f',
+            title: 'How Was Your Stay? ✨',
+            subtitle: `Stay at ${booking.property?.name}`,
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to, subject, html });
@@ -944,108 +723,75 @@ export class MailService {
 
     async sendPasswordResetOtp(email: string, otp: string) {
         console.log(`[MailService] Sending password reset OTP to ${email}`);
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu Security <noreply@myoreedu.com>';
         const subject = `Reset Your Password - Verification Code: ${otp}`;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f1f8fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-              .wrapper { width: 100%; table-layout: fixed; background-color: #f1f8fa; padding-bottom: 40px; }
-              .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; color: #093f4a; border-radius: 12px; overflow: hidden; margin-top: 40px; box-shadow: 0 4px 20px rgba(9, 63, 74, 0.05); }
-              .header { background-color: #093f4a; padding: 40px 20px; text-align: center; }
-              .logo-text { color: #f1f8fa; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-              .hero { padding: 40px 40px 20px 40px; text-align: center; }
-              .hero h1 { font-size: 28px; margin: 0; color: #227c8a; font-weight: 800; }
-              .hero p { font-size: 16px; color: #62a1b1; margin-top: 10px; }
-              .content { padding: 0 40px 40px 40px; text-align: center; }
-              .otp-box { background-color: #f1f8fa; border-radius: 12px; padding: 30px; margin: 30px 0; border: 2px dashed #227c8a; display: inline-block; }
-              .otp-code { font-size: 48px; font-weight: 800; color: #093f4a; letter-spacing: 10px; margin: 0; }
-              .note { font-size: 13px; color: #95c2ce; margin-top: 20px; line-height: 1.6; }
-              .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #95c2ce; border-top: 1px solid #f1f8fa; }
-          </style>
-      </head>
-      <body>
-          <div class="wrapper">
-              <table class="main" width="100%" align="center">
-                  <tr>
-                      <td class="header">
-                          <div class="logo-text">ROUTE GUIDE</div>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="hero">
-                          <h1>Password Reset</h1>
-                          <p>We received a request to reset your password. Use the verification code below to proceed.</p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="content">
-                          <div class="otp-box">
-                              <div class="otp-code">${otp}</div>
-                          </div>
-                          <p class="note">
-                              This code will expire in 10 minutes. If you did not request a password reset, you can safely ignore this email.
-                          </p>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td class="footer">
-                          <p>© ${new Date().getFullYear()} Oreedu Hospitality. All rights reserved.</p>
-                      </td>
-                  </tr>
-              </table>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; text-align: center; margin-bottom: 24px;">
+                We received a request to reset your password. Enter the 6-digit verification code below to proceed:
+            </p>
+
+            <div style="background: #f8fafc; border: 2px dashed #093f4a; border-radius: 16px; padding: 24px; margin: 20px auto; text-align: center; max-width: 320px;">
+                <div style="font-size: 42px; font-weight: 900; color: #093f4a; letter-spacing: 8px; font-family: monospace;">
+                    ${otp}
+                </div>
+            </div>
+
+            <p style="font-size: 13px; color: #64748b; line-height: 1.6; text-align: center; margin-top: 24px;">
+                This code is valid for <strong>10 minutes</strong>. If you did not request a password reset, you can safely ignore this email — your account remains secure.
+            </p>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Security Verification',
+            badgeBg: '#38bdf8',
+            badgeColor: '#093f4a',
+            title: 'Password Reset Code 🔐',
+            subtitle: 'Secure verification for your Oreedu account',
+            bodyHtml,
+        });
 
         try {
+            if (this.emailProvider === 'MSG91') {
+                const templateId = this.configService.get('MSG91_TPL_EMAIL_OTP') || this.configService.get('MSG91_OTP_TEMPLATE_ID');
+                if (templateId) {
+                    await this.sendEmailViaMSG91(email, email, templateId, { otp });
+                    return;
+                }
+            }
             await this.transporter.sendMail({ from, to: email, subject, html });
             console.log(`[MailService] Password reset OTP sent to ${email}`);
         } catch (error) {
             console.error('[MailService] Error sending password reset OTP:', error);
         }
     }
-    async sendPointsEarnedEmail(cpEmail: string, points: number, description: string) {
-        const from = this.configService.get('EMAIL_FROM');
-        const subject = `💰 You've Earned ${points} New Points!`;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
-              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
-              .content { padding: 40px; text-align: center; }
-              .points-card { background: #f0fdfa; border: 1px solid #99f6e4; padding: 30px; border-radius: 12px; margin: 20px 0; }
-              .points-value { font-size: 48px; font-weight: 800; color: #0d9488; }
-              .footer { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
-          </style>
-      </head>
-      <body>
-          <div class="main">
-              <div class="header"><h1>Points Allocated! 💰</h1></div>
-              <div class="content">
-                  <p>Great news! Your wallet has been updated.</p>
-                  <div class="points-card">
-                      <div style="font-size: 12px; color: #0d9488; text-transform: uppercase; font-weight: 700;">Points Added</div>
-                      <div class="points-value">${points}</div>
-                  </div>
-                  <p style="color: #64748b;">${description}</p>
-                  <a href="${this.configService.get('FRONTEND_URL')}/wallet" style="display: inline-block; background: #093f4a; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; margin-top: 20px;">View My Wallet</a>
-              </div>
-              <div class="footer">© ${new Date().getFullYear()} Oreedu Partner Network</div>
-          </div>
-      </body>
-      </html>
-    `;
+    async sendPointsEarnedEmail(cpEmail: string, points: number, description: string) {
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
+        const subject = `💰 You've Earned ${points} New Points!`;
+        const cpUrl = this.configService.get('CHANNEL_PARTNER_URL') || 'https://cp.myoreedu.com';
+
+        const bodyHtml = `
+            <div style="background: #f0fdfa; border: 1px solid #99f6e4; padding: 25px; border-radius: 14px; margin-bottom: 20px; text-align: center;">
+                <div style="font-size: 12px; color: #0d9488; text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">Points Added</div>
+                <div style="font-size: 44px; font-weight: 900; color: #0d9488; margin-top: 4px;">+${points}</div>
+            </div>
+            <p style="color: #475569; font-size: 14px; text-align: center; line-height: 1.6;">${description}</p>
+            <div class="btn-container">
+                <a href="${cpUrl}/wallet" class="btn">View My Wallet</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Rewards & Wallet',
+            badgeBg: '#14b8a6',
+            badgeColor: '#ffffff',
+            title: 'Points Added to Wallet! 💰',
+            subtitle: 'Oreedu Partner Rewards',
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to: cpEmail, subject, html });
@@ -1055,41 +801,34 @@ export class MailService {
     }
 
     async sendRedemptionStatusEmail(cpEmail: string, rewardName: string, status: string, notes: string) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const subject = `🎁 Reward Claim Update: ${rewardName}`;
+        const cpUrl = this.configService.get('CHANNEL_PARTNER_URL') || 'https://cp.myoreedu.com';
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
-              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
-              .content { padding: 40px; }
-              .status-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 800; font-size: 12px; text-transform: uppercase; margin-bottom: 20px; }
-              .status-pending { background: #fef3c7; color: #92400e; }
-              .status-processing { background: #dbeafe; color: #1e40af; }
-              .status-dispatched { background: #dcfce7; color: #166534; }
-              .status-rejected { background: #fee2e2; color: #991b1b; }
-              .footer { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
-          </style>
-      </head>
-      <body>
-          <div class="main">
-              <div class="header"><h1>Claim Status Update</h1></div>
-              <div class="content">
-                  <p>There is an update on your reward claim for <strong>${rewardName}</strong>.</p>
-                  <div class="status-badge status-${status.toLowerCase()}">${status}</div>
-                  ${notes ? `<p style="padding: 15px; background: #f1f5f9; border-radius: 8px; font-size: 14px; color: #475569;"><strong>Admin Note:</strong> ${notes}</p>` : ''}
-                  <a href="${this.configService.get('FRONTEND_URL')}/rewards" style="display: inline-block; background: #093f4a; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; margin-top: 20px;">Track My Claims</a>
-              </div>
-              <div class="footer">© ${new Date().getFullYear()} Oreedu Partner Network</div>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 16px;">
+                There is an update on your reward claim for <strong>${rewardName}</strong>.
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+                <span style="display: inline-block; padding: 6px 18px; border-radius: 20px; font-weight: 800; font-size: 12px; text-transform: uppercase; background: #e0f2fe; color: #0369a1;">
+                    Status: ${status}
+                </span>
+            </div>
+            ${notes ? `<div style="padding: 16px; background: #f8fafc; border-radius: 10px; font-size: 14px; color: #475569; border: 1px solid #e2e8f0; margin-bottom: 20px;"><strong>Note:</strong> ${notes}</div>` : ''}
+            <div class="btn-container">
+                <a href="${cpUrl}/rewards" class="btn">Track My Claims</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Partner Rewards',
+            badgeBg: '#38bdf8',
+            badgeColor: '#082f49',
+            title: 'Claim Status Updated 🎁',
+            subtitle: rewardName,
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to: cpEmail, subject, html });
@@ -1099,45 +838,37 @@ export class MailService {
     }
 
     async sendAdminNewPropertyAlert(adminEmail: string, property: any) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const subject = `🆕 New Property Registration: ${property.name}`;
+        const adminUrl = this.configService.get('ADMIN_URL') || 'https://admin.myoreedu.com';
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
-              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
-              .content { padding: 40px; }
-              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
-              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
-              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
-              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
-              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
-          </style>
-      </head>
-      <body>
-          <div class="main">
-              <div class="header"><h1>New Property Pending! 🏨</h1></div>
-              <div class="content">
-                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px;">A new property has registered on the platform and is awaiting your review and approval.</p>
-                  
-                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${property.name}</span></div>
-                  <div class="detail-row"><span class="label">Type</span><span class="value">${property.type}</span></div>
-                  <div class="detail-row"><span class="label">Location</span><span class="value">${property.city}, ${property.state}</span></div>
-                  <div class="detail-row"><span class="label">Owner</span><span class="value">${property.owner?.firstName} ${property.owner?.lastName}</span></div>
-                  <div class="detail-row"><span class="label">Contact</span><span class="value">${property.email} / ${property.phone}</span></div>
-                  
-                  <a href="${this.configService.get('ADMIN_URL') || this.configService.get('FRONTEND_URL') + '/admin'}/properties" class="btn">Review Registration Request</a>
-              </div>
-              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="color: #334155; font-size: 15px; margin-bottom: 20px; line-height: 1.6;">
+                A new property has self-registered on the platform and is awaiting administrative approval.
+            </p>
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Property Name</td><td class="value">${property.name}</td></tr>
+                    <tr><td class="label">Type</td><td class="value">${property.type}</td></tr>
+                    <tr><td class="label">Location</td><td class="value">${property.city}, ${property.state}</td></tr>
+                    <tr><td class="label">Owner</td><td class="value">${property.owner?.firstName || ''} ${property.owner?.lastName || ''}</td></tr>
+                    <tr><td class="label">Contact</td><td class="value">${property.email || ''} / ${property.phone || ''}</td></tr>
+                </table>
+            </div>
+            <div class="btn-container">
+                <a href="${adminUrl}/properties" class="btn">Review Registration in Admin Panel</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Admin Notification',
+            badgeBg: '#fbbf24',
+            badgeColor: '#78350f',
+            title: 'New Property Registration 🏨',
+            subtitle: property.name,
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to: adminEmail, subject, html });
@@ -1147,44 +878,36 @@ export class MailService {
     }
 
     async sendAdminNewCPAlert(adminEmail: string, cp: any) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const subject = `🤝 New Partner Signup: ${cp.user?.firstName} ${cp.user?.lastName}`;
+        const adminUrl = this.configService.get('ADMIN_URL') || 'https://admin.myoreedu.com';
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
-              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-              .header { background: #0c4a6e; padding: 40px; text-align: center; color: #ffffff; }
-              .content { padding: 40px; }
-              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
-              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
-              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
-              .btn { display: inline-block; background: #0c4a6e; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
-              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
-          </style>
-      </head>
-      <body>
-          <div class="main">
-              <div class="header"><h1>New Partner Pending! 🤝</h1></div>
-              <div class="content">
-                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px;">A new Channel Partner has applied to join the network. Please review their credentials.</p>
-                  
-                  <div class="detail-row"><span class="label">Partner Name</span><span class="value">${cp.user?.firstName} ${cp.user?.lastName}</span></div>
-                  <div class="detail-row"><span class="label">Organization</span><span class="value">${cp.organizationName || 'Individual'}</span></div>
-                  <div class="detail-row"><span class="label">Contact</span><span class="value">${cp.user?.email} / ${cp.user?.phone}</span></div>
-                  <div class="detail-row"><span class="label">Referral Code</span><span class="value">${cp.referralCode}</span></div>
-                  
-                  <a href="${this.configService.get('ADMIN_URL') || this.configService.get('FRONTEND_URL') + '/admin'}/partners" class="btn">Review Application</a>
-              </div>
-              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="color: #334155; font-size: 15px; margin-bottom: 20px; line-height: 1.6;">
+                A new Channel Partner has applied to join the network.
+            </p>
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Partner Name</td><td class="value">${cp.user?.firstName} ${cp.user?.lastName || ''}</td></tr>
+                    <tr><td class="label">Organization</td><td class="value">${cp.organizationName || 'Individual'}</td></tr>
+                    <tr><td class="label">Contact</td><td class="value">${cp.user?.email || ''} / ${cp.user?.phone || ''}</td></tr>
+                    <tr><td class="label">Referral Code</td><td class="value">${cp.referralCode}</td></tr>
+                </table>
+            </div>
+            <div class="btn-container">
+                <a href="${adminUrl}/partners" class="btn">Review Application</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%)',
+            badgeText: 'Admin Notification',
+            badgeBg: '#38bdf8',
+            badgeColor: '#082f49',
+            title: 'New Partner Registration 🤝',
+            subtitle: `${cp.user?.firstName} ${cp.user?.lastName}`,
+            bodyHtml,
+        });
 
         try {
             await this.transporter.sendMail({ from, to: adminEmail, subject, html });
@@ -1194,236 +917,189 @@ export class MailService {
     }
 
     async sendPropertyRegistrationConfirmation(propertyEmail: string, ownerEmail: string, request: any) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const subject = `🏨 Property Registration Received - ${request.name}`;
         const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.myoreedu.com';
         const loginUrl = `${propertyUrl.replace(/\/$/, '')}/login`;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
-              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
-              .content { padding: 40px; }
-              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
-              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
-              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
-              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
-              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
-          </style>
-      </head>
-      <body>
-          <div class="main">
-              <div class="header">
-                  <h1>Registration Received! 🏨</h1>
-              </div>
-              <div class="content">
-                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
-                      Thank you for registering <strong>${request.name}</strong> on our platform. We have received your request, and our administrative team is currently reviewing the details.
-                  </p>
-                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
-                      Here are the registration details we received:
-                  </p>
-                  
-                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${request.name}</span></div>
-                  <div class="detail-row"><span class="label">Location</span><span class="value">${request.location}</span></div>
-                  <div class="detail-row"><span class="label">Owner Phone</span><span class="value">${request.ownerPhone}</span></div>
-                  <div class="detail-row"><span class="label">Status</span><span class="value" style="color: #eab308; font-weight: 800;">PENDING APPROVAL</span></div>
-                  
-                  <p style="color: #475569; font-size: 14px; margin-top: 30px; line-height: 1.6;">
-                      Once our team approves your property, you will receive a notification, and your property will become publicly visible on the platform. If we require any additional information or documentation, we will reach out to you directly.
-                  </p>
+        const bodyHtml = `
+            <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                Thank you for registering <strong>${request.name}</strong> on Oreedu. We have received your request, and our verification team is reviewing the documents.
+            </p>
 
-                  <a href="${loginUrl}" class="btn">Log In to Your Account</a>
-              </div>
-              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
-          </div>
-      </body>
-      </html>
-    `;
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Property Name</td><td class="value">${request.name}</td></tr>
+                    <tr><td class="label">Location</td><td class="value">${request.location || '—'}</td></tr>
+                    <tr><td class="label">Owner Phone</td><td class="value">${request.ownerPhone || '—'}</td></tr>
+                    <tr><td class="label">Status</td><td class="value" style="color: #d97706;">PENDING APPROVAL</td></tr>
+                </table>
+            </div>
+
+            <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+                Once approved, your property will become live on the guest portal and you can start taking reservations immediately.
+            </p>
+
+            <div class="btn-container">
+                <a href="${loginUrl}" class="btn">Log In to Your Account</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Registration Received',
+            badgeBg: '#fde68a',
+            badgeColor: '#78350f',
+            title: 'Registration Received! 🏨',
+            subtitle: request.name,
+            bodyHtml,
+        });
 
         try {
             if (this.emailProvider === 'MSG91') {
                 const templateId = this.configService.get('MSG91_TPL_EMAIL_PROPERTY_REGISTRATION');
-                if (!templateId) { this.logger.warn('[MailService] MSG91_TPL_EMAIL_PROPERTY_REGISTRATION not set in .env'); return; }
-                const variables = {
-                    property_name: request.name,
-                    location: request.location || '',
-                    owner_phone: request.ownerPhone || '',
-                    login_url: loginUrl,
-                };
-                // Send to property email
-                await this.sendEmailViaMSG91(propertyEmail, request.name, templateId, variables);
-                // Send to owner if different
-                if (ownerEmail && ownerEmail !== propertyEmail) {
-                    await this.sendEmailViaMSG91(ownerEmail, ownerEmail, templateId, variables);
+                if (templateId) {
+                    const variables = {
+                        property_name: request.name,
+                        location: request.location || '',
+                        owner_phone: request.ownerPhone || '',
+                        login_url: loginUrl,
+                    };
+                    await this.sendEmailViaMSG91(propertyEmail, request.name, templateId, variables);
+                    if (ownerEmail && ownerEmail !== propertyEmail) {
+                        await this.sendEmailViaMSG91(ownerEmail, ownerEmail, templateId, variables);
+                    }
+                    return;
                 }
-            } else {
-                const from = this.configService.get('EMAIL_FROM');
-                // Always send to property email
-                await this.transporter.sendMail({ from, to: propertyEmail, subject, html });
-                this.logger.log(`[MailService] Property registration email sent to property address: ${propertyEmail}`);
-                // If owner email is different, send a separate copy to the owner too
-                if (ownerEmail && ownerEmail !== propertyEmail) {
-                    await this.transporter.sendMail({ from, to: ownerEmail, subject, html });
-                    this.logger.log(`[MailService] Property registration email sent to owner address: ${ownerEmail}`);
-                }
+            }
+
+            await this.transporter.sendMail({ from, to: propertyEmail, subject, html });
+            if (ownerEmail && ownerEmail !== propertyEmail) {
+                await this.transporter.sendMail({ from, to: ownerEmail, subject, html });
             }
         } catch (error) {
             this.logger.error('[MailService] Error sending property registration confirmation email:', error);
         }
     }
 
-    /**
-     * Send email to owner (and property email) when their property is APPROVED or REJECTED
-     */
     async sendPropertyApprovalEmail(recipientEmail: string, request: any, isApproved: boolean) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const propertyUrl = this.configService.get('PROPERTY_URL') || 'https://property.myoreedu.com';
         const loginUrl = `${propertyUrl.replace(/\/$/, '')}/login`;
         const subject = isApproved
             ? `🎉 Your Property "${request.name}" Has Been Approved!`
             : `📋 Update on Your Property Registration — "${request.name}"`;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
-              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-              .header { background: ${isApproved ? '#065f46' : '#7c3aed'}; padding: 40px; text-align: center; color: #ffffff; }
-              .content { padding: 40px; }
-              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
-              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
-              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
-              .status-badge { display: inline-block; padding: 8px 20px; border-radius: 25px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; background: ${isApproved ? '#d1fae5' : '#ede9fe'}; color: ${isApproved ? '#065f46' : '#7c3aed'}; margin-bottom: 25px; }
-              .btn { display: inline-block; background: ${isApproved ? '#065f46' : '#7c3aed'}; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
-              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
-          </style>
-      </head>
-      <body>
-          <div class="main">
-              <div class="header">
-                  <h1>${isApproved ? '🎉 You\'re Live!' : '📋 Registration Update'}</h1>
-              </div>
-              <div class="content">
-                  <span class="status-badge">${isApproved ? '✅ APPROVED' : '⚠️ NEEDS ATTENTION'}</span>
-                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
-                      ${isApproved
-                          ? `Congratulations! Your property <strong>${request.name}</strong> has been reviewed and <strong>approved</strong> by our team. It is now live on the platform and visible to guests.`
-                          : `We have reviewed the registration for <strong>${request.name}</strong>. Our team requires some additional information or changes before we can approve your property. Please log in to your account to check the details or contact our support team.`
-                      }
-                  </p>
+        const bodyHtml = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <span style="display: inline-block; padding: 6px 18px; border-radius: 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; background: ${isApproved ? '#dcfce7' : '#fef3c7'}; color: ${isApproved ? '#166534' : '#92400e'};">
+                    ${isApproved ? '✅ APPROVED & LIVE' : '⚠️ ACTION REQUIRED'}
+                </span>
+            </div>
 
-                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${request.name}</span></div>
-                  <div class="detail-row"><span class="label">Location</span><span class="value">${request.location || 'N/A'}</span></div>
-                  <div class="detail-row"><span class="label">Status</span><span class="value" style="color: ${isApproved ? '#065f46' : '#7c3aed'}; font-weight: 800;">${isApproved ? 'APPROVED & LIVE' : 'PENDING ADDITIONAL INFO'}</span></div>
+            <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                ${isApproved
+                    ? `Congratulations! Your property <strong>${request.name}</strong> has been reviewed and <strong>approved</strong> by our team. It is now live on Oreedu!`
+                    : `We have reviewed the registration for <strong>${request.name}</strong>. Our team requires some additional information before we can approve your property.`
+                }
+            </p>
 
-                  ${isApproved ? `
-                  <p style="color: #475569; font-size: 14px; margin-top: 25px; line-height: 1.6;">
-                      You can now log in to your Property Dashboard to set up room types, pricing, availability, and connect to online travel agencies (OTAs).
-                  </p>` : `
-                  <p style="color: #475569; font-size: 14px; margin-top: 25px; line-height: 1.6;">
-                      If you have any questions or need assistance, please contact us directly. We are here to help you get set up as quickly as possible.
-                  </p>`}
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Property Name</td><td class="value">${request.name}</td></tr>
+                    <tr><td class="label">Location</td><td class="value">${request.location || 'N/A'}</td></tr>
+                    <tr><td class="label">Status</td><td class="value" style="color: ${isApproved ? '#059669' : '#d97706'}; font-weight: 800;">${isApproved ? 'APPROVED & LIVE' : 'PENDING CHANGES'}</td></tr>
+                </table>
+            </div>
 
-                  <a href="${loginUrl}" class="btn">${isApproved ? 'Go to Your Dashboard' : 'Log In to Your Account'}</a>
-              </div>
-              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
-          </div>
-      </body>
-      </html>
-    `;
+            <div class="btn-container">
+                <a href="${loginUrl}" class="btn" style="background: ${isApproved ? '#059669' : '#093f4a'};">${isApproved ? 'Go to Your Property Dashboard' : 'Log In to Update Details'}</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: isApproved ? 'linear-gradient(135deg, #065f46 0%, #047857 100%)' : 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: isApproved ? 'Approved & Live' : 'Status Update',
+            badgeBg: isApproved ? '#34d399' : '#fbbf24',
+            badgeColor: isApproved ? '#064e3b' : '#78350f',
+            title: isApproved ? 'Your Property is Live! 🎉' : 'Registration Update 📋',
+            subtitle: request.name,
+            bodyHtml,
+        });
 
         try {
             if (this.emailProvider === 'MSG91') {
                 const templateId = isApproved
                     ? this.configService.get('MSG91_TPL_EMAIL_PROPERTY_APPROVED')
                     : this.configService.get('MSG91_TPL_EMAIL_PROPERTY_REJECTED');
-                if (!templateId) { this.logger.warn(`[MailService] MSG91_TPL_EMAIL_PROPERTY_${isApproved ? 'APPROVED' : 'REJECTED'} not set in .env`); return; }
-                await this.sendEmailViaMSG91(recipientEmail, recipientEmail, templateId, {
-                    property_name: request.name,
-                    location: request.location || '',
-                    status: isApproved ? 'APPROVED & LIVE' : 'PENDING ADDITIONAL INFO',
-                    login_url: loginUrl,
-                });
-            } else {
-                const from = this.configService.get('EMAIL_FROM');
-                await this.transporter.sendMail({ from, to: recipientEmail, subject, html });
-                this.logger.log(`[MailService] Property ${isApproved ? 'approval' : 'rejection'} email sent to ${recipientEmail}`);
+                if (templateId) {
+                    await this.sendEmailViaMSG91(recipientEmail, recipientEmail, templateId, {
+                        property_name: request.name,
+                        location: request.location || '',
+                        status: isApproved ? 'APPROVED & LIVE' : 'PENDING ADDITIONAL INFO',
+                        login_url: loginUrl,
+                    });
+                    return;
+                }
             }
+
+            await this.transporter.sendMail({ from, to: recipientEmail, subject, html });
+            this.logger.log(`[MailService] Property ${isApproved ? 'approval' : 'rejection'} email sent to ${recipientEmail}`);
         } catch (error) {
             this.logger.error(`[MailService] Error sending property ${isApproved ? 'approval' : 'rejection'} email:`, error);
         }
     }
 
-    /**
-     * Send email alert to admin when a new property self-registers
-     */
     async sendAdminPropertyRegistrationRequest(adminEmail: string, request: any) {
-        const from = this.configService.get('EMAIL_FROM');
+        const from = this.configService.get('EMAIL_FROM') || 'Oreedu <noreply@myoreedu.com>';
         const adminUrl = this.configService.get('ADMIN_URL') || 'https://admin.myoreedu.com';
         const subject = `🏨 New Property Registration: "${request.name}" — Pending Your Approval`;
 
-        const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <meta charset="utf-8">
-          <style>
-              body { margin: 0; padding: 0; background-color: #f8fafc; font-family: sans-serif; }
-              .main { background-color: #ffffff; margin: 40px auto; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-              .header { background: #093f4a; padding: 40px; text-align: center; color: #ffffff; }
-              .content { padding: 40px; }
-              .detail-row { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
-              .label { color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
-              .value { color: #0f172a; font-weight: 700; font-size: 15px; }
-              .btn { display: inline-block; background: #093f4a; color: #ffffff !important; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-top: 30px; text-align: center; width: 100%; box-sizing: border-box; }
-              .footer { padding: 25px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9; }
-          </style>
-      </head>
-      <body>
-          <div class="main">
-              <div class="header"><h1>New Property Registration 🏨</h1></div>
-              <div class="content">
-                  <p style="color: #475569; font-size: 15px; margin-bottom: 25px; line-height: 1.6;">
-                      A new property has self-registered on the platform and is awaiting your review and approval.
-                  </p>
-                  <div class="detail-row"><span class="label">Property Name</span><span class="value">${request.name}</span></div>
-                  <div class="detail-row"><span class="label">Location</span><span class="value">${request.location || 'N/A'}</span></div>
-                  <div class="detail-row"><span class="label">Owner Email</span><span class="value">${request.ownerEmail}</span></div>
-                  <div class="detail-row"><span class="label">Owner Phone</span><span class="value">${request.ownerPhone || 'N/A'}</span></div>
-                  <div class="detail-row"><span class="label">Status</span><span class="value" style="color: #d97706; font-weight: 800;">PENDING APPROVAL</span></div>
-                  <a href="${adminUrl}/properties" class="btn">Review Registration in Admin Panel</a>
-              </div>
-              <div class="footer">© ${new Date().getFullYear()} Oreedu Administration</div>
-          </div>
-      </body>
-      </html>
-    `;
+        const bodyHtml = `
+            <p style="color: #334155; font-size: 15px; margin-bottom: 20px; line-height: 1.6;">
+                A new property has self-registered on the platform and is awaiting your review and approval.
+            </p>
+            <div class="card">
+                <table class="detail-table">
+                    <tr><td class="label">Property Name</td><td class="value">${request.name}</td></tr>
+                    <tr><td class="label">Location</td><td class="value">${request.location || 'N/A'}</td></tr>
+                    <tr><td class="label">Owner Email</td><td class="value">${request.ownerEmail}</td></tr>
+                    <tr><td class="label">Owner Phone</td><td class="value">${request.ownerPhone || 'N/A'}</td></tr>
+                    <tr><td class="label">Status</td><td class="value" style="color: #d97706; font-weight: 800;">PENDING APPROVAL</td></tr>
+                </table>
+            </div>
+            <div class="btn-container">
+                <a href="${adminUrl}/properties" class="btn">Review in Admin Panel</a>
+            </div>
+        `;
+
+        const html = this.wrapEmailHtml({
+            headerGradient: 'linear-gradient(135deg, #093f4a 0%, #0d5360 100%)',
+            badgeText: 'Admin Alert',
+            badgeBg: '#fbbf24',
+            badgeColor: '#78350f',
+            title: 'New Property Registration 🏨',
+            subtitle: `"${request.name}" is waiting for review`,
+            bodyHtml,
+        });
 
         try {
             if (this.emailProvider === 'MSG91') {
                 const templateId = this.configService.get('MSG91_TPL_EMAIL_ADMIN_PROPERTY_ALERT');
-                if (!templateId) { this.logger.warn('[MailService] MSG91_TPL_EMAIL_ADMIN_PROPERTY_ALERT not set in .env'); return; }
-                await this.sendEmailViaMSG91(adminEmail, 'Admin', templateId, {
-                    property_name: request.name,
-                    location: request.location || '',
-                    owner_email: request.ownerEmail,
-                    owner_phone: request.ownerPhone || '',
-                    review_url: `${this.configService.get('ADMIN_URL') || 'https://admin.myoreedu.com'}/properties`,
-                });
-            } else {
-                const from = this.configService.get('EMAIL_FROM');
-                await this.transporter.sendMail({ from, to: adminEmail, subject, html });
-                this.logger.log(`[MailService] Admin property registration alert sent to ${adminEmail}`);
+                if (templateId) {
+                    await this.sendEmailViaMSG91(adminEmail, 'Admin', templateId, {
+                        property_name: request.name,
+                        location: request.location || '',
+                        owner_email: request.ownerEmail,
+                        owner_phone: request.ownerPhone || '',
+                        review_url: `${adminUrl}/properties`,
+                    });
+                    return;
+                }
             }
+
+            await this.transporter.sendMail({ from, to: adminEmail, subject, html });
+            this.logger.log(`[MailService] Admin property registration alert sent to ${adminEmail}`);
         } catch (error) {
             this.logger.error('[MailService] Error sending admin property registration alert:', error);
         }

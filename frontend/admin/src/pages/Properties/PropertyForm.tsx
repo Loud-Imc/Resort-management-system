@@ -256,6 +256,8 @@ export default function PropertyForm() {
             if (isEdit && id) {
                 await propertyService.update(id, submissionData);
                 toast.success('Property updated successfully');
+                navigate(-1);
+                return;
             } else if (isAdmin || isMarketing) {
                 // Admin/Marketing must use PropertyRequest flow
                 await propertyService.createRequest(submissionData);
@@ -265,8 +267,9 @@ export default function PropertyForm() {
             } else {
                 await propertyService.create(submissionData);
                 toast.success('Property created successfully');
+                navigate('/properties');
+                return;
             }
-            navigate('/properties');
         } catch (err: any) {
             setError(err.response?.data?.message || err.message || 'Failed to save property');
         } finally {
@@ -314,7 +317,7 @@ export default function PropertyForm() {
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => navigate('/properties')}
+                        onClick={() => navigate(-1)}
                         className="p-2 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                     >
                         <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -1166,7 +1169,7 @@ export default function PropertyForm() {
                 <div className="flex justify-end gap-4">
                     <button
                         type="button"
-                        onClick={() => navigate('/properties')}
+                        onClick={() => navigate(-1)}
                         className="px-6 py-2 bg-muted text-foreground border border-border rounded-lg hover:bg-muted/80 font-bold transition-all cursor-pointer"
                     >
                         Cancel

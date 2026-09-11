@@ -243,9 +243,15 @@ export default function MyProperty() {
 
         let urlToMatch = value;
         // If it's a shortened google maps link, resolve it via backend
-        if (value.includes('goo.gl') || value.includes('maps.app.goo.gl')) {
+        if (value.includes('goo.gl') || value.includes('maps.app.goo.gl') || value.includes('google.com/maps')) {
             try {
                 const res = await propertiesService.expandUrl(value);
+                if (res?.latitude && res?.longitude) {
+                    setLatitude(Number(res.latitude));
+                    setLongitude(Number(res.longitude));
+                    toast.success('Coordinates extracted!');
+                    return;
+                }
                 if (res?.url) {
                     urlToMatch = res.url;
                 }
@@ -254,7 +260,7 @@ export default function MyProperty() {
             }
         }
         
-        // Extract coordinates
+        // Extract coordinates - Pattern 1: @lat,lng
         const coordMatch = urlToMatch.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (coordMatch) {
             setLatitude(parseFloat(coordMatch[1]));
@@ -263,7 +269,17 @@ export default function MyProperty() {
             return;
         }
 
-        const llMatch = urlToMatch.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        // Pattern 2: Protobuf !3dlat!4dlng
+        const protoMatch = urlToMatch.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+        if (protoMatch) {
+            setLatitude(parseFloat(protoMatch[1]));
+            setLongitude(parseFloat(protoMatch[2]));
+            toast.success('Coordinates extracted!');
+            return;
+        }
+
+        // Pattern 3: Query params (?ll=, ?q=, ?query=, destination, center)
+        const llMatch = urlToMatch.match(/[?&](?:ll|q|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
         if (llMatch) {
             setLatitude(parseFloat(llMatch[1]));
             setLongitude(parseFloat(llMatch[2]));
@@ -271,10 +287,11 @@ export default function MyProperty() {
             return;
         }
 
-        const qMatch = urlToMatch.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (qMatch) {
-            setLatitude(parseFloat(qMatch[1]));
-            setLongitude(parseFloat(qMatch[2]));
+        // Pattern 4: Path /place/lat,lng
+        const placeMatch = urlToMatch.match(/\/place\/(-?\d+\.\d+),(-?\d+\.\d+)/i);
+        if (placeMatch) {
+            setLatitude(parseFloat(placeMatch[1]));
+            setLongitude(parseFloat(placeMatch[2]));
             toast.success('Coordinates extracted!');
         }
     };
@@ -502,23 +519,23 @@ export default function MyProperty() {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <GlobalStyles />
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            {/* Header - Sticky */}
+            <div className="sticky top-14 md:top-[57px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm rounded-b-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                         <Building2 className="h-6 w-6 text-primary" /> My Property
                     </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your property details, images and settings</p>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage your property details, images and settings</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                     {!editMode ? (
                         <>
                             <button onClick={() => setEditMode(true)}
-                                className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+                                className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-xs">
                                 Edit Details
                             </button>
                             <button onClick={handleToggleActive}
-                                className={clsx("px-4 py-2 rounded-xl text-sm font-medium transition-colors",
+                                className={clsx("px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-xs",
                                     property.isActive ? "bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40"
                                         : "bg-green-50 dark:bg-green-900/20 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/40")}>
                                 {property.isActive ? 'Disable' : 'Enable'} Property
@@ -531,7 +548,7 @@ export default function MyProperty() {
                                 Cancel
                             </button>
                             <button onClick={handleSave} disabled={saving}
-                                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-70">
+                                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-70 shadow-xs">
                                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
                             </button>
                         </>

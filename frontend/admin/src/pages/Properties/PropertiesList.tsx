@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard, Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight, Sparkles, AlertTriangle } from 'lucide-react';
+import {
+    Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard,
+    Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight,
+    Sparkles, AlertTriangle, Search, RotateCcw, Eye, EyeOff
+} from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import OccupancyMigrationModal from '../../components/OccupancyMigrationModal';
 
 const ITEMS_PER_PAGE = 20;
@@ -66,27 +70,50 @@ export default function PropertiesList() {
 
     const { user } = useAuth();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+
     const [properties, setProperties] = useState<Property[]>([]);
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Filter state
-    const [search, setSearch] = useState('');
-    const [cityFilter, setCityFilter] = useState('');
-    const [stateFilter, setStateFilter] = useState('');
-    const [typeFilter, setTypeFilter] = useState<PropertyType | ''>('');
-    const [flagFilter, setFlagFilter] = useState<FlagFilter>('');
-    const [readinessFilter, setReadinessFilter] = useState<'' | 'COMPLETED' | 'INCOMPLETE'>('');
+    // Filter state from URL search params
+    const activeSearch = searchParams.get('search') || '';
+    const activeCity = searchParams.get('city') || '';
+    const activeState = searchParams.get('state') || '';
+    const activeType = (searchParams.get('type') as PropertyType | '') || '';
+    const activeFlag = (searchParams.get('flag') as FlagFilter) || '';
+    const activeReadiness = (searchParams.get('readiness') as '' | 'COMPLETED' | 'INCOMPLETE') || '';
+    const activePage = parseInt(searchParams.get('page') || '1', 10) || 1;
 
-    // Pagination
-    const [page, setPage] = useState(1);
+    // Controlled inputs for text filter fields
+    const [searchInput, setSearchInput] = useState(activeSearch);
+    const [cityInput, setCityInput] = useState(activeCity);
+    const [stateInput, setStateInput] = useState(activeState);
+
+    // Keep inputs in sync when URL search params change (e.g. back/forward navigation)
+    useEffect(() => {
+        setSearchInput(activeSearch);
+        setCityInput(activeCity);
+        setStateInput(activeState);
+    }, [activeSearch, activeCity, activeState]);
+
+    const hasActiveFilters = Boolean(
+        activeSearch ||
+        activeCity ||
+        activeState ||
+        activeType ||
+        activeFlag ||
+        activeReadiness ||
+        activePage > 1
+    );
 
     // Password reset modal
     const [resetPwProperty, setResetPwProperty] = useState<Property | null>(null);
     const [confirmEmailInput, setConfirmEmailInput] = useState('');
     const [newPasswordInput, setNewPasswordInput] = useState('');
+    const [showResetPassword, setShowResetPassword] = useState(true);
     const [isSubmittingReset, setIsSubmittingReset] = useState(false);
     const [occupancyModalProperty, setOccupancyModalProperty] = useState<Property | null>(null);
 
@@ -96,20 +123,20 @@ export default function PropertiesList() {
         user?.role === 'Property Owner' ||
         user?.role === 'Marketing';
 
-    const loadProperties = useCallback(async (targetPage: number) => {
+    const loadProperties = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
             const params: PropertyQueryParams = {
-                search: search.trim() || undefined,
-                city: cityFilter.trim() || undefined,
-                state: stateFilter.trim() || undefined,
-                type: typeFilter || undefined,
-                readiness: readinessFilter || undefined,
-                page: targetPage,
+                search: activeSearch.trim() || undefined,
+                city: activeCity.trim() || undefined,
+                state: activeState.trim() || undefined,
+                type: activeType || undefined,
+                readiness: activeReadiness || undefined,
+                page: activePage,
                 limit: ITEMS_PER_PAGE,
-                ...flagToParams(flagFilter),
+                ...flagToParams(activeFlag),
             };
 
             const response = isManageable
@@ -124,29 +151,57 @@ export default function PropertiesList() {
         } finally {
             setLoading(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [search, cityFilter, stateFilter, typeFilter, flagFilter, readinessFilter, isManageable]);
+    }, [activeSearch, activeCity, activeState, activeType, activeFlag, activeReadiness, activePage, isManageable]);
 
-    // When dropdown-only filters change, reset to page 1 and re-fetch
+    // Fetch properties whenever active parameters change
     useEffect(() => {
-        setPage(1);
-        loadProperties(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [typeFilter, flagFilter, readinessFilter]);
+        loadProperties();
+    }, [loadProperties]);
 
-    // When page changes (from pagination buttons), fetch that page
-    useEffect(() => {
-        loadProperties(page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page]);
+    const updateQueryParams = useCallback((updates: Record<string, string | undefined>, resetPage = true) => {
+        setSearchParams(prev => {
+            const nextParams = new URLSearchParams(prev);
+            Object.entries(updates).forEach(([key, val]) => {
+                if (val && val.trim() !== '') {
+                    nextParams.set(key, val.trim());
+                } else {
+                    nextParams.delete(key);
+                }
+            });
 
-    /** Search button / Enter â€” resets to page 1 */
+            if (resetPage) {
+                nextParams.delete('page');
+            }
+            return nextParams;
+        });
+    }, [setSearchParams]);
+
+    /** Search button / Enter — commits input texts to URL params */
     const handleSearch = () => {
-        if (page === 1) {
-            loadProperties(1);
-        } else {
-            setPage(1); // triggers the page useEffect
-        }
+        updateQueryParams({
+            search: searchInput,
+            city: cityInput,
+            state: stateInput,
+        }, true);
+    };
+
+    const handleClearAllFilters = () => {
+        setSearchInput('');
+        setCityInput('');
+        setStateInput('');
+        setSearchParams({});
+    };
+
+    const handlePageChange = (newPage: number) => {
+        setSearchParams(prev => {
+            const nextParams = new URLSearchParams(prev);
+            if (newPage > 1) {
+                nextParams.set('page', String(newPage));
+            } else {
+                nextParams.delete('page');
+            }
+            return nextParams;
+        });
     };
 
     const handleToggleActive = async (id: string, isActive: boolean) => {
@@ -177,6 +232,7 @@ export default function PropertiesList() {
         setResetPwProperty(property);
         setConfirmEmailInput('');
         setNewPasswordInput('');
+        setShowResetPassword(true);
     };
 
     const handleSubmitResetPassword = async () => {
@@ -230,12 +286,12 @@ export default function PropertiesList() {
     };
 
     // Derived pagination range label
-    const rangeStart = totalCount === 0 ? 0 : (page - 1) * ITEMS_PER_PAGE + 1;
-    const rangeEnd = Math.min(page * ITEMS_PER_PAGE, totalCount);
+    const rangeStart = totalCount === 0 ? 0 : (activePage - 1) * ITEMS_PER_PAGE + 1;
+    const rangeEnd = Math.min(activePage * ITEMS_PER_PAGE, totalCount);
 
     // Smart page number list with ellipsis
     const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1)
-        .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+        .filter(p => p === 1 || p === totalPages || Math.abs(p - activePage) <= 2)
         .reduce<(number | '...')[]>((acc, p, idx, arr) => {
             if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...');
             acc.push(p);
@@ -259,19 +315,35 @@ export default function PropertiesList() {
                 <div className="flex flex-col gap-3">
                     {/* Row 1: Fuzzy search + Type + Status + Readiness */}
                     <div className="flex flex-col sm:flex-row gap-3">
-                        <input
-                            type="text"
-                            placeholder="Search by name, address, email, phone..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                            className="flex-1 px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-                        />
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                            <input
+                                type="text"
+                                placeholder="Search by name, address, email, phone..."
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                className="w-full pl-9 pr-8 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm"
+                            />
+                            {searchInput && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchInput('');
+                                        updateQueryParams({ search: '' }, true);
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
+                                    title="Clear search"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
 
                         <select
-                            value={typeFilter}
-                            onChange={(e) => setTypeFilter(e.target.value as PropertyType | '')}
-                            className="px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                            value={activeType}
+                            onChange={(e) => updateQueryParams({ type: e.target.value }, true)}
+                            className="px-3 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm cursor-pointer"
                         >
                             <option value="">All Types</option>
                             {Object.entries(propertyTypeLabels).map(([value, label]) => (
@@ -280,9 +352,9 @@ export default function PropertiesList() {
                         </select>
 
                         <select
-                            value={flagFilter}
-                            onChange={(e) => setFlagFilter(e.target.value as FlagFilter)}
-                            className="px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                            value={activeFlag}
+                            onChange={(e) => updateQueryParams({ flag: e.target.value }, true)}
+                            className="px-3 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm cursor-pointer"
                         >
                             {FLAG_OPTIONS.map(opt => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -290,9 +362,9 @@ export default function PropertiesList() {
                         </select>
 
                         <select
-                            value={readinessFilter}
-                            onChange={(e) => setReadinessFilter(e.target.value as any)}
-                            className="px-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-medium"
+                            value={activeReadiness}
+                            onChange={(e) => updateQueryParams({ readiness: e.target.value }, true)}
+                            className="px-3 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-medium text-sm cursor-pointer"
                         >
                             <option value="">All Readiness</option>
                             <option value="COMPLETED">✅ Readiness Complete</option>
@@ -300,36 +372,77 @@ export default function PropertiesList() {
                         </select>
                     </div>
 
-                    {/* Row 2: City + State + Search button */}
+                    {/* Row 2: City + State + Search & Reset button */}
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative flex-1">
                             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                             <input
                                 type="text"
                                 placeholder="Filter by city..."
-                                value={cityFilter}
-                                onChange={(e) => setCityFilter(e.target.value)}
+                                value={cityInput}
+                                onChange={(e) => setCityInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                className="w-full pl-9 pr-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                className="w-full pl-9 pr-8 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm"
                             />
+                            {cityInput && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCityInput('');
+                                        updateQueryParams({ city: '' }, true);
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
+                                    title="Clear city filter"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
                         </div>
+
                         <div className="relative flex-1">
                             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                             <input
                                 type="text"
                                 placeholder="Filter by state..."
-                                value={stateFilter}
-                                onChange={(e) => setStateFilter(e.target.value)}
+                                value={stateInput}
+                                onChange={(e) => setStateInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                className="w-full pl-9 pr-4 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                                className="w-full pl-9 pr-8 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm"
                             />
+                            {stateInput && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStateInput('');
+                                        updateQueryParams({ state: '' }, true);
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded-md transition-colors cursor-pointer"
+                                    title="Clear state filter"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
                         </div>
-                        <button
-                            onClick={handleSearch}
-                            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium shrink-0"
-                        >
-                            Search
-                        </button>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleSearch}
+                                className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium shrink-0 text-sm cursor-pointer shadow-sm"
+                            >
+                                Search
+                            </button>
+
+                            {hasActiveFilters && (
+                                <button
+                                    onClick={handleClearAllFilters}
+                                    className="flex items-center gap-1.5 px-4 py-2 border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-medium text-sm shrink-0 cursor-pointer"
+                                    title="Clear all filters"
+                                >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                    Clear Filters
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -584,16 +697,16 @@ export default function PropertiesList() {
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card rounded-xl border border-border px-5 py-3 shadow-sm">
                             <p className="text-sm text-muted-foreground font-medium">
                                 Showing{' '}
-                                <span className="text-foreground font-bold">{rangeStart}â€“{rangeEnd}</span>
+                                <span className="text-foreground font-bold">{rangeStart}–{rangeEnd}</span>
                                 {' '}of{' '}
                                 <span className="text-foreground font-bold">{totalCount}</span> properties
                             </p>
 
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                                    disabled={page === 1}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    onClick={() => handlePageChange(Math.max(1, activePage - 1))}
+                                    disabled={activePage === 1}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                     Prev
@@ -602,14 +715,14 @@ export default function PropertiesList() {
                                 <div className="flex items-center gap-1">
                                     {pageNumbers.map((p, i) =>
                                         p === '...' ? (
-                                            <span key={`ellipsis-${i}`} className="px-1 text-muted-foreground text-sm select-none">â€¦</span>
+                                            <span key={`ellipsis-${i}`} className="px-1 text-muted-foreground text-sm select-none">…</span>
                                         ) : (
                                             <button
                                                 key={p}
-                                                onClick={() => setPage(p as number)}
+                                                onClick={() => handlePageChange(p as number)}
                                                 className={clsx(
-                                                    "w-8 h-8 text-sm font-bold rounded-lg transition-all",
-                                                    page === p
+                                                    "w-8 h-8 text-sm font-bold rounded-lg transition-all cursor-pointer",
+                                                    activePage === p
                                                         ? "bg-primary text-primary-foreground shadow-sm"
                                                         : "bg-background border border-border hover:bg-muted text-foreground"
                                                 )}
@@ -621,9 +734,9 @@ export default function PropertiesList() {
                                 </div>
 
                                 <button
-                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={page === totalPages}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    onClick={() => handlePageChange(Math.min(totalPages, activePage + 1))}
+                                    disabled={activePage === totalPages}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                                 >
                                     Next
                                     <ChevronRight className="h-4 w-4" />
@@ -669,7 +782,7 @@ export default function PropertiesList() {
                         <div className="p-5 space-y-4 text-left">
                             <div>
                                 <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 text-left">
-                                    Confirm Owner Email Address ({resetPwProperty.owner?.email || resetPwProperty.email})
+                                    Confirm Owner Email Address <span className="normal-case font-semibold text-foreground/80 tracking-normal">({resetPwProperty.owner?.email || resetPwProperty.email})</span>
                                 </label>
                                 <input
                                     type="text"
@@ -685,13 +798,23 @@ export default function PropertiesList() {
                                 <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 text-left">
                                     New Custom Password (Min. 6 Characters)
                                 </label>
-                                <input
-                                    type="password"
-                                    placeholder="Type new custom password..."
-                                    className="w-full px-3.5 py-2 bg-background border border-border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all text-foreground"
-                                    value={newPasswordInput}
-                                    onChange={(e) => setNewPasswordInput(e.target.value)}
-                                />
+                                <div className="relative">
+                                    <input
+                                        type={showResetPassword ? 'text' : 'password'}
+                                        placeholder="Type new custom password..."
+                                        className="w-full pl-3.5 pr-10 py-2 bg-background border border-border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all text-foreground"
+                                        value={newPasswordInput}
+                                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowResetPassword(prev => !prev)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                        title={showResetPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -722,7 +845,7 @@ export default function PropertiesList() {
                     propertyName={occupancyModalProperty.name}
                     isOpen={!!occupancyModalProperty}
                     onClose={() => setOccupancyModalProperty(null)}
-                    onStatusChange={() => loadProperties(page)}
+                    onStatusChange={() => loadProperties()}
                 />
             )}
         </div>

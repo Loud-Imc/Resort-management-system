@@ -482,20 +482,46 @@ export default function CreateRoomType() {
 
     return (
         <div className="max-w-4xl mx-auto pb-12 space-y-8">
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={() => navigate('/room-types')}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
-                >
-                    <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                </button>
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? 'Edit' : 'Create'} Room Type</h1>
-                    <p className="text-sm text-gray-500 font-medium">Define room features, pricing, and canonical V2 occupancy rules</p>
-                </div>
-            </div>
-
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                {/* Sticky Top Header with Action Buttons */}
+                <div className="sticky top-14 md:top-[57px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-b-xl">
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/room-types')}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xs shrink-0"
+                        >
+                            <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                        <div>
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
+                                {isEdit ? 'Edit' : 'Create'} Room Type
+                            </h1>
+                            <p className="text-xs sm:text-sm text-gray-500 font-medium hidden sm:block">
+                                Define room features, pricing, and canonical V2 occupancy rules
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/room-types')}
+                            className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl text-sm transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSubmitting || saveMutation.isPending}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2 sm:px-7 sm:py-2.5 rounded-xl font-bold text-sm shadow-md disabled:opacity-50 transition-all flex items-center gap-2"
+                        >
+                            {saveMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />}
+                            <span>{isEdit ? 'Update' : 'Create'} Type</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-8">
                     <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-4">
                         <div className="w-1 h-6 bg-primary-600 rounded-full"></div>

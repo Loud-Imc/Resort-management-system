@@ -311,6 +311,7 @@ export class PropertiesService {
                     amenities: details.amenities || [],
                     licenceImage: details.licenceImage || null,
                     documents: details.documents || [],
+                    documentDetails: details.documentDetails || null,
                     isGstApplicable: details.isGstApplicable !== undefined ? Boolean(details.isGstApplicable) : Boolean(details.gstNumber && details.gstNumber.trim()),
                     gstNumber: details.gstNumber || null,
                     ownerAadhaarNumber: details.ownerAadhaarNumber || null,
@@ -672,6 +673,46 @@ export class PropertiesService {
         }
 
         return { valid: true, message: 'Password verified successfully.' };
+    }
+
+    async checkEmailAvailability(email: string, phone?: string) {
+        if (!email || !email.trim()) {
+            return { available: true };
+        }
+
+        const cleanEmail = email.trim();
+        const existingUser = await this.prisma.user.findFirst({
+            where: {
+                email: { equals: cleanEmail, mode: 'insensitive' }
+            },
+            include: {
+                roles: { include: { role: true } }
+            }
+        });
+
+        if (!existingUser) {
+            return { available: true };
+        }
+
+        // If phone was provided, check if this email belongs to the SAME user as the phone
+        if (phone && phone.trim()) {
+            const normalizedPhone = normalizePhone(phone.trim());
+            const userPhoneNormalized = existingUser.phone ? normalizePhone(existingUser.phone) : '';
+            if (userPhoneNormalized && (userPhoneNormalized === normalizedPhone || existingUser.phone === phone.trim())) {
+                return { available: true, isSameOwner: true };
+            }
+        }
+
+        // A user is "claimable" if they only have the 'Customer' role
+        const isGuestOnly = existingUser.roles.every((ur: any) => ur.role.name === 'Customer');
+        if (isGuestOnly) {
+            return { available: true, isGuestAccount: true };
+        }
+
+        return {
+            available: false,
+            message: 'This email address is already registered to another account. Please use a different email or sign in to your existing account.'
+        };
     }
 
     async publicRegister(dto: RegisterPropertyDto) {

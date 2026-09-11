@@ -5,6 +5,7 @@ import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, Clipbo
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
+import { propertiesService } from '../services/properties';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import type { ConfirmationResult } from 'firebase/auth';
 import api from '../services/api';
@@ -25,6 +26,7 @@ export default function Register() {
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
     const [showPassword, setShowPassword] = useState(false);
+    const [isExtractingCoords, setIsExtractingCoords] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const scrollToField = (fieldName: string) => {
@@ -419,41 +421,75 @@ export default function Register() {
         }
     };
 
-    const handleMapsLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleMapsLinkChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const { value } = e.target;
         setFormData(prev => ({ ...prev, googleMapsLink: value }));
-        
-        // Extract coordinates
-        const coordMatch = value.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (coordMatch) {
-            setFormData(prev => ({ 
-                ...prev, 
-                latitude: coordMatch[1], 
-                longitude: coordMatch[2] 
+        if (!value.trim()) return;
+
+        const trimmed = value.trim();
+
+        // Helper to extract from URL string
+        const extractFromUrl = (url: string) => {
+            const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (atMatch) return { lat: atMatch[1], lng: atMatch[2] };
+
+            const protoMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+            if (protoMatch) return { lat: protoMatch[1], lng: protoMatch[2] };
+
+            const llMatch = url.match(/[?&](?:ll|q|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
+            if (llMatch) return { lat: llMatch[1], lng: llMatch[2] };
+
+            const placeMatch = url.match(/\/place\/(-?\d+\.\d+),(-?\d+\.\d+)/i);
+            if (placeMatch) return { lat: placeMatch[1], lng: placeMatch[2] };
+
+            return null;
+        };
+
+        const direct = extractFromUrl(trimmed);
+        if (direct) {
+            setFormData(prev => ({
+                ...prev,
+                latitude: direct.lat,
+                longitude: direct.lng
             }));
+            clearError('latitude');
+            clearError('longitude');
             toast.success('Coordinates extracted!');
             return;
         }
 
-        const llMatch = value.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (llMatch) {
-            setFormData(prev => ({ 
-                ...prev, 
-                latitude: llMatch[1], 
-                longitude: llMatch[2] 
-            }));
-            toast.success('Coordinates extracted!');
-            return;
-        }
-
-        const qMatch = value.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (qMatch) {
-            setFormData(prev => ({ 
-                ...prev, 
-                latitude: qMatch[1], 
-                longitude: qMatch[2] 
-            }));
-            toast.success('Coordinates extracted!');
+        // If it's a shortened google maps link or redirect link
+        if (trimmed.includes('goo.gl') || trimmed.includes('maps.app.goo.gl') || trimmed.includes('google.com/maps')) {
+            try {
+                setIsExtractingCoords(true);
+                const res = await propertiesService.expandUrl(trimmed);
+                if (res?.latitude && res?.longitude) {
+                    setFormData(prev => ({
+                        ...prev,
+                        latitude: String(res.latitude),
+                        longitude: String(res.longitude)
+                    }));
+                    clearError('latitude');
+                    clearError('longitude');
+                    toast.success('Coordinates extracted!');
+                } else if (res?.url) {
+                    const fromExpanded = extractFromUrl(res.url);
+                    if (fromExpanded) {
+                        setFormData(prev => ({
+                            ...prev,
+                            latitude: fromExpanded.lat,
+                            longitude: fromExpanded.lng
+                        }));
+                        clearError('latitude');
+                        clearError('longitude');
+                        toast.success('Coordinates extracted!');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to extract coordinates from Google Maps link', error);
+            } finally {
+                setIsExtractingCoords(false);
+            }
         }
     };
 
@@ -550,6 +586,32 @@ export default function Register() {
         return errs;
     };
 
+    const checkEmail = async (emailToTest?: string): Promise<boolean> => {
+        const email = (emailToTest || formData.ownerEmail || '').trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return true;
+        }
+        try {
+            const res = await api.get('/properties/public/check-email-availability', {
+                params: {
+                    email,
+                    phone: formData.ownerPhone ? formData.ownerPhone.trim() : undefined
+                }
+            });
+            if (res.data && res.data.available === false) {
+                const msg = res.data.message || 'This email address is already registered to another account.';
+                setErrors(prev => ({ ...prev, ownerEmail: msg }));
+                return false;
+            } else {
+                clearError('ownerEmail');
+                return true;
+            }
+        } catch (err) {
+            console.error('Email availability check error:', err);
+            return true;
+        }
+    };
+
     const nextStep = async () => {
         if (step === 1) {
             const errs = validateStep1();
@@ -557,6 +619,13 @@ export default function Register() {
                 setErrors(errs);
                 const firstField = Object.keys(errs)[0];
                 scrollToField(firstField);
+                return;
+            }
+
+            // Check email uniqueness on Step 1 before proceeding to Step 2
+            const isEmailAvailable = await checkEmail();
+            if (!isEmailAvailable) {
+                scrollToField('ownerEmail');
                 return;
             }
 
@@ -910,6 +979,7 @@ export default function Register() {
                                                     setIsPhoneVerified(false);
                                                 }
                                             }}
+                                            onBlur={() => checkEmail()}
                                             className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
                                                 errors.ownerEmail ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
                                             }`}
@@ -1183,9 +1253,14 @@ export default function Register() {
                                                 type="url"
                                                 value={formData.googleMapsLink}
                                                 onChange={handleMapsLinkChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                                placeholder="https://goo.gl/maps/..."
+                                                className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                placeholder="https://maps.app.goo.gl/... or https://goo.gl/maps/..."
                                             />
+                                            {isExtractingCoords && (
+                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                    <Loader2 className="h-4 w-4 text-primary-600 animate-spin" />
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <p className="text-[10px] text-gray-400 font-medium italic">

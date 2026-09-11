@@ -1241,7 +1241,7 @@ export class ReportsService {
             const styleSheet = (ws: ExcelJS.Worksheet, title: string) => {
                 ws.mergeCells('A1:D1');
                 const mainHeader = ws.getCell('A1');
-                mainHeader.value = 'ROUTE GUIDE';
+                mainHeader.value = 'OREEDU';
                 mainHeader.font = { name: 'Arial Black', color: { argb: 'FFFFFFFF' }, size: 20 };
                 mainHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: darkTeal } };
                 mainHeader.alignment = { horizontal: 'center', vertical: 'middle' };

@@ -589,9 +589,13 @@ export class UsersService {
     }
 
     async findByEmail(email: string) {
-        console.log(`[UsersService] Searching for user by email: ${email}`);
-        const user = await this.prisma.user.findUnique({
-            where: { email },
+        if (!email) return null;
+        const cleanEmail = email.trim();
+        console.log(`[UsersService] Searching for user by email: ${cleanEmail}`);
+        const user = await this.prisma.user.findFirst({
+            where: {
+                email: { equals: cleanEmail, mode: 'insensitive' }
+            },
             include: {
                 roles: {
                     include: {
@@ -621,7 +625,7 @@ export class UsersService {
                 },
             },
         });
-        console.log(`[UsersService] findByEmail result for ${email}: ${user ? 'FOUND' : 'NOT FOUND'}`);
+        console.log(`[UsersService] findByEmail result for ${cleanEmail}: ${user ? 'FOUND' : 'NOT FOUND'}`);
         return user;
     }
 
