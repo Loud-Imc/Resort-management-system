@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { CheckInVerificationModal } from '../../components/bookings/CheckInVerificationModal';
 import { OtaGuestMessagingSection } from '../../components/bookings/OtaGuestMessagingSection';
+import { OtaChannelBadge } from '../../components/bookings/OtaChannelBadge';
 
 const BookingDetails = () => {
     const { id } = useParams<{ id: string }>();
@@ -199,10 +200,12 @@ const BookingDetails = () => {
                                     <Clock className="h-3.5 w-3.5" />
                                     Created on {format(new Date(booking.createdAt), 'PPP')} at {format(new Date(booking.createdAt), 'p')}
                                 </p>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-[11px] font-black uppercase tracking-wider">
-                                    <Briefcase className="h-3.5 w-3.5" />
-                                    Source: {booking.channelName || (booking as any).bookingSource?.name || 'Oreedu PMS'}
-                                </span>
+                                <OtaChannelBadge
+                                    source={(booking as any).bookingSource?.name || booking.channelName}
+                                    channelPartnerId={booking.channelPartnerId}
+                                    isManualBooking={booking.isManualBooking}
+                                    size="sm"
+                                />
                                 {booking.createdBy && (
                                     <p className="text-primary font-bold text-[11px] flex items-center gap-2 uppercase tracking-wider">
                                         <ShieldCheck className="h-3.5 w-3.5" />

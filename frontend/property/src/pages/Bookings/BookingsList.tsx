@@ -27,6 +27,7 @@ import toast from 'react-hot-toast';
 // import { paymentsService } from '../../services/payments';
 import { Download, Wallet } from 'lucide-react';
 import { CheckInVerificationModal } from '../../components/bookings/CheckInVerificationModal';
+import { OtaChannelBadge } from '../../components/bookings/OtaChannelBadge';
 
 
 
@@ -503,15 +504,15 @@ export default function BookingsList() {
                                                 )}
                                                 <tr key={booking.id} onClick={(e) => handleRowClick(e, booking.id)} className="hover:bg-muted/30 transition-colors cursor-pointer">
                                                     <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-primary">{booking.bookingNumber}</div>
-                                            <div className="text-xs text-muted-foreground mt-0.5">
-                                                {booking.isManualBooking ? 'Manual' : 'Online'}
+                                            <div className="text-sm font-bold text-primary">{booking.bookingNumber}</div>
+                                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                                <OtaChannelBadge
+                                                    source={booking.bookingSource?.name || booking.channelName}
+                                                    channelPartnerId={booking.channelPartner?.id || (booking as any).channelPartnerId}
+                                                    isManualBooking={booking.isManualBooking}
+                                                    size="xs"
+                                                />
                                             </div>
-                                            {booking.channelPartner && (
-                                                <div className="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
-                                                    CP: {booking.channelPartner.accountHolderName}
-                                                </div>
-                                            )}
                                             {/* Status badge */}
                                             <div className="mt-1.5">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${
