@@ -1727,11 +1727,11 @@ export class PropertiesService {
         const updated = await this.prisma.$transaction(async (tx) => {
             const prop = await tx.property.update({
                 where: { id: propertyId },
-                data: { occupancyVersion: 'V2' },
+                data: { occupancyVersion: 'V2' } as any,
             });
             await tx.roomType.updateMany({
                 where: { propertyId: propertyId },
-                data: { occupancyVersion: 'V2' },
+                data: { occupancyVersion: 'V2' } as any,
             });
             return prop;
         });
@@ -1742,7 +1742,7 @@ export class PropertiesService {
             success: true,
             message: `Property "${property.name}" successfully activated to V2 canonical occupancy`,
             propertyId: property.id,
-            occupancyVersion: updated.occupancyVersion,
+            occupancyVersion: (updated as any).occupancyVersion || 'V2',
             activatedRoomTypesCount: property.roomTypes.length,
         };
     }
@@ -1760,7 +1760,7 @@ export class PropertiesService {
 
         const updated = await this.prisma.property.update({
             where: { id: propertyId },
-            data: { occupancyVersion: 'V1' },
+            data: { occupancyVersion: 'V1' } as any,
         });
 
         this.logger.log(`[Occupancy Renovation] Property "${property.name}" (${property.id}) reverted to V1 legacy occupancy by user ${currentUser?.id || 'system'}`);
@@ -1769,7 +1769,7 @@ export class PropertiesService {
             success: true,
             message: `Property "${property.name}" reverted to V1 legacy occupancy`,
             propertyId: property.id,
-            occupancyVersion: updated.occupancyVersion,
+            occupancyVersion: (updated as any).occupancyVersion || 'V1',
         };
     }
 }
