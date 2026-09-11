@@ -44,9 +44,9 @@ if has_changes "backend/"; then
     npm run build
     
     echo "🔄 Restarting Backend Service..."
-    if pm2 describe resort-api > /dev/null; then
-        echo "🔄 Reloading Backend Service (Zero Downtime)..."
-        pm2 reload resort-api --update-env
+    if pm2 describe resort-api > /dev/null 2>&1; then
+        echo "🔄 Reloading Backend Service..."
+        pm2 restart dist/main.js --name "resort-api" --update-env || pm2 reload resort-api --update-env
     else
         echo "🚀 Starting Backend Service..."
         NODE_ENV=production pm2 start dist/main.js --name "resort-api"
