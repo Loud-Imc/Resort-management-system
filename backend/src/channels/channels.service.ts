@@ -822,6 +822,12 @@ export class ChannelsService {
                 departure_date: rev.attributes?.departure_date,
                 amount: rev.attributes?.amount,
                 currency: rev.attributes?.currency,
+                ota_commission: rev.attributes?.ota_commission || rev.attributes?.commission,
+                payment_collect: rev.attributes?.payment_collect || rev.attributes?.payment_type,
+                payment_type: rev.attributes?.payment_type || rev.attributes?.payment_collect,
+                guarantee: rev.attributes?.guarantee,
+                special_requests: rev.attributes?.special_requests,
+                ota_reservation_id: rev.attributes?.ota_reservation_id || rev.attributes?.ota_reservation_code,
                 rooms: (rev.attributes?.rooms || []).map((r: any) => ({
                   id: r.id,
                   room_type_id: r.room_type_id,
@@ -829,7 +835,11 @@ export class ChannelsService {
                   checkin_date: r.checkin_date || rev.attributes?.arrival_date,
                   checkout_date: r.checkout_date || rev.attributes?.departure_date,
                   amount: r.amount || 0,
-                  occupancy: r.occupancy || { adults: 2, children: 0 }
+                  occupancy: r.occupancy || { adults: 2, children: 0 },
+                  notes: r.notes,
+                  meal_plan: r.meal_plan || r.services,
+                  smoking_preference: r.smoking_preference,
+                  bed_preference: r.bed_preference || r.bed_type,
                 })),
                 customer: rev.attributes?.customer || {},
                 channel_name: rev.attributes?.channel_name || 'Booking.com',
@@ -887,6 +897,12 @@ export class ChannelsService {
           departure_date: bookingData.attributes.departure_date,
           amount: bookingData.attributes.amount,
           currency: bookingData.attributes.currency,
+          ota_commission: bookingData.attributes?.ota_commission || bookingData.attributes?.commission,
+          payment_collect: bookingData.attributes?.payment_collect || bookingData.attributes?.payment_type,
+          payment_type: bookingData.attributes?.payment_type || bookingData.attributes?.payment_collect,
+          guarantee: bookingData.attributes?.guarantee,
+          special_requests: bookingData.attributes?.special_requests,
+          ota_reservation_id: bookingData.attributes?.ota_reservation_id || bookingData.attributes?.ota_reservation_code,
           rooms: (bookingData.attributes.rooms || []).map((r: any) => ({
             id: r.id,
             room_type_id: r.room_type_id,
@@ -894,7 +910,11 @@ export class ChannelsService {
             checkin_date: r.checkin_date || bookingData.attributes.arrival_date,
             checkout_date: r.checkout_date || bookingData.attributes.departure_date,
             amount: r.amount || 0,
-            occupancy: r.occupancy || { adults: 2, children: 0 }
+            occupancy: r.occupancy || { adults: 2, children: 0 },
+            notes: r.notes,
+            meal_plan: r.meal_plan || r.services,
+            smoking_preference: r.smoking_preference,
+            bed_preference: r.bed_preference || r.bed_type,
           })),
           customer: bookingData.attributes.customer || {},
           channel_name: bookingData.attributes.channel_name || 'Booking.com',
@@ -994,56 +1014,88 @@ export class ChannelsService {
       return { success: true, action: 'IGNORED_ALREADY_CANCELLED' };
     }
 
-    // Find the internal room mapping
-    const roomMapping = await this.prisma.channelRoomTypeMapping.findFirst({
-      where: {
-        externalRoomTypeId: res.externalRoomTypeId,
-        propertyMapping: {
-          externalPropertyId: res.externalPropertyId,
-          channelName: channelName.toUpperCase(),
+    // Resolve all booked room types (supports multi-room reservations)
+    const roomsToAssign = (res.rooms && res.rooms.length > 0)
+      ? res.rooms
+      : [{ externalRoomTypeId: res.externalRoomTypeId }];
+
+    interface AssignedRoomInfo {
+      roomId: string;
+      roomNumber: string;
+      roomTypeId: string;
+      roomTypeName: string;
+      propertyMapping: any;
+    }
+
+    const assignedRoomsList: AssignedRoomInfo[] = [];
+    const usedRoomIds = new Set<string>();
+    let primaryPropertyMapping: any = null;
+    let propertyId = '';
+
+    for (const requestedRoom of roomsToAssign) {
+      const extRoomId = requestedRoom.externalRoomTypeId || res.externalRoomTypeId;
+      const roomMapping = await this.prisma.channelRoomTypeMapping.findFirst({
+        where: {
+          externalRoomTypeId: extRoomId,
+          propertyMapping: {
+            externalPropertyId: res.externalPropertyId,
+            channelName: channelName.toUpperCase(),
+          },
         },
-      },
-      include: {
-        roomType: true,
-        propertyMapping: true,
-      },
-    });
+        include: {
+          roomType: true,
+          propertyMapping: true,
+        },
+      });
 
-    if (!roomMapping) {
-      throw new NotFoundException(
-        `No internal RoomType mapped for Channel [${channelName}], externalPropertyId [${res.externalPropertyId}], externalRoomTypeId [${res.externalRoomTypeId}]`,
+      if (!roomMapping) {
+        throw new NotFoundException(
+          `No internal RoomType mapped for Channel [${channelName}], externalPropertyId [${res.externalPropertyId}], externalRoomTypeId [${extRoomId}]`,
+        );
+      }
+
+      propertyId = roomMapping.propertyMapping.propertyId;
+      primaryPropertyMapping = roomMapping.propertyMapping;
+      const roomTypeId = roomMapping.roomTypeId;
+
+      // Find available physical rooms
+      const availableRooms = await this.availabilityService.getAvailableRooms(
+        roomTypeId,
+        res.checkInDate,
+        res.checkOutDate,
       );
-    }
 
-    const propertyId = roomMapping.propertyMapping.propertyId;
-    const roomTypeId = roomMapping.roomTypeId;
+      // Select an available room not already assigned in this reservation batch
+      let chosenRoom = availableRooms.find(r => !usedRoomIds.has(r.id));
+      if (!chosenRoom) {
+        this.logger.warn(
+          `[OVERBOOKING WARNING] External reservation ${res.externalBookingId} arrived for ${roomMapping.roomType.name}, but insufficient unassigned physical rooms available!`,
+        );
+        const anyRooms = await this.prisma.room.findMany({
+          where: { roomTypeId, propertyId },
+        });
+        chosenRoom = anyRooms.find(r => !usedRoomIds.has(r.id)) || anyRooms[0];
+      }
 
-    // Find an available physical Room inside this RoomType
-    const availableRooms = await this.availabilityService.getAvailableRooms(
-      roomTypeId,
-      res.checkInDate,
-      res.checkOutDate,
-    );
+      if (!chosenRoom) {
+        throw new BadRequestException(
+          `SETUP_REQUIRED: No physical room units configured for Room Type "${roomMapping.roomType?.name || roomTypeId}". Please go to Rooms Management and create at least 1 physical room first.`,
+        );
+      }
 
-    if (availableRooms.length === 0) {
-      this.logger.warn(
-        `[OVERBOOKING WARNING] External reservation ${res.externalBookingId} arrived for ${roomMapping.roomType.name}, but 0 physical rooms available!`,
-      );
-    }
-
-    // Assign first available room or fallback to any room in that type to prevent losing record
-    let assignedRoom = availableRooms[0];
-    if (!assignedRoom) {
-      assignedRoom = await this.prisma.room.findFirst({
-        where: { roomTypeId, propertyId },
+      usedRoomIds.add(chosenRoom.id);
+      assignedRoomsList.push({
+        roomId: chosenRoom.id,
+        roomNumber: chosenRoom.roomNumber,
+        roomTypeId,
+        roomTypeName: roomMapping.roomType?.name || roomTypeId,
+        propertyMapping: roomMapping.propertyMapping,
       });
     }
 
-    if (!assignedRoom) {
-      throw new BadRequestException(
-        `SETUP_REQUIRED: No physical room units configured for Room Type "${roomMapping.roomType?.name || roomTypeId}". Please go to Rooms Management and create at least 1 physical room first.`,
-      );
-    }
+    const primaryAssigned = assignedRoomsList[0];
+    const primaryRoomId = primaryAssigned.roomId;
+    const primaryRoomTypeId = primaryAssigned.roomTypeId;
 
     // Find or create OTA User/Guest account strictly by unique email to ensure correct guest profile mapping
     let user = await this.prisma.user.findUnique({
@@ -1117,14 +1169,22 @@ export class ChannelsService {
     const gstCalculation = await this.pricingService.calculateReverseGST(
       convertedTotal,
       res.numberOfNights || 1,
-      1
+      assignedRoomsList.length
     );
 
-    // Calculate commission amount if the source defines a commission percentage
+    // Calculate commission: Use exact OTA commission from payload if available, else source percentage
     let commissionAmount = 0;
-    if (bookingSource?.commission) {
+    if (res.commissionAmount != null && res.commissionAmount > 0) {
+      commissionAmount = res.commissionAmount;
+    } else if (bookingSource?.commission) {
       commissionAmount = (convertedTotal * Number(bookingSource.commission)) / 100;
     }
+
+    // Determine payment status & option: Check if Hotel Collect / Pay at Property vs Channel Collect
+    const isHotelCollect = res.paymentType === 'HOTEL_COLLECT';
+    const paymentStatus = isHotelCollect ? 'UNPAID' : 'FULL';
+    const paymentOption = isHotelCollect ? 'PAY_AT_PROPERTY' : 'FULL';
+    const paidAmount = isHotelCollect ? 0 : convertedTotal;
 
     // Calculate exchange rate from Property Base Currency to Booking Currency
     const exchangeRate = await this.currenciesService.convert(
@@ -1148,16 +1208,17 @@ export class ChannelsService {
             numberOfNights: res.numberOfNights,
             adultsCount: res.adultsCount,
             childrenCount: res.childrenCount,
+            infantsCount: res.infantsCount || 0,
             baseAmount: gstCalculation.baseAmount,
             taxAmount: gstCalculation.taxAmount,
             totalAmount: convertedTotal,
-            paidAmount: convertedTotal,
+            paidAmount,
             commissionAmount,
             exchangeRate,
             status: 'CONFIRMED',
             specialRequests: res.specialRequests,
-            roomId: assignedRoom.id,
-            roomTypeId,
+            roomId: primaryRoomId,
+            roomTypeId: primaryRoomTypeId,
             userId: user!.id,
             bookingSourceId: bookingSource?.id,
             propertyId,
@@ -1165,18 +1226,20 @@ export class ChannelsService {
             channelName: channelName.toUpperCase(),
             confirmedAt: new Date(),
             bookingCurrency: res.currency || 'INR',
-            paymentStatus: 'FULL',
-            paymentOption: 'FULL',
+            paymentStatus,
+            paymentOption,
           },
         });
 
-        // Create BookingRoom link
-        await tx.bookingRoom.create({
-          data: {
-            bookingId: b.id,
-            roomId: assignedRoom.id,
-          },
-        });
+        // Create BookingRoom link for ALL assigned rooms
+        for (const assigned of assignedRoomsList) {
+          await tx.bookingRoom.create({
+            data: {
+              bookingId: b.id,
+              roomId: assigned.roomId,
+            },
+          });
+        }
 
         // Create BookingGuest entry
         await tx.bookingGuest.create({
@@ -1204,19 +1267,23 @@ export class ChannelsService {
       throw err;
     }
 
-    this.logger.log(`Created internal booking #${newBooking.bookingNumber} for physical room ${assignedRoom.roomNumber}`);
+    const assignedRoomNumbers = assignedRoomsList.map(r => r.roomNumber).join(', ');
+    this.logger.log(`Created internal booking #${newBooking.bookingNumber} for ${assignedRoomsList.length} physical room(s) [${assignedRoomNumbers}]`);
 
     // Acknowledge back to channel using revision ID if available (falls back to booking ID)
     const ackId = res.externalRevisionId || res.externalBookingId;
-    await adapter.acknowledgeReservation(roomMapping.propertyMapping, ackId, newBooking.bookingNumber);
+    await adapter.acknowledgeReservation(primaryPropertyMapping, ackId, newBooking.bookingNumber);
 
-    // Push updated inventory outward to block all other OTAs instantly
-    await this.pushAvailabilityForDates(
-      propertyId,
-      newBooking.roomTypeId,
-      newBooking.checkInDate,
-      newBooking.checkOutDate
-    );
+    // Push updated inventory outward for all affected Room Types to block all other OTAs instantly
+    const distinctRoomTypeIds = [...new Set(assignedRoomsList.map(r => r.roomTypeId))];
+    for (const rTypeId of distinctRoomTypeIds) {
+      await this.pushAvailabilityForDates(
+        propertyId,
+        rTypeId,
+        newBooking.checkInDate,
+        newBooking.checkOutDate
+      );
+    }
 
     return { success: true, action: 'CREATED', bookingNumber: newBooking.bookingNumber };
   }

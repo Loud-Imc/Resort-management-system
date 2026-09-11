@@ -417,4 +417,102 @@ describe('Phase 7: Channex Canonical Occupancy Integration', () => {
       );
     });
   });
+
+  describe('Phase 8: Channex Multi-Room & Rich Booking Ingestion', () => {
+    it('should correctly parse multi-room Booking.com reservation with aggregated occupancy, commission, and hotel-collect payment', async () => {
+      const incomingChannexPayload = {
+        event: 'booking',
+        data: {
+          id: '79951e86-3210-40f6-8109-1965dfd9eb8f',
+          booking_revision_id: 'b0e25109-0c9d-4974-b156-e685bad20d19',
+          ota_reservation_code: '6253905014',
+          channel_name: 'Booking.com',
+          property_id: 'channex-prop-001',
+          arrival_date: '2026-09-15',
+          departure_date: '2026-09-16',
+          total_amount: 8925.0,
+          currency: 'INR',
+          ota_commission: 1275.0,
+          guarantee: 'No credit card is supplied with this booking',
+          notes: 'Reservation has a cancellation grace period. Do not charge if cancelled before 2026-09-12 07:50:33 LargeBed, NonSmoke Meal Plan for Room 1718323601 (469): Breakfast is included in the room rate. Meal Plan for Room 1718323601 (467): Breakfast is included in the room rate. Smoking Preference for Room 1718323601 (469): Non-Smoking Smoking Preference for Room 1718323601 (467): Non-Smoking OTA Commission: 1275.00',
+          customer: {
+            name: 'Hh',
+            surname: 'Vbb',
+            mail: 'hvbb.724055@guest.booking.com',
+            phone: '+91 20 3564 0799',
+            address: '30 08 Prudential Tower, 19 Cecil St',
+            city: 'bangkok',
+            zip: '049712',
+            country: 'India',
+            language: 'en-gb',
+          },
+          rooms: [
+            {
+              id: 'room-unit-1',
+              room_type_id: 'rt-vista-villa-101',
+              rate_plan_id: 'rp-standard-breakfast',
+              amount: 4462.5,
+              occupancy: { adults: 3, children: 0, infants: 0 },
+              meal_plan: 'Breakfast included',
+              smoking_preference: 'Non-Smoking',
+              bed_preference: 'LargeBed',
+            },
+            {
+              id: 'room-unit-2',
+              room_type_id: 'rt-vista-villa-101',
+              rate_plan_id: 'rp-standard-breakfast',
+              amount: 4462.5,
+              occupancy: { adults: 3, children: 0, infants: 0 },
+              meal_plan: 'Breakfast included',
+              smoking_preference: 'Non-Smoking',
+              bed_preference: 'LargeBed',
+            },
+          ],
+        },
+      };
+
+      const parsed = await adapter.parseIncomingReservation(incomingChannexPayload);
+
+      // Verify core identifiers and channel
+      expect(parsed.externalBookingId).toBe('79951e86-3210-40f6-8109-1965dfd9eb8f');
+      expect(parsed.externalRevisionId).toBe('b0e25109-0c9d-4974-b156-e685bad20d19');
+      expect(parsed.channelName).toBe('Booking.com');
+      expect(parsed.status).toBe('CONFIRMED');
+
+      // Verify multi-room array
+      expect(parsed.rooms).toHaveLength(2);
+      expect(parsed.rooms?.[0].externalRoomTypeId).toBe('rt-vista-villa-101');
+      expect(parsed.rooms?.[1].externalRoomTypeId).toBe('rt-vista-villa-101');
+      expect(parsed.rooms?.[0].amount).toBe(4462.5);
+
+      // Verify aggregated occupancy (3 + 3 = 6 adults)
+      expect(parsed.adultsCount).toBe(6);
+      expect(parsed.childrenCount).toBe(0);
+      expect(parsed.infantsCount).toBe(0);
+
+      // Verify total amount and commission
+      expect(parsed.totalAmount).toBe(8925.0);
+      expect(parsed.commissionAmount).toBe(1275.0);
+
+      // Verify payment collect determination (hotel collect / unpaid)
+      expect(parsed.paymentType).toBe('HOTEL_COLLECT');
+
+      // Verify rich guest details
+      expect(parsed.guest.firstName).toBe('Hh');
+      expect(parsed.guest.lastName).toBe('Vbb');
+      expect(parsed.guest.email).toBe('hvbb.724055@guest.booking.com');
+      expect(parsed.guest.phone).toBe('+91 20 3564 0799');
+      expect(parsed.guest.address).toBe('30 08 Prudential Tower, 19 Cecil St');
+      expect(parsed.guest.city).toBe('bangkok');
+      expect(parsed.guest.postalCode).toBe('049712');
+      expect(parsed.guest.country).toBe('India');
+      expect(parsed.guest.language).toBe('en-gb');
+
+      // Verify special requests include notes, guarantee, and guest address
+      expect(parsed.specialRequests).toContain('Breakfast is included in the room rate');
+      expect(parsed.specialRequests).toContain('Non-Smoking');
+      expect(parsed.specialRequests).toContain('30 08 Prudential Tower, 19 Cecil St');
+      expect(parsed.specialRequests).toContain('bangkok');
+    });
+  });
 });

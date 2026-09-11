@@ -4,6 +4,7 @@ import {
   InventoryUpdateDto,
   RateUpdateDto,
   NormalizedChannelReservationDto,
+  NormalizedChannelReservationRoomDto,
 } from '../interfaces/channel-adapter.interface';
 import { ChannelPropertyMapping, ChannelRoomTypeMapping, Property, RoomType } from '@prisma/client';
 
@@ -562,6 +563,107 @@ export class ChannexAdapter implements IChannelAdapter {
     else if (otaLower.includes('goibibo')) detectedOta = 'Goibibo';
     else if (!detectedOta || detectedOta.toLowerCase() === 'channex') detectedOta = 'Booking.com';
 
+    // Normalize all booked rooms
+    const normalizedRooms: NormalizedChannelReservationRoomDto[] = rooms.map((r: any) => ({
+      externalRoomTypeId: String(r.room_type_id || r.id || firstRoom.room_type_id || firstRoom.id || ''),
+      externalRatePlanId: r.rate_plan_id ? String(r.rate_plan_id) : undefined,
+      amount: r.amount != null ? Number(r.amount) : undefined,
+      occupancy: {
+        adults: r.occupancy?.adults != null ? Number(r.occupancy.adults) : undefined,
+        children: r.occupancy?.children != null ? Number(r.occupancy.children) : undefined,
+        infants: r.occupancy?.infants != null ? Number(r.occupancy.infants) : undefined,
+      },
+      mealPlan: r.meal_plan || r.services || undefined,
+      smokingPreference: r.smoking_preference || undefined,
+      bedPreference: r.bed_preference || r.bed_type || undefined,
+      notes: r.notes || undefined,
+    }));
+
+    // Aggregate total occupancy across all rooms
+    let totalAdults = 0;
+    let totalChildren = 0;
+    let totalInfants = 0;
+
+    if (rooms.length > 0) {
+      for (const r of rooms) {
+        if (r.occupancy?.adults != null) totalAdults += Number(r.occupancy.adults);
+        if (r.occupancy?.children != null) totalChildren += Number(r.occupancy.children);
+        if (r.occupancy?.infants != null) totalInfants += Number(r.occupancy.infants);
+      }
+    }
+
+    if (totalAdults === 0) {
+      totalAdults = Number(booking.adults || firstRoom.occupancy?.adults || 2);
+    }
+    if (totalChildren === 0 && booking.children != null) {
+      totalChildren = Number(booking.children);
+    }
+    if (totalInfants === 0 && booking.infants != null) {
+      totalInfants = Number(booking.infants);
+    }
+
+    // Extract OTA commission if present
+    let commissionAmount: number | undefined;
+    if (booking.ota_commission != null) {
+      commissionAmount = Number(typeof booking.ota_commission === 'object' ? booking.ota_commission.amount : booking.ota_commission);
+    } else if (booking.commission_amount != null) {
+      commissionAmount = Number(booking.commission_amount);
+    } else if (booking.commission != null && typeof booking.commission === 'number') {
+      commissionAmount = Number(booking.commission);
+    } else if (typeof booking.notes === 'string' && booking.notes.includes('OTA Commission:')) {
+      const match = booking.notes.match(/OTA Commission:\s*([\d.]+)/i);
+      if (match && match[1]) {
+        commissionAmount = Number(match[1]);
+      }
+    }
+
+    // Determine Payment Collect / Guarantee
+    let paymentType: 'HOTEL_COLLECT' | 'CHANNEL_COLLECT' = 'CHANNEL_COLLECT';
+    const guaranteeText = String(booking.guarantee || '').trim();
+    const rawPaymentCollect = String(
+      booking.payment_collect ||
+      booking.payment_type ||
+      booking.payment_method ||
+      guaranteeText ||
+      ''
+    ).toLowerCase();
+
+    if (
+      rawPaymentCollect.includes('hotel') ||
+      rawPaymentCollect.includes('property') ||
+      rawPaymentCollect.includes('no credit card') ||
+      guaranteeText.toLowerCase().includes('no credit card') ||
+      booking.has_virtual_card === false ||
+      booking.is_virtual_card === false
+    ) {
+      paymentType = 'HOTEL_COLLECT';
+    }
+
+    // Combine notes, room preferences, and guest address info into specialRequests
+    const specialRequestsParts: string[] = [];
+    if (booking.notes) {
+      specialRequestsParts.push(typeof booking.notes === 'string' ? booking.notes : JSON.stringify(booking.notes));
+    }
+    if (booking.special_requests && booking.special_requests !== booking.notes) {
+      specialRequestsParts.push(booking.special_requests);
+    }
+    if (guaranteeText && !specialRequestsParts.some(p => p.includes(guaranteeText))) {
+      specialRequestsParts.push(`[Guarantee]: ${guaranteeText}`);
+    }
+
+    const locationParts: string[] = [];
+    if (customer.address) locationParts.push(customer.address);
+    if (customer.city) locationParts.push(customer.city);
+    if (customer.zip || customer.postal_code) locationParts.push(`Postal: ${customer.zip || customer.postal_code}`);
+    if (customer.country) locationParts.push(`Country: ${customer.country}`);
+    if (customer.language) locationParts.push(`Language: ${customer.language}`);
+
+    if (locationParts.length > 0) {
+      specialRequestsParts.push(`[Guest Address]: ${locationParts.join(', ')}`);
+    }
+
+    const specialRequests = specialRequestsParts.filter(Boolean).join('\n\n').trim() || undefined;
+
     return {
       externalBookingId: String(booking.id || payload.id || `ch-${Date.now()}`),
       externalRevisionId: String(booking.booking_revision_id || booking.revision_id || payload.booking_revision_id || payload.revision_id || ''),
@@ -569,20 +671,30 @@ export class ChannexAdapter implements IChannelAdapter {
       sourceName: detectedOta,
       externalPropertyId: String(booking.property_id || payload.property_id || ''),
       externalRoomTypeId: String(firstRoom.room_type_id || firstRoom.id || ''),
+      rooms: normalizedRooms.length > 0 ? normalizedRooms : undefined,
       checkInDate: new Date(checkInDate),
       checkOutDate: new Date(checkOutDate),
       numberOfNights,
-      adultsCount: Number(firstRoom.occupancy?.adults || booking.adults || 2),
-      childrenCount: Number(firstRoom.occupancy?.children || booking.children || 0),
+      adultsCount: totalAdults,
+      childrenCount: totalChildren,
+      infantsCount: totalInfants,
       totalAmount: Number(booking.total_amount || booking.amount || 0),
       currency: booking.currency || 'INR',
+      commissionAmount,
+      paymentType,
+      guarantee: guaranteeText || undefined,
       guest: {
         firstName: customer.name || 'OTA Guest',
         lastName: customer.surname || 'Guest',
         email: customer.mail || customer.email,
         phone: customer.phone,
+        address: customer.address,
+        city: customer.city,
+        postalCode: customer.zip || customer.postal_code,
+        country: customer.country,
+        language: customer.language,
       },
-      specialRequests: booking?.notes || booking?.special_requests,
+      specialRequests,
       status,
     };
   }

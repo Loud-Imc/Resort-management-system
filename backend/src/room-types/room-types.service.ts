@@ -326,31 +326,55 @@ export class RoomTypesService {
         try {
             const { cancellationPolicy, cancellationPolicyId, ...rest } = createRoomTypeDto;
 
+            const baseAdults = Number(rest.baseAdults ?? 2);
+            const baseChildren = Number(rest.baseChildren ?? 0);
+            const maxAdults = Number(rest.maxAdults ?? baseAdults);
+            const maxChildren = Number(rest.maxChildren ?? 0);
+
             const physAdults = (rest.maxPhysicalAdults !== undefined && rest.maxPhysicalAdults !== null)
                 ? Number(rest.maxPhysicalAdults)
-                : null;
+                : Math.max(maxAdults, baseAdults, 2);
             const physChildren = (rest.maxPhysicalChildren !== undefined && rest.maxPhysicalChildren !== null)
                 ? Number(rest.maxPhysicalChildren)
-                : null;
+                : Math.max(maxChildren, baseChildren, 0);
             const physInfants = (rest.maxPhysicalInfants !== undefined && rest.maxPhysicalInfants !== null)
                 ? Number(rest.maxPhysicalInfants)
                 : 0;
-            const isV2 = rest.totalMaxOccupancy !== undefined && rest.totalMaxOccupancy !== null;
-            const computedGroupMax = isV2
+
+            const totalBaseOccupancy = (rest.totalBaseOccupancy !== undefined && rest.totalBaseOccupancy !== null)
+                ? Number(rest.totalBaseOccupancy)
+                : (baseAdults + baseChildren);
+
+            const totalMaxOccupancy = (rest.totalMaxOccupancy !== undefined && rest.totalMaxOccupancy !== null)
                 ? Number(rest.totalMaxOccupancy)
+                : (physAdults + physChildren);
+
+            const isV2 = totalMaxOccupancy !== null && totalMaxOccupancy !== undefined;
+            const computedGroupMax = isV2
+                ? totalMaxOccupancy
                 : ((createRoomTypeDto.groupMaxOccupancy !== undefined && createRoomTypeDto.groupMaxOccupancy !== null)
                     ? Number(createRoomTypeDto.groupMaxOccupancy)
-                    : ((physAdults ?? 2) + (physChildren ?? 0)));
+                    : (physAdults + physChildren));
 
             const data: any = {
                 ...rest,
+                baseAdults,
+                baseChildren,
+                maxAdults,
+                maxChildren,
                 maxPhysicalAdults: physAdults,
                 maxPhysicalChildren: physChildren,
                 maxPhysicalInfants: physInfants,
+                totalBaseOccupancy,
+                totalMaxOccupancy,
+                occupancyVersion: rest.occupancyVersion || 'V2',
                 groupMaxOccupancy: computedGroupMax,
                 cancellationPolicyText: cancellationPolicy,
                 cancellationPolicyId: (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null,
             };
+
+            // Remove any undefined keys to ensure clean Prisma payload
+            Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
 
             const roomType = await this.prisma.roomType.create({ data });
 
@@ -467,13 +491,13 @@ export class RoomTypesService {
             const resolvedBMC = updateRoomTypeDto.baseMaxChildren !== undefined ? updateRoomTypeDto.baseMaxChildren : existing.baseMaxChildren;
 
             const physAdults = updateRoomTypeDto.maxPhysicalAdults !== undefined
-                ? (updateRoomTypeDto.maxPhysicalAdults !== null ? Number(updateRoomTypeDto.maxPhysicalAdults) : null)
+                ? (updateRoomTypeDto.maxPhysicalAdults !== null ? Number(updateRoomTypeDto.maxPhysicalAdults) : existing.maxPhysicalAdults)
                 : existing.maxPhysicalAdults;
             const physChildren = updateRoomTypeDto.maxPhysicalChildren !== undefined
-                ? (updateRoomTypeDto.maxPhysicalChildren !== null ? Number(updateRoomTypeDto.maxPhysicalChildren) : null)
+                ? (updateRoomTypeDto.maxPhysicalChildren !== null ? Number(updateRoomTypeDto.maxPhysicalChildren) : existing.maxPhysicalChildren)
                 : existing.maxPhysicalChildren;
             const physInfants = updateRoomTypeDto.maxPhysicalInfants !== undefined
-                ? (updateRoomTypeDto.maxPhysicalInfants !== null ? Number(updateRoomTypeDto.maxPhysicalInfants) : null)
+                ? (updateRoomTypeDto.maxPhysicalInfants !== null ? Number(updateRoomTypeDto.maxPhysicalInfants) : existing.maxPhysicalInfants)
                 : existing.maxPhysicalInfants;
 
             this.validateOccupancyHierarchy({
@@ -505,6 +529,16 @@ export class RoomTypesService {
                 groupMaxOccupancy: resolvedGroupMax,
             };
 
+            if (physAdults !== null && physAdults !== undefined) {
+                data.maxPhysicalAdults = physAdults;
+            }
+            if (physChildren !== null && physChildren !== undefined) {
+                data.maxPhysicalChildren = physChildren;
+            }
+            if (physInfants !== null && physInfants !== undefined) {
+                data.maxPhysicalInfants = physInfants;
+            }
+
             if (cancellationPolicy !== undefined) {
                 data.cancellationPolicyText = cancellationPolicy;
             }
@@ -512,6 +546,9 @@ export class RoomTypesService {
             if (cancellationPolicyId !== undefined) {
                 data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null;
             }
+
+            // Remove any undefined keys
+            Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
 
             const updated = await this.prisma.roomType.update({
                 where: { id },
