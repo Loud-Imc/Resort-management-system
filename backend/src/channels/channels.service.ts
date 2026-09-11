@@ -1223,7 +1223,7 @@ export class ChannelsService {
             bookingSourceId: bookingSource?.id,
             propertyId,
             externalBookingId: res.externalBookingId,
-            channelName: channelName.toUpperCase(),
+            channelName: (res.channelName || res.sourceName || channelName).toUpperCase(),
             confirmedAt: new Date(),
             bookingCurrency: res.currency || 'INR',
             paymentStatus,

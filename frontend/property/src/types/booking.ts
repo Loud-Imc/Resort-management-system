@@ -65,6 +65,7 @@ export interface Booking {
     propertyId?: string;
     roomType?: RoomType;
     couponCode?: string;
+    channelPartnerId?: string;
     channelPartner?: {
         id: string;
         name: string;
@@ -88,6 +89,11 @@ export interface Booking {
         whatsappNumber?: string;
     };
     bookingSourceId?: string;
+    bookingSource?: {
+        id: string;
+        name: string;
+        description?: string;
+    };
     offlineCpId?: string;
     offlineCpCommission?: number;
     offlineCp?: {
