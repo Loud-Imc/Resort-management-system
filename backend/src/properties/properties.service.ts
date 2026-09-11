@@ -305,6 +305,7 @@ export class PropertiesService {
                     addedById: request.referredById || request.requestedById || null,
                     status: PropertyStatus.APPROVED,
                     isVerified: true,
+                    isPmsActive: details.isPmsActive !== undefined ? Boolean(details.isPmsActive) : true,
                     description: details.description || '',
                     images: details.images || [],
                     amenities: details.amenities || [],
@@ -558,6 +559,7 @@ export class PropertiesService {
                 longitude: data.longitude ? new Prisma.Decimal(data.longitude) : null,
                 isFeatured: data.isFeatured || false,
                 isSponsored: data.isSponsored || false,
+                isPmsActive: (data as any).isPmsActive !== undefined ? Boolean((data as any).isPmsActive) : true,
                 status: PropertyStatus.APPROVED, // Manual creation by staff is auto-approved
                 categoryId: data.categoryId || null,
             },

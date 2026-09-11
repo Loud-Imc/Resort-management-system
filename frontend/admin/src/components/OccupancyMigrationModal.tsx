@@ -271,6 +271,10 @@ export default function OccupancyMigrationModal({
                                                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                                                                     <AlertTriangle className="h-3 w-3" /> Review Required
                                                                 </span>
+                                                            ) : status === 'SAFE' ? (
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                                                                    <Info className="h-3 w-3" /> Safe (Pending V2 Save)
+                                                                </span>
                                                             ) : (
                                                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">
                                                                     <XCircle className="h-3 w-3" /> Invalid Config

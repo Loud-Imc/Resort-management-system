@@ -45,23 +45,16 @@ if has_changes "backend/"; then
     echo "🏗️ Changes detected in Backend. Building..."
     cd backend
     
-    if has_changes "backend/package" || [ "$FORCE_BUILD" = true ]; then
-        echo "📦 Package changes detected. Running npm install..."
-        npm install
-    fi
-
-    if has_changes "backend/prisma/" || [ "$FORCE_BUILD" = true ]; then
-        echo "🗄️ Database schema changes detected..."
-        npx prisma generate
-        npx prisma migrate deploy
-    fi
+    npm install
+    npx prisma generate
+    npx prisma migrate deploy
 
     echo "⚙️ Building Backend..."
     NODE_OPTIONS="--max-old-space-size=1536" npm run build
     
     echo "🔄 Restarting Backend Service..."
     if pm2 describe resort-api-staging > /dev/null 2>&1; then
-        pm2 reload resort-api-staging --update-env
+        pm2 restart dist/main.js --name "resort-api-staging" --update-env || pm2 reload resort-api-staging --update-env
     else
         NODE_ENV=staging pm2 start dist/main.js --name "resort-api-staging"
     fi
