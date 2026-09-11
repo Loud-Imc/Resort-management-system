@@ -560,7 +560,7 @@ model Property {
   reviewCount                 Int                  @default(0)
   isActive                    Boolean              @default(true)
   isVerified                  Boolean              @default(false)
-  isPmsActive                 Boolean              @default(false)
+  isPmsActive                 Boolean              @default(true)
   ownerId                     String
   createdAt                   DateTime             @default(now())
   updatedAt                   DateTime             @updatedAt
