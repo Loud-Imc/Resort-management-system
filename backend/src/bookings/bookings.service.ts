@@ -852,7 +852,7 @@ export class BookingsService {
                 if (cp) offlineCpNameForChannel = cp.name;
             }
 
-            let computedChannelName = 'Oreedu OTA';
+            let computedChannelName = 'Oreedu Website';
             if (offlineCpNameForChannel) {
                 computedChannelName = `Offline CP: ${offlineCpNameForChannel}`;
             } else if (channelPartnerId) {

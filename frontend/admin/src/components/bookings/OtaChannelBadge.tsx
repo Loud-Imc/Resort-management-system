@@ -19,17 +19,25 @@ export const OtaChannelBadge: React.FC<OtaChannelBadgeProps> = ({
   className = '',
   showIconOnly = false,
 }) => {
-  // Normalize source text
-  const raw = String(source || channelName || '').trim();
+  // Normalize source / channel text
+  const raw = String(channelName || source || '').trim();
   const lower = raw.toLowerCase();
 
-  let brand = 'pms';
-  let label = 'Oreedu PMS';
+  let brand: 'booking' | 'mmt' | 'agoda' | 'airbnb' | 'expedia' | 'goibibo' | 'channex' | 'cp' | 'pms' | 'oreedu' | 'generic_ota' = 'oreedu';
+  let label = 'Oreedu Website';
 
-  if (channelPartnerId || lower.includes('partner') || lower.includes('cp') || lower.startsWith('offline cp')) {
+  // 1. Channel Partner (Online or Offline)
+  if (channelPartnerId || lower.includes('partner') || lower.includes('cp')) {
     brand = 'cp';
-    label = 'Channel Partner';
-  } else if (lower.includes('booking') || lower === 'bdc') {
+    label = lower.startsWith('offline cp') ? raw : 'Channel Partner';
+  }
+  // 2. Oreedu PMS / Front Desk Manual Booking
+  else if (lower === 'oreedu pms' || lower.includes('pms') || lower.includes('front desk') || isManualBooking) {
+    brand = 'pms';
+    label = 'Oreedu PMS';
+  }
+  // 3. Known OTAs
+  else if (lower.includes('booking') || lower === 'bdc') {
     brand = 'booking';
     label = 'Booking.com';
   } else if (lower.includes('makemytrip') || lower.includes('mmt')) {
@@ -47,16 +55,25 @@ export const OtaChannelBadge: React.FC<OtaChannelBadgeProps> = ({
   } else if (lower.includes('goibibo')) {
     brand = 'goibibo';
     label = 'Goibibo';
-  } else if (lower.includes('channex')) {
+  } else if (lower === 'channex' || lower.includes('channex ota')) {
     brand = 'channex';
     label = 'Channex OTA';
-  } else if (lower.includes('oreedu') || lower.includes('routeguide') || lower.includes('website') || lower.includes('direct online')) {
+  }
+  // 4. Oreedu Direct Website (Guest Online Booking)
+  else if (
+    lower === 'oreedu website' ||
+    lower === 'oreedu ota' ||
+    lower === 'oreedu' ||
+    lower === 'website' ||
+    lower === 'online' ||
+    lower.includes('routeguide') ||
+    !raw
+  ) {
     brand = 'oreedu';
     label = 'Oreedu Website';
-  } else if (isManualBooking || lower.includes('front desk') || lower.includes('walk-in') || lower.includes('manual') || lower.includes('pms')) {
-    brand = 'pms';
-    label = 'Oreedu PMS';
-  } else if (raw) {
+  }
+  // 5. Any custom external OTA
+  else {
     brand = 'generic_ota';
     label = raw;
   }
