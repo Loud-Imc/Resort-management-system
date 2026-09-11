@@ -28,6 +28,26 @@ export interface ChannelReservationGuestDto {
   lastName?: string;
   email?: string;
   phone?: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  language?: string;
+}
+
+export interface NormalizedChannelReservationRoomDto {
+  externalRoomTypeId: string;
+  externalRatePlanId?: string;
+  amount?: number;
+  occupancy?: {
+    adults?: number;
+    children?: number;
+    infants?: number;
+  };
+  mealPlan?: string;
+  smokingPreference?: string;
+  bedPreference?: string;
+  notes?: string;
 }
 
 export interface NormalizedChannelReservationDto {
@@ -37,13 +57,18 @@ export interface NormalizedChannelReservationDto {
   sourceName?: string;
   externalPropertyId: string;
   externalRoomTypeId: string;
+  rooms?: NormalizedChannelReservationRoomDto[];
   checkInDate: Date;
   checkOutDate: Date;
   numberOfNights: number;
   adultsCount: number;
   childrenCount: number;
+  infantsCount?: number;
   totalAmount: number;
   currency?: string;
+  commissionAmount?: number;
+  paymentType?: 'HOTEL_COLLECT' | 'CHANNEL_COLLECT';
+  guarantee?: string;
   guest: ChannelReservationGuestDto;
   specialRequests?: string;
   status: 'CONFIRMED' | 'CANCELLED' | 'MODIFIED';
