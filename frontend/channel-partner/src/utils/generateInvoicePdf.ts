@@ -65,7 +65,7 @@ function buildDoc(data: InvoiceData, type: 'GUEST' | 'PARTNER'): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(22);
   setColor('#ffffff');
-  doc.text('ROUTE GUIDE', margin, 22);
+  doc.text('OREEDU', margin, 22);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);

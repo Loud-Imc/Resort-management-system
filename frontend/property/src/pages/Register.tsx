@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles, AlertCircle } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles, AlertCircle, Trash2, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
+import { propertiesService } from '../services/properties';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import type { ConfirmationResult } from 'firebase/auth';
 import api from '../services/api';
 import logo from '../assets/logo.svg';
+import { 
+    saveRegistrationDraft, 
+    loadRegistrationDraft, 
+    clearRegistrationDraft, 
+    formatDraftTimeAgo, 
+    isDraftMeaningful 
+} from '../utils/registrationDraft';
 
 const mapSlugToPropertyType = (slug: string): string => {
     const s = slug.toUpperCase();
@@ -19,12 +27,46 @@ const mapSlugToPropertyType = (slug: string): string => {
     return 'OTHER';
 };
 
+const initialFormData = {
+    // Owner fields
+    ownerFirstName: '',
+    ownerLastName: '',
+    ownerEmail: '',
+    ownerPhone: '',
+    ownerPassword: '',
+    // Document fields
+    ownerAadhaarNumber: '',
+    ownerAadhaarImage: '',
+    ownerAadhaarImageBack: '',
+    licenceImage: '',
+    documents: [] as string[],
+    isGstApplicable: false,
+    gstNumber: '',
+    // Property fields
+    propertyName: '',
+    propertyDescription: '',
+    propertyType: 'RESORT',
+    categoryId: '',
+    address: '',
+    city: '',
+    state: '',
+    country: 'India',
+    pincode: '',
+    propertyPhone: '',
+    propertyEmail: '',
+    googleMapsLink: '',
+    latitude: '',
+    longitude: '',
+    platformCommission: 10
+};
+
 export default function Register() {
     const { registerProperty } = useAuth();
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
     const [showPassword, setShowPassword] = useState(false);
+    const [isExtractingCoords, setIsExtractingCoords] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const scrollToField = (fieldName: string) => {
@@ -58,6 +100,7 @@ export default function Register() {
     // OTP related states
     const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
     const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+    const [verifiedPhone, setVerifiedPhone] = useState('');
     const [showOtpInput, setShowOtpInput] = useState(false);
     const [otp, setOtp] = useState('');
     const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
@@ -66,6 +109,7 @@ export default function Register() {
     // Commission OTP related states
     const [isVerifyingCommission, setIsVerifyingCommission] = useState(false);
     const [isCommissionVerified, setIsCommissionVerified] = useState(false);
+    const [verifiedCommissionPhone, setVerifiedCommissionPhone] = useState('');
     const [showCommissionOtpInput, setShowCommissionOtpInput] = useState(false);
     const [commissionOtp, setCommissionOtp] = useState('');
     const [commissionResendTimer, setCommissionResendTimer] = useState(0);
@@ -86,39 +130,96 @@ export default function Register() {
     const [documentExpiry, setDocumentExpiry] = useState<Record<string, string>>({});
     const [isFetchingGst, setIsFetchingGst] = useState(false);
 
-    const [formData, setFormData] = useState({
-        // Owner fields
-        ownerFirstName: '',
-        ownerLastName: '',
-        ownerEmail: '',
-        ownerPhone: '',
-        ownerPassword: '',
-        // Document fields
-        ownerAadhaarNumber: '',
-        ownerAadhaarImage: '',
-        ownerAadhaarImageBack: '',
-        licenceImage: '',
-        documents: [] as string[],
-        isGstApplicable: false,
-        gstNumber: '',
-        // Property fields
-        propertyName: '',
-        propertyDescription: '',
-        propertyType: 'RESORT',
-        categoryId: '',
-        address: '',
-        city: '',
-        state: '',
-        country: 'India',
-        pincode: '',
-        propertyPhone: '',
-        propertyEmail: '',
-        googleMapsLink: '',
-        latitude: '',
-        longitude: '',
-        platformCommission: 10
-    });
+    const [formData, setFormData] = useState(initialFormData);
 
+    // Draft management states
+    const [isDraftInitialized, setIsDraftInitialized] = useState(false);
+    const [restoredDraftInfo, setRestoredDraftInfo] = useState<{ savedAt: number; propertyName?: string; ownerPhone?: string } | null>(null);
+
+    // Load saved registration draft on mount
+    useEffect(() => {
+        const draft = loadRegistrationDraft();
+        if (draft && isDraftMeaningful(draft)) {
+            if (draft.formData) {
+                setFormData(prev => ({
+                    ...prev,
+                    ...draft.formData
+                }));
+            }
+            if (draft.step) {
+                setStep(draft.step);
+            }
+            if (draft.documentExpiry) {
+                setDocumentExpiry(draft.documentExpiry);
+            }
+            if (draft.selectedExistingOwner) {
+                setSelectedExistingOwner(draft.selectedExistingOwner);
+            }
+            if (draft.isPhoneVerified && draft.verifiedPhone && draft.verifiedPhone === draft.formData?.ownerPhone) {
+                setIsPhoneVerified(true);
+                setVerifiedPhone(draft.verifiedPhone);
+            }
+            if (draft.isCommissionVerified && draft.verifiedCommissionPhone && draft.verifiedCommissionPhone === draft.formData?.ownerPhone) {
+                setIsCommissionVerified(true);
+                setVerifiedCommissionPhone(draft.verifiedCommissionPhone);
+            }
+            setRestoredDraftInfo({
+                savedAt: draft.lastSavedAt,
+                propertyName: draft.formData?.propertyName,
+                ownerPhone: draft.formData?.ownerPhone
+            });
+            toast.success('Restored your previous registration draft!', { id: 'draft-restored' });
+        }
+        setIsDraftInitialized(true);
+    }, []);
+
+    // Debounced Auto-Save Draft to LocalStorage
+    useEffect(() => {
+        if (!isDraftInitialized) return;
+
+        const draftData = {
+            formData,
+            step,
+            isPhoneVerified,
+            verifiedPhone: isPhoneVerified ? verifiedPhone || formData.ownerPhone : '',
+            isCommissionVerified,
+            verifiedCommissionPhone: isCommissionVerified ? verifiedCommissionPhone || formData.ownerPhone : '',
+            documentExpiry,
+            selectedExistingOwner
+        };
+
+        if (isDraftMeaningful(draftData as any)) {
+            const timer = setTimeout(() => {
+                saveRegistrationDraft(draftData);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [
+        isDraftInitialized,
+        formData,
+        step,
+        isPhoneVerified,
+        verifiedPhone,
+        isCommissionVerified,
+        verifiedCommissionPhone,
+        documentExpiry,
+        selectedExistingOwner
+    ]);
+
+    const handleDiscardDraft = () => {
+        clearRegistrationDraft();
+        setFormData(initialFormData);
+        setStep(1);
+        setIsPhoneVerified(false);
+        setVerifiedPhone('');
+        setIsCommissionVerified(false);
+        setVerifiedCommissionPhone('');
+        setDocumentExpiry({});
+        setSelectedExistingOwner(null);
+        setErrors({});
+        setRestoredDraftInfo(null);
+        toast.success('Draft discarded. Started fresh registration form.');
+    };
 
     useEffect(() => {
         let interval: any;
@@ -146,10 +247,13 @@ export default function Register() {
             try {
                 const settings = await settingsService.getPublicSettings();
                 if (settings.DEFAULT_PLATFORM_COMMISSION !== undefined) {
-                    setFormData(prev => ({
-                        ...prev,
-                        platformCommission: settings.DEFAULT_PLATFORM_COMMISSION
-                    }));
+                    setFormData(prev => {
+                        if (prev.platformCommission !== undefined && prev.platformCommission !== 10) return prev;
+                        return {
+                            ...prev,
+                            platformCommission: settings.DEFAULT_PLATFORM_COMMISSION
+                        };
+                    });
                 }
             } catch (error) {
                 console.error('Failed to fetch public settings:', error);
@@ -168,11 +272,14 @@ export default function Register() {
                     setCategories(res.data);
                     if (res.data.length > 0) {
                         const defaultCat = res.data[0];
-                        setFormData(prev => ({
-                            ...prev,
-                            categoryId: defaultCat.id,
-                            propertyType: mapSlugToPropertyType(defaultCat.slug)
-                        }));
+                        setFormData(prev => {
+                            if (prev.categoryId) return prev;
+                            return {
+                                ...prev,
+                                categoryId: defaultCat.id,
+                                propertyType: mapSlugToPropertyType(defaultCat.slug)
+                            };
+                        });
                     }
                 }
             } catch (error) {
@@ -330,6 +437,7 @@ export default function Register() {
         try {
             await confirmationResult.confirm(otp);
             setIsPhoneVerified(true);
+            setVerifiedPhone(formData.ownerPhone);
             setShowOtpInput(false);
             toast.success('Phone number verified successfully');
         } catch (error: any) {
@@ -375,6 +483,7 @@ export default function Register() {
                 code: commissionOtp.trim()
             });
             setIsCommissionVerified(true);
+            setVerifiedCommissionPhone(formData.ownerPhone);
             setShowCommissionOtpInput(false);
             toast.success('Commission verified successfully');
         } catch (error: any) {
@@ -405,55 +514,92 @@ export default function Register() {
         // If phone changes, reset verification
         if (name === 'ownerPhone') {
             setIsPhoneVerified(false);
+            setVerifiedPhone('');
             setShowOtpInput(false);
             setOtp('');
             setIsCommissionVerified(false);
+            setVerifiedCommissionPhone('');
             setShowCommissionOtpInput(false);
         }
 
         // If commission changes, reset verification
         if (name === 'platformCommission') {
             setIsCommissionVerified(false);
+            setVerifiedCommissionPhone('');
             setShowCommissionOtpInput(false);
             setCommissionOtp('');
         }
     };
 
-    const handleMapsLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleMapsLinkChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const { value } = e.target;
         setFormData(prev => ({ ...prev, googleMapsLink: value }));
-        
-        // Extract coordinates
-        const coordMatch = value.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (coordMatch) {
-            setFormData(prev => ({ 
-                ...prev, 
-                latitude: coordMatch[1], 
-                longitude: coordMatch[2] 
+        if (!value.trim()) return;
+
+        const trimmed = value.trim();
+
+        // Helper to extract from URL string
+        const extractFromUrl = (url: string) => {
+            const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (atMatch) return { lat: atMatch[1], lng: atMatch[2] };
+
+            const protoMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+            if (protoMatch) return { lat: protoMatch[1], lng: protoMatch[2] };
+
+            const llMatch = url.match(/[?&](?:ll|q|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
+            if (llMatch) return { lat: llMatch[1], lng: llMatch[2] };
+
+            const placeMatch = url.match(/\/place\/(-?\d+\.\d+),(-?\d+\.\d+)/i);
+            if (placeMatch) return { lat: placeMatch[1], lng: placeMatch[2] };
+
+            return null;
+        };
+
+        const direct = extractFromUrl(trimmed);
+        if (direct) {
+            setFormData(prev => ({
+                ...prev,
+                latitude: direct.lat,
+                longitude: direct.lng
             }));
+            clearError('latitude');
+            clearError('longitude');
             toast.success('Coordinates extracted!');
             return;
         }
 
-        const llMatch = value.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (llMatch) {
-            setFormData(prev => ({ 
-                ...prev, 
-                latitude: llMatch[1], 
-                longitude: llMatch[2] 
-            }));
-            toast.success('Coordinates extracted!');
-            return;
-        }
-
-        const qMatch = value.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (qMatch) {
-            setFormData(prev => ({ 
-                ...prev, 
-                latitude: qMatch[1], 
-                longitude: qMatch[2] 
-            }));
-            toast.success('Coordinates extracted!');
+        // If it's a shortened google maps link or redirect link
+        if (trimmed.includes('goo.gl') || trimmed.includes('maps.app.goo.gl') || trimmed.includes('google.com/maps')) {
+            try {
+                setIsExtractingCoords(true);
+                const res = await propertiesService.expandUrl(trimmed);
+                if (res?.latitude && res?.longitude) {
+                    setFormData(prev => ({
+                        ...prev,
+                        latitude: String(res.latitude),
+                        longitude: String(res.longitude)
+                    }));
+                    clearError('latitude');
+                    clearError('longitude');
+                    toast.success('Coordinates extracted!');
+                } else if (res?.url) {
+                    const fromExpanded = extractFromUrl(res.url);
+                    if (fromExpanded) {
+                        setFormData(prev => ({
+                            ...prev,
+                            latitude: fromExpanded.lat,
+                            longitude: fromExpanded.lng
+                        }));
+                        clearError('latitude');
+                        clearError('longitude');
+                        toast.success('Coordinates extracted!');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to extract coordinates from Google Maps link', error);
+            } finally {
+                setIsExtractingCoords(false);
+            }
         }
     };
 
@@ -550,6 +696,32 @@ export default function Register() {
         return errs;
     };
 
+    const checkEmail = async (emailToTest?: string): Promise<boolean> => {
+        const email = (emailToTest || formData.ownerEmail || '').trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return true;
+        }
+        try {
+            const res = await api.get('/properties/public/check-email-availability', {
+                params: {
+                    email,
+                    phone: formData.ownerPhone ? formData.ownerPhone.trim() : undefined
+                }
+            });
+            if (res.data && res.data.available === false) {
+                const msg = res.data.message || 'This email address is already registered to another account.';
+                setErrors(prev => ({ ...prev, ownerEmail: msg }));
+                return false;
+            } else {
+                clearError('ownerEmail');
+                return true;
+            }
+        } catch (err) {
+            console.error('Email availability check error:', err);
+            return true;
+        }
+    };
+
     const nextStep = async () => {
         if (step === 1) {
             const errs = validateStep1();
@@ -557,6 +729,13 @@ export default function Register() {
                 setErrors(errs);
                 const firstField = Object.keys(errs)[0];
                 scrollToField(firstField);
+                return;
+            }
+
+            // Check email uniqueness on Step 1 before proceeding to Step 2
+            const isEmailAvailable = await checkEmail();
+            if (!isEmailAvailable) {
+                scrollToField('ownerEmail');
                 return;
             }
 
@@ -627,6 +806,8 @@ export default function Register() {
             };
 
             await registerProperty(formattedData);
+            clearRegistrationDraft();
+            setRestoredDraftInfo(null);
             toast.success('Registration successful! Property is pending approval.');
             navigate('/login', {
                 state: {
@@ -704,6 +885,41 @@ export default function Register() {
                         <div className={`h-1.5 w-12 rounded-full transition-all ${step >= 2 ? 'bg-primary-600' : 'bg-gray-200'}`} />
                     </div>
                 </div>
+
+                {/* Draft Restored Banner */}
+                {restoredDraftInfo && (
+                    <div className="mb-6 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/90 rounded-2xl p-4 shadow-sm animate-in fade-in slide-in-from-top-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start sm:items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 shadow-inner">
+                                <ClipboardList className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Draft Restored</span>
+                                    <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                        <Clock className="h-3 w-3 inline" /> {formatDraftTimeAgo(restoredDraftInfo.savedAt)}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-amber-800 mt-0.5">
+                                    {restoredDraftInfo.propertyName 
+                                        ? `Resumed draft for "${restoredDraftInfo.propertyName}"` 
+                                        : (restoredDraftInfo.ownerPhone ? `Resumed draft for phone: ${restoredDraftInfo.ownerPhone}` : 'Resumed your previous registration progress.')}
+                                    {isPhoneVerified ? ' • Phone OTP verified ✓' : ''}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                            <button
+                                type="button"
+                                onClick={handleDiscardDraft}
+                                className="px-3 py-1.5 text-xs font-bold text-red-600 bg-white hover:bg-red-50 border border-red-200 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                title="Discard this draft and start a completely new registration"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" /> Discard Draft
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 md:p-10">
                     <div id="recaptcha-container"></div>
@@ -910,6 +1126,7 @@ export default function Register() {
                                                     setIsPhoneVerified(false);
                                                 }
                                             }}
+                                            onBlur={() => checkEmail()}
                                             className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 transition-all text-sm text-gray-900 bg-white ${
                                                 errors.ownerEmail ? 'border-red-500 focus:ring-red-500 bg-red-50/20' : 'border-gray-200 focus:ring-primary-500'
                                             }`}
@@ -1183,9 +1400,14 @@ export default function Register() {
                                                 type="url"
                                                 value={formData.googleMapsLink}
                                                 onChange={handleMapsLinkChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                                placeholder="https://goo.gl/maps/..."
+                                                className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                                placeholder="https://maps.app.goo.gl/... or https://goo.gl/maps/..."
                                             />
+                                            {isExtractingCoords && (
+                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                    <Loader2 className="h-4 w-4 text-primary-600 animate-spin" />
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <p className="text-[10px] text-gray-400 font-medium italic">

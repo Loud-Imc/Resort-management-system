@@ -10,6 +10,7 @@ import {
     Query,
     UseGuards,
     Request,
+    BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -92,27 +93,91 @@ export class PropertiesController {
     }
 
     @Get('expand-url')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Expand shortened Google Maps URL' })
+    @ApiOperation({ summary: 'Expand shortened Google Maps URL and extract coordinates' })
     async expandUrl(@Query('url') shortUrl: string) {
-        if (!shortUrl) return { url: '' };
+        if (!shortUrl || typeof shortUrl !== 'string') {
+            return { url: '', latitude: null, longitude: null };
+        }
+
+        const trimmedUrl = shortUrl.trim();
+
+        // 1. Strict Security Whitelist: only allow Google Maps URLs (prevents SSRF)
+        const isGoogleMaps = /^(https?:\/\/)?([a-zA-Z0-9.-]+\.)?(google\.com\/maps|maps\.google\.[a-z.]+|goo\.gl\/maps|maps\.app\.goo\.gl)/i.test(trimmedUrl);
+        if (!isGoogleMaps) {
+            throw new BadRequestException('Invalid URL. Only Google Maps links are supported.');
+        }
+
+        const ensureProtocolUrl = trimmedUrl.startsWith('http') ? trimmedUrl : `https://${trimmedUrl}`;
+
+        // Helper regex extraction
+        const extractCoords = (targetUrl: string): { latitude: number | null; longitude: number | null } => {
+            if (!targetUrl) return { latitude: null, longitude: null };
+
+            // Pattern 1: Standard @lat,lng
+            const atMatch = targetUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (atMatch) return { latitude: parseFloat(atMatch[1]), longitude: parseFloat(atMatch[2]) };
+
+            // Pattern 2: Protobuf !3dlat!4dlng (very common in Google Maps place links)
+            const protoMatch = targetUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+            if (protoMatch) return { latitude: parseFloat(protoMatch[1]), longitude: parseFloat(protoMatch[2]) };
+
+            // Pattern 3: Query parameters ?q=lat,lng or ?ll=lat,lng or ?query=lat,lng or destination/center
+            const queryMatch = targetUrl.match(/[?&](?:q|ll|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
+            if (queryMatch) return { latitude: parseFloat(queryMatch[1]), longitude: parseFloat(queryMatch[2]) };
+
+            // Pattern 4: Path /place/lat,lng
+            const placeMatch = targetUrl.match(/\/place\/(-?\d+\.\d+),(-?\d+\.\d+)/i);
+            if (placeMatch) return { latitude: parseFloat(placeMatch[1]), longitude: parseFloat(placeMatch[2]) };
+
+            return { latitude: null, longitude: null };
+        };
+
+        // Try extracting directly first
+        const directCoords = extractCoords(ensureProtocolUrl);
+        if (directCoords.latitude !== null && directCoords.longitude !== null) {
+            return { url: ensureProtocolUrl, ...directCoords };
+        }
+
+        // 2. Fetch and follow redirects securely
         try {
-            const response = await axios.get(shortUrl, {
-                maxRedirects: 0,
+            const response = await axios.get(ensureProtocolUrl, {
+                maxRedirects: 10,
+                timeout: 7000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                },
                 validateStatus: (status) => status >= 200 && status < 400
             });
-            
-            if (response.status >= 300 && response.status < 400 && response.headers.location) {
-                return { url: response.headers.location };
+
+            const finalUrl = response.request?.res?.responseUrl || response.headers?.location || ensureProtocolUrl;
+            let coords = extractCoords(finalUrl);
+
+            // If coordinates not found in final URL string, inspect HTML response body for meta tags
+            if ((coords.latitude === null || coords.longitude === null) && typeof response.data === 'string') {
+                const metaMatch = response.data.match(/content="[^"]*@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                  response.data.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) ||
+                                  response.data.match(/center=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                  response.data.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                if (metaMatch) {
+                    coords = { latitude: parseFloat(metaMatch[1]), longitude: parseFloat(metaMatch[2]) };
+                }
             }
-            
-            return { url: response.request?.res?.responseUrl || shortUrl };
+
+            return {
+                url: finalUrl,
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+            };
         } catch (error: any) {
-            if (error.response && error.response.headers && error.response.headers.location) {
-                return { url: error.response.headers.location };
-            }
-            return { url: shortUrl };
+            const fallbackUrl = error.response?.headers?.location || error.config?.url || ensureProtocolUrl;
+            const coords = extractCoords(fallbackUrl);
+            return {
+                url: fallbackUrl,
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+            };
         }
     }
 
@@ -124,6 +189,12 @@ export class PropertiesController {
     @ApiOperation({ summary: 'Lookup existing property owners by email or phone during registration' })
     lookupOwners(@Query('email') email?: string, @Query('phone') phone?: string) {
         return this.propertiesService.lookupOwners(email, phone);
+    }
+
+    @Get('public/check-email-availability')
+    @ApiOperation({ summary: 'Check if an owner email is available during registration Step 1' })
+    checkEmailAvailability(@Query('email') email: string, @Query('phone') phone?: string) {
+        return this.propertiesService.checkEmailAvailability(email, phone);
     }
 
     @Post('public/verify-owner-password')

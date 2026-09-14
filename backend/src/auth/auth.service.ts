@@ -174,30 +174,42 @@ export class AuthService {
         }
 
         if (!user) {
-            // To prevent user enumeration, we return success even if user not found
-            // but in a controlled environment like this, we might want to be explicit
             throw new NotFoundException('No account found with this email or phone number');
         }
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+        const userEmailLower = user.email ? user.email.toLowerCase().trim() : null;
+        const userPhoneNormalized = user.phone ? normalizePhone(user.phone) || user.phone : null;
+
         // Clear any existing reset OTPs for this identifier
-        await (this.prisma as any).oneTimePassword.deleteMany({
-            where: {
-                OR: [
-                    { email: user.email },
-                    { phone: user.phone }
-                ],
-                type: 'PASSWORD_RESET'
-            }
-        });
+        const deleteConditions: any[] = [];
+        if (userEmailLower) {
+            deleteConditions.push({ email: userEmailLower });
+            deleteConditions.push({ email: user.email });
+        }
+        if (userPhoneNormalized) {
+            deleteConditions.push({ phone: userPhoneNormalized });
+        }
+        if (user.phone) {
+            deleteConditions.push({ phone: user.phone });
+        }
+
+        if (deleteConditions.length > 0) {
+            await (this.prisma as any).oneTimePassword.deleteMany({
+                where: {
+                    OR: deleteConditions,
+                    type: 'PASSWORD_RESET'
+                }
+            });
+        }
 
         // Save new OTP
         await (this.prisma as any).oneTimePassword.create({
             data: {
-                email: user.email,
-                phone: user.phone,
+                email: userEmailLower || user.email,
+                phone: userPhoneNormalized || user.phone,
                 code,
                 type: 'PASSWORD_RESET',
                 expiresAt
@@ -223,15 +235,23 @@ export class AuthService {
 
     async verifyOtp(dto: VerifyOtpDto) {
         const identifier = dto.identifier.trim();
+        const lowerEmail = identifier.toLowerCase();
         const normalizedPhone = normalizePhone(identifier);
+
+        const conditions: any[] = [
+            { email: { equals: lowerEmail, mode: 'insensitive' } },
+            { email: lowerEmail },
+            { email: identifier },
+        ];
+        if (normalizedPhone) {
+            conditions.push({ phone: normalizedPhone });
+        }
+        conditions.push({ phone: identifier });
 
         const otp = await (this.prisma as any).oneTimePassword.findFirst({
             where: {
-                OR: [
-                    { email: identifier },
-                    { phone: normalizedPhone || identifier }
-                ],
-                code: dto.code,
+                OR: conditions,
+                code: dto.code.trim(),
                 type: 'PASSWORD_RESET',
                 expiresAt: { gte: new Date() }
             }
@@ -246,15 +266,23 @@ export class AuthService {
 
     async resetPasswordWithOtp(dto: ResetPasswordOtpDto) {
         const identifier = dto.identifier.trim();
+        const lowerEmail = identifier.toLowerCase();
         const normalizedPhone = normalizePhone(identifier);
+
+        const conditions: any[] = [
+            { email: { equals: lowerEmail, mode: 'insensitive' } },
+            { email: lowerEmail },
+            { email: identifier },
+        ];
+        if (normalizedPhone) {
+            conditions.push({ phone: normalizedPhone });
+        }
+        conditions.push({ phone: identifier });
 
         const otp = await (this.prisma as any).oneTimePassword.findFirst({
             where: {
-                OR: [
-                    { email: identifier },
-                    { phone: normalizedPhone || identifier }
-                ],
-                code: dto.code,
+                OR: conditions,
+                code: dto.code.trim(),
                 type: 'PASSWORD_RESET',
                 expiresAt: { gte: new Date() }
             }
@@ -267,6 +295,9 @@ export class AuthService {
         let user = await this.usersService.findByEmail(otp.email || identifier);
         if (!user && otp.phone) {
             user = await this.usersService.findByPhone(otp.phone);
+        }
+        if (!user && normalizedPhone) {
+            user = await this.usersService.findByPhone(normalizedPhone);
         }
 
         if (!user) {
