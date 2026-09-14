@@ -126,7 +126,17 @@ export default function AppUpdateSettings() {
     setShowConfirmModal(false);
     try {
       setSaving(true);
-      const updated = await appUpdateService.updatePolicy(activePlatform, currentPolicy);
+      const payload: Partial<AppUpdatePolicy> = {
+        minimumSupportedVersion: currentPolicy.minimumSupportedVersion,
+        latestVersion: currentPolicy.latestVersion,
+        updateType: currentPolicy.updateType,
+        title: currentPolicy.title,
+        message: currentPolicy.message,
+        storeUrl: currentPolicy.storeUrl,
+        enabled: currentPolicy.enabled,
+        rolloutPercentage: currentPolicy.rolloutPercentage,
+      };
+      const updated = await appUpdateService.updatePolicy(activePlatform, payload);
       setPolicies((prev) => ({
         ...prev,
         [activePlatform]: updated,

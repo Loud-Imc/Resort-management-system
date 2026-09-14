@@ -2,6 +2,16 @@ import { IsString, IsNotEmpty, IsOptional, IsIn, IsBoolean, IsInt, Min, Max } fr
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdatePolicyAdminDto {
+  @ApiPropertyOptional({ description: 'Policy ID' })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiPropertyOptional({ description: 'Platform' })
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
   @ApiProperty({ description: 'Minimum supported app version (e.g. 1.0.0)' })
   @IsString()
   @IsNotEmpty()
@@ -42,4 +52,28 @@ export class UpdatePolicyAdminDto {
   @Min(0)
   @Max(100)
   rolloutPercentage?: number;
+
+  @ApiPropertyOptional({ description: 'Policy version' })
+  @IsOptional()
+  policyVersion?: any;
+
+  @ApiPropertyOptional({ description: 'Published at' })
+  @IsOptional()
+  publishedAt?: any;
+
+  @ApiPropertyOptional({ description: 'Created at' })
+  @IsOptional()
+  createdAt?: any;
+
+  @ApiPropertyOptional({ description: 'Updated at' })
+  @IsOptional()
+  updatedAt?: any;
+
+  @ApiPropertyOptional({ description: 'Created by' })
+  @IsOptional()
+  createdById?: any;
+
+  @ApiPropertyOptional({ description: 'Updated by' })
+  @IsOptional()
+  updatedById?: any;
 }
