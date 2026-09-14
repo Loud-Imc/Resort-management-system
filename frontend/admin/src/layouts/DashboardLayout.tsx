@@ -132,7 +132,7 @@ export default function DashboardLayout() {
         ...(hasPermission('marketing.manageBroadcasts') ? [
             { icon: Bell, label: 'Broadcast Alerts', path: '/marketing/notifications' },
         ] : []),
-        ...(hasPermission('marketing.manageLoyalty') ? [
+        ...((hasPermission('marketing.manageLoyalty') || isSuperAdmin || user?.roles?.includes('Admin')) ? [
             { icon: Settings, label: 'Platform Settings', path: '/platform-settings' },
             { icon: Smartphone, label: 'App Updates', path: '/mobile-updates' },
         ] : []),
