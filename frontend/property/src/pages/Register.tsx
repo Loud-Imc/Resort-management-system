@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles, AlertCircle } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles, AlertCircle, Trash2, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
@@ -10,6 +10,13 @@ import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import type { ConfirmationResult } from 'firebase/auth';
 import api from '../services/api';
 import logo from '../assets/logo.svg';
+import { 
+    saveRegistrationDraft, 
+    loadRegistrationDraft, 
+    clearRegistrationDraft, 
+    formatDraftTimeAgo, 
+    isDraftMeaningful 
+} from '../utils/registrationDraft';
 
 const mapSlugToPropertyType = (slug: string): string => {
     const s = slug.toUpperCase();
@@ -18,6 +25,39 @@ const mapSlugToPropertyType = (slug: string): string => {
     if (s === 'HOMESTAY') return 'HOMESTAY';
     if (s === 'VILLA') return 'VILLA';
     return 'OTHER';
+};
+
+const initialFormData = {
+    // Owner fields
+    ownerFirstName: '',
+    ownerLastName: '',
+    ownerEmail: '',
+    ownerPhone: '',
+    ownerPassword: '',
+    // Document fields
+    ownerAadhaarNumber: '',
+    ownerAadhaarImage: '',
+    ownerAadhaarImageBack: '',
+    licenceImage: '',
+    documents: [] as string[],
+    isGstApplicable: false,
+    gstNumber: '',
+    // Property fields
+    propertyName: '',
+    propertyDescription: '',
+    propertyType: 'RESORT',
+    categoryId: '',
+    address: '',
+    city: '',
+    state: '',
+    country: 'India',
+    pincode: '',
+    propertyPhone: '',
+    propertyEmail: '',
+    googleMapsLink: '',
+    latitude: '',
+    longitude: '',
+    platformCommission: 10
 };
 
 export default function Register() {
@@ -60,6 +100,7 @@ export default function Register() {
     // OTP related states
     const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
     const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+    const [verifiedPhone, setVerifiedPhone] = useState('');
     const [showOtpInput, setShowOtpInput] = useState(false);
     const [otp, setOtp] = useState('');
     const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
@@ -68,6 +109,7 @@ export default function Register() {
     // Commission OTP related states
     const [isVerifyingCommission, setIsVerifyingCommission] = useState(false);
     const [isCommissionVerified, setIsCommissionVerified] = useState(false);
+    const [verifiedCommissionPhone, setVerifiedCommissionPhone] = useState('');
     const [showCommissionOtpInput, setShowCommissionOtpInput] = useState(false);
     const [commissionOtp, setCommissionOtp] = useState('');
     const [commissionResendTimer, setCommissionResendTimer] = useState(0);
@@ -88,39 +130,96 @@ export default function Register() {
     const [documentExpiry, setDocumentExpiry] = useState<Record<string, string>>({});
     const [isFetchingGst, setIsFetchingGst] = useState(false);
 
-    const [formData, setFormData] = useState({
-        // Owner fields
-        ownerFirstName: '',
-        ownerLastName: '',
-        ownerEmail: '',
-        ownerPhone: '',
-        ownerPassword: '',
-        // Document fields
-        ownerAadhaarNumber: '',
-        ownerAadhaarImage: '',
-        ownerAadhaarImageBack: '',
-        licenceImage: '',
-        documents: [] as string[],
-        isGstApplicable: false,
-        gstNumber: '',
-        // Property fields
-        propertyName: '',
-        propertyDescription: '',
-        propertyType: 'RESORT',
-        categoryId: '',
-        address: '',
-        city: '',
-        state: '',
-        country: 'India',
-        pincode: '',
-        propertyPhone: '',
-        propertyEmail: '',
-        googleMapsLink: '',
-        latitude: '',
-        longitude: '',
-        platformCommission: 10
-    });
+    const [formData, setFormData] = useState(initialFormData);
 
+    // Draft management states
+    const [isDraftInitialized, setIsDraftInitialized] = useState(false);
+    const [restoredDraftInfo, setRestoredDraftInfo] = useState<{ savedAt: number; propertyName?: string; ownerPhone?: string } | null>(null);
+
+    // Load saved registration draft on mount
+    useEffect(() => {
+        const draft = loadRegistrationDraft();
+        if (draft && isDraftMeaningful(draft)) {
+            if (draft.formData) {
+                setFormData(prev => ({
+                    ...prev,
+                    ...draft.formData
+                }));
+            }
+            if (draft.step) {
+                setStep(draft.step);
+            }
+            if (draft.documentExpiry) {
+                setDocumentExpiry(draft.documentExpiry);
+            }
+            if (draft.selectedExistingOwner) {
+                setSelectedExistingOwner(draft.selectedExistingOwner);
+            }
+            if (draft.isPhoneVerified && draft.verifiedPhone && draft.verifiedPhone === draft.formData?.ownerPhone) {
+                setIsPhoneVerified(true);
+                setVerifiedPhone(draft.verifiedPhone);
+            }
+            if (draft.isCommissionVerified && draft.verifiedCommissionPhone && draft.verifiedCommissionPhone === draft.formData?.ownerPhone) {
+                setIsCommissionVerified(true);
+                setVerifiedCommissionPhone(draft.verifiedCommissionPhone);
+            }
+            setRestoredDraftInfo({
+                savedAt: draft.lastSavedAt,
+                propertyName: draft.formData?.propertyName,
+                ownerPhone: draft.formData?.ownerPhone
+            });
+            toast.success('Restored your previous registration draft!', { id: 'draft-restored' });
+        }
+        setIsDraftInitialized(true);
+    }, []);
+
+    // Debounced Auto-Save Draft to LocalStorage
+    useEffect(() => {
+        if (!isDraftInitialized) return;
+
+        const draftData = {
+            formData,
+            step,
+            isPhoneVerified,
+            verifiedPhone: isPhoneVerified ? verifiedPhone || formData.ownerPhone : '',
+            isCommissionVerified,
+            verifiedCommissionPhone: isCommissionVerified ? verifiedCommissionPhone || formData.ownerPhone : '',
+            documentExpiry,
+            selectedExistingOwner
+        };
+
+        if (isDraftMeaningful(draftData as any)) {
+            const timer = setTimeout(() => {
+                saveRegistrationDraft(draftData);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [
+        isDraftInitialized,
+        formData,
+        step,
+        isPhoneVerified,
+        verifiedPhone,
+        isCommissionVerified,
+        verifiedCommissionPhone,
+        documentExpiry,
+        selectedExistingOwner
+    ]);
+
+    const handleDiscardDraft = () => {
+        clearRegistrationDraft();
+        setFormData(initialFormData);
+        setStep(1);
+        setIsPhoneVerified(false);
+        setVerifiedPhone('');
+        setIsCommissionVerified(false);
+        setVerifiedCommissionPhone('');
+        setDocumentExpiry({});
+        setSelectedExistingOwner(null);
+        setErrors({});
+        setRestoredDraftInfo(null);
+        toast.success('Draft discarded. Started fresh registration form.');
+    };
 
     useEffect(() => {
         let interval: any;
@@ -148,10 +247,13 @@ export default function Register() {
             try {
                 const settings = await settingsService.getPublicSettings();
                 if (settings.DEFAULT_PLATFORM_COMMISSION !== undefined) {
-                    setFormData(prev => ({
-                        ...prev,
-                        platformCommission: settings.DEFAULT_PLATFORM_COMMISSION
-                    }));
+                    setFormData(prev => {
+                        if (prev.platformCommission !== undefined && prev.platformCommission !== 10) return prev;
+                        return {
+                            ...prev,
+                            platformCommission: settings.DEFAULT_PLATFORM_COMMISSION
+                        };
+                    });
                 }
             } catch (error) {
                 console.error('Failed to fetch public settings:', error);
@@ -170,11 +272,14 @@ export default function Register() {
                     setCategories(res.data);
                     if (res.data.length > 0) {
                         const defaultCat = res.data[0];
-                        setFormData(prev => ({
-                            ...prev,
-                            categoryId: defaultCat.id,
-                            propertyType: mapSlugToPropertyType(defaultCat.slug)
-                        }));
+                        setFormData(prev => {
+                            if (prev.categoryId) return prev;
+                            return {
+                                ...prev,
+                                categoryId: defaultCat.id,
+                                propertyType: mapSlugToPropertyType(defaultCat.slug)
+                            };
+                        });
                     }
                 }
             } catch (error) {
@@ -332,6 +437,7 @@ export default function Register() {
         try {
             await confirmationResult.confirm(otp);
             setIsPhoneVerified(true);
+            setVerifiedPhone(formData.ownerPhone);
             setShowOtpInput(false);
             toast.success('Phone number verified successfully');
         } catch (error: any) {
@@ -377,6 +483,7 @@ export default function Register() {
                 code: commissionOtp.trim()
             });
             setIsCommissionVerified(true);
+            setVerifiedCommissionPhone(formData.ownerPhone);
             setShowCommissionOtpInput(false);
             toast.success('Commission verified successfully');
         } catch (error: any) {
@@ -407,15 +514,18 @@ export default function Register() {
         // If phone changes, reset verification
         if (name === 'ownerPhone') {
             setIsPhoneVerified(false);
+            setVerifiedPhone('');
             setShowOtpInput(false);
             setOtp('');
             setIsCommissionVerified(false);
+            setVerifiedCommissionPhone('');
             setShowCommissionOtpInput(false);
         }
 
         // If commission changes, reset verification
         if (name === 'platformCommission') {
             setIsCommissionVerified(false);
+            setVerifiedCommissionPhone('');
             setShowCommissionOtpInput(false);
             setCommissionOtp('');
         }
@@ -696,6 +806,8 @@ export default function Register() {
             };
 
             await registerProperty(formattedData);
+            clearRegistrationDraft();
+            setRestoredDraftInfo(null);
             toast.success('Registration successful! Property is pending approval.');
             navigate('/login', {
                 state: {
@@ -773,6 +885,41 @@ export default function Register() {
                         <div className={`h-1.5 w-12 rounded-full transition-all ${step >= 2 ? 'bg-primary-600' : 'bg-gray-200'}`} />
                     </div>
                 </div>
+
+                {/* Draft Restored Banner */}
+                {restoredDraftInfo && (
+                    <div className="mb-6 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/90 rounded-2xl p-4 shadow-sm animate-in fade-in slide-in-from-top-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start sm:items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 shadow-inner">
+                                <ClipboardList className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Draft Restored</span>
+                                    <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                        <Clock className="h-3 w-3 inline" /> {formatDraftTimeAgo(restoredDraftInfo.savedAt)}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-amber-800 mt-0.5">
+                                    {restoredDraftInfo.propertyName 
+                                        ? `Resumed draft for "${restoredDraftInfo.propertyName}"` 
+                                        : (restoredDraftInfo.ownerPhone ? `Resumed draft for phone: ${restoredDraftInfo.ownerPhone}` : 'Resumed your previous registration progress.')}
+                                    {isPhoneVerified ? ' • Phone OTP verified ✓' : ''}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                            <button
+                                type="button"
+                                onClick={handleDiscardDraft}
+                                className="px-3 py-1.5 text-xs font-bold text-red-600 bg-white hover:bg-red-50 border border-red-200 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                title="Discard this draft and start a completely new registration"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" /> Discard Draft
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 md:p-10">
                     <div id="recaptcha-container"></div>
