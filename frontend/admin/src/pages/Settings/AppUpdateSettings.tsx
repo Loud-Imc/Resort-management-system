@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { appUpdateService, AppUpdatePolicy } from '../../services/appUpdate';
 import {
   Smartphone,
@@ -8,15 +8,11 @@ import {
   Save,
   RefreshCw,
   ExternalLink,
-  Layers,
   Info,
   Sliders,
   Sparkles,
-  ArrowRight,
   DownloadCloud,
   AlertCircle,
-  HelpCircle,
-  Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
