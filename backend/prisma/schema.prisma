@@ -1790,3 +1790,24 @@ model OtaGuestRequest {
   @@map("ota_guest_requests")
 }
 
+model AppUpdatePolicy {
+  id                      String    @id @default(uuid())
+  platform                String    @unique // 'android' or 'ios'
+  minimumSupportedVersion String    @default("1.0.0")
+  latestVersion           String    @default("1.0.0")
+  updateType              String    @default("none") // 'none' | 'optional' | 'force'
+  title                   String    @default("Update Required")
+  message                 String    @default("A new version of the app is required to continue using the service.")
+  storeUrl                String    @default("")
+  enabled                 Boolean   @default(true)
+  rolloutPercentage       Int       @default(100)
+  policyVersion           Int       @default(1)
+  publishedAt             DateTime  @default(now())
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  createdById             String?
+  updatedById             String?
+
+  @@map("app_update_policies")
+}
+
