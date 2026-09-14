@@ -27,7 +27,7 @@ export const propertiesService = {
         return data;
     },
 
-    expandUrl: async (url: string): Promise<{ url: string }> => {
+    expandUrl: async (url: string): Promise<{ url: string; latitude?: number | null; longitude?: number | null }> => {
         const { data } = await api.get(`/properties/expand-url`, { params: { url } });
         return data;
     },
