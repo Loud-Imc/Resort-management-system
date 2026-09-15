@@ -12,7 +12,7 @@ import { roomTypesService } from '../../services/roomTypes';
 import { bookingSourcesService } from '../../services/bookingSources';
 import { offlineCpsService, type OfflineCP } from '../../services/offlineCps';
 import { uploadService } from '../../services/uploads';
-import { Loader2, Calendar, Users, UserPlus, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, X, Info, BedDouble, FileText } from 'lucide-react';
+import { Loader2, Calendar, Users, UserPlus, CheckCircle, AlertCircle, ArrowLeft, Briefcase, Camera, ShieldCheck, X, Info, BedDouble, FileText, Sparkles, DoorClosed } from 'lucide-react';
 import clsx from 'clsx';
 import BookingAvailabilityCalendar from '../../components/bookings/BookingAvailabilityCalendar';
 import type { PriceCalculationResult, CreateBookingDto } from '../../types/booking';
@@ -116,6 +116,9 @@ export default function CreateBooking() {
     const { selectedProperty } = useProperty();
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; roomList?: any[]; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
     const [availableRoomTypesList, setAvailableRoomTypesList] = useState<any[] | null>(null);
+    const [accommodationSolutions, setAccommodationSolutions] = useState<any[] | null>(null);
+    const [selectedSolution, setSelectedSolution] = useState<any | null>(null);
+    const [solutionRoomAssignments, setSolutionRoomAssignments] = useState<Record<number, string>>({});
     const [soldOutWarningId, setSoldOutWarningId] = useState<string | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [originalPriceDetails, setOriginalPriceDetails] = useState<PriceCalculationResult | null>(null);
@@ -441,6 +444,11 @@ export default function CreateBooking() {
                         children: Number(values.childrenCount || 0),
                         includeSoldOut: true,
                     });
+                    if (searchRes.accommodationSolutions && searchRes.accommodationSolutions.length > 0) {
+                        setAccommodationSolutions(searchRes.accommodationSolutions);
+                    } else {
+                        setAccommodationSolutions(null);
+                    }
                     if (searchRes.availableRoomTypes && searchRes.availableRoomTypes.length > 0) {
                         setAvailableRoomTypesList(searchRes.availableRoomTypes);
                     } else if (roomTypes && roomTypes.length > 0) {
@@ -587,12 +595,59 @@ export default function CreateBooking() {
     };
 
     const handleSelectRoomType = (roomTypeId: string) => {
+        setSelectedSolution(null);
+        setSolutionRoomAssignments({});
         setValue('roomTypeId', roomTypeId);
         setValue('roomId', '');
         setValue('selectedRoomIds', []);
         setValue('extraAdultsCount', 0);
         setValue('extraChildrenCount', 0);
         handleCheckAvailability(roomTypeId);
+    };
+
+    const handleSelectSolution = (solution: any) => {
+        setSelectedSolution(solution);
+        const firstRoomType = solution.allocatedRooms[0]?.roomTypeId;
+        if (firstRoomType) {
+            setValue('roomTypeId', firstRoomType);
+        }
+
+        // Auto-assign available physical rooms for each allocated room in solution
+        const initialAssignments: Record<number, string> = {};
+        const chosenRoomIds: string[] = [];
+        solution.allocatedRooms.forEach((ar: any, idx: number) => {
+            const rt = roomTypes?.find(r => r.id === ar.roomTypeId);
+            const availableRoom = rt?.rooms?.find((r: any) => r.isEnabled && !chosenRoomIds.includes(r.id));
+            if (availableRoom) {
+                initialAssignments[idx] = availableRoom.id;
+                chosenRoomIds.push(availableRoom.id);
+            }
+        });
+        setSolutionRoomAssignments(initialAssignments);
+        setValue('selectedRoomIds', chosenRoomIds);
+        setValue('roomId', chosenRoomIds[0] || '');
+
+        if (solution.pricingSummary) {
+            const solPrice: PriceCalculationResult = {
+                roomTotal: solution.pricingSummary.basePrice,
+                extraAdultPrice: solution.pricingSummary.extraGuestTotal,
+                extraChildPrice: 0,
+                serviceFee: 0,
+                subtotal: solution.pricingSummary.basePrice + solution.pricingSummary.extraGuestTotal,
+                taxAmount: solution.pricingSummary.taxAmount,
+                discountAmount: 0,
+                totalAmount: solution.pricingSummary.grandTotal,
+                breakdown: solution.pricingSummary.breakdown || [],
+                nights: solution.pricingSummary.nights || 1,
+                roomCount: solution.totalRoomsCount || solution.allocatedRooms.length,
+            };
+            setPriceDetails(solPrice);
+            setOriginalPriceDetails(solPrice);
+            setAvailability({
+                available: true,
+                availableRooms: solution.totalRoomsCount || solution.allocatedRooms.length,
+            });
+        }
     };
 
     const handleToggleRoom = async (roomId: string) => {
@@ -756,7 +811,7 @@ export default function CreateBooking() {
             return;
         }
 
-        if (!data.isGroupBooking) {
+        if (!data.isGroupBooking && !selectedSolution) {
             const selectedCount = (data.selectedRoomIds || []).length;
             const minAllowedRooms = occupancyStats?.minRoomsByMaxCap || requiredRooms;
             if (selectedCount < minAllowedRooms) {
@@ -765,17 +820,29 @@ export default function CreateBooking() {
             }
         }
 
+        let roomAllocationsPayload = undefined;
+        if (selectedSolution && selectedSolution.allocatedRooms && selectedSolution.allocatedRooms.length > 0) {
+            roomAllocationsPayload = selectedSolution.allocatedRooms.map((ar: any, idx: number) => ({
+                roomTypeId: ar.roomTypeId,
+                roomId: solutionRoomAssignments[idx] || ar.roomId || undefined,
+                adults: ar.adults,
+                children: ar.children,
+                infants: ar.infants || 0,
+            }));
+        }
+
         // Remove propertyId (unless needed for group allocation) and other non-DTO fields
         const { propertyId, paymentOption, appliedCode, guestFirstName, guestLastName, guestEmail, guestPhone, isBookerAlsoGuest, ...rest } = data;
 
         const sanitizedData = {
             ...rest,
+            roomAllocations: roomAllocationsPayload,
             guestName: `${guestFirstName} ${guestLastName || ''}`.trim(),
             guestEmail: guestEmail || undefined,
             guestPhone: guestPhone,
             transactionDate: data.isHistoricalEntry ? data.transactionDate : undefined,
             generalCode: appliedCode || undefined,
-            roomTypeId: data.isGroupBooking ? undefined : rest.roomTypeId,  // clear stale roomTypeId for group bookings
+            roomTypeId: data.isGroupBooking ? undefined : (selectedSolution?.allocatedRooms[0]?.roomTypeId || rest.roomTypeId),
             propertyId: data.isGroupBooking ? propertyId : undefined,
             bookingSourceId: data.bookingSourceId || undefined,
             roomId: data.selectedRoomIds && data.selectedRoomIds.length > 0 ? data.selectedRoomIds[0] : (data.roomId || undefined),
@@ -1131,6 +1198,135 @@ export default function CreateBooking() {
                                         {checkingAvailability ? 'Verifying Availability...' : 'Check Room Availability'}
                                     </button>
                                 </div>
+
+                                {/* Accommodation Solutions (V2 Smart Combination Packages) */}
+                                {!isGroupMode && accommodationSolutions && accommodationSolutions.length > 0 && (
+                                    <div className="md:col-span-2 space-y-4 pt-4 border-t border-border">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
+                                                    <Sparkles className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-black uppercase tracking-wider text-foreground">
+                                                        Recommended Accommodation Packages ({accommodationSolutions.length})
+                                                    </h3>
+                                                    <p className="text-[11px] text-muted-foreground font-medium">
+                                                        Optimized packages matching all {watch('adultsCount')} adults & {watch('childrenCount') || 0} children
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-3.5">
+                                            {accommodationSolutions.map((sol: any) => {
+                                                const isSelected = selectedSolution?.id === sol.id;
+                                                return (
+                                                    <div
+                                                        key={sol.id}
+                                                        onClick={() => handleSelectSolution(sol)}
+                                                        className={clsx(
+                                                            "p-4 rounded-2xl border-2 transition-all cursor-pointer shadow-xs",
+                                                            isSelected
+                                                                ? "bg-primary/5 border-primary ring-2 ring-primary/20 shadow-md"
+                                                                : "bg-card border-border hover:border-primary/40 hover:shadow-sm"
+                                                        )}
+                                                    >
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                            <div className="space-y-1.5 flex-1">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <h4 className={clsx("text-sm font-black", isSelected ? "text-primary" : "text-foreground")}>
+                                                                        {sol.solutionName}
+                                                                    </h4>
+                                                                    {sol.isBestValue && (
+                                                                        <span className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-black uppercase px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                            <Sparkles className="h-3 w-3" /> Best Value
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-muted text-muted-foreground rounded-md border border-border">
+                                                                        {sol.totalRoomsCount} Room{sol.totalRoomsCount > 1 ? 's' : ''} · {sol.totalGuestsServed} Guests
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                                                    {sol.allocatedRooms?.map((room: any, rIdx: number) => (
+                                                                        <span key={rIdx} className="text-[10.5px] bg-muted/60 dark:bg-muted/30 border border-border px-2.5 py-1 rounded-lg font-medium text-foreground flex items-center gap-1.5">
+                                                                            <BedDouble className="h-3.5 w-3.5 text-primary" />
+                                                                            <strong>{room.roomTypeName}</strong>: {room.adults} Adults{room.children > 0 ? `, ${room.children} Children` : ''}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                                                                <div className="text-right">
+                                                                    <div className="text-base font-black text-foreground">₹{Math.round(sol.pricingSummary?.grandTotal || 0).toLocaleString()}</div>
+                                                                    <div className="text-[10px] text-muted-foreground font-semibold">Total Stay Incl. Taxes</div>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleSelectSolution(sol);
+                                                                    }}
+                                                                    className={clsx(
+                                                                        "px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shrink-0",
+                                                                        isSelected
+                                                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                                                            : "bg-muted hover:bg-primary hover:text-primary-foreground text-foreground"
+                                                                    )}
+                                                                >
+                                                                    {isSelected ? <><CheckCircle className="h-3.5 w-3.5" /> Selected</> : 'Select Package'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* If this package is selected, show physical room number assignment dropdowns per room */}
+                                                        {isSelected && (
+                                                            <div className="mt-4 pt-3 border-t border-border/60 space-y-2 animate-in fade-in slide-in-from-top-1">
+                                                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                                                    <DoorClosed className="h-3.5 w-3.5 text-primary" /> Assign Physical Room Numbers:
+                                                                </p>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                    {sol.allocatedRooms?.map((room: any, rIdx: number) => {
+                                                                        const rt = roomTypes?.find(r => r.id === room.roomTypeId);
+                                                                        const enabledRooms = rt?.rooms?.filter((r: any) => r.isEnabled) || [];
+                                                                        return (
+                                                                            <div key={rIdx} className="p-2.5 bg-background border border-border rounded-xl flex items-center justify-between gap-2">
+                                                                                <div className="text-xs font-bold truncate">
+                                                                                    <span>Room {rIdx + 1}: {room.roomTypeName}</span>
+                                                                                    <span className="block text-[10px] text-muted-foreground font-normal">({room.adults} Adults{room.children > 0 ? `, ${room.children} Ch` : ''})</span>
+                                                                                </div>
+                                                                                <select
+                                                                                    value={solutionRoomAssignments[rIdx] || ''}
+                                                                                    onChange={(e) => {
+                                                                                        const val = e.target.value;
+                                                                                        setSolutionRoomAssignments(prev => {
+                                                                                            const updated = { ...prev, [rIdx]: val };
+                                                                                            setValue('selectedRoomIds', Object.values(updated).filter(Boolean));
+                                                                                            setValue('roomId', Object.values(updated).filter(Boolean)[0] || '');
+                                                                                            return updated;
+                                                                                        });
+                                                                                    }}
+                                                                                    className="text-xs font-bold border border-input bg-card rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary"
+                                                                                >
+                                                                                    <option value="">Auto-Assign</option>
+                                                                                    {enabledRooms.map((er: any) => (
+                                                                                        <option key={er.id} value={er.id}>
+                                                                                            Room #{er.roomNumber} ({er.name || 'Standard'})
+                                                                                        </option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Available Room Types Grid (Fourth - Standard Bookings) */}
                                 {!isGroupMode && sortedRoomTypesList && sortedRoomTypesList.length > 0 && (

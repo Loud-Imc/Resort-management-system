@@ -184,6 +184,13 @@ export interface CreateBookingDto {
     guestName?: string;
     guestEmail?: string;
     guestPhone?: string;
+    roomAllocations?: {
+        roomTypeId: string;
+        roomId?: string;
+        adults: number;
+        children: number;
+        infants?: number;
+    }[];
 }
 
 export interface CheckAvailabilityDto {

@@ -7,6 +7,12 @@ export interface RoomType {
     capacity: number;
     maxAdults: number;
     maxChildren: number;
+    maxPhysicalAdults?: number | null;
+    maxPhysicalChildren?: number | null;
+    maxPhysicalInfants?: number | null;
+    totalMaxOccupancy?: number | null;
+    baseAdults?: number | null;
+    baseChildren?: number | null;
     size?: number | null;
     amenities: string[];
     images: string[];
@@ -51,6 +57,8 @@ export interface BookingSearchParams {
     checkOutDate: string;
     adults: number;
     children: number;
+    childAges?: number[];
+    infants?: number;
     location?: string;
     type?: string;
     categoryId?: string;
@@ -65,8 +73,64 @@ export interface BookingSearchParams {
     groupSize?: number;
 }
 
+export interface AllocatedRoomItem {
+    roomTypeId: string;
+    roomTypeName: string;
+    images?: string[];
+    adults: number;
+    children: number;
+    childAges?: number[];
+    infants: number;
+    extraAdults: number;
+    extraChildren: number;
+    freeChildren: number;
+    basePricePerNight: number;
+    extraAdultChargePerNight: number;
+    extraChildChargePerNight: number;
+    totalPricePerNight: number;
+    availableQuantity: number;
+    maxPhysicalAdults?: number;
+    maxPhysicalChildren?: number;
+    maxPhysicalInfants?: number;
+    totalMaxOccupancy?: number;
+    totalBaseOccupancy?: number;
+}
+
+export interface AccommodationSolution {
+    id: string;
+    propertyId: string;
+    property?: Property;
+    totalRooms: number;
+    isRecommended: boolean;
+    badge?: string | null;
+    roomTypeCounts: Record<string, number>;
+    numberOfNights: number;
+    pricing: {
+        baseAmount: number;
+        extraAmount: number;
+        taxAmount: number;
+        totalPrice: number;
+        pricePerNight: number;
+        numberOfNights: number;
+        currency: string;
+    };
+    rooms: AllocatedRoomItem[];
+}
+
 export interface AvailabilityResponse {
     availableRoomTypes: RoomType[];
+    accommodationSolutions?: AccommodationSolution[];
+}
+
+export interface RoomAllocationItem {
+    roomTypeId: string;
+    roomId?: string;
+    adults: number;
+    children?: number;
+    childAges?: number[];
+    infants?: number;
+    extraAdults?: number;
+    extraChildren?: number;
 }
 
 export interface GuestInfo {
@@ -87,6 +151,7 @@ export interface CreateBookingDto {
     checkOutDate: string;
     adultsCount: number;
     childrenCount: number;
+    childAges?: number[];
     infantsCount?: number;
     guestName: string;
     guestEmail: string;
@@ -97,9 +162,13 @@ export interface CreateBookingDto {
     referralCode?: string; // CP referral code
     generalCode?: string; // Intelligent code that can be either coupon or referral
     paymentMethod?: 'ONLINE' | 'WALLET';
+    paymentOption?: 'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY';
     currency?: string;
     isGroupBooking?: boolean;
     groupSize?: number;
+    roomsCount?: number;
+    roomAllocations?: RoomAllocationItem[];
+    selectedSolution?: AccommodationSolution;
 }
 
 // Marketplace Types

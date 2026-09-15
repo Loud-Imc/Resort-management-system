@@ -3,12 +3,13 @@ import { BookingSearchParams, CreateBookingDto } from '../types';
 
 export const bookingService = {
     checkAvailability: async (params: BookingSearchParams) => {
-        // Use the new search endpoint
-        const { data } = await api.post<{ availableRoomTypes: any[] }>('/bookings/search', {
+        const { data } = await api.post<{ availableRoomTypes: any[]; accommodationSolutions?: any[] }>('/bookings/search', {
             checkInDate: params.checkInDate,
             checkOutDate: params.checkOutDate,
             adults: params.adults,
             children: params.children,
+            childAges: params.childAges,
+            infants: params.infants,
             location: params.location,
             type: params.type,
             categoryId: params.categoryId,
@@ -61,6 +62,7 @@ export const bookingService = {
         checkOutDate: string;
         adultsCount: number;
         childrenCount: number;
+        childAges?: number[];
         infantsCount?: number;
         roomsCount?: number;
         roomCount?: number;

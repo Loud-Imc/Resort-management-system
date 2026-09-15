@@ -9,6 +9,7 @@ import {
     solveAccommodationOptions,
     RoomTypeInventoryCandidate,
     validatePhysicalFeasibility,
+    validateChildAges,
 } from '../common/utils/occupancy-solver.util';
 @Injectable()
 export class AvailabilityService {
@@ -844,7 +845,12 @@ export class AvailabilityService {
         isGroupBooking: boolean = false,
         groupSize?: number,
         infants: number = 0,
+        childAges?: number[],
     ) {
+        if (!isGroupBooking && children > 0) {
+            validateChildAges(children, childAges);
+        }
+
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
@@ -1061,46 +1067,28 @@ export class AvailabilityService {
         }
 
         // Standard Search: Non-Lossy Candidate Database Pre-Filter
-        const isSingleRoom = (rooms || 1) === 1;
-        const minGuests = (adults || 0) + (children || 0);
-
-        const occupancyCandidateFilter: any = isSingleRoom
-            ? {
-                OR: [
-                    {
-                        property: { occupancyVersion: 'V2' },
-                        totalMaxOccupancy: { gte: minGuests },
-                        maxPhysicalAdults: { gte: Math.max(1, adults) },
+        const occupancyCandidateFilter: any = {
+            OR: [
+                {
+                    OR: [
+                        { property: { occupancyVersion: 'V2' } },
+                        { occupancyVersion: 'V2' },
+                    ],
+                    maxPhysicalAdults: { gte: 1 },
+                    totalMaxOccupancy: { gte: 1 },
+                },
+                {
+                    property: {
+                        NOT: { occupancyVersion: 'V2' },
                     },
-                    {
-                        property: {
-                            NOT: { occupancyVersion: 'V2' },
-                        },
-                        OR: [
-                            { maxPhysicalAdults: { gte: minAdultsPerRoom } },
-                            { maxAdults: { gte: minAdultsPerRoom } },
-                        ],
-                    },
-                ],
-            }
-            : {
-                OR: [
-                    {
-                        property: { occupancyVersion: 'V2' },
-                        maxPhysicalAdults: { gte: 1 },
-                        totalMaxOccupancy: { gte: 1 },
-                    },
-                    {
-                        property: {
-                            NOT: { occupancyVersion: 'V2' },
-                        },
-                        OR: [
-                            { maxPhysicalAdults: { gte: 1 } },
-                            { maxAdults: { gte: 1 } },
-                        ],
-                    },
-                ],
-            };
+                    NOT: { occupancyVersion: 'V2' },
+                    OR: [
+                        { maxPhysicalAdults: { gte: minAdultsPerRoom } },
+                        { maxAdults: { gte: minAdultsPerRoom } },
+                    ],
+                },
+            ],
+        };
 
         const suitableTypes = await this.prisma.roomType.findMany({
             where: {
@@ -1135,6 +1123,8 @@ export class AvailabilityService {
             },
         });
 
+        const allAccommodationSolutions: any[] = [];
+
         // Group suitable room types by property
         const propertyMap = new Map<string, any[]>();
         for (const rt of suitableTypes) {
@@ -1147,8 +1137,8 @@ export class AvailabilityService {
         for (const [propId, propRoomTypes] of propertyMap.entries()) {
             const firstType = propRoomTypes[0];
             const property = firstType.property;
-            // Property.occupancyVersion is the authoritative RUNTIME ACTIVATION switch.
-            const isV2Property = (property as any)?.occupancyVersion === 'V2';
+            // Property.occupancyVersion or RoomType.occupancyVersion is the authoritative RUNTIME ACTIVATION switch.
+            const isV2Property = (property as any)?.occupancyVersion === 'V2' || propRoomTypes.some((rt: any) => rt.occupancyVersion === 'V2');
 
             if (isV2Property) {
                 // V2 Canonical Search & Accommodation Solver Path
@@ -1179,9 +1169,79 @@ export class AvailabilityService {
                     }));
 
                 const solutions = solveAccommodationOptions(
-                    { adults, children, infants: infants || 0, requestedRooms: rooms || 1 },
+                    { adults, children, infants: infants || 0, childAges, requestedRooms: rooms || 1 },
                     availableCandidates
                 );
+
+                const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                const propertySolutions = solutions.map((sol, idx) => {
+                    const enrichedRooms = sol.rooms.map(r => {
+                        const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
+                        return {
+                            roomTypeId: r.roomTypeId,
+                            roomTypeName: r.roomTypeName,
+                            images: (rt as any)?.images || [],
+                            adults: r.adults,
+                            children: r.children,
+                            childAges: r.childAges || [],
+                            infants: r.infants,
+                            extraAdults: r.extraAdults,
+                            extraChildren: r.extraChildren,
+                            freeChildren: r.freeChildren || 0,
+                            paidChildren: r.paidChildren || 0,
+                            basePricePerNight: r.basePricePerNight,
+                            extraAdultChargePerNight: r.extraAdultChargePerNight,
+                            extraChildChargePerNight: r.extraChildChargePerNight,
+                            totalPricePerNight: r.totalPricePerNight,
+                            availableQuantity: availableMap.get(r.roomTypeId) || 0,
+                            maxPhysicalAdults: r.maxPhysicalAdults,
+                            maxPhysicalChildren: r.maxPhysicalChildren,
+                            maxPhysicalInfants: r.maxPhysicalInfants,
+                            totalMaxOccupancy: r.totalMaxOccupancy,
+                            totalBaseOccupancy: r.totalBaseOccupancy,
+                        };
+                    });
+
+                    const totalBasePerNight = sol.rooms.reduce((s, r) => s + r.basePricePerNight, 0);
+                    const totalExtraPerNight = sol.rooms.reduce((s, r) => s + r.extraAdultChargePerNight + r.extraChildChargePerNight, 0);
+                    const totalPricePerNight = sol.pricingSummary?.totalPerNight ?? (totalBasePerNight + totalExtraPerNight);
+                    const baseAmount = totalBasePerNight * nights;
+                    const extraAmount = totalExtraPerNight * nights;
+                    const totalAmountBeforeTax = totalPricePerNight * nights;
+
+                    return {
+                        id: `${property.id}_sol_${idx}`,
+                        propertyId: property.id,
+                        property: {
+                            id: property.id,
+                            name: property.name,
+                            slug: property.slug,
+                            type: property.type,
+                            city: property.city,
+                            state: property.state,
+                            coverImage: property.coverImage,
+                            isVerified: property.isVerified,
+                            rating: property.rating,
+                            reviewCount: property.reviewCount,
+                        },
+                        totalRooms: sol.totalRooms,
+                        isRecommended: sol.isRecommended ?? false,
+                        badge: sol.badge ?? null,
+                        roomTypeCounts: sol.roomTypeCounts,
+                        numberOfNights: nights,
+                        pricing: {
+                            baseAmount,
+                            extraAmount,
+                            taxAmount: 0,
+                            totalPrice: totalAmountBeforeTax,
+                            pricePerNight: totalPricePerNight,
+                            numberOfNights: nights,
+                            currency: currency || 'INR',
+                        },
+                        rooms: enrichedRooms,
+                    };
+                });
+                allAccommodationSolutions.push(...propertySolutions);
 
                 for (const rt of propRoomTypes) {
                     const availableCount = availableMap.get(rt.id) || 0;
@@ -1214,7 +1274,8 @@ export class AvailabilityService {
                                 true,
                                 extraA,
                                 extraC,
-                                infants
+                                infants,
+                                childAges
                             );
                         } catch (err: any) {
                             console.warn(`[searchAvailableRoomTypes] V2 Pricing fallback for roomType ${rt.id}:`, err?.message);
@@ -1424,6 +1485,8 @@ export class AvailabilityService {
             if (!a.isRecommended && b.isRecommended) return 1;
             return (a.totalPrice || 0) - (b.totalPrice || 0);
         });
+
+        (results as any).accommodationSolutions = allAccommodationSolutions;
 
         return results;
     }

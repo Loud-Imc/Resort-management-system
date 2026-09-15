@@ -6,6 +6,7 @@ import {
     validatePhysicalFeasibility,
     calculateCanonicalSurcharges,
     solveAccommodationOptions,
+    validateChildAges,
 } from '../common/utils/occupancy-solver.util';
 
 export interface PricingBreakdown {
@@ -120,6 +121,7 @@ export class PricingService {
         extraAdultsCount?: number,
         extraChildrenCount?: number,
         infantsCount: number = 0,
+        childAges?: number[],
     ): Promise<PricingBreakdown> {
         console.log(`[PricingService] calculatePrice inputs - gen: ${generalCode} (${typeof generalCode}), coup: ${couponCode} (${typeof couponCode}), ref: ${referralCode} (${typeof referralCode}), infants: ${infantsCount}`);
         // Resolve generalCode if provided
@@ -292,14 +294,15 @@ export class PricingService {
             baseAmount = effectiveBasePrice * numberOfNights * rooms;
 
             if (isV2) {
-                // V2 Canonical Pricing Integration
-                if (extraAdultsCount !== undefined && extraAdultsCount !== null && extraChildrenCount !== undefined && extraChildrenCount !== null) {
-                    extraAdults = Math.max(0, Number(extraAdultsCount));
-                    extraChildren = Math.max(0, Number(extraChildrenCount));
-                } else if (rooms === 1) {
+                // V2 Canonical Pricing Integration: Authoritative server calculation with child ages
+                if (childrenCount > 0) {
+                    validateChildAges(childrenCount, childAges);
+                }
+
+                if (rooms === 1) {
                     // Single room physical validation & surcharge calculation
                     const feasibility = validatePhysicalFeasibility(
-                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0 },
+                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0, childAges },
                         {
                             totalMaxOccupancy: roomType.totalMaxOccupancy,
                             maxPhysicalAdults: roomType.maxPhysicalAdults,
@@ -312,7 +315,7 @@ export class PricingService {
                     }
 
                     const surcharges = calculateCanonicalSurcharges(
-                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0 },
+                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0, childAges },
                         {
                             totalBaseOccupancy: roomType.totalBaseOccupancy,
                             totalMaxOccupancy: roomType.totalMaxOccupancy,
@@ -331,7 +334,7 @@ export class PricingService {
                 } else {
                     // Multi-room same type allocation via Canonical Solver
                     const solutions = solveAccommodationOptions(
-                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0, requestedRooms: rooms },
+                        { adults: adultsCount, children: childrenCount, infants: infantsCount || 0, childAges, requestedRooms: rooms },
                         [{
                             id: roomType.id,
                             name: roomType.name,

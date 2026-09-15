@@ -1,9 +1,21 @@
 import { IsNotEmpty, IsDateString, IsString, IsOptional, IsArray, IsInt, Min, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { GuestInfoDto } from './create-booking.dto';
+import { GuestInfoDto, RoomAllocationItemDto } from './create-booking.dto';
 
 export class RescheduleBookingDto {
+    @ApiProperty({ example: [5, 8], required: false, type: [Number], description: 'Ages of children (3-12).' })
+    @IsOptional()
+    @IsArray()
+    @Type(() => Number)
+    childAges?: number[];
+
+    @ApiProperty({ type: () => [RoomAllocationItemDto], required: false })
+    @IsArray()
+    @IsOptional()
+    @ValidateNested({ each: true })
+    @Type(() => RoomAllocationItemDto)
+    roomAllocations?: RoomAllocationItemDto[];
     @ApiProperty({ example: '2026-06-15' })
     @IsDateString()
     @IsNotEmpty()

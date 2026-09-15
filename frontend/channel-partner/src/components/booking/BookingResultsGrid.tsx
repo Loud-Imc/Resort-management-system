@@ -32,6 +32,7 @@ interface BookingResultsGridProps {
     properties: Property[];
     onSelect: (property: Property) => void;
     isGroupBooking?: boolean;
+    solutionsMap?: Record<string, any[]>;
 }
 
 const getImageUrl = (image: string | Image | undefined, fallback?: string): string => {
@@ -56,7 +57,7 @@ const getPropertyTypeLabel = (type: string) => {
     return type.charAt(0) + type.slice(1).toLowerCase();
 };
 
-const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onSelect, isGroupBooking }) => {
+const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onSelect, isGroupBooking, solutionsMap }) => {
     if (!properties || properties.length === 0) {
         return (
             <div style={{ padding: '5rem 2rem', textAlign: 'center', background: '#fff', borderRadius: '2rem' }}>
@@ -77,9 +78,22 @@ const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onS
         }}>
             {properties.map((property) => {
                 const displayImage = getImageUrl(property.images?.[0], property.coverImage);
+                const propertySolutions = solutionsMap?.[property.id] || [];
+                const recommendedSolution = propertySolutions.find(s => s.isRecommended) || propertySolutions[0];
+
+                const solutionHeadline = recommendedSolution
+                    ? Array.from(
+                        recommendedSolution.rooms.reduce((acc: Map<string, { name: string; count: number }>, r: any) => {
+                            if (!acc.has(r.roomTypeId)) acc.set(r.roomTypeId, { name: r.roomTypeName, count: 0 });
+                            acc.get(r.roomTypeId)!.count += 1;
+                            return acc;
+                        }, new Map()).values()
+                    ).map((item: any) => `${item.count}× ${item.name}`).join(' + ')
+                    : null;
+
                 const priceValue = isGroupBooking
                     ? (property.groupPriceAdult || property.groupPricePerHead || property.basePrice)
-                    : property.basePrice;
+                    : (recommendedSolution ? (recommendedSolution.pricing?.pricePerNight || recommendedSolution.pricing?.totalPrice) : property.basePrice);
 
                 return (
                     <div
@@ -113,6 +127,20 @@ const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onS
                                 {getPropertyTypeLabel(property.type)}
                             </div>
 
+                            {/* Solution Badge if recommended */}
+                            {!isGroupBooking && recommendedSolution && (
+                                <div style={{
+                                    position: 'absolute', bottom: '1.25rem', left: '1.25rem',
+                                    background: 'rgba(13, 148, 136, 0.95)', backdropFilter: 'blur(8px)',
+                                    padding: '0.35rem 0.85rem', borderRadius: '2rem',
+                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                    color: '#fff', fontSize: '11px', fontWeight: 800,
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                }}>
+                                    ✨ {recommendedSolution.totalRooms} {recommendedSolution.totalRooms === 1 ? 'Room' : 'Rooms'} Solution
+                                </div>
+                            )}
+
                             {/* Verified Badge */}
                             {property.isVerified && (
                                 <div style={{
@@ -136,13 +164,29 @@ const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onS
                                 {property.name}
                             </h3>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6b7280', fontSize: '14px', marginBottom: '1.5rem', fontWeight: 500 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6b7280', fontSize: '14px', marginBottom: '1rem', fontWeight: 500 }}>
                                 <MapPin size={16} color="#0d9488" />
                                 {property.city}, {property.state}
                             </div>
 
+                            {/* Solution composition preview */}
+                            {!isGroupBooking && solutionHeadline && (
+                                <div style={{
+                                    background: '#f0fdf4',
+                                    border: '1px solid #bbf7d0',
+                                    borderRadius: '0.75rem',
+                                    padding: '0.5rem 0.75rem',
+                                    marginBottom: '1rem',
+                                    fontSize: '12px',
+                                    color: '#166534',
+                                    fontWeight: 700
+                                }}>
+                                    <span style={{ fontWeight: 800 }}>Recommended:</span> {solutionHeadline}
+                                </div>
+                            )}
+
                             {/* Stats Row */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem 0', borderTop: '1px solid #f3f4f6', color: '#9ca3af', fontSize: '15px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0', borderTop: '1px solid #f3f4f6', color: '#9ca3af', fontSize: '15px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                     {property.rating ? (
                                         <>
@@ -161,7 +205,7 @@ const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onS
                             </div>
 
                             {/* Price / Buttons Area */}
-                            <div style={{ marginTop: 'auto', paddingTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ marginTop: 'auto', paddingTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 {isGroupBooking ? (
                                     <div style={{ flex: 1 }}>
                                         <p style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#9ca3af', marginBottom: '0.4rem' }}>Starting Package</p>
@@ -173,22 +217,21 @@ const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onS
                                         </div>
                                     </div>
                                 ) : (
-                                    <div style={{
-                                        padding: '0.75rem 1.25rem',
-                                        background: '#f0fdfa',
-                                        color: '#0d9488',
-                                        fontSize: '11px',
-                                        fontWeight: 900,
-                                        borderRadius: '0.75rem',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.12em'
-                                    }}>
-                                        Check Availability
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#9ca3af', marginBottom: '0.2rem' }}>
+                                            {recommendedSolution ? 'Recommended Solution' : 'Starting From'}
+                                        </p>
+                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+                                            <span style={{ fontSize: '1.65rem', fontWeight: 900, color: '#111827', letterSpacing: '-0.03em' }}>
+                                                {formatPrice(priceValue, property.currency)}
+                                            </span>
+                                            <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>/ night</span>
+                                        </div>
                                     </div>
                                 )}
 
                                 <div style={{
-                                    padding: '0.85rem 1.75rem',
+                                    padding: '0.85rem 1.5rem',
                                     background: '#111827',
                                     color: '#fff',
                                     fontSize: '11px',
@@ -199,7 +242,7 @@ const BookingResultsGrid: React.FC<BookingResultsGridProps> = ({ properties, onS
                                     boxShadow: '0 8px 20px rgba(17,24,39,0.25)',
                                     transition: 'all 0.3s'
                                 }} className="view-details-btn">
-                                    View Details
+                                    View Options →
                                 </div>
                             </div>
                         </div>

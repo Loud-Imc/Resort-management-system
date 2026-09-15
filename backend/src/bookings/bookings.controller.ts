@@ -189,10 +189,12 @@ export class BookingsController {
             dto.isGroupBooking || false,
             dto.groupSize,
             dto.infants || 0,
+            dto.childAges,
         );
 
         return {
-            availableRoomTypes: results
+            availableRoomTypes: results,
+            accommodationSolutions: (results as any).accommodationSolutions || [],
         };
     }
 
@@ -220,6 +222,7 @@ export class BookingsController {
             dto.extraAdultsCount,
             dto.extraChildrenCount,
             dto.infantsCount || 0,
+            dto.childAges,
         );
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {

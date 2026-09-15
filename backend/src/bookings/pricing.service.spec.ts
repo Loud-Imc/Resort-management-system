@@ -91,25 +91,38 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
         });
 
         it.each([
-            { adults: 1, children: 0, desc: '1A' },
-            { adults: 2, children: 0, desc: '2A' },
-            { adults: 3, children: 0, desc: '3A' },
-            { adults: 1, children: 1, desc: '1A + 1C' },
-            { adults: 2, children: 1, desc: '2A + 1C' },
-            { adults: 1, children: 2, desc: '1A + 2C' },
-        ])('should price $desc at base rate without extra charges', async ({ adults, children }) => {
+            { adults: 1, children: 0, childAges: [], desc: '1A' },
+            { adults: 2, children: 0, childAges: [], desc: '2A' },
+            { adults: 3, children: 0, childAges: [], desc: '3A' },
+            { adults: 1, children: 1, childAges: [4], desc: '1A + 1C' },
+            { adults: 2, children: 1, childAges: [4], desc: '2A + 1C' },
+            { adults: 1, children: 2, childAges: [4, 5], desc: '1A + 2C' },
+        ])('should price $desc at base rate without extra charges', async ({ adults, children, childAges }) => {
             const result = await service.calculatePrice(
                 'rt-case-a',
                 checkIn,
                 checkOut,
                 adults,
                 children,
+                undefined,
+                undefined,
+                'INR',
+                false,
+                undefined,
+                1,
+                undefined,
+                undefined,
+                true,
+                undefined,
+                undefined,
+                0,
+                childAges
             );
 
             expect(result.baseAmount).toBe(2000);
             expect(result.extraAdultAmount).toBe(0);
             expect(result.extraChildAmount).toBe(0);
-            expect(result.totalAmount).toBe(2100); // 2000 + 5% fallback GST (100)
+            expect(result.totalAmount).toBe(2000);
         });
     });
 
@@ -160,15 +173,15 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
             expect(res.extraChildAmount).toBe(0);
         });
 
-        it('1A + 1C -> base price', async () => {
-            const res = await service.calculatePrice('rt-case-b', checkIn, checkOut, 1, 1);
+        it('1A + 1C [8] -> base price (paid child covered in base bMC=1)', async () => {
+            const res = await service.calculatePrice('rt-case-b', checkIn, checkOut, 1, 1, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [8]);
             expect(res.baseAmount).toBe(2000);
             expect(res.extraAdultAmount).toBe(0);
             expect(res.extraChildAmount).toBe(0);
         });
 
-        it('2A + 1C -> base price', async () => {
-            const res = await service.calculatePrice('rt-case-b', checkIn, checkOut, 2, 1);
+        it('2A + 1C [8] -> base price (2A in bMA=2, 1 paid child in bMC=1, total 3 in B=3)', async () => {
+            const res = await service.calculatePrice('rt-case-b', checkIn, checkOut, 2, 1, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [8]);
             expect(res.baseAmount).toBe(2000);
             expect(res.extraAdultAmount).toBe(0);
             expect(res.extraChildAmount).toBe(0);
@@ -181,8 +194,8 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
             expect(res.extraChildAmount).toBe(0);
         });
 
-        it('1A + 2C -> +1 extra child surcharge (+150)', async () => {
-            const res = await service.calculatePrice('rt-case-b', checkIn, checkOut, 1, 2);
+        it('1A + 2C [8, 9] -> +1 extra child surcharge (+150)', async () => {
+            const res = await service.calculatePrice('rt-case-b', checkIn, checkOut, 1, 2, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [8, 9]);
             expect(res.baseAmount).toBe(2000);
             expect(res.extraAdultAmount).toBe(0);
             expect(res.extraChildAmount).toBe(150);
@@ -190,9 +203,9 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
     });
 
     // =========================================================================
-    // CASE C: Mixed Excess Rule (2A + 2C on B=3, bMA=2, bMC=1 -> 1 extra adult)
+    // CASE C: Pure Canonical Excess Rule (2A + 2 paid children -> 1 extra child, NEVER extra adult)
     // =========================================================================
-    describe('Case C — Mixed Excess Rule', () => {
+    describe('Case C — Pure Canonical Excess Rule', () => {
         const roomTypeC = {
             id: 'rt-case-c',
             name: 'Deluxe Room C',
@@ -220,11 +233,11 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
             prismaMock.roomType.findUnique.mockResolvedValue(roomTypeC);
         });
 
-        it('2A + 2C classifies mixed excess as +1 extra adult (not extra child)', async () => {
-            const res = await service.calculatePrice('rt-case-c', checkIn, checkOut, 2, 2);
+        it('2A + 2C [8, 9] classifies excess child as +1 extra child (+150, NOT extra adult)', async () => {
+            const res = await service.calculatePrice('rt-case-c', checkIn, checkOut, 2, 2, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [8, 9]);
             expect(res.baseAmount).toBe(2000);
-            expect(res.extraAdultAmount).toBe(300);
-            expect(res.extraChildAmount).toBe(0);
+            expect(res.extraAdultAmount).toBe(0);
+            expect(res.extraChildAmount).toBe(150);
         });
     });
 
@@ -260,28 +273,24 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
             prismaMock.roomType.findUnique.mockResolvedValue(roomTypeD);
         });
 
-        it('1A + 2C (FC=1, bMC=1) -> 1st child uses base & FC=1, 2nd child is charged extra child price', async () => {
-            const res = await service.calculatePrice('rt-case-d', checkIn, checkOut, 1, 2);
+        it('1A + 2C [8, 9] (FC=1, bMC=1) -> older children are paid, 1 in base, 2nd is extra child', async () => {
+            const res = await service.calculatePrice('rt-case-d', checkIn, checkOut, 1, 2, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [8, 9]);
             expect(res.baseAmount).toBe(2000);
             expect(res.extraAdultAmount).toBe(0);
             expect(res.extraChildAmount).toBe(150);
         });
 
-        it('1A + 2C (FC=2, bMC=1) -> 2nd child covered by free allowance -> 0 extra child charge', async () => {
-            prismaMock.roomType.findUnique.mockResolvedValueOnce({
-                ...roomTypeD,
-                freeChildrenCount: 2,
-            });
-            const res = await service.calculatePrice('rt-case-d', checkIn, checkOut, 1, 2);
+        it('1A + 2C [4, 8] (FC=1, bMC=1) -> age 4 is free (FC=1), age 8 covered in base (bMC=1) -> 0 extra charge', async () => {
+            const res = await service.calculatePrice('rt-case-d', checkIn, checkOut, 1, 2, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [4, 8]);
             expect(res.baseAmount).toBe(2000);
             expect(res.extraAdultAmount).toBe(0);
             expect(res.extraChildAmount).toBe(0);
         });
 
-        it('2A + 2C -> free child does NOT expand base capacity; mixed excess applies -> 1 extra adult', async () => {
-            const res = await service.calculatePrice('rt-case-d', checkIn, checkOut, 2, 2);
+        it('2A + 2C [4, 8] -> age 4 is free (FC=1), 2A in bMA=2, age 8 in bMC=1 -> 0 extra charge', async () => {
+            const res = await service.calculatePrice('rt-case-d', checkIn, checkOut, 2, 2, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [4, 8]);
             expect(res.baseAmount).toBe(2000);
-            expect(res.extraAdultAmount).toBe(300);
+            expect(res.extraAdultAmount).toBe(0);
             expect(res.extraChildAmount).toBe(0);
         });
     });
@@ -377,7 +386,7 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
 
         it('rejects 0 adults (A < 1)', async () => {
             await expect(
-                service.calculatePrice('rt-case-f', checkIn, checkOut, 0, 2)
+                service.calculatePrice('rt-case-f', checkIn, checkOut, 0, 2, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [4, 5])
             ).rejects.toThrow(BadRequestException);
         });
 
@@ -389,13 +398,13 @@ describe('PricingService - Canonical V2 Pricing & V1 Isolation', () => {
 
         it('rejects children exceeding maxPhysicalChildren (1A + 3C > 2)', async () => {
             await expect(
-                service.calculatePrice('rt-case-f', checkIn, checkOut, 1, 3)
+                service.calculatePrice('rt-case-f', checkIn, checkOut, 1, 3, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [4, 5, 8])
             ).rejects.toThrow(BadRequestException);
         });
 
         it('rejects combined A+C exceeding totalMaxOccupancy (2A + 2C = 4 > 3)', async () => {
             await expect(
-                service.calculatePrice('rt-case-f', checkIn, checkOut, 2, 2)
+                service.calculatePrice('rt-case-f', checkIn, checkOut, 2, 2, undefined, undefined, 'INR', false, undefined, 1, undefined, undefined, true, undefined, undefined, 0, [4, 5])
             ).rejects.toThrow(BadRequestException);
         });
 

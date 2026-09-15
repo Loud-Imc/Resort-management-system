@@ -51,6 +51,11 @@ export class CalculatePriceDto {
     @Type(() => Number)
     infantsCount?: number;
 
+    @ApiProperty({ example: [5, 8], required: false, type: [Number], description: 'Ages of children (3-12). Mandatory if childrenCount > 0.' })
+    @IsOptional()
+    @Type(() => Number)
+    childAges?: number[];
+
     @ApiProperty({ example: 'SUMMER2026', required: false })
     @IsString()
     @IsOptional()

@@ -62,7 +62,7 @@ export const bookingsService = {
         isGroupBooking?: boolean;
         groupSize?: number;
     }) => {
-        const response = await api.post<{ availableRoomTypes: any[] }>('/bookings/search', data);
+        const response = await api.post<{ availableRoomTypes: any[]; accommodationSolutions?: any[] }>('/bookings/search', data);
         return response.data;
     },
 

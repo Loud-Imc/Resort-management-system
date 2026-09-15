@@ -33,6 +33,11 @@ export class SearchRoomsDto {
     @IsOptional()
     infants?: number;
 
+    @ApiProperty({ example: [5, 8], required: false, type: [Number], description: 'Ages of children (3-12). Mandatory if children > 0.' })
+    @IsOptional()
+    @Type(() => Number)
+    childAges?: number[];
+
     @ApiProperty({ example: 1, required: false })
     @IsOptional()
     @IsNumber()

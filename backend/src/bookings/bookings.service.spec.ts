@@ -11,6 +11,9 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 import { PdfService } from '../pdf/pdf.service';
 import { MailService } from '../mail/mail.service';
 import { BadRequestException } from '@nestjs/common';
+import { InvoiceNumberService } from './invoice-number.service';
+import { ChannelsService } from '../channels/channels.service';
+import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
 
 describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', () => {
     let service: BookingsService;
@@ -25,6 +28,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
         checkOutDate: '2026-10-02',
         adultsCount: 2,
         childrenCount: 1,
+        childAges: [4],
         infantsCount: 0,
         guestName: 'John Doe',
         guestEmail: 'john@example.com',
@@ -200,6 +204,9 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 { provide: SystemSettingsService, useValue: systemSettingsMock },
                 { provide: PdfService, useValue: {} },
                 { provide: MailService, useValue: {} },
+                { provide: InvoiceNumberService, useValue: { generateNextInvoiceNumber: jest.fn().mockResolvedValue('INV-2026-0001') } },
+                { provide: ChannelsService, useValue: { isChannexIntegrated: jest.fn().mockResolvedValue(false), queueBookingSync: jest.fn().mockResolvedValue({}), pushAvailabilityForDates: jest.fn().mockResolvedValue({}) } },
+                { provide: ConnectivityOutboxService, useValue: { enqueueEvent: jest.fn().mockResolvedValue({}), emitAvailabilityChange: jest.fn().mockResolvedValue({}) } },
             ],
         }).compile();
 
@@ -234,7 +241,8 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 true,
                 undefined,
                 undefined,
-                0
+                0,
+                [4]
             );
         });
 
@@ -244,6 +252,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 2,
                 childrenCount: 1,
+                childAges: [4],
                 infantsCount: 1,
             };
 
@@ -260,6 +269,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 4, // maxPhysicalAdults = 3
                 childrenCount: 0,
+                childAges: [],
             };
 
             await expect(service.create(overAdultsDto as any, null)).rejects.toThrow(BadRequestException);
@@ -272,6 +282,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 2,
                 childrenCount: 3, // maxPhysicalChildren = 2
+                childAges: [4, 5, 6],
             };
 
             await expect(service.create(overChildrenDto as any, null)).rejects.toThrow(BadRequestException);
@@ -284,6 +295,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 3, // 3 <= maxPhysA(3)
                 childrenCount: 2, // 2 <= maxPhysC(2)
+                childAges: [4, 5],
                 // A + C = 5 > totalMaxOccupancy(4)
             };
 
@@ -298,6 +310,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 2,
                 childrenCount: 1,
+                childAges: [4],
                 infantsCount: 1,
             };
             const booking = await service.create(validInfantsDto as any, null);
@@ -309,6 +322,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 2,
                 childrenCount: 1,
+                childAges: [4],
                 infantsCount: 2,
             };
             await expect(service.create(invalidInfantsDto as any, null)).rejects.toThrow(BadRequestException);
@@ -321,6 +335,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 2,
                 childrenCount: 2,
+                childAges: [4, 8],
                 infantsCount: 1,
             };
 
@@ -343,7 +358,8 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 true,
                 undefined,
                 undefined,
-                1 // infantsCount forwarded
+                1, // infantsCount forwarded
+                [4, 8]
             );
         });
 
@@ -374,7 +390,8 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 true,
                 undefined,
                 undefined,
-                0
+                0,
+                [4]
             );
         });
 
@@ -401,6 +418,7 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 roomTypeId: 'rt-v2-1',
                 adultsCount: 2,
                 childrenCount: 2,
+                childAges: [4, 8],
                 infantsCount: 0,
             };
 
@@ -423,7 +441,8 @@ describe('BookingsService - Phase 5 Canonical Occupancy & Booking Integration', 
                 true,
                 undefined,
                 undefined,
-                0
+                0,
+                [4, 8]
             );
             expect(prismaMock.booking.create).toHaveBeenCalled();
             const createCall = prismaMock.booking.create.mock.calls[0][0];

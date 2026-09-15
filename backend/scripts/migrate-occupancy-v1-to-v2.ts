@@ -226,11 +226,12 @@ async function runOccupancyMigration() {
                         stats.migratedRoomTypes++;
                     }
 
-                    // Update Property group capacity
+                    // Update Property group capacity & occupancyVersion
                     const groupCapSql = propertyTotalGroupCapacity > 0 ? propertyTotalGroupCapacity : 'NULL';
                     await prisma.$executeRawUnsafe(`
                         UPDATE properties
                         SET 
+                            "occupancyVersion" = 'V2',
                             "maxGroupCapacity" = ${groupCapSql},
                             "updatedAt" = NOW()
                         WHERE id = '${property.id.replace(/'/g, "''")}'

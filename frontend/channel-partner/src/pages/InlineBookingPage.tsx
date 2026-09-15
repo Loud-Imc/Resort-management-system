@@ -5,10 +5,11 @@ import {
     FileText, Download, Eye, Mail, MessageSquare, X,
     Maximize, Bath, Wifi, Utensils, Clock,
     ShieldCheck, Building2, Tv, Coffee, Waves, Snowflake,
-    ChevronLeft, MapPin, Plus
+    ChevronLeft, MapPin, Plus, AlertCircle
 } from 'lucide-react';
 import api from '../services/api';
 import { formatPrice } from '../utils/currency';
+import { canRoomTypeFitParty } from '../utils/occupancy';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import BookingResultsGrid from '../components/booking/BookingResultsGrid';
 import RoomSelectionCard from '../components/booking/RoomSelectionCard';
@@ -45,6 +46,11 @@ export interface RoomType {
     originalPrice?: number;
     maxAdults: number;
     maxChildren: number;
+    maxPhysicalAdults?: number | null;
+    maxPhysicalChildren?: number | null;
+    maxPhysicalInfants?: number | null;
+    totalMaxOccupancy?: number | null;
+    capacity?: number;
     images?: (string | { url: string })[];
     amenities?: string[];
     availableCount?: number;
@@ -55,6 +61,43 @@ export interface RoomType {
     marketingBadgeText?: string;
     marketingBadgeType?: 'POSITIVE' | 'WARNING' | 'NEGATIVE' | 'URGENT';
     isGroupPackage?: boolean;
+}
+
+export interface AccommodationSolutionRoom {
+    roomTypeId: string;
+    roomTypeName: string;
+    adults: number;
+    children: number;
+    childAges?: number[];
+    infants?: number;
+    extraAdults?: number;
+    extraChildren?: number;
+}
+
+export interface AccommodationSolution {
+    id: string;
+    propertyId: string;
+    propertyName?: string;
+    totalRooms: number;
+    rooms: AccommodationSolutionRoom[];
+    isRecommended?: boolean;
+    pricing: {
+        totalPrice: number;
+        pricePerNight: number;
+        baseAmount?: number;
+        extraAdultAmount?: number;
+        extraChildAmount?: number;
+        taxAmount?: number;
+        taxes?: number;
+        discountAmount?: number;
+        referralDiscountAmount?: number;
+        offerDiscountAmount?: number;
+        isGstInclusive?: boolean;
+        taxRate?: number;
+        breakdown?: any;
+        [key: string]: any;
+    };
+    [key: string]: any;
 }
 
 interface CPStats {
@@ -87,7 +130,7 @@ type Step = 1 | 2 | 3;
 const InlineBookingPage: React.FC = () => {
     const [step, setStep] = useState<Step>(1);
 
-    // Step 1
+    // Step 1 Search State
     const [searchQuery, setSearchQuery] = useState('');
     const [properties, setProperties] = useState<Property[]>([]);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -95,9 +138,33 @@ const InlineBookingPage: React.FC = () => {
     const [checkOut, setCheckOut] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
     const [adults, setAdults] = useState(2);
     const [children, setChildren] = useState(0);
+    const [childAges, setChildAges] = useState<number[]>([]);
+    const [infants, setInfants] = useState(0);
     const [rooms, setRooms] = useState(1);
     const [isGroupBooking, setIsGroupBooking] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+
+    // Handle dynamic child count and child ages synchronization (invariant: childAges.length === children)
+    const handleChildrenChange = (newCount: number) => {
+        const count = Math.max(0, newCount);
+        setChildren(count);
+        setChildAges(prev => {
+            if (count === 0) return [];
+            if (count > prev.length) {
+                const added = Array(count - prev.length).fill(5); // Default age 5 for new children
+                return [...prev, ...added];
+            }
+            return prev.slice(0, count);
+        });
+    };
+
+    const handleSetChildAge = (index: number, age: number) => {
+        setChildAges(prev => {
+            const next = [...prev];
+            next[index] = age;
+            return next;
+        });
+    };
 
     // Temp search states for inline editing on Step 2 and Step 3
     const [isEditingSearch, setIsEditingSearch] = useState(false);
@@ -105,8 +172,31 @@ const InlineBookingPage: React.FC = () => {
     const [tempCheckOut, setTempCheckOut] = useState(checkOut);
     const [tempAdults, setTempAdults] = useState(adults);
     const [tempChildren, setTempChildren] = useState(children);
+    const [tempChildAges, setTempChildAges] = useState<number[]>(childAges);
+    const [tempInfants, setTempInfants] = useState(infants);
     const [tempRooms, setTempRooms] = useState(rooms);
     const [tempIsGroupBooking, setTempIsGroupBooking] = useState(isGroupBooking);
+
+    const handleTempChildrenChange = (newCount: number) => {
+        const count = Math.max(0, newCount);
+        setTempChildren(count);
+        setTempChildAges(prev => {
+            if (count === 0) return [];
+            if (count > prev.length) {
+                const added = Array(count - prev.length).fill(5);
+                return [...prev, ...added];
+            }
+            return prev.slice(0, count);
+        });
+    };
+
+    const handleTempSetChildAge = (index: number, age: number) => {
+        setTempChildAges(prev => {
+            const next = [...prev];
+            next[index] = age;
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (isEditingSearch) {
@@ -114,14 +204,18 @@ const InlineBookingPage: React.FC = () => {
             setTempCheckOut(checkOut);
             setTempAdults(adults);
             setTempChildren(children);
+            setTempChildAges(childAges.length === children ? childAges : (children > 0 ? Array(children).fill(5) : []));
+            setTempInfants(infants);
             setTempRooms(rooms);
             setTempIsGroupBooking(isGroupBooking);
         }
-    }, [isEditingSearch, checkIn, checkOut, adults, children, rooms, isGroupBooking]);
+    }, [isEditingSearch, checkIn, checkOut, adults, children, childAges, infants, rooms, isGroupBooking]);
 
     // Step 2 Rooms
     const [availableRoomsMap, setAvailableRoomsMap] = useState<Record<string, RoomType[]>>({});
+    const [availableSolutionsMap, setAvailableSolutionsMap] = useState<Record<string, AccommodationSolution[]>>({});
     const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
+    const [selectedSolution, setSelectedSolution] = useState<AccommodationSolution | null>(null);
     const [viewingRoomDetails, setViewingRoomDetails] = useState<RoomType | null>(null);
     const [guests, setGuests] = useState<{
         firstName: string;
@@ -347,6 +441,8 @@ const InlineBookingPage: React.FC = () => {
         overrideCheckOut?: string,
         overrideAdults?: number,
         overrideChildren?: number,
+        overrideChildAges?: number[],
+        overrideInfants?: number,
         overrideRooms?: number,
         keepSelection = false
     ) => {
@@ -354,6 +450,8 @@ const InlineBookingPage: React.FC = () => {
         const cOut = overrideCheckOut !== undefined ? overrideCheckOut : checkOut;
         const ad = overrideAdults !== undefined ? overrideAdults : adults;
         const ch = overrideChildren !== undefined ? overrideChildren : children;
+        const chAges = overrideChildAges !== undefined ? overrideChildAges : childAges;
+        const inf = overrideInfants !== undefined ? overrideInfants : infants;
         const rm = overrideRooms !== undefined ? overrideRooms : rooms;
 
         if (!cIn || !cOut) {
@@ -363,11 +461,14 @@ const InlineBookingPage: React.FC = () => {
         setError(null);
         setIsSearching(true);
         try {
+            const formattedChildAges = ch > 0 ? (chAges.length === ch ? chAges : Array(ch).fill(5)) : [];
             const res: any = await api.post('/bookings/search', {
                 checkInDate: cIn,
                 checkOutDate: cOut,
                 adults: ad,
                 children: ch,
+                childAges: formattedChildAges,
+                infants: inf,
                 rooms: rm,
                 location: searchQuery.trim() || undefined,
                 isGroupBooking,
@@ -376,6 +477,14 @@ const InlineBookingPage: React.FC = () => {
             });
 
             const all: any[] = res?.availableRoomTypes || [];
+            const solutions: any[] = res?.accommodationSolutions || [];
+
+            const solMap: Record<string, AccommodationSolution[]> = {};
+            solutions.forEach((sol: any) => {
+                if (!solMap[sol.propertyId]) solMap[sol.propertyId] = [];
+                solMap[sol.propertyId].push(sol);
+            });
+            setAvailableSolutionsMap(solMap);
 
             // Group rooms by property
             const pMap: Record<string, RoomType[]> = {};
@@ -416,50 +525,48 @@ const InlineBookingPage: React.FC = () => {
     };
 
 
-    // Price calculations — derived from server-side pricing response
+    // Price calculations — derived from server-side pricing or selected server-priced Accommodation Solution
     const nights = pricing?.numberOfNights || (checkIn && checkOut ? Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24))) : 1);
     const commissionRate = cpStats?.commissionRate ?? 10;
     const discountRate = cpStats?.referralDiscountRate ?? 5;
 
-    // All amounts from backend when available
-    const serverTotal = pricing?.totalAmount || 0;
-    const serverBase = pricing?.baseAmount || 0;
-    const serverTax = pricing?.taxAmount || 0;
-    const serverExtraAdult = pricing?.extraAdultAmount || 0;
-    const serverExtraChild = pricing?.extraChildAmount || 0;
-    const serverReferralDiscount = pricing?.referralDiscountAmount || 0;
-    const serverOfferDiscount = pricing?.offerDiscountAmount || 0;
+    // Financial calculations: When an Accommodation Solution is selected, use its authoritative server pricing directly
+    const serverTotal = selectedSolution
+        ? (selectedSolution.pricing?.totalPrice || 0)
+        : (pricing?.totalAmount || 0);
+
+    const serverBase = selectedSolution
+        ? (selectedSolution.pricing?.baseAmount ?? selectedSolution.pricing?.totalPrice ?? 0)
+        : (pricing?.baseAmount || 0);
+
+    const serverTax = selectedSolution
+        ? (selectedSolution.pricing?.taxAmount ?? selectedSolution.pricing?.taxes ?? 0)
+        : (pricing?.taxAmount || 0);
+
+    const serverExtraAdult = selectedSolution
+        ? (selectedSolution.pricing?.extraAdultAmount || 0)
+        : (pricing?.extraAdultAmount || 0);
+
+    const serverExtraChild = selectedSolution
+        ? (selectedSolution.pricing?.extraChildAmount || 0)
+        : (pricing?.extraChildAmount || 0);
+
+    const serverReferralDiscount = selectedSolution
+        ? (selectedSolution.pricing?.referralDiscountAmount || 0)
+        : (pricing?.referralDiscountAmount || 0);
+
+    const serverOfferDiscount = selectedSolution
+        ? (selectedSolution.pricing?.offerDiscountAmount || 0)
+        : (pricing?.offerDiscountAmount || 0);
+
+    const isPricingGstInclusive = selectedSolution
+        ? Boolean(selectedSolution.pricing?.isGstInclusive)
+        : Boolean(pricing?.isGstInclusive);
+
+    const currentTaxRate = selectedSolution?.pricing?.taxRate ?? pricing?.taxRate ?? 5;
 
     const commission = Math.round(serverTotal * commissionRate / 100);
     const afterDiscount = serverTotal; // Total already includes referral discount from backend
-
-    /*
-    ## Calculation Logic Example
-
-    Based on your requirement, here is exactly how the numbers will be calculated and labeled:
-
-    ### 1. Guest Invoice Example
-    | Description | Calculation | Result |
-    | :--- | :--- | :--- |
-    | Accommodation – Standard Room (1 night) : | Base Price | **₹6,000** |
-    | Government Tax & GST : | + Tax amount | **₹684** |
-    | Guest Discount(5%) : | - 5% Discount | **-₹300** |
-    | **Grand Total** | **(6000 + 684 - 300)** | **₹6,384** |
-
-    ---
-
-    ### 2. Agency Invoice Example
-    | Description | Calculation | Result |
-    | :--- | :--- | :--- |
-    | Accommodation – Standard Room (1 night) : | Base Price | **₹6,000** |
-    | Government Tax & GST : | + Tax amount | **₹684** |
-    | Guest Discount(5%) : | - 5% Discount | **-₹300** |
-    | Instant Agency Commission (10%) : | - 10% of total | **-₹638** |
-    | **Net Payable (After Commission)** | **(6384 - 638)** | **₹5,746** |
-
-    > [!IMPORTANT]
-    > The Guest Invoice stops at **₹6,384**. The Agency Invoice continues to subtract the commission to show the final **₹5,746** settlement amount.
-    */
 
     const afterWallet = afterDiscount - commission;
 
@@ -467,18 +574,20 @@ const InlineBookingPage: React.FC = () => {
     const advanceAmount = Math.round(serverTotal * partialPct / 100);
 
     // For wallet partial, we just pay the advance amount. 
-    // Commission is usually deferred until full payment in partial mode.
+    // Commission is deferred until full payment in partial mode.
     const amountToPay = paymentMethod === 'WALLET'
         ? (paymentOption === 'PARTIAL' ? advanceAmount : afterWallet)
         : (paymentOption === 'PARTIAL' ? advanceAmount : afterDiscount);
 
-    // Fetch server-side pricing when a room is selected
+    // Fetch server-side pricing when a single room is directly selected
     const fetchPricing = async (
         room: any,
         overrideCheckIn?: string,
         overrideCheckOut?: string,
         overrideAdults?: number,
         overrideChildren?: number,
+        overrideChildAges?: number[],
+        overrideInfants?: number,
         overrideRooms?: number,
         overrideIsGroupBooking?: boolean
     ) => {
@@ -486,6 +595,8 @@ const InlineBookingPage: React.FC = () => {
         const cOut = overrideCheckOut !== undefined ? overrideCheckOut : checkOut;
         const ad = overrideAdults !== undefined ? overrideAdults : adults;
         const ch = overrideChildren !== undefined ? overrideChildren : children;
+        const chAges = overrideChildAges !== undefined ? overrideChildAges : childAges;
+        const inf = overrideInfants !== undefined ? overrideInfants : infants;
         const rm = overrideRooms !== undefined ? overrideRooms : rooms;
         const isGb = overrideIsGroupBooking !== undefined ? overrideIsGroupBooking : isGroupBooking;
 
@@ -498,6 +609,8 @@ const InlineBookingPage: React.FC = () => {
                 checkOutDate: cOut,
                 adultsCount: ad,
                 childrenCount: ch,
+                childAges: ch > 0 ? (chAges.length === ch ? chAges : Array(ch).fill(5)) : [],
+                infantsCount: inf,
                 roomsCount: rm,
                 referralCode: cpStats?.referralCode,
                 currency: selectedProperty?.currency || 'INR',
@@ -527,12 +640,18 @@ const InlineBookingPage: React.FC = () => {
         setError(null);
 
         try {
+            const formattedTempChildAges = tempChildren > 0
+                ? (tempChildAges.length === tempChildren ? tempChildAges : Array(tempChildren).fill(5))
+                : [];
+
             // 1. Fetch updated availability
             const res: any = await api.post('/bookings/search', {
                 checkInDate: tempCheckIn,
                 checkOutDate: tempCheckOut,
                 adults: tempAdults,
                 children: tempChildren,
+                childAges: formattedTempChildAges,
+                infants: tempInfants,
                 rooms: tempRooms,
                 location: searchQuery.trim() || undefined,
                 isGroupBooking: tempIsGroupBooking,
@@ -541,6 +660,15 @@ const InlineBookingPage: React.FC = () => {
             });
 
             const all: any[] = res?.availableRoomTypes || [];
+            const solutions: any[] = res?.accommodationSolutions || [];
+
+            const solMap: Record<string, AccommodationSolution[]> = {};
+            solutions.forEach((sol: any) => {
+                if (!solMap[sol.propertyId]) solMap[sol.propertyId] = [];
+                solMap[sol.propertyId].push(sol);
+            });
+            setAvailableSolutionsMap(solMap);
+
             const pMap: Record<string, RoomType[]> = {};
             const props: Property[] = [];
             const propIds = new Set();
@@ -563,33 +691,47 @@ const InlineBookingPage: React.FC = () => {
             setCheckOut(tempCheckOut);
             setAdults(tempAdults);
             setChildren(tempChildren);
+            setChildAges(formattedTempChildAges);
+            setInfants(tempInfants);
             setRooms(tempRooms);
             setIsGroupBooking(tempIsGroupBooking);
 
             // Handle step-specific behavior
-            if (step === 3 && selectedProperty && selectedRoom) {
-                // Check if the selected room is still available in the new search results
-                const availableRoomsForProperty = pMap[selectedProperty.id] || [];
-                const updatedRoom = availableRoomsForProperty.find(r => r.id === selectedRoom.id);
-
-                if (updatedRoom) {
-                    // Still available! Fetch new pricing
-                    setSelectedRoom(updatedRoom);
-                    await fetchPricing(updatedRoom, tempCheckIn, tempCheckOut, tempAdults, tempChildren, tempRooms, tempIsGroupBooking);
-                } else {
-                    // Not available anymore! Go back to selection
-                    setSelectedRoom(null);
-                    const propertyStillAvailable = props.some(p => p.id === selectedProperty.id);
-                    if (propertyStillAvailable) {
-                        setError(`The room "${selectedRoom.name}" is not available for the new criteria. Please select a different room.`);
+            if (step === 3 && selectedProperty) {
+                if (selectedSolution) {
+                    // Check if updated solutions exist for property
+                    const updatedSolutions = solMap[selectedProperty.id] || [];
+                    const matchingSolution = updatedSolutions.find(s => s.id === selectedSolution.id) || updatedSolutions[0];
+                    if (matchingSolution) {
+                        setSelectedSolution(matchingSolution);
                     } else {
-                        setSelectedProperty(null);
-                        setError(`The property "${selectedProperty.name}" is not available for the new criteria.`);
+                        setSelectedSolution(null);
+                        setError(`The previously selected package is no longer available. Please choose an accommodation option.`);
+                        setStep(2);
                     }
-                    setStep(2);
+                } else if (selectedRoom) {
+                    const availableRoomsForProperty = pMap[selectedProperty.id] || [];
+                    const updatedRoom = availableRoomsForProperty.find(r => r.id === selectedRoom.id);
+                    const canFit = updatedRoom ? canRoomTypeFitParty(updatedRoom, { adults: tempAdults, children: tempChildren, infants: tempInfants }) : false;
+
+                    if (updatedRoom && canFit) {
+                        setSelectedRoom(updatedRoom);
+                        await fetchPricing(updatedRoom, tempCheckIn, tempCheckOut, tempAdults, tempChildren, formattedTempChildAges, tempInfants, tempRooms, tempIsGroupBooking);
+                    } else {
+                        setSelectedRoom(null);
+                        const propertyStillAvailable = props.some(p => p.id === selectedProperty.id);
+                        if (!canFit) {
+                            setError(`The room "${selectedRoom.name}" cannot accommodate the updated party of ${tempAdults + tempChildren} guests. Please select an accommodation package.`);
+                        } else if (propertyStillAvailable) {
+                            setError(`The room "${selectedRoom.name}" is not available for the new criteria. Please select a different room.`);
+                        } else {
+                            setSelectedProperty(null);
+                            setError(`The property "${selectedProperty.name}" is not available for the new criteria.`);
+                        }
+                        setStep(2);
+                    }
                 }
             } else if (step === 2) {
-                // If on Step 2
                 if (selectedProperty) {
                     const propertyStillAvailable = props.some(p => p.id === selectedProperty.id);
                     if (!propertyStillAvailable) {
@@ -607,7 +749,15 @@ const InlineBookingPage: React.FC = () => {
         }
     };
 
-    const handleRoomSelect = (room: any) => {
+    const handleRoomSelect = (room: RoomType) => {
+        // Enforce canonical single-room occupancy guard
+        const canFit = canRoomTypeFitParty(room, { adults, children, infants });
+        if (!canFit && !isGroupBooking) {
+            setError(`The requested party (${adults} Adults${children > 0 ? `, ${children} Children` : ''}) exceeds the physical single-room capacity of "${room.name}". Please select one of the complete Accommodation Packages above.`);
+            return;
+        }
+
+        setSelectedSolution(null);
         setSelectedRoom(room);
         fetchPricing(room);
         setStep(3); // Advance directly to Guest Details/Payment
@@ -615,8 +765,8 @@ const InlineBookingPage: React.FC = () => {
 
     // Step 3: Submit booking
     const handleBook = async () => {
-        if (!selectedProperty || !selectedRoom) {
-            setError('Please complete the selection before booking.');
+        if (!selectedProperty || (!selectedRoom && !selectedSolution)) {
+            setError('Please complete the accommodation selection before booking.');
             return;
         }
 
@@ -629,16 +779,43 @@ const InlineBookingPage: React.FC = () => {
 
         try {
             const primaryGuest = guests[0];
+            const primaryRoomTypeId = selectedSolution
+                ? selectedSolution.rooms[0]?.roomTypeId
+                : selectedRoom!.id;
+
+            const roomAllocationsPayload = selectedSolution
+                ? selectedSolution.rooms.map((r: any) => ({
+                    roomTypeId: r.roomTypeId,
+                    adults: r.adults,
+                    children: r.children || 0,
+                    childAges: r.childAges || [],
+                    infants: r.infants || 0,
+                    extraAdults: r.extraAdults || 0,
+                    extraChildren: r.extraChildren || 0,
+                }))
+                : [{
+                    roomTypeId: selectedRoom!.id,
+                    adults: adults,
+                    children: children,
+                    childAges: children > 0 ? childAges : [],
+                    infants: infants,
+                    extraAdults: pricing?.extraAdultsCount || 0,
+                    extraChildren: pricing?.extraChildrenCount || 0,
+                }];
+
             const bookingRes: any = await api.post('/bookings', {
                 propertyId: selectedProperty.id,
-                roomTypeId: selectedRoom.id,
+                roomTypeId: primaryRoomTypeId,
                 checkInDate: checkIn,
                 checkOutDate: checkOut,
                 adultsCount: adults,
                 childrenCount: children,
-                roomsCount: rooms,
+                childAges: children > 0 ? childAges : [],
+                infantsCount: infants,
+                roomsCount: selectedSolution ? selectedSolution.totalRooms : rooms,
                 isGroupBooking,
                 groupSize: isGroupBooking ? (adults + children) : undefined,
+                roomAllocations: roomAllocationsPayload,
                 guests: guests.map(g => ({
                     firstName: g.firstName,
                     lastName: g.lastName || undefined,
@@ -875,7 +1052,11 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }}>
                                     <Users size={16} color="var(--primary-teal)" />
-                                    <span>{adults} Adults, {children} Children</span>
+                                    <span>
+                                        {adults} Adults, {children} Children
+                                        {childAges.length > 0 && ` (${childAges.join(', ')} yrs)`}
+                                        {infants > 0 && `, ${infants} Infant${infants > 1 ? 's' : ''}`}
+                                    </span>
                                 </div>
                                 {!isGroupBooking && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }}>
@@ -959,17 +1140,27 @@ const InlineBookingPage: React.FC = () => {
                                         type="number"
                                         min={1}
                                         value={tempAdults}
-                                        onChange={(e) => setTempAdults(Number(e.target.value))}
+                                        onChange={(e) => setTempAdults(Math.max(1, Number(e.target.value) || 1))}
                                         style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 700 }}
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>Children</label>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>Children (3-12)</label>
                                     <input
                                         type="number"
                                         min={0}
                                         value={tempChildren}
-                                        onChange={(e) => setTempChildren(Number(e.target.value))}
+                                        onChange={(e) => handleTempChildrenChange(Math.max(0, Number(e.target.value) || 0))}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 700 }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>Infants (0-2)</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={tempInfants}
+                                        onChange={(e) => setTempInfants(Math.max(0, Number(e.target.value) || 0))}
                                         style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.02)', outline: 'none', fontSize: '0.85rem', fontWeight: 700 }}
                                     />
                                 </div>
@@ -1021,6 +1212,32 @@ const InlineBookingPage: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Dynamic Child Age Selectors in Edit Modal */}
+                            {tempChildren > 0 && (
+                                <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: 'var(--radius-sm)', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.5rem' }}>
+                                        Child Ages (at check-in)
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        {tempChildAges.map((age, idx) => (
+                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Child {idx + 1}:</span>
+                                                <select
+                                                    value={age}
+                                                    onChange={(e) => handleTempSetChildAge(idx, Number(e.target.value))}
+                                                    style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}
+                                                >
+                                                    {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((a) => (
+                                                        <option key={a} value={a}>{a} yrs</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                                 <button
                                     onClick={() => setIsEditingSearch(false)}
@@ -1123,7 +1340,7 @@ const InlineBookingPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: !isGroupBooking ? '1fr 1fr 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: !isGroupBooking ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
                                     <Users size={14} /> Adults (13+)
@@ -1132,17 +1349,27 @@ const InlineBookingPage: React.FC = () => {
                                     type="number"
                                     min={1}
                                     value={adults}
-                                    onChange={(e) => setAdults(Number(e.target.value))}
+                                    onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box', fontWeight: 700 }}
                                 />
                             </div>
                             <div>
-                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Children (6-12)</label>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Children (3-12)</label>
                                 <input
                                     type="number"
                                     min={0}
                                     value={children}
-                                    onChange={(e) => setChildren(Number(e.target.value))}
+                                    onChange={(e) => handleChildrenChange(Math.max(0, Number(e.target.value) || 0))}
+                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box', fontWeight: 700 }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Infants (0-2)</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={infants}
+                                    onChange={(e) => setInfants(Math.max(0, Number(e.target.value) || 0))}
                                     style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border-glass)', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.5)', outline: 'none', boxSizing: 'border-box', fontWeight: 700 }}
                                 />
                             </div>
@@ -1161,6 +1388,31 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                             )}
                         </div>
+
+                        {/* Dynamic Child Age Selectors in Step 1 */}
+                        {children > 0 && (
+                            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.4)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)', marginBottom: '1.5rem' }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                                    Child Ages (3–12 years)
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                                    {childAges.map((age, idx) => (
+                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)' }}>Child {idx + 1}:</span>
+                                            <select
+                                                value={age}
+                                                onChange={(e) => handleSetChildAge(idx, Number(e.target.value))}
+                                                style={{ padding: '0.4rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)', background: '#fff', fontSize: '0.85rem', fontWeight: 600 }}
+                                            >
+                                                {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((a) => (
+                                                    <option key={a} value={a}>{a} yrs</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.4)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1229,6 +1481,7 @@ const InlineBookingPage: React.FC = () => {
 
                             <BookingResultsGrid
                                 properties={properties}
+                                solutionsMap={availableSolutionsMap}
                                 isGroupBooking={isGroupBooking}
                                 onSelect={(prop) => {
                                     setSelectedProperty(prop);
@@ -1261,6 +1514,100 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    {/* B2B Accommodation Solutions Section */}
+                                    {!isGroupBooking && availableSolutionsMap[selectedProperty.id] && availableSolutionsMap[selectedProperty.id].length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+                                            <div style={{ padding: '0.5rem 0' }}>
+                                                <h5 style={{ fontWeight: 800, fontSize: '1rem', color: '#111827', margin: 0 }}>
+                                                    ✨ Recommended Accommodation Packages (B2B Solutions)
+                                                </h5>
+                                                <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0.25rem 0 0 0' }}>
+                                                    Guaranteed complete room packages fitting {adults} Adults{children > 0 ? `, ${children} Children` : ''}
+                                                </p>
+                                            </div>
+                                            {availableSolutionsMap[selectedProperty.id].map((sol: any) => {
+                                                const headline = Array.from(
+                                                    sol.rooms.reduce((acc: Map<string, { name: string; count: number }>, r: any) => {
+                                                        if (!acc.has(r.roomTypeId)) acc.set(r.roomTypeId, { name: r.roomTypeName, count: 0 });
+                                                        acc.get(r.roomTypeId)!.count += 1;
+                                                        return acc;
+                                                    }, new Map()).values()
+                                                ).map((item: any) => `${item.count}× ${item.name}`).join(' + ');
+
+                                                const defaultCommPct = cpStats?.commissionRate || 15;
+                                                const grossPrice = sol.pricing.totalPrice;
+                                                const estCommission = Math.round((grossPrice * defaultCommPct) / 100);
+
+                                                return (
+                                                    <div
+                                                        key={sol.id}
+                                                        style={{
+                                                            background: sol.isRecommended ? '#f0fdf4' : '#ffffff',
+                                                            border: sol.isRecommended ? '2px solid #10b981' : '1px solid #e5e7eb',
+                                                            borderRadius: '1.25rem',
+                                                            padding: '1.25rem',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '0.75rem',
+                                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                            <div>
+                                                                {sol.isRecommended && (
+                                                                    <span style={{ display: 'inline-block', background: '#10b981', color: '#fff', fontSize: '0.7rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '999px', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                                                                        ⭐ Best Value Solution
+                                                                    </span>
+                                                                )}
+                                                                <h4 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#111827' }}>
+                                                                    {headline} ({sol.totalRooms} {sol.totalRooms === 1 ? 'Room' : 'Rooms'})
+                                                                </h4>
+                                                                <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '0.25rem' }}>
+                                                                    {sol.rooms.map((r: any, idx: number) => (
+                                                                        <span key={idx} style={{ marginRight: '0.75rem', display: 'inline-block' }}>
+                                                                            Room {idx + 1}: <strong>{r.adults}A{r.children > 0 ? ` + ${r.children}C` : ''}</strong>
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ textAlign: 'right' }}>
+                                                                <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#111827' }}>
+                                                                    ₹{sol.pricing.pricePerNight.toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#6b7280' }}>/night</span>
+                                                                </div>
+                                                                <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700 }}>
+                                                                    Est. Partner Commission: ₹{estCommission.toLocaleString()}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedSolution(sol);
+                                                                    const rt = availableRoomsMap[selectedProperty.id]?.find(r => r.id === sol.rooms[0]?.roomTypeId)
+                                                                        || { id: sol.rooms[0]?.roomTypeId, name: sol.rooms[0]?.roomTypeName, basePrice: sol.pricing.pricePerNight };
+                                                                    setSelectedRoom(rt as any);
+                                                                    setStep(3);
+                                                                }}
+                                                                style={{
+                                                                    background: '#0d9488',
+                                                                    color: '#fff',
+                                                                    fontWeight: 700,
+                                                                    padding: '0.6rem 1.25rem',
+                                                                    borderRadius: '0.75rem',
+                                                                    fontSize: '0.85rem',
+                                                                    border: 'none',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                Select This Package →
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
                                     {viewingRoomDetails ? (
                                         <RoomDetailView
                                             room={viewingRoomDetails}
@@ -1271,25 +1618,30 @@ const InlineBookingPage: React.FC = () => {
                                             onSelect={handleRoomSelect}
                                             isGroupBooking={isGroupBooking}
                                             groupSize={adults + children}
+                                            party={{ adults, children, infants }}
                                         />
                                     ) : (
-                                        (availableRoomsMap[selectedProperty.id] || []).map((rt) => (
-                                            <RoomSelectionCard
-                                                key={rt.id}
-                                                room={rt as any}
-                                                onSelect={handleRoomSelect}
-                                                onShowDetails={(r) => {
-                                                    setViewingRoomDetails(r);
-                                                    fetchPricing(r); // Pre-fetch pricing while viewing details
-                                                }}
-                                                isSelected={selectedRoom?.id === rt.id}
-                                                nights={nights}
-                                                guests={adults + children}
-                                                isGroupBooking={isGroupBooking}
-                                                currency={selectedProperty.currency}
-                                                roomsCount={rooms}
-                                            />
-                                        ))
+                                        (availableRoomsMap[selectedProperty.id] || []).map((rt) => {
+                                            const canFit = canRoomTypeFitParty(rt as any, { adults, children, infants });
+                                            return (
+                                                <RoomSelectionCard
+                                                    key={rt.id}
+                                                    room={rt as any}
+                                                    onSelect={handleRoomSelect}
+                                                    onShowDetails={(r) => {
+                                                        setViewingRoomDetails(r);
+                                                        fetchPricing(r); // Pre-fetch pricing while viewing details
+                                                    }}
+                                                    isSelected={selectedRoom?.id === rt.id}
+                                                    nights={nights}
+                                                    guests={adults + children}
+                                                    isGroupBooking={isGroupBooking}
+                                                    currency={selectedProperty.currency}
+                                                    roomsCount={rooms}
+                                                    canFit={canFit}
+                                                />
+                                            );
+                                        })
                                     )}
                                 </div>
                             </div>
@@ -1837,19 +2189,38 @@ const InlineBookingPage: React.FC = () => {
                         <div className="glass-pane" style={{ padding: '1.75rem' }}>
                             <h4 style={{ marginBottom: '1.25rem', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--text-dim)', borderBottom: '1px solid var(--border-glass)', paddingBottom: '0.75rem' }}>Investment Summary</h4>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.95rem' }}>
-                                <div style={{ marginBottom: '0.5rem' }}>
-                                    <p style={{ fontWeight: 900, color: 'var(--text-main)', fontSize: '1.1rem' }}>{selectedProperty?.name}</p>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>{selectedRoom?.name}</p>
-                                    <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-teal)', marginTop: '0.2rem' }}>
-                                        {!isGroupBooking && `${rooms} Room${rooms > 1 ? 's' : ''} • `}{adults + children} Guest{adults + children > 1 ? 's' : ''}
-                                    </p>
-                                </div>
+                                {selectedSolution ? (
+                                    <div style={{ marginBottom: '0.5rem' }}>
+                                        <p style={{ fontWeight: 900, color: 'var(--text-main)', fontSize: '1.1rem' }}>{selectedProperty?.name}</p>
+                                        <p style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-teal)', marginTop: '0.2rem' }}>
+                                            {selectedSolution.totalRooms} Room{selectedSolution.totalRooms > 1 ? 's' : ''} Package
+                                        </p>
+                                        <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            {selectedSolution.rooms.map((r, idx) => (
+                                                <div key={idx} style={{ background: 'rgba(0,0,0,0.03)', padding: '0.3rem 0.5rem', borderRadius: '4px' }}>
+                                                    Room {idx + 1}: <strong>{r.roomTypeName}</strong> ({r.adults}A{r.children > 0 ? ` + ${r.children}C` : ''})
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.4rem' }}>
+                                            {adults} Adults, {children} Children{infants > 0 ? `, ${infants} Infant${infants > 1 ? 's' : ''}` : ''}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div style={{ marginBottom: '0.5rem' }}>
+                                        <p style={{ fontWeight: 900, color: 'var(--text-main)', fontSize: '1.1rem' }}>{selectedProperty?.name}</p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>{selectedRoom?.name}</p>
+                                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-teal)', marginTop: '0.2rem' }}>
+                                            {!isGroupBooking && `${rooms} Room${rooms > 1 ? 's' : ''} • `}{adults + children} Guest{adults + children > 1 ? 's' : ''}
+                                        </p>
+                                    </div>
+                                )}
 
                                 {(() => {
-                                    const isInclusive = pricing?.isGstInclusive;
-                                    const taxFactor = 1 + ((pricing?.taxRate || 5) / 100);
+                                    const isInclusive = isPricingGstInclusive;
+                                    const taxFactor = 1 + (currentTaxRate / 100);
                                     const roomChargesDisplay = isInclusive
-                                        ? (pricing?.originalTotal || (serverBase + serverTax))
+                                        ? (selectedSolution?.pricing?.totalPrice || pricing?.originalTotal || (serverBase + serverTax))
                                         : serverBase;
                                     const offerDiscountDisplay = isInclusive && serverOfferDiscount > 0
                                         ? Number((serverOfferDiscount * taxFactor).toFixed(2))
@@ -1888,7 +2259,7 @@ const InlineBookingPage: React.FC = () => {
 
                                             {!isInclusive && (
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
-                                                    <span>Government Tax & GST ({pricing?.taxRate || 5}%)</span>
+                                                    <span>Government Tax & GST ({currentTaxRate}%)</span>
                                                     <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>+{formatPrice(serverTax, selectedProperty?.currency || 'INR')}</span>
                                                 </div>
                                             )}
@@ -1906,7 +2277,7 @@ const InlineBookingPage: React.FC = () => {
                                                     <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-teal)', display: 'block' }}>{paymentOption === 'PARTIAL' ? 'Advance Deposit' : 'Net Investment'}</span>
                                                     {isInclusive && serverTax > 0 && (
                                                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#10b981', display: 'block', marginTop: '0.15rem' }}>
-                                                            Includes {formatPrice(serverTax, selectedProperty?.currency || 'INR')} GST ({pricing?.taxRate || 5}%)
+                                                             Includes {formatPrice(serverTax, selectedProperty?.currency || 'INR')} GST ({currentTaxRate}%)
                                                         </span>
                                                     )}
                                                 </div>
@@ -1972,8 +2343,10 @@ const InlineBookingPage: React.FC = () => {
                         {/* Booking Details Grid */}
                         <div className="confirm-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', background: '#fff', padding: '2rem', borderRadius: '1.5rem', border: '1px solid var(--border-glass)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Room Type</p>
-                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{selectedRoom?.name || 'Standard Room'}</p>
+                                <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Accommodations</p>
+                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>
+                                    {selectedSolution ? `${selectedSolution.totalRooms} Rooms (${selectedSolution.rooms.map((r: any) => r.roomTypeName).join(' + ')})` : (selectedRoom?.name || 'Standard Room')}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Check-In</p>
@@ -1985,7 +2358,10 @@ const InlineBookingPage: React.FC = () => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <p style={{ fontSize: '0.7rem', fontWeight: 900, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Guests</p>
-                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{adults} Adults, {children} Child</p>
+                                <p style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>
+                                    {adults} Adults, {children} Child{children !== 1 ? 'ren' : ''}
+                                    {infants > 0 ? `, ${infants} Infant${infants > 1 ? 's' : ''}` : ''}
+                                </p>
                             </div>
 
                             {/* Full width bottom row for financial summary */}
@@ -2096,6 +2472,7 @@ const InlineBookingPage: React.FC = () => {
                                 setBooking(null);
                                 setSelectedProperty(null);
                                 setSelectedRoom(null);
+                                setSelectedSolution(null);
                                 setGuests([]);
                                 setCheckIn('');
                                 setCheckOut('');
@@ -2180,9 +2557,12 @@ const RoomDetailView: React.FC<{
     onSelect: (room: RoomType) => void;
     isGroupBooking?: boolean;
     groupSize?: number;
-}> = ({ room, property, pricing, isPricingLoading, onBack, onSelect, isGroupBooking, groupSize }) => {
+    party?: { adults: number; children: number; infants: number };
+}> = ({ room, property, pricing, isPricingLoading, onBack, onSelect, isGroupBooking, groupSize, party }) => {
     const [activeImage, setActiveImage] = useState(0);
     const images = room.images || [];
+
+    const canFit = !party || canRoomTypeFitParty(room, party);
 
     const getImageUrl = (image: string | { url: string } | undefined): string => {
         if (!image) return '';
@@ -2223,7 +2603,7 @@ const RoomDetailView: React.FC<{
                         transition: 'all 0.2s'
                     }}
                 >
-                    <ArrowLeft size={16} /> Back to Rooms
+                    <ArrowLeft size={16} /> Back to Accommodations
                 </button>
             </div>
             <div className="roomdetail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
@@ -2384,6 +2764,18 @@ const RoomDetailView: React.FC<{
                             </p>
                         </div>
 
+                        {!canFit && party && (
+                            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '1rem', borderRadius: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+                                <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                                <div>
+                                    <p style={{ fontSize: '0.85rem', fontWeight: 900, color: '#991b1b' }}>Cannot Fit Full Party</p>
+                                    <p style={{ fontSize: '0.75rem', color: '#b91c1c', marginTop: '0.15rem', lineHeight: 1.4 }}>
+                                        Party of {party.adults}A{party.children > 0 ? ` + ${party.children}C` : ''}{party.infants > 0 ? ` + ${party.infants}Infant` : ''} exceeds this room's single occupancy. Please select a recommended multi-room package.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)', padding: '1rem', borderRadius: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '0.75rem' }}>
                             <Star size={20} color="#f59e0b" fill="#f59e0b" style={{ flexShrink: 0 }} />
                             <div>
@@ -2394,10 +2786,32 @@ const RoomDetailView: React.FC<{
 
                         <button
                             onClick={() => onSelect(room)}
-                            disabled={isPricingLoading}
-                            style={{ width: '100%', padding: '1.25rem', background: 'var(--primary-teal)', color: '#fff', fontWeight: 900, borderRadius: '1.25rem', boxShadow: '0 10px 20px rgba(8,71,78,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer' }}
+                            disabled={isPricingLoading || !canFit}
+                            style={{
+                                width: '100%',
+                                padding: '1.25rem',
+                                background: !canFit ? '#94a3b8' : 'var(--primary-teal)',
+                                color: '#fff',
+                                fontWeight: 900,
+                                borderRadius: '1.25rem',
+                                boxShadow: !canFit ? 'none' : '0 10px 20px rgba(8,71,78,0.2)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                cursor: !canFit ? 'not-allowed' : 'pointer',
+                                opacity: !canFit ? 0.7 : 1
+                            }}
                         >
-                            {isPricingLoading ? <Loader2 size={18} className="animate-spin" /> : 'COMPLETE BOOKING'}
+                            {isPricingLoading ? (
+                                <Loader2 size={18} className="animate-spin" />
+                            ) : !canFit ? (
+                                'EXCEEDS CAPACITY (USE PACKAGES)'
+                            ) : (
+                                'COMPLETE BOOKING'
+                            )}
                         </button>
                     </div>
 

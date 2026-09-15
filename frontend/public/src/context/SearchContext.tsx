@@ -14,7 +14,10 @@ interface SearchContextType {
     adults: number;
     setAdults: (v: number) => void;
     children: number;
-    setChildren: (v: number) => void;
+    setChildren: (v: number | ((prev: number) => number)) => void;
+    childAges: number[];
+    setChildAges: (ages: number[]) => void;
+    setChildAge: (index: number, age: number) => void;
     infants: number;
     setInfants: (v: number) => void;
     rooms: number;
@@ -50,7 +53,8 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     }, []);
     const [adults, setAdults] = useState(2);
-    const [childrenCount, setChildrenCount] = useState(0);
+    const [childrenCount, setChildrenCountState] = useState(0);
+    const [childAges, setChildAgesState] = useState<number[]>([]);
     const [infantsCount, setInfantsCount] = useState(0);
     const [rooms, setRooms] = useState(1);
     const [isGroupBooking, setIsGroupBooking] = useState(false);
@@ -59,13 +63,49 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [longitude, setLongitude] = useState<number | null>(null);
     const [radius, setRadius] = useState<number | null>(null);
 
+    const setChildren = useCallback((action: number | ((prev: number) => number)) => {
+        setChildrenCountState(prevCount => {
+            const nextCount = typeof action === 'function' ? Math.max(0, action(prevCount)) : Math.max(0, action);
+            setChildAgesState(prevAges => {
+                if (nextCount === 0) return [];
+                if (nextCount > prevAges.length) {
+                    const added = Array(nextCount - prevAges.length).fill(5); // Default age: 5
+                    return [...prevAges, ...added];
+                }
+                if (nextCount < prevAges.length) {
+                    return prevAges.slice(0, nextCount);
+                }
+                return prevAges;
+            });
+            return nextCount;
+        });
+    }, []);
+
+    const setChildAges = useCallback((ages: number[]) => {
+        const validAges = ages.map(a => Math.max(3, Math.min(12, a)));
+        setChildAgesState(validAges);
+        setChildrenCountState(validAges.length);
+    }, []);
+
+    const setChildAge = useCallback((index: number, age: number) => {
+        const clampedAge = Math.max(3, Math.min(12, age));
+        setChildAgesState(prev => {
+            const next = [...prev];
+            if (index >= 0 && index < next.length) {
+                next[index] = clampedAge;
+            }
+            return next;
+        });
+    }, []);
+
     const syncFromUrl = useCallback(() => {
         const loc = searchParams.get('location');
-        const cat = searchParams.get('category');
-        const cin = searchParams.get('checkIn');
-        const cout = searchParams.get('checkOut');
+        const cat = searchParams.get('categoryId') || searchParams.get('category');
+        const cin = searchParams.get('checkIn') || searchParams.get('checkInDate');
+        const cout = searchParams.get('checkOut') || searchParams.get('checkOutDate');
         const adl = searchParams.get('adults');
         const chi = searchParams.get('children');
+        const cAgesStr = searchParams.get('childAges');
         const inf = searchParams.get('infants');
         const rms = searchParams.get('rooms');
         const isGrp = searchParams.get('isGroupBooking') === 'true';
@@ -85,7 +125,26 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             if (!isNaN(date.getTime())) setCheckOut(date);
         }
         if (adl) setAdults(parseInt(adl) || 2);
-        if (chi) setChildrenCount(parseInt(chi) || 0);
+
+        const parsedChildCount = chi ? parseInt(chi) || 0 : 0;
+        let parsedAges: number[] = [];
+        if (cAgesStr) {
+            parsedAges = cAgesStr.split(',')
+                .map(a => parseInt(a.trim()))
+                .filter(a => !isNaN(a) && a >= 3 && a <= 12);
+        }
+
+        if (parsedAges.length > 0) {
+            setChildAgesState(parsedAges);
+            setChildrenCountState(parsedAges.length);
+        } else if (parsedChildCount > 0) {
+            setChildAgesState(Array(parsedChildCount).fill(5));
+            setChildrenCountState(parsedChildCount);
+        } else {
+            setChildAgesState([]);
+            setChildrenCountState(0);
+        }
+
         if (inf) setInfantsCount(parseInt(inf) || 0);
         if (rms) setRooms(parseInt(rms) || 1);
         setIsGroupBooking(isGrp);
@@ -101,7 +160,8 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCheckIn(null);
         setCheckOut(null);
         setAdults(2);
-        setChildrenCount(0);
+        setChildrenCountState(0);
+        setChildAgesState([]);
         setInfantsCount(0);
         setRooms(1);
         setIsGroupBooking(false);
@@ -124,7 +184,10 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         checkOut, setCheckOut,
         adults, setAdults,
         children: childrenCount,
-        setChildren: setChildrenCount,
+        setChildren,
+        childAges,
+        setChildAges,
+        setChildAge,
         infants: infantsCount,
         setInfants: setInfantsCount,
         rooms, setRooms,
