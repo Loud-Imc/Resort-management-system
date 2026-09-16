@@ -204,7 +204,7 @@ export default function SearchInline({
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
-                                                    {isGroupBooking ? 'Adults' : 'Adults'}
+                                                    {isGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
                                                 </p>
                                                 <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 13+</p>
                                             </div>
@@ -249,7 +249,7 @@ export default function SearchInline({
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
-                                                    {isGroupBooking ? 'Children' : 'Children'}
+                                                    {isGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
                                                 </p>
                                                 <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 3–12</p>
                                             </div>
@@ -287,10 +287,10 @@ export default function SearchInline({
                                     </div>
 
                                     {/* Child Age Selectors */}
-                                    {children > 0 && (
+                                    {children > 0 && !isGroupBooking && (
                                         <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/70 space-y-2">
                                             <p className="text-[9px] font-black text-amber-900 uppercase tracking-wider">
-                                                Select Age for Each Child
+                                                Select Age for Each Child (3–12 yrs)
                                             </p>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {Array.from({ length: children }).map((_, idx) => (
@@ -323,7 +323,7 @@ export default function SearchInline({
                                                     <Users className="h-4.5 w-4.5" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Infants</p>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Infants (0–2 yrs)</p>
                                                     <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 0–2 (cot/free)</p>
                                                 </div>
                                             </div>

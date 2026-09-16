@@ -908,21 +908,21 @@ export default function Checkout() {
                                     {effectivePricing?.offerDiscountAmount > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-medium">
                                             <span>Offer Discount</span>
-                                            <span>-{formatPrice(effectivePricing?.grossOfferDiscountAmount ?? (effectivePricing?.isGstInclusive ? Math.round(effectivePricing.offerDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)) : Math.round(effectivePricing.offerDiscountAmount)), selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.grossOfferDiscountAmount ?? (effectivePricing?.isGstInclusive ? Math.round(effectivePricing.offerDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)) : Math.round(effectivePricing.offerDiscountAmount)), selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
                                     {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'COUPON' && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Coupon Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.couponDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)).toFixed(2)) : effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.couponDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
                                     {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'REFERRAL' && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Referral Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.referralDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)).toFixed(2)) : effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.referralDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 

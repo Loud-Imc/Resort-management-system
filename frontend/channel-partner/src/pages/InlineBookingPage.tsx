@@ -563,7 +563,7 @@ const InlineBookingPage: React.FC = () => {
         ? Boolean(selectedSolution.pricing?.isGstInclusive)
         : Boolean(pricing?.isGstInclusive);
 
-    const currentTaxRate = selectedSolution?.pricing?.taxRate ?? pricing?.taxRate ?? 5;
+    const currentTaxRate = selectedSolution?.pricing?.taxRate ?? pricing?.taxRate ?? 0;
 
     const commission = Math.round(serverTotal * commissionRate / 100);
     const afterDiscount = serverTotal; // Total already includes referral discount from backend
@@ -1134,7 +1134,7 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)' }}>
-                                        <Users size={12} /> Adults
+                                        <Users size={12} /> {tempIsGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
                                     </label>
                                     <input
                                         type="number"
@@ -1145,7 +1145,9 @@ const InlineBookingPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>Children (3-12)</label>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>
+                                        {tempIsGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
+                                    </label>
                                     <input
                                         type="number"
                                         min={0}
@@ -1155,7 +1157,7 @@ const InlineBookingPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>Infants (0-2)</label>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>Infants (0–2 yrs)</label>
                                     <input
                                         type="number"
                                         min={0}
@@ -1343,7 +1345,7 @@ const InlineBookingPage: React.FC = () => {
                         <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: !isGroupBooking ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
-                                    <Users size={14} /> Adults (13+)
+                                    <Users size={14} /> {isGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
                                 </label>
                                 <input
                                     type="number"
@@ -1354,7 +1356,9 @@ const InlineBookingPage: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Children (3-12)</label>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>
+                                    {isGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
+                                </label>
                                 <input
                                     type="number"
                                     min={0}
@@ -1364,7 +1368,7 @@ const InlineBookingPage: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Infants (0-2)</label>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>Infants (0–2 yrs)</label>
                                 <input
                                     type="number"
                                     min={0}

@@ -88,7 +88,6 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 
 @Injectable()
 export class PricingService {
-    private readonly DEFAULT_TAX_RATE = 0.12; // 12% default
     // MAX_DISCOUNT_PCT is now stored in GlobalSettings (key: 'MAX_DISCOUNT_PCT').
     // Use SystemSettingsService.getSetting() — no hardcoded value here.
     private readonly FALLBACK_MAX_DISCOUNT_PCT = 0.30; // used only if DB value missing
@@ -734,7 +733,7 @@ export class PricingService {
     /**
      * Calculate tax for a single tariff unit (one room for one night)
      */
-    private calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
+    public calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
         if (!gstTiers || !Array.isArray(gstTiers) || gstTiers.length === 0) {
             throw new BadRequestException('GST tax tiers not configured in system settings');
         }

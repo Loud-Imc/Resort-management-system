@@ -1173,6 +1173,9 @@ export class AvailabilityService {
                     availableCandidates
                 );
 
+                const isPropertyGstApplicable = Boolean(property.isGstApplicable && property.gstNumber);
+                const gstTiers = isPropertyGstApplicable ? (await this.systemSettingsService.getSetting('GST_TIERS') as any[]) : [];
+
                 const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
                 const propertySolutions = solutions.map((sol, idx) => {
                     const enrichedRooms = sol.rooms.map(r => {
@@ -1209,6 +1212,21 @@ export class AvailabilityService {
                     const extraAmount = totalExtraPerNight * nights;
                     const totalAmountBeforeTax = totalPricePerNight * nights;
 
+                    let taxAmount = 0;
+                    if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
+                        for (const r of sol.rooms) {
+                            const roomTariffThisNight = r.totalPricePerNight;
+                            const roomTaxThisNight = this.pricingService.calculateTaxForTariff(roomTariffThisNight, gstTiers);
+                            taxAmount += roomTaxThisNight * nights;
+                        }
+                    }
+                    taxAmount = Number(taxAmount.toFixed(2));
+                    const totalPrice = Number((totalAmountBeforeTax + taxAmount).toFixed(2));
+                    const effectivePricePerNight = Number((totalPrice / nights).toFixed(2));
+                    const effectiveTaxRate = (isPropertyGstApplicable && totalAmountBeforeTax > 0)
+                        ? Math.round((taxAmount / totalAmountBeforeTax) * 100)
+                        : 0;
+
                     return {
                         id: `${property.id}_sol_${idx}`,
                         propertyId: property.id,
@@ -1232,9 +1250,11 @@ export class AvailabilityService {
                         pricing: {
                             baseAmount,
                             extraAmount,
-                            taxAmount: 0,
-                            totalPrice: totalAmountBeforeTax,
-                            pricePerNight: totalPricePerNight,
+                            taxAmount,
+                            taxRate: effectiveTaxRate,
+                            isGstInclusive: false,
+                            totalPrice,
+                            pricePerNight: effectivePricePerNight,
                             numberOfNights: nights,
                             currency: currency || 'INR',
                         },
@@ -1344,6 +1364,7 @@ export class AvailabilityService {
                             offerDiscountValue: pricing.offerDiscountValue,
                         });
                     } else if (includeSoldOut) {
+                        const isActuallySoldOut = availableCount === 0;
                         results.push({
                             id: rt.id,
                             name: rt.name,
@@ -1371,9 +1392,10 @@ export class AvailabilityService {
                                 groupPricePerHead: property.groupPricePerHead,
                                 _count: property._count,
                             },
-                            availableCount: 0,
+                            availableCount: availableCount,
                             totalPrice: 0,
-                            isSoldOut: true,
+                            isSoldOut: isActuallySoldOut,
+                            isPartyIncompatible: !isActuallySoldOut,
                             isGstInclusive: (rt as any).isGstInclusive ?? false,
                         });
                     }

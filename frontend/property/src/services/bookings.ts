@@ -57,6 +57,8 @@ export const bookingsService = {
         checkOutDate: string;
         adults: number;
         children?: number;
+        childAges?: number[];
+        infants?: number;
         rooms?: number;
         includeSoldOut?: boolean;
         isGroupBooking?: boolean;

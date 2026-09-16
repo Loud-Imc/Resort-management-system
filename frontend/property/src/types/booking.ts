@@ -184,12 +184,17 @@ export interface CreateBookingDto {
     guestName?: string;
     guestEmail?: string;
     guestPhone?: string;
+    childAges?: number[];
+    infants?: number;
     roomAllocations?: {
         roomTypeId: string;
         roomId?: string;
         adults: number;
         children: number;
+        childAges?: number[];
         infants?: number;
+        extraAdults?: number;
+        extraChildren?: number;
     }[];
 }
 
@@ -229,6 +234,8 @@ export interface PriceCalculationDto {
     roomCount?: number;
     overrideTotal?: number;
     isOverrideInclusive?: boolean;
+    childAges?: number[];
+    infantsCount?: number;
 }
 
 export interface PriceCalculationResult {
