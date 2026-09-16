@@ -33,7 +33,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
     return (
         <Link
             to={`/properties/${property.slug}?${searchParams.toString()}`}
-            className="group bg-white dark:bg-gray-800 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between border border-gray-100 dark:border-gray-700"
+            className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between border border-gray-100 ring-1 ring-black/[0.04]"
         >
             <div>
                 {/* Image Container */}
@@ -68,7 +68,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                     {/* Verified Badge */}
                     <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
                         {property.isVerified && (
-                            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-bold shadow-sm">
+                            <div className="bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1 text-emerald-600 text-xs font-bold shadow-sm border border-emerald-100">
                                 <CheckCircle className="h-3 w-3" />
                                 Verified
                             </div>
@@ -84,7 +84,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                     {/* Sold Out Badge */}
                     {property.isSoldOut && (
                         <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                            <div className="bg-white/95 dark:bg-gray-900/95 shadow-xl border border-rose-200 px-5 py-2.5 rounded-2xl flex flex-col items-center gap-0.5 transform -rotate-2">
+                            <div className="bg-white/95 shadow-xl border border-rose-200 px-5 py-2.5 rounded-2xl flex flex-col items-center gap-0.5 transform -rotate-2">
                                 <span className="text-rose-600 font-black text-sm uppercase tracking-wider">Fully Booked</span>
                                 <span className="text-gray-500 text-[9px] font-bold">Try alternative dates</span>
                             </div>
@@ -98,11 +98,11 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                 {/* Content */}
                 <div className="p-5 space-y-3">
                     <div>
-                        <h3 className="text-lg font-black text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1">
+                        <h3 className="text-lg font-black text-gray-900 group-hover:text-primary-600 transition-colors line-clamp-1">
                             {property.name}
                         </h3>
 
-                        <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-xs mt-1 font-medium">
+                        <div className="flex items-center gap-1.5 text-gray-500 text-xs mt-1 font-medium">
                             <MapPin className="h-3.5 w-3.5 text-primary-500 shrink-0" />
                             <span className="truncate">{property.city}, {property.state}</span>
                         </div>
@@ -110,22 +110,22 @@ export default function PropertyCard({ property }: PropertyCardProps) {
 
                     {/* Smart Accommodation Package Match Highlight */}
                     {property.bestSolution && (
-                        <div className="p-3 bg-primary-50/90 dark:bg-primary-950/40 rounded-2xl border border-primary-200/60 dark:border-primary-800/40 space-y-1.5">
-                            <div className="flex items-center justify-between text-[10px] font-black text-primary-700 dark:text-primary-300 uppercase tracking-wider">
+                        <div className="p-3 bg-primary-50/90 rounded-2xl border border-primary-200/60 space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px] font-black text-primary-700 uppercase tracking-wider">
                                 <span className="flex items-center gap-1">
                                     <Sparkles className="h-3.5 w-3.5 text-primary-600" />
                                     {property.bestSolution.isRecommended ? 'Best Value Solution' : 'Available Package'}
                                 </span>
                                 <span>{property.bestSolution.totalRooms} {property.bestSolution.totalRooms === 1 ? 'Room' : 'Rooms'}</span>
                             </div>
-                            <p className="text-xs font-bold text-gray-800 dark:text-gray-200 line-clamp-1">
+                            <p className="text-xs font-bold text-gray-800 line-clamp-1">
                                 {property.bestSolution.rooms?.map((r: any) => `${r.roomTypeName} (${r.adults}A${r.children > 0 ? `, ${r.children}C` : ''})`).join(' + ')}
                             </p>
                         </div>
                     )}
 
                     {/* Stats Row */}
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                         {/* Rating */}
                         <div className="flex items-center gap-1.5">
                             <div className="flex items-center">
@@ -146,7 +146,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                             </div>
                             {property.rating ? (
                                 <div className="flex items-center gap-1">
-                                    <span className="font-bold text-gray-900 dark:text-white text-xs">{property.rating}</span>
+                                    <span className="font-bold text-gray-900 text-xs">{property.rating}</span>
                                     <span className="text-gray-400 text-[10px]">({property.reviewCount})</span>
                                 </div>
                             ) : (
@@ -155,7 +155,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                         </div>
 
                         {/* Rooms */}
-                        <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-xs font-semibold">
+                        <div className="flex items-center gap-1 text-gray-500 text-xs font-semibold">
                             <Users className="h-3.5 w-3.5" />
                             <span>{property._count?.rooms || 0} rooms</span>
                         </div>
@@ -164,7 +164,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
             </div>
 
             {/* Price & CTA Footer */}
-            <div className="px-5 pb-5 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex items-end justify-between gap-2">
+            <div className="px-5 pb-5 pt-2 border-t border-gray-100 flex items-end justify-between gap-2">
                 <div>
                     {property.minPrice || property.nightlyPrice ? (
                         <>
@@ -174,7 +174,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                             <div className="flex items-baseline gap-1">
                                 <PriceDisplay 
                                     amount={property.nightlyPrice || property.minPrice || 0} 
-                                    className="text-xl font-black text-gray-900 dark:text-white" 
+                                    className="text-xl font-black text-gray-900" 
                                 />
                                 <span className="text-[10px] text-gray-500 font-bold">
                                     / night
@@ -183,14 +183,14 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                         </>
                     ) : (
                         <div className="pb-1">
-                            <span className="text-[10px] text-primary-600 font-black uppercase tracking-wider bg-primary-50 dark:bg-primary-950/40 px-2.5 py-1 rounded-lg">
+                            <span className="text-[10px] text-primary-600 font-black uppercase tracking-wider bg-primary-50 px-2.5 py-1 rounded-lg">
                                 Check Dates
                             </span>
                         </div>
                     )}
                 </div>
 
-                <div className="px-4 py-2 bg-gray-900 hover:bg-primary-600 dark:bg-white dark:hover:bg-primary-500 text-white dark:text-gray-900 dark:hover:text-white text-xs font-black uppercase tracking-wider rounded-xl transition-colors shadow-sm">
+                <div className="px-4 py-2 bg-gray-900 hover:bg-primary-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-colors shadow-sm">
                     View Packages
                 </div>
             </div>

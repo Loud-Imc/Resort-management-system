@@ -676,9 +676,15 @@ export default function CreateBooking() {
                     }
                     setOriginalPriceDetails(originalPrice);
 
+                    const totalPropertyRooms = roomTypes?.reduce((acc: number, rt: any) => acc + (rt.rooms?.filter((r: any) => r.isEnabled)?.length ?? rt.rooms?.length ?? 0), 0) || 0;
+                    const isFullProperty = totalPropertyRooms > 0 && preview.length >= totalPropertyRooms;
+                    const groupSolutionTitle = isFullProperty
+                        ? `Full Property Buyout (${preview.length} Rooms)`
+                        : `Group Accommodation Package (${preview.length} Rooms)`;
+
                     const groupSolution = {
                         id: 'group-solution',
-                        solutionName: `Whole Property Group Accommodation Solution (${preview.length} Rooms)`,
+                        solutionName: groupSolutionTitle,
                         isBestValue: true,
                         totalRooms: preview.length,
                         totalGuestsServed: totalGroupSize,
@@ -1372,7 +1378,7 @@ export default function CreateBooking() {
                                             </p>
                                         </div>
                                         <span className="text-[11px] font-semibold text-muted-foreground">
-                                            Whole Property Group Pool Rates Applied
+                                            Group Pool Rates Applied
                                         </span>
                                     </div>
                                 </div>
@@ -1429,7 +1435,7 @@ export default function CreateBooking() {
                                         {!hasSearched
                                             ? 'Enter your stay dates and party numbers above, then click Check Availability.'
                                             : isGroupMode
-                                                ? 'Whole property group accommodation solutions matching your group size.'
+                                                ? 'Pooled group accommodation solutions matching your group size.'
                                                 : (accommodationSolutions && accommodationSolutions.length > 0 
                                                     ? `Showing top accommodation solutions for your party.`
                                                     : 'Recommended accommodation solutions matching your exact party composition.')}

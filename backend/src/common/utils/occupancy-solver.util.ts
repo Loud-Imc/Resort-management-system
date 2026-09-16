@@ -746,17 +746,28 @@ export function solveAccommodationOptions(
             };
         });
 
-    if (availableTypes.length === 0) {
+    const totalAvailableRooms = availableTypes.reduce((acc, rt) => acc + rt.availableQuantity, 0);
+    const totalMaxAdults = availableTypes.reduce((acc, rt) => acc + (rt.availableQuantity * rt.maxPhysicalAdults), 0);
+    const totalMaxCapacity = availableTypes.reduce((acc, rt) => acc + (rt.availableQuantity * rt.totalMaxOccupancy), 0);
+    const totalMaxInfants = availableTypes.reduce((acc, rt) => acc + (rt.availableQuantity * rt.maxPhysicalInfants), 0);
+
+    if (totalMaxAdults < adults || totalMaxCapacity < (adults + children) || totalMaxInfants < infants) {
         return [];
     }
 
-    const totalAvailableRooms = availableTypes.reduce((acc, rt) => acc + rt.availableQuantity, 0);
-    const maxRoomsToSearch = Math.min(adults, totalAvailableRooms);
+    const maxSingleRoomCap = Math.max(...availableTypes.map(rt => rt.totalMaxOccupancy || 1));
+    const minRoomsNeeded = Math.max(1, Math.ceil((adults + children) / maxSingleRoomCap));
+
+    // Dynamic search bounds: Start at minRoomsNeeded, upper bounded by requestedRooms or tight envelope
+    const upperLimit = requestedRooms 
+        ? Math.max(requestedRooms + 2, minRoomsNeeded + 2) 
+        : Math.min(minRoomsNeeded + 3, adults);
+    const maxRoomsToSearch = Math.min(upperLimit, totalAvailableRooms, adults);
 
     const solutions: SolverAccommodationSolution[] = [];
     const seenSolutionKeys = new Set<string>();
 
-    for (let k = 1; k <= maxRoomsToSearch; k++) {
+    for (let k = minRoomsNeeded; k <= maxRoomsToSearch; k++) {
         const multisets = generateDistinctRoomMultisets(availableTypes, k);
 
         for (const candidateRooms of multisets) {
