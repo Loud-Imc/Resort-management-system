@@ -23,7 +23,11 @@ interface SearchProps {
     adults: number;
     setAdults: (v: number) => void;
     children: number;
-    setChildren: (v: number) => void;
+    setChildren: (v: number | ((prev: number) => number)) => void;
+    childAges?: number[];
+    setChildAge?: (index: number, age: number) => void;
+    infants?: number;
+    setInfants?: (v: number) => void;
     rooms: number;
     setRooms: (v: number) => void;
 
@@ -47,6 +51,8 @@ export default function SearchDesktop({
     checkOut, setCheckOut,
     adults, setAdults,
     children, setChildren,
+    childAges = [], setChildAge,
+    infants = 0, setInfants,
     rooms, setRooms,
     handleSearch,
     isGroupBooking,
@@ -144,7 +150,9 @@ export default function SearchDesktop({
                             ) : (
                                 <div className="flex items-baseline gap-1">
                                     <span className="text-sm font-semibold text-gray-900">{adults + children}</span>
-                                    <span className="text-sm text-gray-600 truncate">Guests, {rooms} Room{rooms > 1 ? 's' : ''}</span>
+                                    <span className="text-sm text-gray-600 truncate">
+                                        Guests{infants > 0 ? `, ${infants} Inf` : ''}, {rooms} Room{rooms > 1 ? 's' : ''}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -154,11 +162,11 @@ export default function SearchDesktop({
                         {showGuestModal && (
                             <div
                                 ref={guestModalRef}
-                                className="absolute top-full right-0 mt-4 w-80 bg-white border border-gray-100 rounded-lg shadow-xl p-6 z-[100] animate-in fade-in slide-in-from-top-2"
+                                className="absolute top-full right-0 mt-4 w-88 bg-white border border-gray-100 rounded-2xl shadow-2xl p-6 z-[100] animate-in fade-in slide-in-from-top-2 max-h-[480px] overflow-y-auto"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="flex justify-between items-center mb-6">
-                                    <h4 className="text-sm font-bold text-gray-900">Travellers</h4>
+                                    <h4 className="text-sm font-bold text-gray-900">Travellers & Rooms</h4>
                                     <button
                                         type="button"
                                         onClick={() => setShowGuestModal(false)}
@@ -168,11 +176,13 @@ export default function SearchDesktop({
                                     </button>
                                 </div>
 
-                                <div className="space-y-6">
+                                <div className="space-y-5">
                                     {/* Adults */}
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-bold text-gray-900">Adults</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {isGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
+                                            </p>
                                             <p className="text-xs text-gray-500 mt-0.5">Ages 13+</p>
                                         </div>
                                         <div className="flex items-center gap-4">
@@ -201,8 +211,10 @@ export default function SearchDesktop({
                                     {/* Children */}
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-bold text-gray-900">Children</p>
-                                            <p className="text-xs text-gray-500 mt-0.5">Ages 2-12</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {isGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
+                                            </p>
+                                            <p className="text-xs text-gray-500 mt-0.5">Ages 3–12</p>
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <button
@@ -227,9 +239,61 @@ export default function SearchDesktop({
                                         </div>
                                     </div>
 
+                                    {/* Child Age Selectors */}
+                                    {children > 0 && !isGroupBooking && (
+                                        <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/60 space-y-2.5 animate-in fade-in duration-200">
+                                            <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                                                Select Age for Each Child (3–12 yrs)
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {Array.from({ length: children }).map((_, idx) => (
+                                                    <div key={idx} className="flex flex-col gap-1">
+                                                        <label className="text-[10px] font-bold text-gray-600">
+                                                            Child {idx + 1} Age
+                                                        </label>
+                                                        <select
+                                                            value={childAges[idx] ?? 5}
+                                                            onChange={(e) => setChildAge?.(idx, parseInt(e.target.value) || 5)}
+                                                            className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary-500 shadow-2xs"
+                                                        >
+                                                            {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
+                                                                <option key={age} value={age}>
+                                                                    {age} years old {age <= 6 ? '(free)' : ''}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Infants */}
+                                    {!isGroupBooking && (
+                                        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-900">Infants (0–2 yrs)</p>
+                                                <p className="text-xs text-gray-500 mt-0.5">Ages 0–2 (in cot / free)</p>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setInfants?.(Math.max(0, infants - 1))}
+                                                    className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
+                                                >-</button>
+                                                <span className="w-4 text-center font-bold text-gray-900">{infants}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setInfants?.(infants + 1)}
+                                                    className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
+                                                >+</button>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Rooms */}
                                     {!isGroupBooking && (
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
                                             <div>
                                                 <p className="text-sm font-bold text-gray-900">Rooms</p>
                                                 <p className="text-xs text-gray-500 mt-0.5">Total needed</p>

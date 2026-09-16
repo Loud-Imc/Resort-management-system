@@ -101,13 +101,28 @@ export default function Checkout() {
     // Get booking details from URL
     const roomId = searchParams.get('roomId');
 
+    const [selectedSolution] = useState<any>(() => {
+        const hasSol = searchParams.get('hasSolution') === 'true';
+        if (hasSol) {
+            try {
+                const stored = sessionStorage.getItem('selectedSolution');
+                return stored ? JSON.parse(stored) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    });
+
     const checkIn = useState(() => searchParams.get('checkIn') || format(new Date(), 'yyyy-MM-dd'))[0];
     const checkOut = useState(() => searchParams.get('checkOut') || format(addDays(new Date(), 1), 'yyyy-MM-dd'))[0];
 
     const adults = Number(searchParams.get('adults')) || 2;
     const children = Number(searchParams.get('children')) || 0;
+    const childAgesParam = searchParams.get('childAges');
+    const childAges = childAgesParam ? childAgesParam.split(',').map(a => parseInt(a, 10)).filter(a => !isNaN(a)) : [];
     const infants = Number(searchParams.get('infants')) || 0;
-    const roomsCount = Number(searchParams.get('roomsCount') || searchParams.get('rooms')) || undefined;
+    const roomsCount = Number(searchParams.get('roomsCount') || searchParams.get('rooms')) || (selectedSolution ? selectedSolution.totalRooms : undefined);
     const isGroupBooking = searchParams.get('isGroupBooking') === 'true';
     const groupSize = Number(searchParams.get('groupSize')) || 10;
 
@@ -126,27 +141,43 @@ export default function Checkout() {
         enabled: !!roomId,
     });
 
-    // Fetch NON-COUPON pricing (Permanent baseline)
+    // For multi-room solutions, use selectedSolution.pricing directly to avoid incorrect single-room calculatePrice recalculation
+    const solutionPricing = selectedSolution?.pricing ? {
+        baseAmount: selectedSolution.pricing.basePrice ?? (selectedSolution.pricing.totalPrice - (selectedSolution.pricing.taxAmount || 0)),
+        taxAmount: selectedSolution.pricing.taxAmount || 0,
+        taxRate: selectedSolution.pricing.taxRate || 0,
+        totalAmount: selectedSolution.pricing.totalPrice,
+        isGstInclusive: selectedSolution.pricing.isGstInclusive ?? false,
+        numberOfNights: differenceInDays(new Date(checkOut), new Date(checkIn)) || 1,
+        extraAdultAmount: selectedSolution.pricing.extraAdultCharges || 0,
+        extraChildAmount: selectedSolution.pricing.extraChildCharges || 0,
+        offerDiscountAmount: selectedSolution.pricing.offerDiscountAmount || 0,
+        roomCount: selectedSolution.totalRooms,
+        partialPaymentPct: 33.33,
+    } : null;
+
+    // Fetch NON-COUPON pricing for direct single-room bookings
     const { data: basePricing } = useQuery<any>({
-        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children, infants, roomsCount, selectedCurrency],
+        queryKey: ['base-pricing', roomId, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, roomsCount, selectedCurrency],
         queryFn: () => bookingService.calculatePrice({
             roomTypeId: roomId!,
             checkInDate: checkIn,
             checkOutDate: checkOut,
             adultsCount: adults,
             childrenCount: children,
+            childAges: children > 0 ? childAges : undefined,
             infantsCount: infants,
             roomsCount,
             currency: selectedCurrency,
             isGroupBooking,
             groupSize
         }),
-        enabled: !!roomId,
+        enabled: !selectedSolution && !!roomId,
     });
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
+        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
         queryFn: async () => {
             console.log('[Checkout] Fetching pricing with appliedCode:', appliedCode);
             const res = await bookingService.calculatePrice({
@@ -155,6 +186,7 @@ export default function Checkout() {
                 checkOutDate: checkOut,
                 adultsCount: Number(adults),
                 childrenCount: Number(children),
+                childAges: children > 0 ? childAges : undefined,
                 infantsCount: Number(infants),
                 roomsCount,
                 generalCode: appliedCode || undefined,
@@ -165,13 +197,14 @@ export default function Checkout() {
             console.log('[Checkout] Pricing result:', res);
             return res;
         },
-        enabled: !!roomId && !!appliedCode,
+        enabled: !selectedSolution && !!roomId && !!appliedCode,
         retry: false,
     });
 
-
     // Derive effective pricing to display
-    const effectivePricing = appliedCode && couponPricing && !isPricingError ? couponPricing : basePricing;
+    const effectivePricing = appliedCode && couponPricing && !isPricingError
+        ? couponPricing
+        : (selectedSolution ? solutionPricing : basePricing);
     const pricingLoading = couponPricingLoading;
 
     // Const Selected Room is now fetched directly
@@ -217,7 +250,6 @@ export default function Checkout() {
         }
     };
 
-
     const [paymentOption, setPaymentOption] = useState<'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY'>('FULL');
     
     // Clear coupons if PAP is selected
@@ -241,6 +273,7 @@ export default function Checkout() {
                 checkOutDate: checkOut,
                 adultsCount: adults,
                 childrenCount: children,
+                childAges: children > 0 ? childAges : undefined,
                 infantsCount: infants,
                 guestName: `${userData.firstName} ${userData.lastName}`,
                 guestEmail: userData.email,
@@ -255,6 +288,23 @@ export default function Checkout() {
                 isGroupBooking,
                 groupSize,
                 roomsCount,
+                roomAllocations: selectedSolution ? selectedSolution.rooms.map((r: any) => ({
+                    roomTypeId: r.roomTypeId,
+                    adults: r.adults,
+                    children: r.children,
+                    childAges: r.childAges || (r.children > 0 ? childAges : undefined),
+                    infants: r.infants !== undefined ? r.infants : (infants || 0),
+                    extraAdults: r.extraAdults || 0,
+                    extraChildren: r.extraChildren || 0,
+                })) : (roomId ? [{
+                    roomTypeId: roomId,
+                    adults: adults,
+                    children: children,
+                    childAges: children > 0 ? childAges : undefined,
+                    infants: infants || 0,
+                    extraAdults: 0,
+                    extraChildren: 0,
+                }] : undefined),
                 guests: [{
                     firstName: userData.firstName,
                     lastName: userData.lastName,
@@ -765,7 +815,7 @@ export default function Checkout() {
 
                                 <div>
                                     <h4 className="font-bold text-gray-900">
-                                        {isGroupBooking ? 'Group Stay Package' : selectedRoom.name}
+                                        {isGroupBooking ? 'Group Stay Package' : (selectedSolution ? `Accommodation Package (${selectedSolution.totalRooms} Rooms)` : selectedRoom.name)}
                                     </h4>
                                     <p className="text-sm text-gray-500">
                                         {isGroupBooking ? `Property: ${selectedRoom.property?.name || 'Selected Property'}` : selectedRoom.description?.slice(0, 50) + '...'}
@@ -773,6 +823,44 @@ export default function Checkout() {
                                     <p className="text-sm text-gray-500 font-medium mt-1">
                                         {nights} {nights === 1 ? 'Night' : 'Nights'} • {roomsCount || effectivePricing?.roomCount || 1} {(roomsCount || effectivePricing?.roomCount || 1) === 1 ? 'Room' : 'Rooms'} • {adults + children} Guests {children > 0 ? `(${adults} Adults, ${children} Children${infants > 0 ? `, ${infants} Infants` : ''})` : infants > 0 ? `(${adults} Adults, ${infants} Infants)` : `(${adults} Adults)`}
                                     </p>
+                                    {selectedSolution && (
+                                        <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs space-y-2">
+                                            <div className="font-bold text-gray-800 uppercase text-[10px] tracking-wider">
+                                                Package Breakdown ({selectedSolution.totalRooms} Rooms):
+                                            </div>
+                                            {selectedSolution.rooms.map((r: any, idx: number) => {
+                                                const rChildAges = r.childAges || (r.children > 0 ? childAges : []);
+                                                return (
+                                                    <div key={idx} className="p-2.5 bg-white rounded-lg border border-gray-100 space-y-1">
+                                                        <div className="flex justify-between items-center font-bold text-gray-900">
+                                                            <span>Room {idx + 1}: {r.roomTypeName}</span>
+                                                            {r.totalPrice ? (
+                                                                <span className="text-primary-600 font-extrabold">
+                                                                    {formatPrice(r.totalPrice, selectedCurrency, rates)}
+                                                                </span>
+                                                            ) : r.basePricePerNight ? (
+                                                                <span className="text-gray-500 font-medium text-[10px]">
+                                                                    {formatPrice(r.basePricePerNight, selectedCurrency, rates)}/night
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                        <div className="text-[11px] text-gray-600 flex flex-wrap gap-x-2">
+                                                            <span>{r.adults} {r.adults === 1 ? 'Adult' : 'Adults'}</span>
+                                                            {r.children > 0 && (
+                                                                <span>
+                                                                    • {r.children} {r.children === 1 ? 'Child' : 'Children'}
+                                                                    {rChildAges.length > 0 ? ` (Age${rChildAges.length > 1 ? 's' : ''}: ${rChildAges.join(', ')})` : ''}
+                                                                </span>
+                                                            )}
+                                                            {r.infants > 0 && (
+                                                                <span className="text-emerald-600">• {r.infants} Infant (cot)</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="border-t border-dashed border-gray-200 my-4"></div>
@@ -820,21 +908,21 @@ export default function Checkout() {
                                     {effectivePricing?.offerDiscountAmount > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-medium">
                                             <span>Offer Discount</span>
-                                            <span>-{formatPrice(effectivePricing?.grossOfferDiscountAmount ?? (effectivePricing?.isGstInclusive ? Math.round(effectivePricing.offerDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)) : Math.round(effectivePricing.offerDiscountAmount)), selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.grossOfferDiscountAmount ?? (effectivePricing?.isGstInclusive ? Math.round(effectivePricing.offerDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)) : Math.round(effectivePricing.offerDiscountAmount)), selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
                                     {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'COUPON' && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Coupon Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.couponDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)).toFixed(2)) : effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.couponDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
                                     {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'REFERRAL' && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Referral Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.referralDiscountAmount * (1 + (effectivePricing.taxRate || 5) / 100)).toFixed(2)) : effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.referralDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 

@@ -238,6 +238,7 @@ model Booking {
   numberOfNights          Int
   adultsCount             Int
   childrenCount           Int
+  childAges               Int[]                  @default([])
   infantsCount            Int                    @default(0)
   extraAdultsCount        Int                    @default(0)
   extraChildrenCount      Int                    @default(0)
@@ -1381,15 +1382,28 @@ model PromotionRequest {
 }
 
 model BookingRoom {
-  id          String   @id @default(uuid())
-  bookingId   String
-  roomId      String
+  id                       String   @id @default(uuid())
+  bookingId                String
+  roomId                   String
+  roomTypeId               String?
+  adultsCount              Int?     @default(1)
+  childrenCount            Int?     @default(0)
+  childAges                Int[]    @default([])
+  infantsCount             Int?     @default(0)
+  extraAdultsCount         Int?     @default(0)
+  extraChildrenCount       Int?     @default(0)
+  freeChildrenCount        Int?     @default(0)
+  paidChildrenCount        Int?     @default(0)
+  basePricePerNight        Decimal? @db.Decimal(10, 2)
+  extraAdultChargePerNight  Decimal? @db.Decimal(10, 2)
+  extraChildChargePerNight  Decimal? @db.Decimal(10, 2)
+  totalPricePerNight       Decimal? @db.Decimal(10, 2)
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  room        Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  booking                  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  room                     Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
 
   @@unique([bookingId, roomId])
   @@index([bookingId])

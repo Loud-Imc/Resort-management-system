@@ -1228,6 +1228,7 @@ export class ChannelsService {
             bookingCurrency: res.currency || 'INR',
             paymentStatus,
             paymentOption,
+            childAges: [],
           },
         });
 
@@ -1237,6 +1238,11 @@ export class ChannelsService {
             data: {
               bookingId: b.id,
               roomId: assigned.roomId,
+              roomTypeId: assigned.roomTypeId || primaryRoomTypeId,
+              adultsCount: res.adultsCount,
+              childrenCount: res.childrenCount,
+              infantsCount: res.infantsCount || 0,
+              childAges: [],
             },
           });
         }

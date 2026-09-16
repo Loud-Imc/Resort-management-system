@@ -29,6 +29,10 @@ interface SearchProps {
     setAdults: (v: number) => void;
     children: number;
     setChildren: (v: number) => void;
+    childAges?: number[];
+    setChildAge?: (index: number, age: number) => void;
+    infants?: number;
+    setInfants?: (v: number) => void;
     rooms: number;
     setRooms: (v: number) => void;
 
@@ -53,6 +57,8 @@ export default function SearchInline({
     checkOut, setCheckOut,
     adults, setAdults,
     children, setChildren,
+    childAges = [], setChildAge,
+    infants = 0, setInfants,
     rooms, setRooms,
 
     handleSearch,
@@ -198,7 +204,7 @@ export default function SearchInline({
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
-                                                    {isGroupBooking ? 'Adults' : 'Adults'}
+                                                    {isGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
                                                 </p>
                                                 <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 13+</p>
                                             </div>
@@ -243,9 +249,9 @@ export default function SearchInline({
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">
-                                                    {isGroupBooking ? 'Children' : 'Children'}
+                                                    {isGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
                                                 </p>
-                                                <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 6-12</p>
+                                                <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 3–12</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100 shadow-inner">
@@ -279,6 +285,68 @@ export default function SearchInline({
                                             >+</button>
                                         </div>
                                     </div>
+
+                                    {/* Child Age Selectors */}
+                                    {children > 0 && !isGroupBooking && (
+                                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/70 space-y-2">
+                                            <p className="text-[9px] font-black text-amber-900 uppercase tracking-wider">
+                                                Select Age for Each Child (3–12 yrs)
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {Array.from({ length: children }).map((_, idx) => (
+                                                    <div key={idx} className="flex flex-col gap-1">
+                                                        <label className="text-[8px] font-bold text-gray-600 uppercase">
+                                                            Child {idx + 1} Age
+                                                        </label>
+                                                        <select
+                                                            value={childAges[idx] ?? 5}
+                                                            onChange={(e) => setChildAge?.(idx, parseInt(e.target.value) || 5)}
+                                                            className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary-500"
+                                                        >
+                                                            {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
+                                                                <option key={age} value={age}>
+                                                                    {age} yrs {age <= 6 ? '(free)' : ''}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Infants */}
+                                    {!isGroupBooking && (
+                                        <div className="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-3.5 shadow-sm group">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                                                    <Users className="h-4.5 w-4.5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Infants (0–2 yrs)</p>
+                                                    <p className="text-[8px] font-bold text-gray-400 uppercase">Ages 0–2 (cot/free)</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-lg border border-gray-100 shadow-inner">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setInfants?.(Math.max(0, infants - 1))}
+                                                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                                >-</button>
+                                                <input
+                                                    type="number"
+                                                    value={infants}
+                                                    onChange={(e) => setInfants?.(Math.max(0, parseInt(e.target.value) || 0))}
+                                                    className="w-9 bg-transparent text-center font-black text-gray-900 outline-none border-none p-0 focus:ring-0"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setInfants?.(infants + 1)}
+                                                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-900 font-black hover:bg-primary-600 hover:text-white active:scale-90 transition-all"
+                                                >+</button>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Rooms */}
                                     {!isGroupBooking && (
@@ -507,7 +575,7 @@ export default function SearchInline({
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-4 w-full divide-x divide-gray-100">
+                            <div className="flex items-center gap-3 w-full">
                                 <div className="flex flex-col">
                                     <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Adults</span>
                                     <input
@@ -518,7 +586,7 @@ export default function SearchInline({
                                         className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
                                     />
                                 </div>
-                                <div className="flex flex-col pl-4">
+                                <div className="flex flex-col pl-2 border-l border-gray-100">
                                     <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Children</span>
                                     <input
                                         type="number"
@@ -528,7 +596,17 @@ export default function SearchInline({
                                         className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
                                     />
                                 </div>
-                                <div className="flex flex-col pl-4">
+                                <div className="flex flex-col pl-2 border-l border-gray-100">
+                                    <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Infants</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={infants}
+                                        onChange={(e) => setInfants?.(Math.max(0, parseInt(e.target.value) || 0))}
+                                        className="w-8 bg-transparent text-sm font-black text-gray-900 outline-none border-none p-0 focus:ring-0 group-hover:text-primary-600 transition-colors"
+                                    />
+                                </div>
+                                <div className="flex flex-col pl-2 border-l border-gray-100">
                                     <span className="text-[7px] font-black text-gray-400 uppercase leading-none mb-1">Rooms</span>
                                     <input
                                         type="number"

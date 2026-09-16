@@ -13,9 +13,12 @@ import { propertyApi } from '../services/properties';
 import { bookingService } from '../services/booking';
 import { reviewService, Review, ReviewStats } from '../services/reviews';
 import PropertyCard from '../components/PropertyCard';
-import { Property, RoomType } from '../types';
+import AccommodationSolutionCard from '../components/booking/AccommodationSolutionCard';
+import RoomDetailsModal, { RoomDetailData } from '../components/booking/RoomDetailsModal';
+import { Property, RoomType, AccommodationSolution, AllocatedRoomItem } from '../types';
 import { useSearch } from '../context/SearchContext';
 import { PriceDisplay } from '../components/common/PriceDisplay';
+import { canRoomTypeFitParty } from '../utils/occupancy';
 import DatePicker from 'react-datepicker';
 import { format, addDays, differenceInDays } from 'date-fns';
 import "react-datepicker/dist/react-datepicker.css";
@@ -149,6 +152,7 @@ export default function PropertyDetail() {
         checkOut, setCheckOut,
         adults, setAdults,
         children, setChildren,
+        childAges,
         infants, setInfants,
         rooms, setRooms,
         isGroupBooking, setIsGroupBooking,
@@ -164,6 +168,7 @@ export default function PropertyDetail() {
 
     const [property, setProperty] = useState<Property | null>(null);
     const [availability, setAvailability] = useState<RoomType[] | null>(null);
+    const [accommodationSolutions, setAccommodationSolutions] = useState<AccommodationSolution[]>([]);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -175,6 +180,8 @@ export default function PropertyDetail() {
     const [flexiRates, setFlexiRates] = useState<any[]>([]);
     const [loadingFlexi, setLoadingFlexi] = useState(false);
     const [selectedOfferDetails, setSelectedOfferDetails] = useState<any | null>(null);
+    const [inspectingRoom, setInspectingRoom] = useState<RoomDetailData | null>(null);
+    const [showRoomModal, setShowRoomModal] = useState(false);
 
     useEffect(() => {
         if (slug) {
@@ -223,7 +230,7 @@ export default function PropertyDetail() {
         if (property && checkIn && checkOut) {
             fetchAvailability();
         }
-    }, [property, checkIn, checkOut, adults, children, rooms, isGroupBooking, groupSize]);
+    }, [property, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, rooms, isGroupBooking, groupSize]);
 
     // Fetch flexible travel dates rates in parallel
     useEffect(() => {
@@ -266,6 +273,7 @@ export default function PropertyDetail() {
                             checkOutDate: range.checkOut.toISOString(),
                             adults,
                             children,
+                            childAges: children > 0 ? childAges : undefined,
                             rooms,
                             includeSoldOut: true,
                             propertyId: property.id,
@@ -326,7 +334,7 @@ export default function PropertyDetail() {
         };
 
         loadFlexiDates();
-    }, [property?.id, checkIn, checkOut, adults, children, rooms, isGroupBooking, groupSize]);
+    }, [property?.id, checkIn, checkOut, adults, children, (childAges || []).join(','), rooms, isGroupBooking, groupSize]);
 
     const fetchAvailability = async () => {
         if (!property || !checkIn || !checkOut) return;
@@ -337,6 +345,8 @@ export default function PropertyDetail() {
                 checkOutDate: checkOut.toISOString(),
                 adults,
                 children,
+                childAges: children > 0 ? childAges : undefined,
+                infants: infants || 0,
                 rooms,
                 includeSoldOut: true,
                 propertyId: property.id,
@@ -345,11 +355,49 @@ export default function PropertyDetail() {
             });
             // For group booking, the service returns exactly one "Group Stay Package" if available
             setAvailability(data.availableRoomTypes);
+            if (data.accommodationSolutions && data.accommodationSolutions.length > 0) {
+                setAccommodationSolutions(data.accommodationSolutions);
+            } else {
+                setAccommodationSolutions([]);
+            }
         } catch (err) {
             console.error('Error fetching availability:', err);
         } finally {
             setLoadingAvailability(false);
         }
+    };
+
+    const handleSelectSolution = (solution: AccommodationSolution) => {
+        if (!checkIn || !checkOut) {
+            pickerRef.current?.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+        sessionStorage.setItem('selectedSolution', JSON.stringify(solution));
+        const firstRoomId = solution.rooms[0]?.roomTypeId || '';
+        const childAgesParam = children > 0 && childAges && childAges.length > 0 ? `&childAges=${childAges.join(',')}` : '';
+        navigate(`/book?roomId=${firstRoomId}&property=${property?.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${childAgesParam}&infants=${infants || 0}&roomsCount=${solution.totalRooms}&hasSolution=true`);
+    };
+
+    const handleViewRoomDetails = (allocatedRoom: AllocatedRoomItem) => {
+        const matchedRt = property?.roomTypes?.find(rt => rt.id === allocatedRoom.roomTypeId);
+        const roomData: RoomDetailData = {
+            id: allocatedRoom.roomTypeId,
+            name: allocatedRoom.roomTypeName,
+            description: matchedRt?.description,
+            images: (matchedRt as any)?.images || (allocatedRoom as any)?.images || [],
+            maxAdults: matchedRt?.maxAdults,
+            maxChildren: matchedRt?.maxChildren,
+            maxPhysicalAdults: (matchedRt as any)?.maxPhysicalAdults,
+            maxPhysicalChildren: (matchedRt as any)?.maxPhysicalChildren,
+            baseAdults: (matchedRt as any)?.baseAdults,
+            baseChildren: (matchedRt as any)?.baseChildren,
+            bedType: (matchedRt as any)?.bedType,
+            size: matchedRt?.size || undefined,
+            amenities: [...(matchedRt?.inclusions || []), ...(matchedRt?.highlights || [])],
+            basePrice: allocatedRoom.basePricePerNight,
+        };
+        setInspectingRoom(roomData);
+        setShowRoomModal(true);
     };
 
     const loadProperty = async (propertySlug: string) => {
@@ -810,10 +858,35 @@ export default function PropertyDetail() {
                                             );
                                         })()
                                     ) : (
-                                        (checkIn && checkOut && availability
-                                            ? property.roomTypes.filter(rt => availability.some(a => a.id === rt.id))
-                                            : property.roomTypes
-                                        ).map((roomType: any) => {
+                                        <>
+                                            {accommodationSolutions && accommodationSolutions.length > 0 && (
+                                                <div id="accommodations-section" className="p-5 lg:p-6 bg-gradient-to-b from-primary-50/40 to-transparent border-b border-gray-100 space-y-4">
+                                                    <div>
+                                                        <h3 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                                                            <Sparkles className="w-5 h-5 text-primary-600" />
+                                                            Recommended Accommodation Packages
+                                                        </h3>
+                                                        <p className="text-xs text-gray-500 mt-0.5">
+                                                            Optimized bookable solutions guaranteed to accommodate your entire party ({adults} {adults === 1 ? 'Adult' : 'Adults'}{children > 0 ? `, ${children} ${children === 1 ? 'Child' : 'Children'}` : ''}{infants > 0 ? `, ${infants} Infant` : ''})
+                                                        </p>
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        {accommodationSolutions.map((sol) => (
+                                                            <AccommodationSolutionCard
+                                                                key={sol.id}
+                                                                solution={sol}
+                                                                onSelect={handleSelectSolution}
+                                                                onViewRoomDetails={handleViewRoomDetails}
+                                                                nights={(checkIn && checkOut) ? Math.max(1, differenceInDays(new Date(checkOut), new Date(checkIn))) : 1}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {(checkIn && checkOut && availability
+                                                ? property.roomTypes.filter(rt => availability.some(a => a.id === rt.id))
+                                                : property.roomTypes
+                                            ).map((roomType: any) => {
                                             const availabilityInfo = availability?.find(a => a.id === roomType.id);
                                             const nights = (checkIn && checkOut) ? Math.max(1, differenceInDays(new Date(checkOut), new Date(checkIn))) : 0;
                                             const isSoldOut = (checkIn && checkOut)
@@ -824,6 +897,7 @@ export default function PropertyDetail() {
                                                 h.toLowerCase().includes('bed') || h.toLowerCase().includes('king') ||
                                                 h.toLowerCase().includes('queen') || h.toLowerCase().includes('twin')
                                             );
+                                            const fitsSingleRoom = canRoomTypeFitParty(roomType, { adults, children, infants });
                                             return (
                                                 <div key={roomType.id} className={clsx(
                                                     "hover:bg-white transition-all relative border-b border-gray-100 last:border-0",
@@ -1034,22 +1108,39 @@ export default function PropertyDetail() {
                                                             <div className="mt-6">
                                                                 {isSoldOut ? (
                                                                     <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-lg border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest leading-none">Fully Booked</button>
-                                                                ) : (
+                                                                ) : fitsSingleRoom ? (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
-                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&infants=${infants}&roomsCount=${rooms}&isGroupBooking=false` : '#'}
+                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${children > 0 && childAges?.length ? `&childAges=${childAges.join(',')}` : ''}&infants=${infants || 0}&roomsCount=1&isGroupBooking=false` : '#'}
                                                                         className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-lg shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
-                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Book Now'}
+                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Book This Room'}
                                                                         <ChevronRight className="h-4 w-4" />
                                                                     </Link>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const solutionsElem = document.getElementById('accommodations-section');
+                                                                            if (solutionsElem) {
+                                                                                solutionsElem.scrollIntoView({ behavior: 'smooth' });
+                                                                            } else {
+                                                                                pickerRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                                                            }
+                                                                        }}
+                                                                        className="block w-full py-4 bg-gray-900 hover:bg-primary-600 text-white text-center font-black rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
+                                                                    >
+                                                                        View Packages with this Room
+                                                                        <ChevronRight className="h-4 w-4" />
+                                                                    </button>
                                                                 )}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             );
-                                        })
+                                        })}
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -1632,6 +1723,13 @@ export default function PropertyDetail() {
                     </div>
                 </div>
             )}
+
+            {/* Room Details Modal for inspecting package rooms */}
+            <RoomDetailsModal
+                isOpen={showRoomModal}
+                onClose={() => setShowRoomModal(false)}
+                room={inspectingRoom}
+            />
         </div>
     );
 }

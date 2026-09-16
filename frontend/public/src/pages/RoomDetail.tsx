@@ -13,13 +13,14 @@ import { propertyApi } from '../services/properties';
 import { reviewService } from '../services/reviews';
 import { useSearch } from '../context/SearchContext';
 import { PriceDisplay } from '../components/common/PriceDisplay';
+import { canRoomTypeFitParty } from '../utils/occupancy';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 
 export default function RoomDetail() {
     const { slug, roomTypeId } = useParams();
     const navigate = useNavigate();
-    const { checkIn, checkOut, adults, children, isGroupBooking } = useSearch();
+    const { checkIn, checkOut, adults, children, childAges, infants } = useSearch();
     const [activeImage, setActiveImage] = useState(0);
 
     const { data: roomType, isLoading: loadingRoom } = useQuery({
@@ -505,15 +506,32 @@ export default function RoomDetail() {
                                             </div>
                                         )}
 
-                                        <Link
-                                            to={checkIn && checkOut
-                                                ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=${isGroupBooking}`
-                                                : `/properties/${property.slug}#stay-selection`
+                                        {(() => {
+                                            const fitsSingleRoom = canRoomTypeFitParty(roomType, { adults, children, infants });
+
+                                            if (!fitsSingleRoom) {
+                                                return (
+                                                    <Link
+                                                        to={`/properties/${property.slug}#accommodations-section`}
+                                                        className="block w-full py-5 bg-gray-900 hover:bg-primary-600 text-white text-center font-bold rounded-lg shadow-xl transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-sm"
+                                                    >
+                                                        Choose a Package with this Room
+                                                    </Link>
+                                                );
                                             }
-                                            className="block w-full py-5 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-lg shadow-xl shadow-primary-500/30 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-sm"
-                                        >
-                                            {(!checkIn || !checkOut) ? 'Select Dates First' : 'Complete Booking'}
-                                        </Link>
+
+                                            return (
+                                                <Link
+                                                    to={checkIn && checkOut
+                                                        ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${children > 0 && childAges?.length ? `&childAges=${childAges.join(',')}` : ''}&infants=${infants || 0}&roomsCount=1&isGroupBooking=false`
+                                                        : `/properties/${property.slug}#accommodations-section`
+                                                    }
+                                                    className="block w-full py-5 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-center font-bold rounded-lg shadow-xl shadow-primary-500/30 transition-all transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-sm"
+                                                >
+                                                    {(!checkIn || !checkOut) ? 'Select Dates First' : 'Complete Booking'}
+                                                </Link>
+                                            );
+                                        })()}
                                     </div>
 
                                     <div className="pt-6 border-t border-gray-50 space-y-4">
@@ -572,15 +590,32 @@ export default function RoomDetail() {
                         {property?.isGstApplicable !== false && !roomType.isGstInclusive && <span className="text-[10px] text-gray-400 font-medium">+ taxes</span>}
                     </div>
                 </div>
-                <Link
-                    to={checkIn && checkOut
-                        ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&isGroupBooking=${isGroupBooking}`
-                        : `/properties/${property.slug}#stay-selection`
+                {(() => {
+                    const fitsSingleRoom = canRoomTypeFitParty(roomType, { adults, children, infants });
+
+                    if (!fitsSingleRoom) {
+                        return (
+                            <Link
+                                to={`/properties/${property.slug}#accommodations-section`}
+                                className="flex-1 max-w-[220px] py-3.5 bg-gray-900 text-white text-center font-bold rounded-lg shadow-lg text-xs uppercase tracking-wider"
+                            >
+                                Choose Package
+                            </Link>
+                        );
                     }
-                    className="flex-1 max-w-[200px] py-3.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white text-center font-bold rounded-lg shadow-lg shadow-primary-500/30 text-sm uppercase tracking-wider"
-                >
-                    {(!checkIn || !checkOut) ? 'Select Dates' : 'Book Now'}
-                </Link>
+
+                    return (
+                        <Link
+                            to={checkIn && checkOut
+                                ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${children > 0 && childAges?.length ? `&childAges=${childAges.join(',')}` : ''}&infants=${infants || 0}&roomsCount=1&isGroupBooking=false`
+                                : `/properties/${property.slug}#accommodations-section`
+                            }
+                            className="flex-1 max-w-[200px] py-3.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white text-center font-bold rounded-lg shadow-lg shadow-primary-500/30 text-sm uppercase tracking-wider"
+                        >
+                            {(!checkIn || !checkOut) ? 'Select Dates' : 'Book Now'}
+                        </Link>
+                    );
+                })()}
             </div>
 
             {/* Spacer so content isn't hidden behind mobile sticky bar */}

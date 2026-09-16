@@ -24,6 +24,8 @@ export default function SearchForm({
         checkOut, setCheckOut,
         adults, setAdults,
         children, setChildren,
+        childAges, setChildAges, setChildAge,
+        infants, setInfants,
         rooms, setRooms,
         isGroupBooking, setIsGroupBooking,
         groupSize, setGroupSize,
@@ -91,6 +93,13 @@ export default function SearchForm({
             groupSize: groupSize.toString(),
         });
 
+        if (children > 0 && childAges && childAges.length > 0) {
+            params.set('childAges', childAges.join(','));
+        }
+        if (infants > 0) {
+            params.set('infants', infants.toString());
+        }
+
         if (latitude && longitude) {
             params.set('lat', latitude.toString());
             params.set('lng', longitude.toString());
@@ -107,6 +116,8 @@ export default function SearchForm({
         checkOut, setCheckOut,
         adults, setAdults,
         children, setChildren,
+        childAges, setChildAges, setChildAge,
+        infants, setInfants,
         rooms, setRooms,
         latitude, setLatitude,
         longitude, setLongitude,

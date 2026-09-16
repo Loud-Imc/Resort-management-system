@@ -28,6 +28,12 @@ export class UpdateBookingDto {
     @Type(() => Number)
     childrenCount?: number;
 
+    @ApiProperty({ example: [5, 8], required: false, type: [Number], description: 'Ages of children (3-12).' })
+    @IsOptional()
+    @IsArray()
+    @Type(() => Number)
+    childAges?: number[];
+
     @ApiProperty({ type: [GuestInfoDto], required: false })
     @IsArray()
     @ValidateNested({ each: true })

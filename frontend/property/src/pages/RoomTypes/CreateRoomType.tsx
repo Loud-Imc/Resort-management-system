@@ -707,7 +707,7 @@ export default function CreateRoomType() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                                         <span>Max Physical Children <span className="text-[11px] font-normal text-slate-500">(Optional)</span></span>
-                                        <span className="text-[10px] text-slate-400 font-normal">Age 2-12</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Age 3–12</span>
                                     </label>
                                     <input
                                         type="number"
@@ -724,7 +724,7 @@ export default function CreateRoomType() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
                                         <Baby className="h-3.5 w-3.5 text-pink-500" />
-                                        <span>Max Infants (0-2y)</span>
+                                        <span>Max Infants (0–2 yrs)</span>
                                     </label>
                                     <input
                                         type="number"
@@ -772,7 +772,7 @@ export default function CreateRoomType() {
                                 )}
                                 <div className="pt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
                                     <Baby className="h-3.5 w-3.5 text-pink-500" />
-                                    <span>+ Up to <strong className="text-slate-900 dark:text-white font-bold">{watchedMaxPhysicalInfants} Infant(s)</strong> (0-2 yrs, Free in cots)</span>
+                                    <span>+ Up to <strong className="text-slate-900 dark:text-white font-bold">{watchedMaxPhysicalInfants} Infant(s)</strong> (0–2 yrs, Free in cots)</span>
                                 </div>
                             </div>
                         </div>

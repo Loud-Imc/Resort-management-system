@@ -122,6 +122,11 @@ export class CreateBookingDto {
     @Type(() => Number)
     infantsCount?: number;
 
+    @ApiProperty({ example: [5, 8], required: false, type: [Number], description: 'Ages of children (3-12). Mandatory if childrenCount > 0.' })
+    @IsOptional()
+    @Type(() => Number)
+    childAges?: number[];
+
     @ApiProperty({ type: [GuestInfoDto] })
     @IsArray()
     @ValidateNested({ each: true })
@@ -266,6 +271,13 @@ export class CreateBookingDto {
     @Type(() => Number)
     roomsCount?: number;
 
+    @ApiProperty({ type: () => [RoomAllocationItemDto], required: false })
+    @IsArray()
+    @IsOptional()
+    @ValidateNested({ each: true })
+    @Type(() => RoomAllocationItemDto)
+    roomAllocations?: RoomAllocationItemDto[];
+
     @ApiProperty({ example: '2023-01-01', required: false, description: 'Optional date to use for transaction times (e.g., historical bookings)' })
     @IsDateString()
     @IsOptional()
@@ -276,3 +288,55 @@ export class CreateBookingDto {
     @IsOptional()
     isHistoricalEntry?: boolean;
 }
+
+export class RoomAllocationItemDto {
+    @ApiProperty({ example: 'room-type-uuid' })
+    @IsString()
+    @IsNotEmpty()
+    roomTypeId: string;
+
+    @ApiProperty({ example: 'room-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    roomId?: string;
+
+    @ApiProperty({ example: 2 })
+    @IsInt()
+    @Min(1)
+    @Type(() => Number)
+    adults: number;
+
+    @ApiProperty({ example: 1, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    children?: number;
+
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    infants?: number;
+
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraAdults?: number;
+
+    @ApiProperty({ example: 0, required: false })
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    @Type(() => Number)
+    extraChildren?: number;
+
+    @ApiProperty({ example: [5, 8], required: false, type: [Number], description: 'Ages of children allocated to this room (3-12).' })
+    @IsOptional()
+    @Type(() => Number)
+    childAges?: number[];
+}
+

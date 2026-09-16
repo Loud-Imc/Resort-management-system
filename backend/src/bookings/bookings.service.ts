@@ -23,6 +23,7 @@ import { ConnectivityOutboxService } from '../connectivity/services/connectivity
 import {
     validatePhysicalFeasibility,
     solveAccommodationOptions,
+    validateChildAges,
 } from '../common/utils/occupancy-solver.util';
 
 import { Decimal } from '@prisma/client/runtime/library';
@@ -192,87 +193,137 @@ export class BookingsService {
         // Calculate required rooms for standard booking
         let requiredRooms = 1;
         if (!isGroupBooking) {
-            const roomType = await this.prisma.roomType.findUnique({
-                where: { id: roomTypeId },
-                include: { property: true },
-            }) as any;
-            if (!roomType) {
-                throw new NotFoundException('Room type not found');
-            }
-
-            const isV2Property = roomType.property?.occupancyVersion === 'V2';
-            if (isV2Property) {
-                // Under a V2 Property, all RoomTypes must be V2-ready with non-null canonical fields
-                if (
-                    roomType.occupancyVersion !== 'V2' ||
-                    roomType.totalBaseOccupancy === null || roomType.totalBaseOccupancy === undefined ||
-                    roomType.totalMaxOccupancy === null || roomType.totalMaxOccupancy === undefined ||
-                    roomType.maxPhysicalAdults === null || roomType.maxPhysicalAdults === undefined ||
-                    roomType.maxPhysicalChildren === null || roomType.maxPhysicalChildren === undefined
-                ) {
-                    throw new BadRequestException(
-                        `RoomType ${roomTypeId} (${roomType.name}) under V2 Property is not V2-ready or is missing required canonical occupancy fields.`
-                    );
+            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
+                requiredRooms = createBookingDto.roomAllocations.length;
+                if (!roomTypeId) {
+                    roomTypeId = createBookingDto.roomAllocations[0].roomTypeId;
                 }
-
-                const targetRoomsCount = Math.max(1, createBookingDto.roomsCount || 1);
-                if (targetRoomsCount === 1) {
-                    const feasibility = validatePhysicalFeasibility(
-                        { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0 },
-                        {
-                            totalMaxOccupancy: roomType.totalMaxOccupancy,
-                            maxPhysicalAdults: roomType.maxPhysicalAdults,
-                            maxPhysicalChildren: roomType.maxPhysicalChildren,
-                            maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                for (const alloc of createBookingDto.roomAllocations) {
+                    const rt = await this.prisma.roomType.findUnique({
+                        where: { id: alloc.roomTypeId },
+                        include: { property: true },
+                    }) as any;
+                    if (!rt) {
+                        throw new NotFoundException(`Room type ${alloc.roomTypeId} not found`);
+                    }
+                    if (rt.property?.occupancyVersion === 'V2') {
+                        if (alloc.children && alloc.children > 0) {
+                            validateChildAges(alloc.children, alloc.childAges);
                         }
-                    );
-                    if (!feasibility.isValid) {
-                        throw new BadRequestException(`Occupancy exceeds physical capacity: ${feasibility.violations.join('; ')}`);
+                        const feasibility = validatePhysicalFeasibility(
+                            { adults: alloc.adults, children: alloc.children || 0, infants: alloc.infants || 0, childAges: alloc.childAges },
+                            {
+                                totalMaxOccupancy: rt.totalMaxOccupancy ?? (rt.maxPhysicalAdults + (rt.maxPhysicalChildren || 0)),
+                                maxPhysicalAdults: rt.maxPhysicalAdults ?? 2,
+                                maxPhysicalChildren: rt.maxPhysicalChildren ?? 0,
+                                maxPhysicalInfants: rt.maxPhysicalInfants ?? 1,
+                            }
+                        );
+                        if (!feasibility.isValid) {
+                            throw new BadRequestException(`Room allocation for ${rt.name} exceeds physical capacity: ${feasibility.violations.join('; ')}`);
+                        }
                     }
-                    requiredRooms = 1;
-                } else {
-                    const solutions = solveAccommodationOptions(
-                        { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0, requestedRooms: targetRoomsCount },
-                        [{
-                            id: roomType.id,
-                            name: roomType.name,
-                            totalBaseOccupancy: roomType.totalBaseOccupancy,
-                            totalMaxOccupancy: roomType.totalMaxOccupancy,
-                            maxPhysicalAdults: roomType.maxPhysicalAdults,
-                            maxPhysicalChildren: roomType.maxPhysicalChildren,
-                            maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
-                            baseMaxAdults: roomType.baseMaxAdults,
-                            baseMaxChildren: roomType.baseMaxChildren,
-                            freeChildrenCount: roomType.freeChildrenCount ?? 0,
-                            basePrice: Number(roomType.basePrice),
-                            extraAdultPrice: Number(roomType.extraAdultPrice),
-                            extraChildPrice: Number(roomType.extraChildPrice),
-                            availableQuantity: targetRoomsCount,
-                        }]
-                    );
-                    if (solutions.length === 0) {
-                        throw new BadRequestException(`Guest party (${adultsCount} adults, ${childrenCount} children, ${createBookingDto.infantsCount || 0} infants) cannot be accommodated in ${targetRoomsCount} room(s) of type ${roomType.name}`);
-                    }
-                    requiredRooms = targetRoomsCount;
                 }
             } else {
-                // V1 Legacy Path (Unchanged)
-                const maxAdults = Math.max(1, roomType.maxAdults || 2);
-                const maxChildren = Math.max(1, roomType.maxChildren || 2);
-                const requiredRoomsByAdults = Math.ceil(adultsCount / maxAdults);
-                const requiredRoomsByChildren = childrenCount > 0 ? Math.ceil(childrenCount / maxChildren) : 0;
-                const calculatedRooms = Math.max(requiredRoomsByAdults, requiredRoomsByChildren, 1);
-                requiredRooms = Math.max(createBookingDto.roomsCount || 0, calculatedRooms);
+                const roomType = await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId },
+                    include: { property: true },
+                }) as any;
+                if (!roomType) {
+                    throw new NotFoundException('Room type not found');
+                }
+
+                const isV2Property = roomType.property?.occupancyVersion === 'V2';
+                if (isV2Property) {
+                    // Under a V2 Property, all RoomTypes must be V2-ready with non-null canonical fields
+                    if (
+                        roomType.occupancyVersion !== 'V2' ||
+                        roomType.totalBaseOccupancy === null || roomType.totalBaseOccupancy === undefined ||
+                        roomType.totalMaxOccupancy === null || roomType.totalMaxOccupancy === undefined ||
+                        roomType.maxPhysicalAdults === null || roomType.maxPhysicalAdults === undefined ||
+                        roomType.maxPhysicalChildren === null || roomType.maxPhysicalChildren === undefined
+                    ) {
+                        throw new BadRequestException(
+                            `RoomType ${roomTypeId} (${roomType.name}) under V2 Property is not V2-ready or is missing required canonical occupancy fields.`
+                        );
+                    }
+
+                    if (childrenCount > 0) {
+                        validateChildAges(childrenCount, createBookingDto.childAges);
+                    }
+
+                    const targetRoomsCount = Math.max(1, createBookingDto.roomsCount || 1);
+                    if (targetRoomsCount === 1) {
+                        const feasibility = validatePhysicalFeasibility(
+                            { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0, childAges: createBookingDto.childAges },
+                            {
+                                totalMaxOccupancy: roomType.totalMaxOccupancy,
+                                maxPhysicalAdults: roomType.maxPhysicalAdults,
+                                maxPhysicalChildren: roomType.maxPhysicalChildren,
+                                maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                            }
+                        );
+                        if (!feasibility.isValid) {
+                            throw new BadRequestException(`Occupancy exceeds physical capacity: ${feasibility.violations.join('; ')}`);
+                        }
+                        requiredRooms = 1;
+                    } else {
+                        const solutions = solveAccommodationOptions(
+                            { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0, childAges: createBookingDto.childAges, requestedRooms: targetRoomsCount },
+                            [{
+                                id: roomType.id,
+                                name: roomType.name,
+                                totalBaseOccupancy: roomType.totalBaseOccupancy,
+                                totalMaxOccupancy: roomType.totalMaxOccupancy,
+                                maxPhysicalAdults: roomType.maxPhysicalAdults,
+                                maxPhysicalChildren: roomType.maxPhysicalChildren,
+                                maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                                baseMaxAdults: roomType.baseMaxAdults,
+                                baseMaxChildren: roomType.baseMaxChildren,
+                                freeChildrenCount: roomType.freeChildrenCount ?? 0,
+                                basePrice: Number(roomType.basePrice),
+                                extraAdultPrice: Number(roomType.extraAdultPrice),
+                                extraChildPrice: Number(roomType.extraChildPrice),
+                                availableQuantity: targetRoomsCount,
+                            }]
+                        );
+                        if (solutions.length === 0) {
+                            throw new BadRequestException(`Guest party (${adultsCount} adults, ${childrenCount} children, ${createBookingDto.infantsCount || 0} infants) cannot be accommodated in ${targetRoomsCount} room(s) of type ${roomType.name}`);
+                        }
+                        requiredRooms = targetRoomsCount;
+                    }
+                } else {
+                    // V1 Legacy Path (Unchanged)
+                    const maxAdults = Math.max(1, roomType.maxAdults || 2);
+                    const maxChildren = Math.max(1, roomType.maxChildren || 2);
+                    const requiredRoomsByAdults = Math.ceil(adultsCount / maxAdults);
+                    const requiredRoomsByChildren = childrenCount > 0 ? Math.ceil(childrenCount / maxChildren) : 0;
+                    const calculatedRooms = Math.max(requiredRoomsByAdults, requiredRoomsByChildren, 1);
+                    requiredRooms = Math.max(createBookingDto.roomsCount || 0, calculatedRooms);
+                }
             }
         }
 
         // 2. Check availability (standard booking only — group bookings validate via allocateRoomsForGroup below)
         if (!isGroupBooking) {
-            // For historical entries, we still check availability for *those dates* to prevent internal double booking, 
-            // but we don't care about "Today's" status.
-            const availableCount = await this.availabilityService.getAvailableRoomCount(roomTypeId!, checkIn, checkOut);
-            if (availableCount < requiredRooms) {
-                throw new BadRequestException(`Not enough rooms available for the selected dates. Required: ${requiredRooms}, Available: ${availableCount}`);
+            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
+                const rtCounts: Record<string, number> = {};
+                for (const alloc of createBookingDto.roomAllocations) {
+                    rtCounts[alloc.roomTypeId] = (rtCounts[alloc.roomTypeId] || 0) + 1;
+                }
+                for (const [rtId, neededCount] of Object.entries(rtCounts)) {
+                    const availableCount = await this.availabilityService.getAvailableRoomCount(rtId, checkIn, checkOut);
+                    if (availableCount < neededCount) {
+                        throw new BadRequestException(`Not enough rooms available for room type ${rtId}. Required: ${neededCount}, Available: ${availableCount}`);
+                    }
+                }
+            } else {
+                // For historical entries, we still check availability for *those dates* to prevent internal double booking, 
+                // but we don't care about "Today's" status.
+                const availableCount = await this.availabilityService.getAvailableRoomCount(roomTypeId!, checkIn, checkOut);
+                if (availableCount < requiredRooms) {
+                    throw new BadRequestException(`Not enough rooms available for the selected dates. Required: ${requiredRooms}, Available: ${availableCount}`);
+                }
             }
         }
 
@@ -299,25 +350,76 @@ export class BookingsService {
             : (isGroupBooking ? 1 : requiredRooms);
 
         if (!isGroupBooking) {
-            pricing = await this.pricingService.calculatePrice(
-                roomTypeId!,
-                checkIn,
-                checkOut,
-                adultsCount,
-                childrenCount,
-                couponCode,
-                referralCode,
-                createBookingDto.currency || 'INR',
-                isGroupBooking,
-                groupSize,
-                roomCount,
-                generalCode,
-                overrideTotal,
-                createBookingDto.isOverrideInclusive ?? true,
-                createBookingDto.extraAdultsCount,
-                createBookingDto.extraChildrenCount,
-                createBookingDto.infantsCount || 0,
-            );
+            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 1) {
+                let accumulatedBaseAmount = 0;
+                let accumulatedExtraAdultAmount = 0;
+                let accumulatedExtraChildAmount = 0;
+                let accumulatedTaxAmount = 0;
+                let accumulatedTotalAmount = 0;
+                let pricingRef: any = null;
+
+                for (const alloc of createBookingDto.roomAllocations) {
+                    const itemPrice = await this.pricingService.calculatePrice(
+                        alloc.roomTypeId,
+                        checkIn,
+                        checkOut,
+                        alloc.adults,
+                        alloc.children || 0,
+                        couponCode,
+                        referralCode,
+                        createBookingDto.currency || 'INR',
+                        false,
+                        undefined,
+                        1,
+                        generalCode,
+                        undefined,
+                        true,
+                        undefined,
+                        undefined,
+                        alloc.infants || 0,
+                        alloc.childAges
+                    );
+                    accumulatedBaseAmount += itemPrice.baseAmount;
+                    accumulatedExtraAdultAmount += itemPrice.extraAdultAmount;
+                    accumulatedExtraChildAmount += itemPrice.extraChildAmount;
+                    accumulatedTaxAmount += itemPrice.taxAmount;
+                    accumulatedTotalAmount += itemPrice.totalAmount;
+                    pricingRef = itemPrice;
+                }
+
+                pricing = {
+                    ...pricingRef,
+                    baseAmount: accumulatedBaseAmount,
+                    extraAdultAmount: accumulatedExtraAdultAmount,
+                    extraChildAmount: accumulatedExtraChildAmount,
+                    taxAmount: accumulatedTaxAmount,
+                    totalAmount: accumulatedTotalAmount,
+                    convertedTotal: accumulatedTotalAmount,
+                    originalTotal: accumulatedTotalAmount,
+                    originalConvertedTotal: accumulatedTotalAmount,
+                };
+            } else {
+                pricing = await this.pricingService.calculatePrice(
+                    roomTypeId!,
+                    checkIn,
+                    checkOut,
+                    adultsCount,
+                    childrenCount,
+                    couponCode,
+                    referralCode,
+                    createBookingDto.currency || 'INR',
+                    isGroupBooking,
+                    groupSize,
+                    roomCount,
+                    generalCode,
+                    overrideTotal,
+                    createBookingDto.isOverrideInclusive ?? true,
+                    createBookingDto.extraAdultsCount,
+                    createBookingDto.extraChildrenCount,
+                    createBookingDto.infantsCount || 0,
+                    createBookingDto.childAges,
+                );
+            }
         }
 
         finalTotal = pricing?.totalAmount ?? 0;
@@ -438,7 +540,7 @@ export class BookingsService {
                 targetPropertyId,
                 roomTypeId,
                 checkIn,
-                checkOut,
+                checkOut
             );
         }
 
@@ -446,6 +548,27 @@ export class BookingsService {
         let selectedRooms: any[] = [];
         if (isGroupBooking && allocatedRooms.length > 0) {
             selectedRooms = allocatedRooms;
+        } else if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
+            selectedRooms = [];
+            for (const alloc of createBookingDto.roomAllocations) {
+                if (alloc.roomId) {
+                    const sr = await this.prisma.room.findUnique({
+                        where: { id: alloc.roomId },
+                        include: { roomType: true },
+                    });
+                    if (!sr || sr.roomTypeId !== alloc.roomTypeId) {
+                        throw new BadRequestException(`Selected physical room ${alloc.roomId} does not match room type ${alloc.roomTypeId}`);
+                    }
+                    selectedRooms.push(sr);
+                } else {
+                    const availableRooms = await this.availabilityService.getAvailableRooms(alloc.roomTypeId, checkIn, checkOut);
+                    const unassigned = availableRooms.filter(ar => !selectedRooms.some(sr => sr.id === ar.id));
+                    if (unassigned.length === 0) {
+                        throw new BadRequestException(`Not enough available rooms for room type ${alloc.roomTypeId}`);
+                    }
+                    selectedRooms.push(unassigned[0]);
+                }
+            }
         } else {
             if (selectedRoomIds && selectedRoomIds.length > 0) {
                 // Fetch all specifically selected rooms
@@ -876,6 +999,7 @@ export class BookingsService {
                     numberOfNights: pricing.numberOfNights,
                     adultsCount,
                     childrenCount,
+                    childAges: createBookingDto.childAges || [],
                     infantsCount: createBookingDto.infantsCount || 0,
                     extraAdultsCount: createBookingDto.extraAdultsCount || 0,
                     extraChildrenCount: createBookingDto.extraChildrenCount || 0,
@@ -899,7 +1023,7 @@ export class BookingsService {
                     transactionDate: transactionDate ? new Date(transactionDate) : null,
                     createdBy,
                     paymentOption: isHistoricalEntry ? 'FULL' : (createBookingDto.paymentOption || 'FULL'),
-                    status: bookingStatus,
+                    status: bookingStatus as any,
                     isSeenByProperty: isAuthorizedStaff,
                     roomId: selectedRoom.id,
                     roomTypeId: roomTypeId!,
@@ -946,9 +1070,43 @@ export class BookingsService {
                     },
                     isGroupBooking,
                     groupSize,
-                    // Phase 3: Dual write to the unified BookingRoom schema
-                    // The any-cast is used to avoid TS errors prior to the user running npx prisma generate
-                    ...({ bookingRooms: { create: (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).map(r => ({ roomId: r.id })) } } as any),
+                    // Phase 3: Persist room-level demographic and pricing allocation snapshots
+                    bookingRooms: {
+                        create: (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).map((r, idx) => {
+                            const alloc = createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0
+                                ? (createBookingDto.roomAllocations.find(a => a.roomId === r.id) || createBookingDto.roomAllocations[idx] || {})
+                                : undefined;
+
+                            const rChildAges: number[] = alloc?.childAges || (alloc ? [] : (createBookingDto.childAges || []));
+                            const rAdults = alloc?.adults ?? (alloc ? 1 : adultsCount);
+                            const rChildren = alloc?.children ?? (alloc ? rChildAges.length : childrenCount);
+                            const rInfants = alloc?.infants ?? (alloc ? 0 : (createBookingDto.infantsCount || 0));
+                            const rExtraAdults = alloc?.extraAdults ?? (alloc ? 0 : (createBookingDto.extraAdultsCount || 0));
+                            const rExtraChildren = alloc?.extraChildren ?? (alloc ? 0 : (createBookingDto.extraChildrenCount || 0));
+                            const rFreeChildren = rChildAges.filter(a => a >= 3 && a <= 6).length;
+                            const rPaidChildren = rChildAges.filter(a => a >= 7 && a <= 12).length;
+
+                            const totalRooms = (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).length || 1;
+                            const nights = pricing.numberOfNights || 1;
+
+                            return {
+                                roomId: r.id,
+                                roomTypeId: alloc?.roomTypeId || r.roomTypeId || roomTypeId,
+                                adultsCount: rAdults,
+                                childrenCount: rChildren,
+                                infantsCount: rInfants,
+                                extraAdultsCount: rExtraAdults,
+                                extraChildrenCount: rExtraChildren,
+                                childAges: rChildAges,
+                                freeChildrenCount: rFreeChildren,
+                                paidChildrenCount: rPaidChildren,
+                                basePricePerNight: pricing.baseAmount ? (pricing.baseAmount / (nights * totalRooms)) : undefined,
+                                extraAdultChargePerNight: pricing.extraAdultAmount ? (pricing.extraAdultAmount / (nights * totalRooms)) : undefined,
+                                extraChildChargePerNight: pricing.extraChildAmount ? (pricing.extraChildAmount / (nights * totalRooms)) : undefined,
+                                totalPricePerNight: pricing.totalAmount ? (pricing.totalAmount / (nights * totalRooms)) : undefined,
+                            };
+                        }),
+                    },
                 },
                 include: {
                     property: {
@@ -2399,6 +2557,7 @@ export class BookingsService {
                     roomId: primaryRoomId,
                     adultsCount: dto.adultsCount,
                     childrenCount: dto.childrenCount,
+                    childAges: dto.childAges !== undefined ? dto.childAges : undefined,
                     specialRequests: dto.specialRequests,
                     gstNumber: dto.gstNumber,
                     whatsappNumber: dto.whatsappNumber,
@@ -2958,6 +3117,7 @@ export class BookingsService {
                     roomTypeId: targetRoomTypeId,
                     adultsCount: dto.adultsCount !== undefined ? Number(dto.adultsCount) : undefined,
                     childrenCount: dto.childrenCount !== undefined ? Number(dto.childrenCount) : undefined,
+                    childAges: dto.childAges !== undefined ? dto.childAges : undefined,
                     infantsCount: dto.infantsCount !== undefined ? Number(dto.infantsCount) : undefined,
                     extraAdultsCount: dto.extraAdultsCount !== undefined ? Number(dto.extraAdultsCount) : undefined,
                     extraChildrenCount: dto.extraChildrenCount !== undefined ? Number(dto.extraChildrenCount) : undefined,

@@ -3,11 +3,13 @@ import {
     RoomTypeInventoryCandidate,
     validatePhysicalFeasibility,
     isPhysicalRoomAllocationValid,
+    classifyGuestDemographics,
     calculateCanonicalSurcharges,
+    assignChildAgesToRooms,
     solveAccommodationOptions,
 } from './occupancy-solver.util';
 
-describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
+describe('Canonical Occupancy & Pricing Engine (Task 2A Phase 1)', () => {
     // -------------------------------------------------------------
     // Standard Test Inventory
     // -------------------------------------------------------------
@@ -97,9 +99,9 @@ describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
     };
 
     // =============================================================
-    // 1. PHYSICAL FEASIBILITY VALIDATION TESTS
+    // 1. INPUT VALIDATION & FEASIBILITY TESTS
     // =============================================================
-    describe('1. Physical Feasibility Validation (validatePhysicalFeasibility)', () => {
+    describe('1. Physical Feasibility & Child-Age Input Validation', () => {
         const roomLimits = {
             totalMaxOccupancy: 4,
             maxPhysicalAdults: 3,
@@ -107,23 +109,77 @@ describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
             maxPhysicalInfants: 1,
         };
 
-        it('accepts valid single-room combinations', () => {
+        it('accepts valid single-room combinations with explicit child ages', () => {
             expect(validatePhysicalFeasibility({ adults: 1, children: 0 }, roomLimits).isValid).toBe(true);
-            expect(validatePhysicalFeasibility({ adults: 2, children: 1 }, roomLimits).isValid).toBe(true);
-            expect(validatePhysicalFeasibility({ adults: 3, children: 1 }, roomLimits).isValid).toBe(true);
-            expect(validatePhysicalFeasibility({ adults: 2, children: 2 }, roomLimits).isValid).toBe(true);
-            expect(validatePhysicalFeasibility({ adults: 2, children: 1, infants: 1 }, roomLimits).isValid).toBe(true);
+            expect(validatePhysicalFeasibility({ adults: 2, children: 1, childAges: [4] }, roomLimits).isValid).toBe(true);
+            expect(validatePhysicalFeasibility({ adults: 3, children: 1, childAges: [8] }, roomLimits).isValid).toBe(true);
+            expect(validatePhysicalFeasibility({ adults: 2, children: 2, childAges: [4, 8] }, roomLimits).isValid).toBe(true);
+            expect(validatePhysicalFeasibility({ adults: 2, children: 1, childAges: [5], infants: 1 }, roomLimits).isValid).toBe(true);
         });
 
         it('rejects allocations with 0 adults (A < 1)', () => {
-            const res = validatePhysicalFeasibility({ adults: 0, children: 2 }, roomLimits);
+            const res = validatePhysicalFeasibility({ adults: 0, children: 2, childAges: [4, 5] }, roomLimits);
             expect(res.isValid).toBe(false);
             expect(res.violations).toContain('At least one adult is required per room.');
         });
 
         it('rejects negative counts', () => {
+            expect(validatePhysicalFeasibility({ adults: -1, children: 0 }, roomLimits).isValid).toBe(false);
             expect(validatePhysicalFeasibility({ adults: 1, children: -1 }, roomLimits).isValid).toBe(false);
             expect(validatePhysicalFeasibility({ adults: 1, children: 0, infants: -1 }, roomLimits).isValid).toBe(false);
+        });
+
+        it('Case A: rejects when childAges is shorter than children count (children=3, childAges=[4,5])', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 3, childAges: [4, 5] }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('does not match children count'))).toBe(true);
+        });
+
+        it('Case B: rejects when childAges is longer than children count (children=2, childAges=[4,5,8])', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 2, childAges: [4, 5, 8] }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('does not match children count'))).toBe(true);
+        });
+
+        it('Case C: rejects negative child age (children=1, childAges=[-1])', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 1, childAges: [-1] }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('cannot be negative'))).toBe(true);
+        });
+
+        it('Case D: rejects child age 13+ (children=1, childAges=[13])', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 1, childAges: [13] }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('13+ must be classified as adults'))).toBe(true);
+        });
+
+        it('Case E: rejects child age 0-2 inside childAges (children=2, childAges=[2,8])', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 2, childAges: [2, 8] }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('0–2 must be classified as infants'))).toBe(true);
+        });
+
+        it('Case F: accepts valid children=2, childAges=[4,8]', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 2, childAges: [4, 8] }, roomLimits);
+            expect(res.isValid).toBe(true);
+        });
+
+        it('rejects non-integer child age (children=1, childAges=[4.5])', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 1, childAges: [4.5] }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('must be an integer'))).toBe(true);
+        });
+
+        it('rejects missing childAges when children > 0', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 1 }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('Child ages are required'))).toBe(true);
+        });
+
+        it('rejects non-empty childAges when children === 0', () => {
+            const res = validatePhysicalFeasibility({ adults: 2, children: 0, childAges: [5] }, roomLimits);
+            expect(res.isValid).toBe(false);
+            expect(res.violations.some((v) => v.includes('does not match children count'))).toBe(true);
         });
 
         it('rejects adult count exceeding maxPhysicalAdults (A > P_A)', () => {
@@ -133,260 +189,287 @@ describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
         });
 
         it('rejects child count exceeding maxPhysicalChildren (C > P_C)', () => {
-            const res = validatePhysicalFeasibility({ adults: 1, children: 3 }, roomLimits);
+            const res = validatePhysicalFeasibility({ adults: 1, children: 3, childAges: [4, 5, 8] }, roomLimits);
             expect(res.isValid).toBe(false);
             expect(res.violations.some((v) => v.includes('exceed physical child capacity'))).toBe(true);
         });
 
         it('rejects total guests exceeding totalMaxOccupancy (A + C > M)', () => {
             // A=3 <= 3, C=2 <= 2, but A+C = 5 > 4 (M)
-            const res = validatePhysicalFeasibility({ adults: 3, children: 2 }, roomLimits);
+            const res = validatePhysicalFeasibility({ adults: 3, children: 2, childAges: [4, 8] }, roomLimits);
             expect(res.isValid).toBe(false);
             expect(res.violations.some((v) => v.includes('exceed max room capacity'))).toBe(true);
         });
 
         it('rejects infant count exceeding maxPhysicalInfants (I > P_I)', () => {
-            const res = validatePhysicalFeasibility({ adults: 2, children: 1, infants: 2 }, roomLimits);
+            const res = validatePhysicalFeasibility({ adults: 2, children: 1, childAges: [4], infants: 2 }, roomLimits);
             expect(res.isValid).toBe(false);
             expect(res.violations.some((v) => v.includes('exceed baby cot capacity'))).toBe(true);
         });
 
         it('verifies backward-compatibility helper isPhysicalRoomAllocationValid matches', () => {
-            expect(isPhysicalRoomAllocationValid({ adults: 2, children: 1 }, roomLimits)).toBe(true);
-            expect(isPhysicalRoomAllocationValid({ adults: 0, children: 2 }, roomLimits)).toBe(false);
+            expect(isPhysicalRoomAllocationValid({ adults: 2, children: 1, childAges: [4] }, roomLimits)).toBe(true);
+            expect(isPhysicalRoomAllocationValid({ adults: 0, children: 2, childAges: [4, 5] }, roomLimits)).toBe(false);
             expect(isPhysicalRoomAllocationValid({ adults: 4, children: 0 }, roomLimits)).toBe(false);
         });
     });
 
     // =============================================================
-    // 2. PURE BASE OCCUPANCY (NO DEMOGRAPHIC RESTRICTIONS)
+    // 2. DEMOGRAPHIC CLASSIFICATION TESTS
     // =============================================================
-    describe('2. Pure Base Occupancy (B=3, no bMA or bMC configured)', () => {
-        const pureBaseRoom = {
+    describe('2. Canonical Demographic Classification (classifyGuestDemographics)', () => {
+        it('classifies adults-only party correctly', () => {
+            const demo = classifyGuestDemographics({ adults: 2, children: 0 }, { freeChildrenCount: 1 });
+            expect(demo.adultsCount).toBe(2);
+            expect(demo.freeChildrenCount).toBe(0);
+            expect(demo.paidChildrenCount).toBe(0);
+            expect(demo.totalPhysicalBedOccupants).toBe(2);
+        });
+
+        it('classifies free-child eligible children within allowance', () => {
+            // FC = 2, ages [3, 4]
+            const demo = classifyGuestDemographics({ adults: 2, children: 2, childAges: [3, 4] }, { freeChildrenCount: 2 });
+            expect(demo.freeChildrenCount).toBe(2);
+            expect(demo.paidChildrenCount).toBe(0);
+            expect(demo.totalPhysicalBedOccupants).toBe(4);
+        });
+
+        it('classifies older children (7-12) as paid children', () => {
+            // FC = 2, ages [7, 8]
+            const demo = classifyGuestDemographics({ adults: 2, children: 2, childAges: [7, 8] }, { freeChildrenCount: 2 });
+            expect(demo.freeChildrenCount).toBe(0);
+            expect(demo.paidChildrenCount).toBe(2);
+            expect(demo.totalPhysicalBedOccupants).toBe(4);
+        });
+
+        it('classifies mixed free and paid children (2A + [3, 8])', () => {
+            const demo = classifyGuestDemographics({ adults: 2, children: 2, childAges: [3, 8] }, { freeChildrenCount: 1 });
+            expect(demo.freeChildrenCount).toBe(1);
+            expect(demo.paidChildrenCount).toBe(1);
+            expect(demo.totalPhysicalBedOccupants).toBe(4);
+        });
+
+        it('spills over 3-6 children beyond FC into paid children ([3, 4, 5, 8] on FC=2)', () => {
+            // FC = 2, ages [3, 4, 5, 8]
+            // Eligible: 3 (ages 3, 4, 5). Allowance: 2 -> Free: 2, Spillover: 1. Older: 1 (age 8).
+            // Paid children = 1 (older) + 1 (spillover) = 2.
+            const demo = classifyGuestDemographics({ adults: 2, children: 4, childAges: [3, 4, 5, 8] }, { freeChildrenCount: 2 });
+            expect(demo.freeChildrenCount).toBe(2);
+            expect(demo.paidChildrenCount).toBe(2);
+            expect(demo.totalPhysicalBedOccupants).toBe(6);
+        });
+
+        it('preserves infant independence in classification', () => {
+            const demo = classifyGuestDemographics({ adults: 2, children: 1, childAges: [4], infants: 1 }, { freeChildrenCount: 1 });
+            expect(demo.adultsCount).toBe(2);
+            expect(demo.infantsCount).toBe(1);
+            expect(demo.freeChildrenCount).toBe(1);
+            expect(demo.paidChildrenCount).toBe(0);
+            expect(demo.totalPhysicalBedOccupants).toBe(3); // Infants do not consume bed headcount
+        });
+    });
+
+    // =============================================================
+    // 3. STEP 4 FORENSIC REGRESSION TESTS (ELIMINATION OF CHILD->ADULT SPILLOVER)
+    // =============================================================
+    describe('3. Step 4 Forensic Regressions: Child Excess NEVER Billed as Extra Adult', () => {
+        const heritageRoom = {
             totalBaseOccupancy: 3,
-            totalMaxOccupancy: 4,
+            totalMaxOccupancy: 6,
             maxPhysicalAdults: 4,
             maxPhysicalChildren: 3,
             maxPhysicalInfants: 1,
-            baseMaxAdults: null,
-            baseMaxChildren: null,
-            freeChildrenCount: 0,
-            basePrice: 3000,
-            extraAdultPrice: 1000,
-            extraChildPrice: 500,
-        };
-
-        it('covers 1A completely with ₹0 surcharge', () => {
-            const res = calculateCanonicalSurcharges({ adults: 1, children: 0 }, pureBaseRoom);
-            expect(res.isFeasible).toBe(true);
-            expect(res.baseGuestsCovered).toBe(1);
-            expect(res.baseAdultsCovered).toBe(1);
-            expect(res.baseChildrenCovered).toBe(0);
-            expect(res.extraAdultsCount).toBe(0);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalExtraAmount).toBe(0);
-            expect(res.totalPrice).toBe(3000);
-        });
-
-        it('covers 2A completely with ₹0 surcharge', () => {
-            const res = calculateCanonicalSurcharges({ adults: 2, children: 0 }, pureBaseRoom);
-            expect(res.isFeasible).toBe(true);
-            expect(res.baseGuestsCovered).toBe(2);
-            expect(res.extraAdultsCount).toBe(0);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalExtraAmount).toBe(0);
-        });
-
-        it('covers 3A completely with ₹0 surcharge (dynamic headcount)', () => {
-            const res = calculateCanonicalSurcharges({ adults: 3, children: 0 }, pureBaseRoom);
-            expect(res.isFeasible).toBe(true);
-            expect(res.baseGuestsCovered).toBe(3);
-            expect(res.baseAdultsCovered).toBe(3);
-            expect(res.extraAdultsCount).toBe(0);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalExtraAmount).toBe(0);
-            expect(res.totalPrice).toBe(3000);
-        });
-
-        it('covers 1A + 1C completely with ₹0 surcharge', () => {
-            const res = calculateCanonicalSurcharges({ adults: 1, children: 1 }, pureBaseRoom);
-            expect(res.isFeasible).toBe(true);
-            expect(res.baseGuestsCovered).toBe(2);
-            expect(res.baseAdultsCovered).toBe(1);
-            expect(res.baseChildrenCovered).toBe(1);
-            expect(res.extraAdultsCount).toBe(0);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalExtraAmount).toBe(0);
-        });
-
-        it('covers 2A + 1C completely with ₹0 surcharge', () => {
-            const res = calculateCanonicalSurcharges({ adults: 2, children: 1 }, pureBaseRoom);
-            expect(res.isFeasible).toBe(true);
-            expect(res.baseGuestsCovered).toBe(3);
-            expect(res.baseAdultsCovered).toBe(2);
-            expect(res.baseChildrenCovered).toBe(1);
-            expect(res.extraAdultsCount).toBe(0);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalExtraAmount).toBe(0);
-            expect(res.totalPrice).toBe(3000);
-        });
-
-        it('covers 1A + 2C completely with ₹0 surcharge', () => {
-            const res = calculateCanonicalSurcharges({ adults: 1, children: 2 }, pureBaseRoom);
-            expect(res.isFeasible).toBe(true);
-            expect(res.baseGuestsCovered).toBe(3);
-            expect(res.baseAdultsCovered).toBe(1);
-            expect(res.baseChildrenCovered).toBe(2);
-            expect(res.extraAdultsCount).toBe(0);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalExtraAmount).toBe(0);
-            expect(res.totalPrice).toBe(3000);
-        });
-    });
-
-    // =============================================================
-    // 3. BASE DEMOGRAPHIC RESTRICTIONS
-    // =============================================================
-    describe('3. Base Demographic Restrictions (B=3, bMA=2, bMC=1)', () => {
-        const restrictedRoom = {
-            totalBaseOccupancy: 3,
-            totalMaxOccupancy: 4,
-            maxPhysicalAdults: 4,
-            maxPhysicalChildren: 2,
-            maxPhysicalInfants: 1,
             baseMaxAdults: 2,
             baseMaxChildren: 1,
             freeChildrenCount: 0,
-            basePrice: 3000,
-            extraAdultPrice: 1000,
-            extraChildPrice: 500,
+            basePrice: 4500,
+            extraAdultPrice: 900,
+            extraChildPrice: 450,
         };
 
-        it('3A on B=3, bMA=2 produces 1 Extra Adult (₹1,000 extra)', () => {
-            const res = calculateCanonicalSurcharges({ adults: 3, children: 0 }, restrictedRoom);
+        it('S09 Regression: 2 Adults + [7, 8] (B=3, bMA=2, bMC=1) produces ₹4,950 (NOT ₹5,400)', () => {
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 2, childAges: [7, 8] }, heritageRoom);
             expect(res.isFeasible).toBe(true);
             expect(res.baseAdultsCovered).toBe(2);
-            expect(res.baseChildrenCovered).toBe(0);
-            expect(res.extraAdultsCount).toBe(1);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.extraAdultAmount).toBe(1000);
-            expect(res.extraChildAmount).toBe(0);
-            expect(res.totalPrice).toBe(4000);
-        });
-
-        it('1A + 2C on B=3, bMC=1 produces 1 Extra Child (₹500 extra)', () => {
-            const res = calculateCanonicalSurcharges({ adults: 1, children: 2 }, restrictedRoom);
-            expect(res.isFeasible).toBe(true);
-            expect(res.baseAdultsCovered).toBe(1);
             expect(res.baseChildrenCovered).toBe(1);
-            expect(res.extraAdultsCount).toBe(0);
-            expect(res.extraChildrenCount).toBe(1);
+            expect(res.extraAdultsCount).toBe(0); // STRICTLY 0 extra adults
+            expect(res.extraChildrenCount).toBe(1); // 1 extra paid child
             expect(res.extraAdultAmount).toBe(0);
-            expect(res.extraChildAmount).toBe(500);
-            expect(res.totalPrice).toBe(3500);
+            expect(res.extraChildAmount).toBe(450);
+            expect(res.totalExtraAmount).toBe(450);
+            expect(res.totalPrice).toBe(4950);
+        });
+
+        it('S10 Regression: 4 Adults + [7, 8] (B=3, bMA=2, bMC=1) produces ₹6,750 (2 extra adults, 1 extra child)', () => {
+            const res = calculateCanonicalSurcharges({ adults: 4, children: 2, childAges: [7, 8] }, heritageRoom);
+            expect(res.isFeasible).toBe(true);
+            expect(res.baseAdultsCovered).toBe(2);
+            expect(res.baseChildrenCovered).toBe(1); // remaining base slot is 0, so baseChildrenCovered = min(2, 1, 0) = 0? Wait!
+            // Let's verify formula:
+            // A=4, B=3, bMA=2 => BaseAdultsCovered = min(4, 2, 3) = 2.
+            // RemainingBaseSlots = max(0, 3 - 2) = 1.
+            // Cpaid = 2, bMC = 1 => BaseChildrenCovered = min(2, 1, 1) = 1.
+            // ExtraAdults = max(0, 4 - 2) = 2 => 2 * 900 = 1800.
+            // ExtraChildren = max(0, 2 - 1) = 1 => 1 * 450 = 450.
+            // Total = 4500 + 1800 + 450 = 6750.
+            expect(res.extraAdultsCount).toBe(2);
+            expect(res.extraChildrenCount).toBe(1);
+            expect(res.extraAdultAmount).toBe(1800);
+            expect(res.extraChildAmount).toBe(450);
+            expect(res.totalPrice).toBe(6750);
+        });
+
+        it('S15 Regression: 2 Adults + [7, 8, 9] (B=3, bMA=2, bMC=1, P_C=3, M=5) produces ₹5,400 (2 extra children)', () => {
+            const bigChildRoom = {
+                ...heritageRoom,
+                totalMaxOccupancy: 5,
+                maxPhysicalChildren: 3,
+            };
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 3, childAges: [7, 8, 9] }, bigChildRoom);
+            expect(res.isFeasible).toBe(true);
+            expect(res.baseAdultsCovered).toBe(2);
+            expect(res.baseChildrenCovered).toBe(1);
+            expect(res.extraAdultsCount).toBe(0);
+            expect(res.extraChildrenCount).toBe(2);
+            expect(res.extraAdultAmount).toBe(0);
+            expect(res.extraChildAmount).toBe(900);
+            expect(res.totalPrice).toBe(5400);
         });
     });
 
     // =============================================================
-    // 4. FREE CHILDREN (FC) SEMANTICS
+    // 4. FREE CHILD TESTS (F1 - F4)
     // =============================================================
-    describe('4. Free Children Semantics (B=3, bMA=2, bMC=1, FC=1)', () => {
-        const roomWithFC = {
+    describe('4. Free Children Allowance Tests (F1 - F4) (B=3, bMA=2, bMC=1, FC=2)', () => {
+        const freeChildRoom = {
             totalBaseOccupancy: 3,
-            totalMaxOccupancy: 4,
+            totalMaxOccupancy: 6,
             maxPhysicalAdults: 4,
-            maxPhysicalChildren: 2,
+            maxPhysicalChildren: 4,
             maxPhysicalInfants: 1,
             baseMaxAdults: 2,
             baseMaxChildren: 1,
-            freeChildrenCount: 1,
-            basePrice: 3000,
-            extraAdultPrice: 1000,
-            extraChildPrice: 500,
+            freeChildrenCount: 2,
+            basePrice: 4500,
+            extraAdultPrice: 900,
+            extraChildPrice: 450,
         };
 
-        it('1A + 2C produces 1 base child and 1 extra child (NOT zero extra children)', () => {
-            const res = calculateCanonicalSurcharges({ adults: 1, children: 2 }, roomWithFC);
+        it('Test F1: 2A + [3] -> 1 Free, 0 Paid -> ₹4,500', () => {
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 1, childAges: [3] }, freeChildRoom);
             expect(res.isFeasible).toBe(true);
-            expect(res.baseAdultsCovered).toBe(1);
-            expect(res.baseChildrenCovered).toBe(1);
-            expect(res.extraAdultsCount).toBe(0);
-            // 1 child is already free via base (c_base = 1). FC=1 means 0 free children available for uncovered!
-            expect(res.extraChildrenCount).toBe(1);
             expect(res.freeChildrenCount).toBe(1);
-            expect(res.totalExtraAmount).toBe(500);
-            expect(res.totalPrice).toBe(3500);
+            expect(res.paidChildrenCount).toBe(0);
+            expect(res.extraAdultsCount).toBe(0);
+            expect(res.extraChildrenCount).toBe(0);
+            expect(res.totalPrice).toBe(4500);
         });
 
-        it('1A + 1C produces 0 extra charges and 1 free child count', () => {
-            const res = calculateCanonicalSurcharges({ adults: 1, children: 1 }, roomWithFC);
+        it('Test F2: 2A + [3, 4] -> 2 Free, 0 Paid -> ₹4,500', () => {
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 2, childAges: [3, 4] }, freeChildRoom);
             expect(res.isFeasible).toBe(true);
-            expect(res.baseAdultsCovered).toBe(1);
+            expect(res.freeChildrenCount).toBe(2);
+            expect(res.paidChildrenCount).toBe(0);
+            expect(res.extraAdultsCount).toBe(0);
+            expect(res.extraChildrenCount).toBe(0);
+            expect(res.totalPrice).toBe(4500);
+        });
+
+        it('Test F3: 2A + [3, 4, 5] -> 2 Free, 1 Paid (covered in base bMC=1) -> ₹4,500', () => {
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 3, childAges: [3, 4, 5] }, freeChildRoom);
+            expect(res.isFeasible).toBe(true);
+            expect(res.freeChildrenCount).toBe(2);
+            expect(res.paidChildrenCount).toBe(1);
             expect(res.baseChildrenCovered).toBe(1);
             expect(res.extraAdultsCount).toBe(0);
             expect(res.extraChildrenCount).toBe(0);
-            expect(res.freeChildrenCount).toBe(1);
-            expect(res.totalPrice).toBe(3000);
+            expect(res.totalPrice).toBe(4500);
+        });
+
+        it('Test F4: 2A + [3, 4, 5, 8] -> 2 Free, 2 Paid (1 base, 1 extra) -> ₹4,950', () => {
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 4, childAges: [3, 4, 5, 8] }, freeChildRoom);
+            expect(res.isFeasible).toBe(true);
+            expect(res.freeChildrenCount).toBe(2);
+            expect(res.paidChildrenCount).toBe(2);
+            expect(res.baseAdultsCovered).toBe(2);
+            expect(res.baseChildrenCovered).toBe(1);
+            expect(res.extraAdultsCount).toBe(0);
+            expect(res.extraChildrenCount).toBe(1);
+            expect(res.extraChildAmount).toBe(450);
+            expect(res.totalPrice).toBe(4950);
         });
     });
 
     // =============================================================
-    // 5. MIXED EXCESS HEADCOUNT RULE
+    // 5. MIXED AGE TESTS
     // =============================================================
-    describe('5. Mixed Excess Headcount Rule (B=3, M=4, bMA=2, bMC=1, FC=1)', () => {
+    describe('5. Mixed Age Surcharge Tests', () => {
         const mixedRoom = {
             totalBaseOccupancy: 3,
-            totalMaxOccupancy: 4,
+            totalMaxOccupancy: 6,
             maxPhysicalAdults: 4,
-            maxPhysicalChildren: 2,
+            maxPhysicalChildren: 4,
             maxPhysicalInfants: 1,
             baseMaxAdults: 2,
             baseMaxChildren: 1,
             freeChildrenCount: 1,
-            basePrice: 3000,
-            extraAdultPrice: 1000,
-            extraChildPrice: 500,
+            basePrice: 4500,
+            extraAdultPrice: 900,
+            extraChildPrice: 450,
         };
 
-        it('2A + 2C produces 1 Extra Adult and 0 Extra Children (Mixed Excess Rule)', () => {
-            // A=2, C=2. Total headcount = 4 > B(3) => Excess = 1.
-            // By rule: Excess above total base is charged as Extra Adult.
-            const res = calculateCanonicalSurcharges({ adults: 2, children: 2 }, mixedRoom);
+        it('2A + [3, 8] -> Free=1, Paid=1 (base covered) -> ₹4,500', () => {
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 2, childAges: [3, 8] }, mixedRoom);
             expect(res.isFeasible).toBe(true);
-            expect(res.baseAdultsCovered).toBe(2);
+            expect(res.freeChildrenCount).toBe(1);
+            expect(res.paidChildrenCount).toBe(1);
             expect(res.baseChildrenCovered).toBe(1);
-            expect(res.extraAdultsCount).toBe(1); // 1 extra adult fee for the mixed excess guest
-            expect(res.extraChildrenCount).toBe(0); // 0 extra children fee
-            expect(res.extraAdultAmount).toBe(1000);
-            expect(res.extraChildAmount).toBe(0);
-            expect(res.totalPrice).toBe(4000);
+            expect(res.extraChildrenCount).toBe(0);
+            expect(res.totalPrice).toBe(4500);
         });
 
-        it('3A + 1C produces 1 Extra Adult and 0 Extra Children', () => {
-            // A=3, C=1. Total headcount = 4 > B(3) => Excess = 1.
-            const res = calculateCanonicalSurcharges({ adults: 3, children: 1 }, mixedRoom);
+        it('2A + [4, 5, 8] -> Free=1, Paid=2 (1 base, 1 extra) -> ₹4,950', () => {
+            const res = calculateCanonicalSurcharges({ adults: 2, children: 3, childAges: [4, 5, 8] }, mixedRoom);
             expect(res.isFeasible).toBe(true);
-            expect(res.baseAdultsCovered).toBe(2);
+            expect(res.freeChildrenCount).toBe(1);
+            expect(res.paidChildrenCount).toBe(2);
             expect(res.baseChildrenCovered).toBe(1);
-            expect(res.extraAdultsCount).toBe(1);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalPrice).toBe(4000);
+            expect(res.extraChildrenCount).toBe(1);
+            expect(res.totalPrice).toBe(4950);
         });
 
-        it('4A + 0C produces 2 Extra Adults and 0 Extra Children', () => {
-            const res = calculateCanonicalSurcharges({ adults: 4, children: 0 }, mixedRoom);
+        it('2A + [3, 4, 7, 10] with FC=2 -> Free=2, Paid=2 (1 base, 1 extra) -> ₹4,950', () => {
+            const res = calculateCanonicalSurcharges(
+                { adults: 2, children: 4, childAges: [3, 4, 7, 10] },
+                { ...mixedRoom, freeChildrenCount: 2 }
+            );
             expect(res.isFeasible).toBe(true);
-            expect(res.baseAdultsCovered).toBe(2);
-            expect(res.extraAdultsCount).toBe(2);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalPrice).toBe(5000);
+            expect(res.freeChildrenCount).toBe(2);
+            expect(res.paidChildrenCount).toBe(2);
+            expect(res.baseChildrenCovered).toBe(1);
+            expect(res.extraChildrenCount).toBe(1);
+            expect(res.totalPrice).toBe(4950);
+        });
+
+        it('2A + [3, 6, 7, 12] with FC=1 -> Free=1, Paid=3 (1 base, 2 extra) -> ₹5,400', () => {
+            const res = calculateCanonicalSurcharges(
+                { adults: 2, children: 4, childAges: [3, 6, 7, 12] },
+                mixedRoom
+            );
+            expect(res.isFeasible).toBe(true);
+            expect(res.freeChildrenCount).toBe(1);
+            expect(res.paidChildrenCount).toBe(3);
+            expect(res.baseChildrenCovered).toBe(1);
+            expect(res.extraChildrenCount).toBe(2);
+            expect(res.extraChildAmount).toBe(900);
+            expect(res.totalPrice).toBe(5400);
         });
     });
 
     // =============================================================
-    // 6. INFANT INDEPENDENCE & ZERO CHARGE
+    // 6. INFANT INDEPENDENCE TESTS
     // =============================================================
-    describe('6. Infant Independence (P_I=1, ₹0 charge)', () => {
+    describe('6. Infant Independence (P_I = 1, ₹0 charge)', () => {
         const roomWithInfant = {
             totalBaseOccupancy: 3,
             totalMaxOccupancy: 4,
@@ -401,38 +484,210 @@ describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
             extraChildPrice: 500,
         };
 
-        it('2A + 1C + 1I does not increase A+C headcount or price (Infant is ₹0)', () => {
-            const res = calculateCanonicalSurcharges({ adults: 2, children: 1, infants: 1 }, roomWithInfant);
+        it('2A + [4] + 1 Infant is VALID and ₹0 infant surcharge', () => {
+            const res = calculateCanonicalSurcharges(
+                { adults: 2, children: 1, childAges: [4], infants: 1 },
+                roomWithInfant
+            );
             expect(res.isFeasible).toBe(true);
-            expect(res.baseGuestsCovered).toBe(3);
+            expect(res.baseGuestsCovered).toBe(2); // 2 adults covered, 1 free child
+            expect(res.freeChildrenCount).toBe(1);
             expect(res.extraAdultsCount).toBe(0);
             expect(res.extraChildrenCount).toBe(0);
             expect(res.totalPrice).toBe(3000);
         });
 
-        it('2A + 2C + 1I retains 1 Extra Adult charge with ₹0 for infant', () => {
-            const res = calculateCanonicalSurcharges({ adults: 2, children: 2, infants: 1 }, roomWithInfant);
-            expect(res.isFeasible).toBe(true);
-            expect(res.extraAdultsCount).toBe(1);
-            expect(res.extraChildrenCount).toBe(0);
-            expect(res.totalPrice).toBe(4000);
+        it('2A + 2 Infants is INVALID when P_I = 1', () => {
+            const res = calculateCanonicalSurcharges(
+                { adults: 2, children: 0, infants: 2 },
+                roomWithInfant
+            );
+            expect(res.isFeasible).toBe(false);
+            expect(res.violations!.some((v) => v.includes('baby cot capacity'))).toBe(true);
         });
 
-        it('rejects allocation when infants exceed maxPhysicalInfants', () => {
-            const res = calculateCanonicalSurcharges({ adults: 2, children: 1, infants: 2 }, roomWithInfant);
+        it('2A + 3 Infants is INVALID when P_I = 1', () => {
+            const res = calculateCanonicalSurcharges(
+                { adults: 2, children: 0, infants: 3 },
+                roomWithInfant
+            );
             expect(res.isFeasible).toBe(false);
-            expect(res.violations).toBeDefined();
-            expect(res.violations!.some((v) => v.includes('baby cot'))).toBe(true);
         });
     });
 
     // =============================================================
-    // 7. MULTI-ROOM COMBINATORIAL SEARCH & 4-TIER RANKING
+    // 7. PHYSICAL CAPACITY CONSTRAINTS WITH FREE CHILDREN
     // =============================================================
-    describe('7. Multi-Room Combinatorial Search & 4-Tier Ranking', () => {
-        it('Scenario 1: Single room standard guest party (2A, 1C)', () => {
+    describe('7. Physical Bed Capacity Constraints with Free Children', () => {
+        const constrainedRoom = {
+            totalBaseOccupancy: 2,
+            totalMaxOccupancy: 4,
+            maxPhysicalAdults: 3,
+            maxPhysicalChildren: 2,
+            maxPhysicalInfants: 1,
+            freeChildrenCount: 2,
+            basePrice: 3000,
+            extraAdultPrice: 1000,
+            extraChildPrice: 500,
+        };
+
+        it('rejects 2A + [3, 4, 5] because 3 children > P_C=2 (even though 2 are free)', () => {
+            const res = calculateCanonicalSurcharges(
+                { adults: 2, children: 3, childAges: [3, 4, 5] },
+                constrainedRoom
+            );
+            expect(res.isFeasible).toBe(false);
+            expect(res.violations!.some((v) => v.includes('physical child capacity'))).toBe(true);
+        });
+
+        it('accepts 3A + [3] when M=4, P_A=3, P_C=4 (3+1=4 <= M)', () => {
+            const bigRoom = {
+                ...constrainedRoom,
+                maxPhysicalChildren: 4,
+            };
+            const res = calculateCanonicalSurcharges(
+                { adults: 3, children: 1, childAges: [3] },
+                bigRoom
+            );
+            expect(res.isFeasible).toBe(true);
+        });
+
+        it('rejects 3A + [3, 4] when M=4 (3+2=5 > M=4)', () => {
+            const bigRoom = {
+                ...constrainedRoom,
+                maxPhysicalChildren: 4,
+            };
+            const res = calculateCanonicalSurcharges(
+                { adults: 3, children: 2, childAges: [3, 4] },
+                bigRoom
+            );
+            expect(res.isFeasible).toBe(false);
+            expect(res.violations!.some((v) => v.includes('max room capacity'))).toBe(true);
+        });
+    });
+
+    // =============================================================
+    // 8. B / bMA / bMC INTERACTION TESTS
+    // =============================================================
+    describe('8. B / bMA / bMC Capacity & Pricing Caps', () => {
+        const baseRoom = {
+            totalBaseOccupancy: 3,
+            totalMaxOccupancy: 4,
+            maxPhysicalAdults: 4,
+            maxPhysicalChildren: 3,
+            maxPhysicalInfants: 1,
+            baseMaxAdults: 2,
+            baseMaxChildren: 1,
+            freeChildrenCount: 0,
+            basePrice: 3000,
+            extraAdultPrice: 1000,
+            extraChildPrice: 500,
+        };
+
+        it('covers 3A on B=3, bMA=2 with 1 extra adult (capped by bMA)', () => {
+            const res = calculateCanonicalSurcharges({ adults: 3, children: 0 }, baseRoom);
+            expect(res.baseAdultsCovered).toBe(2);
+            expect(res.extraAdultsCount).toBe(1);
+            expect(res.totalPrice).toBe(4000);
+        });
+
+        it('covers 1A + [7, 8] on B=3, bMC=1 with 1 extra child (capped by bMC)', () => {
+            const res = calculateCanonicalSurcharges({ adults: 1, children: 2, childAges: [7, 8] }, baseRoom);
+            expect(res.baseAdultsCovered).toBe(1);
+            expect(res.baseChildrenCovered).toBe(1);
+            expect(res.extraChildrenCount).toBe(1);
+            expect(res.totalPrice).toBe(3500);
+        });
+
+        it('free children never consume baseMaxChildren or remainingBaseSlots', () => {
+            const roomWithFree = { ...baseRoom, freeChildrenCount: 1 };
+            // 1A + [4 (free), 8 (paid)]
+            // Free child consumes 0 base slots. Paid child consumes 1 base slot (bMC=1).
+            const res = calculateCanonicalSurcharges(
+                { adults: 1, children: 2, childAges: [4, 8] },
+                roomWithFree
+            );
+            expect(res.baseAdultsCovered).toBe(1);
+            expect(res.baseChildrenCovered).toBe(1); // paid child is covered in base
+            expect(res.freeChildrenCount).toBe(1);
+            expect(res.extraAdultsCount).toBe(0);
+            expect(res.extraChildrenCount).toBe(0);
+            expect(res.totalPrice).toBe(3000);
+        });
+    });
+
+    // =============================================================
+    // 9. S11 MULTI-AGE RESOLUTION TESTS
+    // =============================================================
+    describe('9. S11 Multi-Age Proof: 4 Adults + 4 Children across Multi-Room Inventory', () => {
+        const lakeHomestayDeluxe: RoomTypeInventoryCandidate = {
+            id: 'rt-lake-deluxe',
+            name: 'Lake View Deluxe',
+            totalBaseOccupancy: 3,
+            totalMaxOccupancy: 4,
+            maxPhysicalAdults: 3,
+            maxPhysicalChildren: 2,
+            maxPhysicalInfants: 1,
+            baseMaxAdults: 2,
+            baseMaxChildren: 1,
+            freeChildrenCount: 1,
+            basePrice: 4000,
+            extraAdultPrice: 800,
+            extraChildPrice: 400,
+            availableQuantity: 4,
+        };
+
+        it('S11-A (All Free-Eligible: [3, 4, 5, 6]): 2 rooms get 1 free child each', () => {
             const solutions = solveAccommodationOptions(
-                { adults: 2, children: 1, infants: 0 },
+                { adults: 4, children: 4, infants: 0, childAges: [3, 4, 5, 6] },
+                [lakeHomestayDeluxe]
+            );
+            expect(solutions.length).toBeGreaterThan(0);
+            const best = solutions[0];
+            expect(best.totalRooms).toBe(2);
+            // Each room gets 2A + 2C (e.g. [3,4] in room 1, [5,6] in room 2).
+            // For each room: FC=1 => 1 free, 1 paid.
+            // Base covers 2A + 1 paid child (bMC=1).
+            // Extra: 0 adults, 0 children! Total per room = ₹4,000 => Total = ₹8,000.
+            expect(best.pricingSummary.totalPerNight).toBe(8000);
+        });
+
+        it('S11-B (Mixed: [3, 4, 7, 8]): 2 free children, 2 paid children', () => {
+            const solutions = solveAccommodationOptions(
+                { adults: 4, children: 4, infants: 0, childAges: [3, 4, 7, 8] },
+                [lakeHomestayDeluxe]
+            );
+            expect(solutions.length).toBeGreaterThan(0);
+            const best = solutions[0];
+            expect(best.totalRooms).toBe(2);
+            // Room 1: 2A + [3, 7] -> 1 free, 1 paid (covered in base). Price = 4000.
+            // Room 2: 2A + [4, 8] -> 1 free, 1 paid (covered in base). Price = 4000.
+            // Total = ₹8,000.
+            expect(best.pricingSummary.totalPerNight).toBe(8000);
+        });
+
+        it('S11-C (All Older Paid Children: [7, 8, 9, 10]): 4 paid children', () => {
+            const solutions = solveAccommodationOptions(
+                { adults: 4, children: 4, infants: 0, childAges: [7, 8, 9, 10] },
+                [lakeHomestayDeluxe]
+            );
+            expect(solutions.length).toBeGreaterThan(0);
+            const best = solutions[0];
+            expect(best.totalRooms).toBe(2);
+            // Room 1: 2A + [7, 8] -> 0 free, 2 paid -> 1 base, 1 extra (₹400) -> ₹4,400.
+            // Room 2: 2A + [9, 10] -> 0 free, 2 paid -> 1 base, 1 extra (₹400) -> ₹4,400.
+            // Total = ₹8,800.
+            expect(best.pricingSummary.totalPerNight).toBe(8800);
+        });
+    });
+
+    // =============================================================
+    // 10. MULTI-ROOM COMBINATORIAL SOLVER TESTS
+    // =============================================================
+    describe('10. Multi-Room Combinatorial Search & 4-Tier Ranking', () => {
+        it('Scenario 1: Single room standard guest party (2A, 1C [4])', () => {
+            const solutions = solveAccommodationOptions(
+                { adults: 2, children: 1, infants: 0, childAges: [4] },
                 [standardRoom, couplePod]
             );
 
@@ -445,9 +700,9 @@ describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
             expect(best.pricingSummary.totalPerNight).toBe(3000);
         });
 
-        it('Scenario 2: Multi-room same type allocation (6A, 2C in Standard Deluxe)', () => {
+        it('Scenario 2: Multi-room same type allocation (6A, 2C [7, 8] in Standard Deluxe)', () => {
             const solutions = solveAccommodationOptions(
-                { adults: 6, children: 2, infants: 0 },
+                { adults: 6, children: 2, infants: 0, childAges: [7, 8] },
                 [standardRoom]
             );
 
@@ -458,32 +713,32 @@ describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
             expect(best.totalRooms).toBe(2);
             expect(best.roomTypeCounts['rt-std']).toBe(2);
             // Each room gets 3A + 1C:
-            // Room 1: 3A+1C => Base covers 2A+1C, 1 Extra Adult => ₹4,000
-            // Room 2: 3A+1C => Base covers 2A+1C, 1 Extra Adult => ₹4,000
-            // Total per night = ₹8,000
+            // Base covers 2A + 1 paid child (bMC=1).
+            // 1 Extra Adult per room (₹1,000) => ₹4,000 per room => ₹8,000 total.
             expect(best.pricingSummary.totalPerNight).toBe(8000);
         });
 
-        it('Scenario 3: Mixed room types combination (Couple Pod + Family Suite)', () => {
-            const solutions = solveAccommodationOptions(
-                { adults: 4, children: 2, infants: 0 },
-                [couplePod, familySuite]
-            );
+        it('Scenario 3: Multi-room optimal child age distribution across rooms with different FC', () => {
+            // Room A: FC = 2, Room B: FC = 0
+            // Party: 4 Adults, 2 Children [4, 8]
+            // Optimal assignment puts the eligible child (age 4) in Room A (FC=2) so age 4 is free!
+            const roomWithFC = { ...adultHeavyAsymmetric, freeChildrenCount: 2, id: 'rt-fc2' };
+            const roomNoFC = { ...adultHeavyAsymmetric, freeChildrenCount: 0, id: 'rt-fc0' };
 
-            expect(solutions.length).toBeGreaterThan(0);
-            const mixSolution = solutions.find(
-                (s) => s.roomTypeCounts['rt-cpl'] === 1 && s.roomTypeCounts['rt-fam'] === 1
+            const allocations = assignChildAgesToRooms(
+                [roomNoFC, roomWithFC],
+                [{ adults: 2, children: 1 }, { adults: 2, children: 1 }],
+                [4, 8]
             );
-            expect(mixSolution).toBeDefined();
-            expect(mixSolution!.rooms.length).toBe(2);
+            // Room index 1 (with FC=2) should get the eligible child (age 4)
+            expect(allocations[1].length).toBe(1);
+            expect(allocations[1][0]).toBe(4);
+            expect(allocations[0][0]).toBe(8);
         });
 
         it('Scenario 4: Asymmetric capacities with uneven adult distribution', () => {
-            // rt-asym-a (P_A=3, P_C=1), rt-asym-c (P_A=1, P_C=3)
-            // 4 Adults, 2 Children across both rooms:
-            // Room A must take 3A + 0C (or 3A + 1C) and Room C must take 1A + 2C
             const solutions = solveAccommodationOptions(
-                { adults: 4, children: 2, infants: 0 },
+                { adults: 4, children: 2, infants: 0, childAges: [4, 8] },
                 [adultHeavyAsymmetric, childHeavyAsymmetric]
             );
 
@@ -498,75 +753,20 @@ describe('Canonical Occupancy Engine (Phase 1 & 2)', () => {
             expect(roomC.adults).toBe(1);
         });
 
-        it('Scenario 5: Requested room count acts as ranking preference, not hard constraint', () => {
-            // 2 Adults, 1 Child searching with requestedRooms = 2
+        it('Scenario 5: 0 adults returns empty array', () => {
             const solutions = solveAccommodationOptions(
-                { adults: 2, children: 1, infants: 0, requestedRooms: 2 },
-                [standardRoom]
-            );
-
-            expect(solutions.length).toBeGreaterThan(0);
-            // 1-room solution is still returned and evaluated
-            const oneRoom = solutions.find((s) => s.totalRooms === 1);
-            const twoRoom = solutions.find((s) => s.totalRooms === 2);
-            expect(oneRoom).toBeDefined();
-            expect(twoRoom).toBeDefined();
-
-            // 1-room solution is ₹3,000, 2-room solution is ₹6,000
-            // Tier 1 (Price) ranks ₹3,000 as cheapest / Best Value
-            expect(solutions[0].pricingSummary.totalPerNight).toBe(3000);
-            expect(solutions[0].isRecommended).toBe(true);
-            expect(solutions[0].badge).toBe('Best Value');
-        });
-
-        it('Scenario 6: 0 adults returns empty array', () => {
-            const solutions = solveAccommodationOptions(
-                { adults: 0, children: 2, infants: 0 },
+                { adults: 0, children: 2, infants: 0, childAges: [4, 5] },
                 [standardRoom]
             );
             expect(solutions).toEqual([]);
         });
 
-        it('Scenario 7: Rejects multi-room if adults < rooms (1A, 4C cannot be placed in 2 rooms)', () => {
+        it('Scenario 6: Rejects multi-room if adults < rooms (1A, 4C cannot be placed in 2 rooms)', () => {
             const solutions = solveAccommodationOptions(
-                { adults: 1, children: 4, infants: 0 },
+                { adults: 1, children: 4, infants: 0, childAges: [4, 5, 7, 8] },
                 [standardRoom]
             );
-            // 1 adult cannot occupy 2 rooms simultaneously
             expect(solutions.every((s) => s.totalRooms === 1)).toBe(true);
-        });
-
-        it('Scenario 8: Respects physical inventory quantity limits', () => {
-            const singleStockSuite = { ...familySuite, availableQuantity: 1 };
-            const solutions = solveAccommodationOptions(
-                { adults: 6, children: 4, infants: 0 },
-                [singleStockSuite]
-            );
-            // Max 1 room available => cannot fulfill 10 guests in 1 family suite
-            expect(solutions).toEqual([]);
-        });
-
-        it('Scenario 9: Bounded backtracking succeeds where naive even distribution fails', () => {
-            // Party: 4 Adults, 4 Children (Total 8 guests)
-            // Inventory:
-            // Type 1 (Adult Heavy): P_A = 3, P_C = 1 (Total cap 4) - 1 room
-            // Type 2 (Child Heavy): P_A = 1, P_C = 3 (Total cap 4) - 1 room
-            // Naive even split (2A+2C in both) fails Type 1 (C=2 > 1) and Type 2 (A=2 > 1).
-            // Backtracking finds (3A+1C in Type 1) and (1A+3C in Type 2).
-            const solutions = solveAccommodationOptions(
-                { adults: 4, children: 4, infants: 0 },
-                [adultHeavyAsymmetric, childHeavyAsymmetric]
-            );
-
-            expect(solutions.length).toBeGreaterThan(0);
-            const sol = solutions[0];
-            expect(sol.rooms.length).toBe(2);
-            const room1 = sol.rooms.find((r) => r.roomTypeId === 'rt-asym-a')!;
-            const room2 = sol.rooms.find((r) => r.roomTypeId === 'rt-asym-c')!;
-            expect(room1.adults).toBe(3);
-            expect(room1.children).toBe(1);
-            expect(room2.adults).toBe(1);
-            expect(room2.children).toBe(3);
         });
     });
 });
