@@ -90,10 +90,10 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     };
 
     return (
-        <div className="bg-card rounded-2xl shadow-xl border border-border sticky top-20 overflow-hidden flex flex-col max-h-[calc(100vh-6rem)]">
-            <div className="h-1.5 bg-gradient-to-r from-primary via-primary/80 to-primary/50 shrink-0"></div>
+        <div className="bg-card rounded-2xl shadow-xl border border-border sticky top-20 overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-primary via-primary/80 to-primary/50"></div>
             
-            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+            <div className="p-5 sm:p-6 space-y-4">
                 {/* Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-border">
                     <div>

@@ -2140,7 +2140,7 @@ export default function CreateBooking() {
 
 
                 {/* ── RIGHT COLUMN: STICKY BOOKING SUMMARY (~35% Width on Desktop) ── */}
-                <div className="hidden lg:block lg:col-span-5 xl:col-span-4">
+                <div className="hidden lg:block lg:col-span-5 xl:col-span-4 h-fit sticky top-20">
                     <BookingSummarySidebar
                         propertyName={selectedProperty?.name}
                         checkInDate={watchedCheckInDate}
