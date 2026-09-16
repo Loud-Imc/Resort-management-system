@@ -40,6 +40,15 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
     onApplyCustomSolution,
 }) => {
     const [customRooms, setCustomRooms] = useState<CustomRoomItem[]>([]);
+    const [livePrice, setLivePrice] = useState<{
+        baseAmount: number;
+        extraAmount: number;
+        taxAmount: number;
+        totalPrice: number;
+        taxRate: number;
+        isGstInclusive: boolean;
+    } | null>(null);
+    const [isPriceCalculating, setIsPriceCalculating] = useState(false);
 
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
@@ -68,6 +77,67 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
             ]);
         }
     }, [isOpen, availableRoomTypes]);
+
+    // Authoritative Live Pricing from backend pricing service
+    useEffect(() => {
+        let isCancelled = false;
+        if (!isOpen || !checkInDate || !checkOutDate || customRooms.length === 0) {
+            setLivePrice(null);
+            return;
+        }
+
+        const calculateLivePricing = async () => {
+            setIsPriceCalculating(true);
+            try {
+                let accBase = 0;
+                let accExtra = 0;
+                let accTax = 0;
+                let accTotal = 0;
+                let isInclusive = false;
+                let lastTaxRate = 0;
+
+                for (const cr of customRooms) {
+                    if (!cr.roomTypeId) continue;
+                    const res = await bookingsService.calculatePrice({
+                        roomTypeId: cr.roomTypeId,
+                        checkInDate,
+                        checkOutDate,
+                        adultsCount: cr.adults,
+                        childrenCount: cr.children,
+                        childAges: cr.childAges,
+                        roomCount: 1,
+                    });
+                    accBase += res.baseAmount;
+                    accExtra += ((res.extraAdultAmount || 0) + (res.extraChildAmount || 0));
+                    accTax += res.taxAmount;
+                    accTotal += res.totalAmount;
+                    if (res.isGstInclusive) isInclusive = true;
+                    lastTaxRate = res.taxRate;
+                }
+
+                if (!isCancelled) {
+                    setLivePrice({
+                        baseAmount: Number(accBase.toFixed(2)),
+                        extraAmount: Number(accExtra.toFixed(2)),
+                        taxAmount: Number(accTax.toFixed(2)),
+                        totalPrice: Number(accTotal.toFixed(2)),
+                        taxRate: lastTaxRate,
+                        isGstInclusive: isInclusive,
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to calculate custom solution live price', err);
+            } finally {
+                if (!isCancelled) setIsPriceCalculating(false);
+            }
+        };
+
+        const timer = setTimeout(calculateLivePricing, 150);
+        return () => {
+            isCancelled = true;
+            clearTimeout(timer);
+        };
+    }, [isOpen, customRooms, checkInDate, checkOutDate]);
 
     if (!isOpen) return null;
 
@@ -156,76 +226,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
         };
     });
 
-    // Authoritative Live Pricing from backend pricing service
-    const [livePrice, setLivePrice] = useState<{
-        baseAmount: number;
-        extraAmount: number;
-        taxAmount: number;
-        totalPrice: number;
-        taxRate: number;
-        isGstInclusive: boolean;
-    } | null>(null);
-    const [isPriceCalculating, setIsPriceCalculating] = useState(false);
 
-    useEffect(() => {
-        let isCancelled = false;
-        if (!isOpen || !checkInDate || !checkOutDate || customRooms.length === 0) {
-            setLivePrice(null);
-            return;
-        }
-
-        const calculateLivePricing = async () => {
-            setIsPriceCalculating(true);
-            try {
-                let accBase = 0;
-                let accExtra = 0;
-                let accTax = 0;
-                let accTotal = 0;
-                let isInclusive = false;
-                let lastTaxRate = 0;
-
-                for (const cr of customRooms) {
-                    if (!cr.roomTypeId) continue;
-                    const res = await bookingsService.calculatePrice({
-                        roomTypeId: cr.roomTypeId,
-                        checkInDate,
-                        checkOutDate,
-                        adultsCount: cr.adults,
-                        childrenCount: cr.children,
-                        childAges: cr.childAges,
-                        roomCount: 1,
-                    });
-                    accBase += res.baseAmount;
-                    accExtra += ((res.extraAdultAmount || 0) + (res.extraChildAmount || 0));
-                    accTax += res.taxAmount;
-                    accTotal += res.totalAmount;
-                    if (res.isGstInclusive) isInclusive = true;
-                    lastTaxRate = res.taxRate;
-                }
-
-                if (!isCancelled) {
-                    setLivePrice({
-                        baseAmount: Number(accBase.toFixed(2)),
-                        extraAmount: Number(accExtra.toFixed(2)),
-                        taxAmount: Number(accTax.toFixed(2)),
-                        totalPrice: Number(accTotal.toFixed(2)),
-                        taxRate: lastTaxRate,
-                        isGstInclusive: isInclusive,
-                    });
-                }
-            } catch (err) {
-                console.error('Failed to calculate custom solution live price', err);
-            } finally {
-                if (!isCancelled) setIsPriceCalculating(false);
-            }
-        };
-
-        const timer = setTimeout(calculateLivePricing, 150);
-        return () => {
-            isCancelled = true;
-            clearTimeout(timer);
-        };
-    }, [isOpen, customRooms, checkInDate, checkOutDate]);
 
     // Synchronous fallback (aligns with GST inclusive/exclusive mode)
     const isPropertyGstApplicable = Boolean(roomTypes[0]?.property?.isGstApplicable && roomTypes[0]?.property?.gstNumber);
