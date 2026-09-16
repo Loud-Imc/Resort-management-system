@@ -106,7 +106,9 @@ export class BookingsController {
                     name: r.name,
                     roomNumber: r.roomNumber,
                     roomType: type.name,
-                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0)),
+                    capacity: (type as any).totalMaxOccupancy !== null && (type as any).totalMaxOccupancy !== undefined
+                        ? Number((type as any).totalMaxOccupancy)
+                        : ((type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))),
                     maxAdults: type.maxAdults,
                     maxChildren: type.maxChildren || 0,
                     baseAdults: type.baseAdults ?? type.maxAdults ?? 2,
