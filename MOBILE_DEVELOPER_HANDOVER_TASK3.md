@@ -113,68 +113,82 @@ Allows hotel frontdesk staff to manually configure multi-room allocations:
 | `infantsCount` | Integer | No | `1` | Infants (0–2 yrs, default: 0) |
 | `isGroupBooking`| Boolean | No | `false` | True for whole property group booking |
 
-#### Response JSON Schema (`accommodationSolutions`):
+#### Response JSON Schema (`accommodationSolutions` and `flexibleDateRates`):
 ```json
 {
-  "statusCode": 200,
-  "data": {
-    "propertyId": "8a2c4e12-...",
-    "propertyName": "Serene Lake Homestay",
-    "accommodationSolutions": [
-      {
-        "id": "sol_lakeview_2rooms",
-        "solutionName": "Lake View Haven (2 Rooms)",
-        "totalRooms": 2,
-        "isRecommended": true,
-        "badge": "Best Value",
-        "numberOfNights": 2,
-        "pricing": {
-          "baseAmount": 11428.58,
-          "extraAmount": 0.0,
-          "taxAmount": 571.42,
-          "taxRate": 5,
-          "isGstInclusive": true,
-          "totalPrice": 12000.0,
-          "pricePerNight": 6000.0,
-          "currency": "INR"
-        },
-        "rooms": [
-          {
-            "roomTypeId": "rt_lakeview_id",
-            "roomTypeName": "Lake View Haven",
-            "adults": 2,
-            "children": 1,
-            "childAges": [6],
-            "infants": 0,
-            "extraAdults": 0,
-            "extraChildren": 0,
-            "basePricePerNight": 3000.0,
-            "totalPricePerNight": 3000.0,
-            "maxPhysicalAdults": 3,
-            "maxPhysicalChildren": 1,
-            "maxPhysicalInfants": 1
-          },
-          {
-            "roomTypeId": "rt_lakeview_id",
-            "roomTypeName": "Lake View Haven",
-            "adults": 2,
-            "children": 0,
-            "childAges": [],
-            "infants": 1,
-            "extraAdults": 0,
-            "extraChildren": 0,
-            "basePricePerNight": 3000.0,
-            "totalPricePerNight": 3000.0,
-            "maxPhysicalAdults": 3,
-            "maxPhysicalChildren": 1,
-            "maxPhysicalInfants": 1
-          }
-        ]
-      }
-    ]
-  }
+  "availableRoomTypes": [...],
+  "accommodationSolutions": [
+    {
+      "id": "sol_lakeview_2rooms",
+      "solutionName": "Lake View Haven (2 Rooms)",
+      "totalRooms": 2,
+      "isRecommended": true,
+      "badge": "Best Value",
+      "numberOfNights": 2,
+      "pricing": {
+        "baseAmount": 11428.58,
+        "extraAmount": 0.0,
+        "taxAmount": 571.42,
+        "taxRate": 5,
+        "isGstInclusive": true,
+        "totalPrice": 12000.0,
+        "pricePerNight": 6000.0,
+        "currency": "INR"
+      },
+      "rooms": [
+        {
+          "roomTypeId": "rt_lakeview_id",
+          "roomTypeName": "Lake View Haven",
+          "adults": 2,
+          "children": 1,
+          "childAges": [6],
+          "infants": 0,
+          "extraAdults": 0,
+          "extraChildren": 0,
+          "basePricePerNight": 3000.0,
+          "totalPricePerNight": 3000.0,
+          "maxPhysicalAdults": 3,
+          "maxPhysicalChildren": 1,
+          "maxPhysicalInfants": 1
+        }
+      ]
+    }
+  ],
+  "flexibleDateRates": [
+    {
+      "checkInDate": "2026-10-09T00:00:00.000Z",
+      "checkOutDate": "2026-10-11T00:00:00.000Z",
+      "stayLength": 2,
+      "price": 11000.0,
+      "pricePerNight": 5500.0,
+      "isSoldOut": false,
+      "isSelected": false,
+      "isCheapest": true,
+      "priceDifference": -1000.0,
+      "hasSolution": true
+    },
+    {
+      "checkInDate": "2026-10-10T00:00:00.000Z",
+      "checkOutDate": "2026-10-12T00:00:00.000Z",
+      "stayLength": 2,
+      "price": 12000.0,
+      "pricePerNight": 6000.0,
+      "isSoldOut": false,
+      "isSelected": true,
+      "isCheapest": false,
+      "priceDifference": 0.0,
+      "hasSolution": true
+    }
+  ]
 }
 ```
+
+> [!TIP]
+> **Flutter Implementation for Flexible Travel Dates**:
+> - The backend evaluates 5 surrounding dates (`[-1, 0, 1, 2, 3]`) using the V2 Accommodation Solver.
+> - Flutter does NOT need to run loop queries. Render `flexibleDateRates` in a horizontal `ListView.builder`.
+> - Tapping any date card simply updates the search `checkInDate`/`checkOutDate` state.
+
 
 ---
 

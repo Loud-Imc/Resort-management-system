@@ -105,4 +105,43 @@ export class SearchRoomsDto {
     @Min(1)
     @Type(() => Number)
     groupSize?: number;
+
+    @ApiProperty({ example: true, required: false, description: 'Whether to include nearest flexible date rate summaries (Defaults to true when propertyId is provided)' })
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    includeFlexibleDates?: boolean;
 }
+
+export class FlexibleDateRateDto {
+    @ApiProperty({ example: '2026-09-16' })
+    checkInDate: string;
+
+    @ApiProperty({ example: '2026-09-17' })
+    checkOutDate: string;
+
+    @ApiProperty({ example: 1 })
+    stayLength: number;
+
+    @ApiProperty({ example: 3000, nullable: true })
+    price: number | null;
+
+    @ApiProperty({ example: 3000, nullable: true })
+    pricePerNight: number | null;
+
+    @ApiProperty({ example: false })
+    isSoldOut: boolean;
+
+    @ApiProperty({ example: true })
+    isSelected: boolean;
+
+    @ApiProperty({ example: true })
+    isCheapest: boolean;
+
+    @ApiProperty({ example: 0, nullable: true })
+    priceDifference: number | null;
+
+    @ApiProperty({ example: true })
+    hasSolution: boolean;
+}
+

@@ -192,13 +192,46 @@ export class BookingsController {
             dto.groupSize,
             dto.infants || 0,
             dto.childAges,
+            dto.includeFlexibleDates,
         );
 
         return {
             availableRoomTypes: results,
             accommodationSolutions: (results as any).accommodationSolutions || [],
+            flexibleDateRates: (results as any).flexibleDateRates || [],
         };
     }
+
+    @Post('flexible-dates')
+    @ApiOperation({ summary: 'Get flexible date rates for property (Public)' })
+    async getFlexibleDates(@Body() dto: SearchRoomsDto) {
+        const results = await this.availabilityService.searchAvailableRoomTypes(
+            new Date(dto.checkInDate),
+            new Date(dto.checkOutDate),
+            dto.adults,
+            dto.children || 0,
+            dto.location,
+            dto.type,
+            dto.includeSoldOut || false,
+            dto.rooms || 1,
+            dto.categoryId,
+            dto.latitude,
+            dto.longitude,
+            dto.radius,
+            dto.currency,
+            dto.propertyId,
+            dto.isGroupBooking || false,
+            dto.groupSize,
+            dto.infants || 0,
+            dto.childAges,
+            true, // force includeFlexibleDates
+        );
+
+        return {
+            flexibleDateRates: (results as any).flexibleDateRates || [],
+        };
+    }
+
 
     @Post('calculate-price')
     @ApiOperation({ summary: 'Calculate booking price (Public). Invalid referral codes are rate-limited per IP.' })

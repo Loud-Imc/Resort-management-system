@@ -1,9 +1,9 @@
 import api from './api';
-import { BookingSearchParams, CreateBookingDto } from '../types';
+import { BookingSearchParams, CreateBookingDto, AvailabilityResponse } from '../types';
 
 export const bookingService = {
     checkAvailability: async (params: BookingSearchParams) => {
-        const { data } = await api.post<{ availableRoomTypes: any[]; accommodationSolutions?: any[] }>('/bookings/search', {
+        const { data } = await api.post<AvailabilityResponse>('/bookings/search', {
             checkInDate: params.checkInDate,
             checkOutDate: params.checkOutDate,
             adults: params.adults,
@@ -22,6 +22,7 @@ export const bookingService = {
             propertyId: params.propertyId,
             isGroupBooking: params.isGroupBooking,
             groupSize: params.groupSize,
+            includeFlexibleDates: params.includeFlexibleDates,
         });
         return data;
     },

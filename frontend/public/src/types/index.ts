@@ -71,6 +71,7 @@ export interface BookingSearchParams {
     propertyId?: string;
     isGroupBooking?: boolean;
     groupSize?: number;
+    includeFlexibleDates?: boolean;
 }
 
 export interface AllocatedRoomItem {
@@ -117,9 +118,23 @@ export interface AccommodationSolution {
     rooms: AllocatedRoomItem[];
 }
 
+export interface FlexibleDateRate {
+    checkInDate: string;
+    checkOutDate: string;
+    stayLength: number;
+    price: number | null;
+    pricePerNight: number | null;
+    isSoldOut: boolean;
+    isSelected: boolean;
+    isCheapest: boolean;
+    priceDifference: number | null;
+    hasSolution: boolean;
+}
+
 export interface AvailabilityResponse {
     availableRoomTypes: RoomType[];
     accommodationSolutions?: AccommodationSolution[];
+    flexibleDateRates?: FlexibleDateRate[];
 }
 
 export interface RoomAllocationItem {

@@ -11,6 +11,7 @@ import {
     validatePhysicalFeasibility,
     validateChildAges,
 } from '../common/utils/occupancy-solver.util';
+import { FlexibleDateRateDto } from './dto/search-rooms.dto';
 @Injectable()
 export class AvailabilityService {
     constructor(
@@ -1101,6 +1102,7 @@ export class AvailabilityService {
         groupSize?: number,
         infants: number = 0,
         childAges?: number[],
+        includeFlexibleDates: boolean = false,
     ) {
         if (!isGroupBooking && children > 0) {
             validateChildAges(children, childAges);
@@ -1343,9 +1345,36 @@ export class AvailabilityService {
                     }
                     return propResults;
                 })
-            );
+            const flatGroupResults = groupResults.flat();
+            if ((propertyId || includeFlexibleDates) && properties.length > 0) {
+                const targetProp = properties[0];
+                const groupStay = flatGroupResults.find((r: any) => r.isGroupPackage);
+                const offsetZeroPrice = groupStay && !groupStay.isSoldOut ? groupStay.totalPrice : null;
+                const offsetZeroIsSoldOut = !groupStay || groupStay.isSoldOut;
 
-            return groupResults.flat();
+                const flexibleDateRates = await this.computeFlexibleDateRates(
+                    targetProp,
+                    targetProp.roomTypes || [],
+                    checkInDate,
+                    checkOutDate,
+                    adults,
+                    children,
+                    childAges,
+                    infants,
+                    rooms,
+                    true,
+                    groupSize,
+                    currency,
+                    preloadedPricingContext,
+                    offsetZeroPrice,
+                    offsetZeroIsSoldOut,
+                    false
+                );
+
+                (flatGroupResults as any).flexibleDateRates = flexibleDateRates;
+            }
+
+            return flatGroupResults;
         }
 
         // Standard Search: Non-Lossy Candidate Database Pre-Filter
@@ -1818,7 +1847,386 @@ export class AvailabilityService {
 
         (results as any).accommodationSolutions = allAccommodationSolutions;
 
+        // Compute flexible date rates if propertyId is provided or includeFlexibleDates is requested
+        if (propertyId || includeFlexibleDates) {
+            const targetPropId = propertyId || (propertyMap.size > 0 ? propertyMap.keys().next().value : null);
+            if (targetPropId) {
+                let targetRoomTypes = propertyMap.get(targetPropId) || [];
+                let targetProperty = targetRoomTypes[0]?.property;
+
+                if (!targetProperty || targetRoomTypes.length === 0) {
+                    const prop = await this.prisma.property.findUnique({
+                        where: { id: targetPropId },
+                        include: {
+                            roomTypes: {
+                                where: { isPubliclyVisible: true },
+                                include: {
+                                    rooms: { where: { isEnabled: true } }
+                                }
+                            },
+                            _count: { select: { rooms: true } }
+                        }
+                    });
+                    if (prop) {
+                        targetProperty = prop;
+                        targetRoomTypes = (prop.roomTypes || []).map(rt => ({ ...rt, property: prop }));
+                    }
+                }
+
+                if (targetProperty) {
+                    const targetSolutions = allAccommodationSolutions.filter(s => s.propertyId === targetPropId);
+                    const targetResults = results.filter(r => r.propertyId === targetPropId);
+                    const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+
+                    let offsetZeroPrice: number | null = null;
+                    let offsetZeroIsSoldOut = true;
+                    let offsetZeroHasSolution = false;
+
+                    if (targetSolutions.length > 0) {
+                        offsetZeroPrice = Math.min(...targetSolutions.map(s => s.pricing?.totalPrice ?? s.totalPrice));
+                        offsetZeroIsSoldOut = false;
+                        offsetZeroHasSolution = true;
+                    } else {
+                        const nonSoldOut = targetResults.filter(r => !r.isSoldOut);
+                        if (nonSoldOut.length > 0) {
+                            offsetZeroPrice = Math.min(...nonSoldOut.map(r => r.totalPrice ?? (r.pricePerNight * nights)));
+                            offsetZeroIsSoldOut = false;
+                            offsetZeroHasSolution = false;
+                        }
+                    }
+
+                    const flexibleDateRates = await this.computeFlexibleDateRates(
+                        targetProperty,
+                        targetRoomTypes,
+                        checkInDate,
+                        checkOutDate,
+                        adults,
+                        children,
+                        childAges,
+                        infants,
+                        rooms,
+                        isGroupBooking,
+                        groupSize,
+                        currency,
+                        preloadedPricingContext,
+                        offsetZeroPrice,
+                        offsetZeroIsSoldOut,
+                        offsetZeroHasSolution
+                    );
+
+                    console.log(`[AvailabilityService] Computed ${flexibleDateRates?.length} flexible date rates for property ${targetPropId}`);
+                    (results as any).flexibleDateRates = flexibleDateRates;
+                }
+            }
+        }
+
         return results;
+    }
+
+
+    /**
+     * Computes the lowest bookable accommodation rate for the target property
+     * across the 5 surrounding dates (offsets -1, 0, 1, 2, 3 or 0, 1, 2, 3, 4 if today is selected).
+     * Uses the V2 Accommodation Solver to guarantee that party composition is respected.
+     */
+    async computeFlexibleDateRates(
+        property: any,
+        propRoomTypes: any[],
+        checkInDate: Date,
+        checkOutDate: Date,
+        adults: number,
+        children: number,
+        childAges: number[] | undefined,
+        infants: number,
+        rooms: number,
+        isGroupBooking: boolean,
+        groupSize: number | undefined,
+        currency: string = 'INR',
+        preloadedPricingContext: any,
+        offsetZeroPrice: number | null,
+        offsetZeroIsSoldOut: boolean,
+        offsetZeroHasSolution: boolean,
+    ): Promise<FlexibleDateRateDto[]> {
+        const stayLength = Math.max(1, Math.round((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const checkInMinus1 = new Date(checkInDate);
+        checkInMinus1.setDate(checkInMinus1.getDate() - 1);
+        checkInMinus1.setHours(0, 0, 0, 0);
+
+        let offsets = [-1, 0, 1, 2, 3];
+        if (checkInMinus1.getTime() < today.getTime()) {
+            offsets = [0, 1, 2, 3, 4];
+        }
+
+        const isV2Property = (property as any)?.occupancyVersion === 'V2' || propRoomTypes.some((rt: any) => rt.occupancyVersion === 'V2');
+        const isPropertyGstApplicable = Boolean(property.isGstApplicable && property.gstNumber);
+        const gstTiers = isPropertyGstApplicable ? (preloadedPricingContext?.gstTiers || []) : [];
+
+        const dateRatesPromises = offsets.map(async (offset) => {
+            const cin = new Date(checkInDate);
+            cin.setDate(cin.getDate() + offset);
+            cin.setHours(0, 0, 0, 0);
+
+            const cout = new Date(cin);
+            cout.setDate(cout.getDate() + stayLength);
+            cout.setHours(0, 0, 0, 0);
+
+            if (offset === 0) {
+                return {
+                    checkInDate: cin.toISOString(),
+                    checkOutDate: cout.toISOString(),
+                    stayLength,
+                    price: offsetZeroPrice,
+                    pricePerNight: offsetZeroPrice !== null ? Number((offsetZeroPrice / stayLength).toFixed(2)) : null,
+                    isSoldOut: offsetZeroIsSoldOut,
+                    isSelected: true,
+                    isCheapest: false,
+                    priceDifference: 0,
+                    hasSolution: offsetZeroHasSolution,
+                };
+            }
+
+            try {
+                if (isGroupBooking) {
+                    const isAvailable = await this.checkAvailability(
+                        undefined,
+                        cin,
+                        cout,
+                        true,
+                        groupSize || (adults + children),
+                        property.id
+                    );
+
+                    if (isAvailable && propRoomTypes.length > 0) {
+                        const delegateType = propRoomTypes[0];
+                        const pricing = await this.pricingService.calculatePrice(
+                            delegateType.id,
+                            cin,
+                            cout,
+                            adults,
+                            children,
+                            undefined,
+                            undefined,
+                            currency,
+                            true,
+                            groupSize,
+                            1,
+                            undefined,
+                            undefined,
+                            undefined,
+                            undefined,
+                            undefined,
+                            infants,
+                            childAges,
+                            delegateType,
+                            preloadedPricingContext
+                        );
+
+                        const totalP = pricing.convertedTotal || pricing.totalAmount;
+                        return {
+                            checkInDate: cin.toISOString(),
+                            checkOutDate: cout.toISOString(),
+                            stayLength,
+                            price: totalP,
+                            pricePerNight: pricing.numberOfNights > 0 ? Number((totalP / pricing.numberOfNights).toFixed(2)) : null,
+                            isSoldOut: false,
+                            isSelected: false,
+                            isCheapest: false,
+                            priceDifference: null,
+                            hasSolution: false,
+                        };
+                    } else {
+                        return {
+                            checkInDate: cin.toISOString(),
+                            checkOutDate: cout.toISOString(),
+                            stayLength,
+                            price: null,
+                            pricePerNight: null,
+                            isSoldOut: true,
+                            isSelected: false,
+                            isCheapest: false,
+                            priceDifference: null,
+                            hasSolution: false,
+                        };
+                    }
+                }
+
+                const { availableCountMap } = await this.getBatchRoomAvailability(
+                    propRoomTypes.map(rt => rt.id),
+                    cin,
+                    cout
+                );
+
+                if (isV2Property) {
+                    const availableCandidates: RoomTypeInventoryCandidate[] = propRoomTypes
+                        .filter((rt: any) => (availableCountMap.get(rt.id) || 0) > 0 && rt.maxPhysicalAdults >= 1)
+                        .map((rt: any) => ({
+                            id: rt.id,
+                            name: rt.name,
+                            totalBaseOccupancy: rt.totalBaseOccupancy ?? ((rt.baseAdults ?? 2) + (rt.baseChildren ?? 1)),
+                            totalMaxOccupancy: rt.totalMaxOccupancy ?? (rt.maxPhysicalAdults + (rt.maxPhysicalChildren || 0)),
+                            maxPhysicalAdults: rt.maxPhysicalAdults,
+                            maxPhysicalChildren: rt.maxPhysicalChildren,
+                            maxPhysicalInfants: rt.maxPhysicalInfants ?? 1,
+                            baseMaxAdults: rt.baseMaxAdults,
+                            baseMaxChildren: rt.baseMaxChildren,
+                            freeChildrenCount: rt.freeChildrenCount ?? 0,
+                            basePrice: Number(rt.basePrice),
+                            extraAdultPrice: Number(rt.extraAdultPrice),
+                            extraChildPrice: Number(rt.extraChildPrice),
+                            availableQuantity: availableCountMap.get(rt.id) || 0,
+                        }));
+
+                    const solutions = solveAccommodationOptions(
+                        { adults, children, infants: infants || 0, childAges, requestedRooms: rooms || 1 },
+                        availableCandidates
+                    );
+
+                    if (solutions && solutions.length > 0) {
+                        const solutionPrices = solutions.map(sol => {
+                            const totalBasePerNight = sol.rooms.reduce((s, r) => s + r.basePricePerNight, 0);
+                            const totalExtraPerNight = sol.rooms.reduce((s, r) => s + r.extraAdultChargePerNight + r.extraChildChargePerNight, 0);
+                            const totalPricePerNight = sol.pricingSummary?.totalPerNight ?? (totalBasePerNight + totalExtraPerNight);
+                            const totalAmountBeforeTax = totalPricePerNight * stayLength;
+
+                            let taxAmount = 0;
+                            if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
+                                for (const r of sol.rooms) {
+                                    const roomTaxThisNight = this.pricingService.calculateTaxForTariff(r.totalPricePerNight, gstTiers);
+                                    taxAmount += roomTaxThisNight * stayLength;
+                                }
+                            }
+                            return Number((totalAmountBeforeTax + taxAmount).toFixed(2));
+                        });
+
+                        const minPrice = Math.min(...solutionPrices);
+                        return {
+                            checkInDate: cin.toISOString(),
+                            checkOutDate: cout.toISOString(),
+                            stayLength,
+                            price: minPrice,
+                            pricePerNight: Number((minPrice / stayLength).toFixed(2)),
+                            isSoldOut: false,
+                            isSelected: false,
+                            isCheapest: false,
+                            priceDifference: null,
+                            hasSolution: true,
+                        };
+                    } else {
+                        return {
+                            checkInDate: cin.toISOString(),
+                            checkOutDate: cout.toISOString(),
+                            stayLength,
+                            price: null,
+                            pricePerNight: null,
+                            isSoldOut: true,
+                            isSelected: false,
+                            isCheapest: false,
+                            priceDifference: null,
+                            hasSolution: false,
+                        };
+                    }
+                } else {
+                    const availableRoomTypes = propRoomTypes.filter(rt => (availableCountMap.get(rt.id) || 0) >= rooms);
+                    if (availableRoomTypes.length > 0) {
+                        const prices = await Promise.all(
+                            availableRoomTypes.map(async (rt) => {
+                                try {
+                                    const p = await this.pricingService.calculatePrice(
+                                        rt.id,
+                                        cin,
+                                        cout,
+                                        adults,
+                                        children,
+                                        undefined,
+                                        undefined,
+                                        currency,
+                                        false,
+                                        undefined,
+                                        rooms,
+                                        undefined,
+                                        undefined,
+                                        undefined,
+                                        undefined,
+                                        undefined,
+                                        infants,
+                                        childAges,
+                                        rt,
+                                        preloadedPricingContext
+                                    );
+                                    return p.convertedTotal || p.totalAmount;
+                                } catch {
+                                    return null;
+                                }
+                            })
+                        );
+                        const validPrices = prices.filter((p): p is number => p !== null && !isNaN(p));
+                        if (validPrices.length > 0) {
+                            const minPrice = Math.min(...validPrices);
+                            return {
+                                checkInDate: cin.toISOString(),
+                                checkOutDate: cout.toISOString(),
+                                stayLength,
+                                price: minPrice,
+                                pricePerNight: Number((minPrice / stayLength).toFixed(2)),
+                                isSoldOut: false,
+                                isSelected: false,
+                                isCheapest: false,
+                                priceDifference: null,
+                                hasSolution: false,
+                            };
+                        }
+                    }
+
+                    return {
+                        checkInDate: cin.toISOString(),
+                        checkOutDate: cout.toISOString(),
+                        stayLength,
+                        price: null,
+                        pricePerNight: null,
+                        isSoldOut: true,
+                        isSelected: false,
+                        isCheapest: false,
+                        priceDifference: null,
+                        hasSolution: false,
+                    };
+                }
+            } catch (err) {
+                return {
+                    checkInDate: cin.toISOString(),
+                    checkOutDate: cout.toISOString(),
+                    stayLength,
+                    price: null,
+                    pricePerNight: null,
+                    isSoldOut: true,
+                    isSelected: false,
+                    isCheapest: false,
+                    priceDifference: null,
+                    hasSolution: false,
+                };
+            }
+        });
+
+        const rawRates = await Promise.all(dateRatesPromises);
+
+        const selectedRate = rawRates.find(r => r.isSelected);
+        const availableRates = rawRates.filter(r => !r.isSoldOut && r.price !== null);
+        const minWindowPrice = availableRates.length > 0 ? Math.min(...availableRates.map(r => r.price!)) : null;
+
+        return rawRates.map(rate => {
+            const isCheapest = rate.price !== null && minWindowPrice !== null && rate.price <= minWindowPrice;
+            const priceDifference = (selectedRate?.price != null && rate.price != null)
+                ? Number((rate.price - selectedRate.price).toFixed(2))
+                : null;
+
+            return {
+                ...rate,
+                isCheapest,
+                priceDifference,
+            };
+        });
     }
 
 
