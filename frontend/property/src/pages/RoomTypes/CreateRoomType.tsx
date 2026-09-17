@@ -656,8 +656,9 @@ export default function CreateRoomType() {
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                                <div className="sm:col-span-2 lg:col-span-1">
+                            {/* Row 1: Core Physical Capacities (3 in a line) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                                         <span>Total Max Occupancy <span className="text-red-500">*</span></span>
                                         <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">A + C Cap</span>
@@ -720,7 +721,10 @@ export default function CreateRoomType() {
                                     <p className="text-[10px] text-slate-500 mt-1">Optional upper bound for children (max: Total Max - 1).</p>
                                     {errors.maxPhysicalChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalChildren.message)}</p>}
                                 </div>
+                            </div>
 
+                            {/* Row 2: Infant & Free Child Allowances (2 in next line) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
                                         <Baby className="h-3.5 w-3.5 text-pink-500" />
@@ -740,7 +744,10 @@ export default function CreateRoomType() {
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                                        <span>Free Children Count</span>
+                                        <span className="flex items-center gap-1">
+                                            <Baby className="h-3.5 w-3.5 text-amber-500" />
+                                            <span>Free Children Count (3–6 yrs)</span>
+                                        </span>
                                         <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Waived (₹0)</span>
                                     </label>
                                     <input
