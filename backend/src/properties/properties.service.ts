@@ -1134,6 +1134,17 @@ export class PropertiesService {
             }),
         };
 
+        // Location filter (coordinates set or missing)
+        if (query.hasLocation !== undefined && query.hasLocation !== null && String(query.hasLocation) !== '') {
+            const hasLoc = query.hasLocation === true || String(query.hasLocation) === 'true';
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                hasLoc
+                    ? { latitude: { not: null }, longitude: { not: null } }
+                    : { OR: [{ latitude: null }, { longitude: null }] }
+            ];
+        }
+
         // Readiness checklist filter
         if (query.readiness === 'COMPLETED') {
             where.AND = [

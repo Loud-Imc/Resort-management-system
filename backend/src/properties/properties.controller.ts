@@ -154,29 +154,50 @@ export class PropertiesController {
             const finalUrl = response.request?.res?.responseUrl || response.headers?.location || ensureProtocolUrl;
             let coords = extractCoords(finalUrl);
 
-            // If coordinates not found in final URL string, inspect HTML response body for meta tags
+            // If coordinates not found in final URL string, inspect HTML response body for meta tags and embedded state
             if ((coords.latitude === null || coords.longitude === null) && typeof response.data === 'string') {
-                const metaMatch = response.data.match(/content="[^"]*@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                                  response.data.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) ||
-                                  response.data.match(/center=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                                  response.data.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-                if (metaMatch) {
-                    coords = { latitude: parseFloat(metaMatch[1]), longitude: parseFloat(metaMatch[2]) };
+                // 1. Check meta tags / canonical / og:url
+                const ogMatch = response.data.match(/property="og:url"\s+content="([^"]+)"/i) ||
+                                response.data.match(/content="([^"]+)"\s+property="og:url"/i);
+                if (ogMatch && ogMatch[1]) {
+                    const ogCoords = extractCoords(ogMatch[1]);
+                    if (ogCoords.latitude !== null && ogCoords.longitude !== null) {
+                        coords = ogCoords;
+                    }
+                }
+
+                // 2. Direct regex patterns in HTML
+                if (coords.latitude === null || coords.longitude === null) {
+                    const metaMatch = response.data.match(/content="[^"]*@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                      response.data.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) ||
+                                      response.data.match(/center=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                      response.data.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ||
+                                      response.data.match(/APP_INITIALIZATION_STATE=\[\[\[\d+,\d+,(-?\d+\.\d+),(-?\d+\.\d+)\]/) ||
+                                      response.data.match(/window\.APP_INITIALIZATION_STATE\s*=\s*\[\[\[\d+,\d+,(-?\d+\.\d+),(-?\d+\.\d+)\]/) ||
+                                      response.data.match(/\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]/);
+                    if (metaMatch) {
+                        coords = { latitude: parseFloat(metaMatch[1]), longitude: parseFloat(metaMatch[2]) };
+                    }
                 }
             }
+
+            const hasCoords = coords.latitude !== null && coords.longitude !== null;
 
             return {
                 url: finalUrl,
                 latitude: coords.latitude,
                 longitude: coords.longitude,
+                noCoordinatesFound: !hasCoords,
             };
         } catch (error: any) {
             const fallbackUrl = error.response?.headers?.location || error.config?.url || ensureProtocolUrl;
             const coords = extractCoords(fallbackUrl);
+            const hasCoords = coords.latitude !== null && coords.longitude !== null;
             return {
                 url: fallbackUrl,
                 latitude: coords.latitude,
                 longitude: coords.longitude,
+                noCoordinatesFound: !hasCoords,
             };
         }
     }
