@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles, AlertCircle, Trash2, Clock } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Phone, Lock, ArrowRight, MapPin, ClipboardList, ChevronLeft, CheckCircle2, KeyRound, EyeOff, Eye, Shield, Globe, FileText, Sparkles, AlertCircle, Trash2, Clock, Navigation, ExternalLink, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebase';
 import { settingsService } from '../services/settings';
@@ -17,6 +17,7 @@ import {
     formatDraftTimeAgo, 
     isDraftMeaningful 
 } from '../utils/registrationDraft';
+import { parseMapUrl, isShortOrExpandableMapLink } from '../utils/mapsLinkParser';
 
 const mapSlugToPropertyType = (slug: string): string => {
     const s = slug.toUpperCase();
@@ -538,38 +539,22 @@ export default function Register() {
 
         const trimmed = value.trim();
 
-        // Helper to extract from URL string
-        const extractFromUrl = (url: string) => {
-            const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-            if (atMatch) return { lat: atMatch[1], lng: atMatch[2] };
-
-            const protoMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-            if (protoMatch) return { lat: protoMatch[1], lng: protoMatch[2] };
-
-            const llMatch = url.match(/[?&](?:ll|q|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
-            if (llMatch) return { lat: llMatch[1], lng: llMatch[2] };
-
-            const placeMatch = url.match(/\/place\/(-?\d+\.\d+),(-?\d+\.\d+)/i);
-            if (placeMatch) return { lat: placeMatch[1], lng: placeMatch[2] };
-
-            return null;
-        };
-
-        const direct = extractFromUrl(trimmed);
+        // Try direct regex extraction first (instant, no network)
+        const direct = parseMapUrl(trimmed);
         if (direct) {
             setFormData(prev => ({
                 ...prev,
-                latitude: direct.lat,
-                longitude: direct.lng
+                latitude: String(direct.lat),
+                longitude: String(direct.lng)
             }));
             clearError('latitude');
             clearError('longitude');
-            toast.success('Coordinates extracted!');
+            toast.success('📍 Coordinates extracted successfully!');
             return;
         }
 
-        // If it's a shortened google maps link or redirect link
-        if (trimmed.includes('goo.gl') || trimmed.includes('maps.app.goo.gl') || trimmed.includes('google.com/maps')) {
+        // For short links / google.com/maps links — resolve via backend
+        if (isShortOrExpandableMapLink(trimmed)) {
             try {
                 setIsExtractingCoords(true);
                 const res = await propertiesService.expandUrl(trimmed);
@@ -581,22 +566,29 @@ export default function Register() {
                     }));
                     clearError('latitude');
                     clearError('longitude');
-                    toast.success('Coordinates extracted!');
+                    toast.success('📍 Coordinates extracted successfully!');
                 } else if (res?.url) {
-                    const fromExpanded = extractFromUrl(res.url);
+                    // Try parsing the expanded URL
+                    const { parseMapUrl: reParse } = await import('../utils/mapsLinkParser');
+                    const fromExpanded = reParse(res.url);
                     if (fromExpanded) {
                         setFormData(prev => ({
                             ...prev,
-                            latitude: fromExpanded.lat,
-                            longitude: fromExpanded.lng
+                            latitude: String(fromExpanded.lat),
+                            longitude: String(fromExpanded.lng)
                         }));
                         clearError('latitude');
                         clearError('longitude');
-                        toast.success('Coordinates extracted!');
+                        toast.success('📍 Coordinates extracted successfully!');
+                    } else {
+                        toast.error('Could not extract coordinates from this link. Try copying the full URL from Google Maps address bar.');
                     }
+                } else {
+                    toast.error('Could not extract coordinates from this link. Try copying the full URL from Google Maps address bar.');
                 }
             } catch (error) {
                 console.error('Failed to extract coordinates from Google Maps link', error);
+                toast.error('Could not reach the link. Try copying the full URL from Google Maps.');
             } finally {
                 setIsExtractingCoords(false);
             }
@@ -1388,61 +1380,104 @@ export default function Register() {
                                 </div>
 
                                 <div id="field-googleMapsLink">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Google Maps Link (Recommended)</label>
-                                    <div className="space-y-2">
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <Globe className="h-4 w-4 text-gray-400" />
+                                    {/* ── Google Maps Link Input ── */}
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">
+                                        Paste Google Maps Link to Set Property Location
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                                        <span className="font-semibold">How to get the link:</span> Open Google Maps → Search the property → Tap <span className="font-semibold">Share</span> or copy the URL from the address bar → Paste it below. Coordinates are extracted automatically.
+                                    </p>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <Globe className="h-4 w-4 text-gray-400" />
+                                        </div>
+                                        <input
+                                            id="googleMapsLink"
+                                            name="googleMapsLink"
+                                            type="url"
+                                            value={formData.googleMapsLink}
+                                            onChange={handleMapsLinkChange}
+                                            className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
+                                            placeholder="https://maps.app.goo.gl/... or https://www.google.com/maps/..."
+                                        />
+                                        {isExtractingCoords && (
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                <Loader2 className="h-4 w-4 text-primary-600 animate-spin" />
                                             </div>
-                                            <input
-                                                id="googleMapsLink"
-                                                name="googleMapsLink"
-                                                type="url"
-                                                value={formData.googleMapsLink}
-                                                onChange={handleMapsLinkChange}
-                                                className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm text-gray-900 bg-white"
-                                                placeholder="https://maps.app.goo.gl/... or https://goo.gl/maps/..."
-                                            />
-                                            {isExtractingCoords && (
-                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                    <Loader2 className="h-4 w-4 text-primary-600 animate-spin" />
+                                        )}
+                                        {!isExtractingCoords && formData.latitude && formData.longitude && (
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* ── Coordinate Display + Map Preview ── */}
+                                    {formData.latitude && formData.longitude && (
+                                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-xl space-y-2">
+                                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                                                    <span className="text-xs font-bold text-green-700">Coordinates Set</span>
+                                                    <span className="text-xs font-mono text-green-800 bg-green-100 px-2 py-0.5 rounded-lg">
+                                                        {parseFloat(formData.latitude).toFixed(6)}, {parseFloat(formData.longitude).toFixed(6)}
+                                                    </span>
                                                 </div>
-                                            )}
+                                                <a
+                                                    href={`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-800 hover:underline"
+                                                >
+                                                    <ExternalLink className="h-3 w-3" />
+                                                    Verify on Map
+                                                </a>
+                                            </div>
+                                            <iframe
+                                                title="Property location preview"
+                                                className="w-full h-36 rounded-lg border border-green-200"
+                                                loading="lazy"
+                                                referrerPolicy="no-referrer-when-downgrade"
+                                                src={`https://maps.google.com/maps?q=${formData.latitude},${formData.longitude}&z=15&output=embed`}
+                                            />
                                         </div>
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[10px] text-gray-400 font-medium italic">
-                                                * Link is not stored. It's used to automatically extract coordinates.
-                                            </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    if (!navigator.geolocation) {
-                                                        toast.error('Geolocation is not supported by your browser');
-                                                        return;
+                                    )}
+
+                                    {/* ── Danger: Fetch Current Location ── */}
+                                    <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-xl">
+                                        <p className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-1.5">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            Only use the button below if you are physically standing at the property right now. This uses your current device GPS — clicking it while at the office will save wrong coordinates.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (!navigator.geolocation) {
+                                                    toast.error('Geolocation is not supported by your browser');
+                                                    return;
+                                                }
+                                                toast.loading('Fetching your location...', { id: 'geo' });
+                                                navigator.geolocation.getCurrentPosition(
+                                                    (position) => {
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            latitude: position.coords.latitude.toString(),
+                                                            longitude: position.coords.longitude.toString(),
+                                                            googleMapsLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
+                                                        }));
+                                                        toast.success('Coordinates fetched!', { id: 'geo' });
+                                                    },
+                                                    (error) => {
+                                                        console.error('Geo error:', error);
+                                                        toast.error('Unable to retrieve your location.', { id: 'geo' });
                                                     }
-                                                    toast.loading('Fetching your location...', { id: 'geo' });
-                                                    navigator.geolocation.getCurrentPosition(
-                                                        (position) => {
-                                                            setFormData(prev => ({
-                                                                ...prev,
-                                                                latitude: position.coords.latitude.toString(),
-                                                                longitude: position.coords.longitude.toString(),
-                                                                googleMapsLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
-                                                            }));
-                                                            toast.success('Coordinates fetched successfully!', { id: 'geo' });
-                                                        },
-                                                        (error) => {
-                                                            console.error('Geo error:', error);
-                                                            toast.error('Unable to retrieve your location.', { id: 'geo' });
-                                                        }
-                                                    );
-                                                }}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-colors border border-blue-100"
-                                            >
-                                                <MapPin className="h-3.5 w-3.5" />
-                                                Fetch Current Location
-                                            </button>
-                                        </div>
+                                                );
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold rounded-lg transition-colors border border-amber-400"
+                                        >
+                                            <Navigation className="h-3.5 w-3.5" />
+                                            I am at the property — Use My Current Location
+                                        </button>
                                     </div>
                                 </div>
 

@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum, IsEmail, IsArray, IsBoolean, IsNumber, Min, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { PropertyStatus } from '@prisma/client';
 
 export enum PropertyType {
@@ -444,23 +444,23 @@ export class PropertyQueryDto {
     limit?: number;
 
     @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true || value === '1' || value === 1 ? true : value === 'false' || value === false || value === '0' || value === 0 ? false : undefined)
     @IsBoolean()
-    @Type(() => Boolean)
     isFeatured?: boolean;
 
     @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true || value === '1' || value === 1 ? true : value === 'false' || value === false || value === '0' || value === 0 ? false : undefined)
     @IsBoolean()
-    @Type(() => Boolean)
     isSponsored?: boolean;
 
     @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true || value === '1' || value === 1 ? true : value === 'false' || value === false || value === '0' || value === 0 ? false : undefined)
     @IsBoolean()
-    @Type(() => Boolean)
     isVerified?: boolean;
 
     @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true || value === '1' || value === 1 ? true : value === 'false' || value === false || value === '0' || value === 0 ? false : undefined)
     @IsBoolean()
-    @Type(() => Boolean)
     sortByRating?: boolean;
 
     @IsOptional()
@@ -468,8 +468,8 @@ export class PropertyQueryDto {
     status?: PropertyStatus;
 
     @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true || value === '1' || value === 1 ? true : value === 'false' || value === false || value === '0' || value === 0 ? false : undefined)
     @IsBoolean()
-    @Type(() => Boolean)
     allowsGroupBooking?: boolean;
 
     @IsOptional()
@@ -483,12 +483,17 @@ export class PropertyQueryDto {
     groupPricePerHead?: number;
 
     @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true || value === '1' || value === 1 ? true : value === 'false' || value === false || value === '0' || value === 0 ? false : undefined)
     @IsBoolean()
-    @Type(() => Boolean)
     isActive?: boolean;
 
     @IsOptional()
     @IsString()
     readiness?: string;
+
+    @IsOptional()
+    @Transform(({ value }) => value === 'true' || value === true || value === '1' || value === 1 ? true : value === 'false' || value === false || value === '0' || value === 0 ? false : undefined)
+    @IsBoolean()
+    hasLocation?: boolean;
 }
 

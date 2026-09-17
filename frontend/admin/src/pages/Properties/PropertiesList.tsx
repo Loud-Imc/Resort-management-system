@@ -30,6 +30,28 @@ const propertyTypeColors: Record<PropertyType, string> = {
     OTHER: 'bg-gray-100 text-gray-800',
 };
 
+// Route Guide Office Coordinates (used to detect properties saved with office coords)
+const OFFICE_LAT = 11.278776;
+const OFFICE_LNG = 75.785661;
+const OFFICE_TOLERANCE = 0.002;
+
+export function isOfficeLocation(lat?: number | null, lng?: number | null): boolean {
+    if (lat == null || lng == null) return false;
+    const numLat = typeof lat === 'string' ? parseFloat(lat) : Number(lat);
+    const numLng = typeof lng === 'string' ? parseFloat(lng) : Number(lng);
+    if (isNaN(numLat) || isNaN(numLng)) return false;
+    return Math.abs(numLat - OFFICE_LAT) < OFFICE_TOLERANCE && Math.abs(numLng - OFFICE_LNG) < OFFICE_TOLERANCE;
+}
+
+type LocationFilter = '' | 'has_coords' | 'missing_coords' | 'wrong_office';
+
+const LOCATION_OPTIONS: { value: LocationFilter; label: string }[] = [
+    { value: '',               label: 'All Locations' },
+    { value: 'has_coords',     label: '📍 Has Coordinates' },
+    { value: 'missing_coords', label: '⚠️ Missing Coordinates' },
+    { value: 'wrong_office',   label: '🔴 Office Coords (Wrong)' },
+];
+
 // Maps a flag filter key to the API query params it represents
 type FlagFilter =
     | ''
@@ -84,6 +106,7 @@ export default function PropertiesList() {
     const activeState = searchParams.get('state') || '';
     const activeType = (searchParams.get('type') as PropertyType | '') || '';
     const activeFlag = (searchParams.get('flag') as FlagFilter) || '';
+    const activeLocation = (searchParams.get('location') as LocationFilter) || '';
     const activeReadiness = (searchParams.get('readiness') as '' | 'COMPLETED' | 'INCOMPLETE') || '';
     const activePage = parseInt(searchParams.get('page') || '1', 10) || 1;
 
@@ -105,6 +128,7 @@ export default function PropertiesList() {
         activeState ||
         activeType ||
         activeFlag ||
+        activeLocation ||
         activeReadiness ||
         activePage > 1
     );
@@ -128,14 +152,22 @@ export default function PropertiesList() {
             setLoading(true);
             setError(null);
 
+            const hasLocParam = activeLocation === 'has_coords' || activeLocation === 'wrong_office'
+                ? true
+                : activeLocation === 'missing_coords'
+                ? false
+                : undefined;
+
+            const isWrongOffice = activeLocation === 'wrong_office';
             const params: PropertyQueryParams = {
                 search: activeSearch.trim() || undefined,
                 city: activeCity.trim() || undefined,
                 state: activeState.trim() || undefined,
                 type: activeType || undefined,
                 readiness: activeReadiness || undefined,
-                page: activePage,
-                limit: ITEMS_PER_PAGE,
+                hasLocation: hasLocParam,
+                page: isWrongOffice ? 1 : activePage,
+                limit: isWrongOffice ? 500 : ITEMS_PER_PAGE,
                 ...flagToParams(activeFlag),
             };
 
@@ -143,15 +175,23 @@ export default function PropertiesList() {
                 ? await propertyService.getAllAdmin(params)
                 : await propertyService.getAll(params);
 
-            setProperties(response.data);
-            setTotalCount(response.meta?.total ?? response.data.length);
+            let dataList = response.data;
+            let total = response.meta?.total ?? response.data.length;
+
+            if (isWrongOffice) {
+                dataList = dataList.filter(p => isOfficeLocation(p.latitude, p.longitude));
+                total = dataList.length;
+            }
+
+            setProperties(dataList);
+            setTotalCount(total);
             setTotalPages(response.meta?.totalPages ?? 1);
         } catch (err: any) {
             setError(err.message || 'Failed to load properties');
         } finally {
             setLoading(false);
         }
-    }, [activeSearch, activeCity, activeState, activeType, activeFlag, activeReadiness, activePage, isManageable]);
+    }, [activeSearch, activeCity, activeState, activeType, activeFlag, activeLocation, activeReadiness, activePage, isManageable]);
 
     // Fetch properties whenever active parameters change
     useEffect(() => {
@@ -362,6 +402,16 @@ export default function PropertiesList() {
                         </select>
 
                         <select
+                            value={activeLocation}
+                            onChange={(e) => updateQueryParams({ location: e.target.value }, true)}
+                            className="px-3 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm cursor-pointer font-medium"
+                        >
+                            {LOCATION_OPTIONS.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+
+                        <select
                             value={activeReadiness}
                             onChange={(e) => updateQueryParams({ readiness: e.target.value }, true)}
                             className="px-3 py-2 border border-border bg-background text-foreground rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all font-medium text-sm cursor-pointer"
@@ -560,6 +610,61 @@ export default function PropertiesList() {
                                                 <div className="flex items-center gap-1.5 text-xs text-primary/80 mt-2 font-medium bg-primary/5 px-2 py-1 rounded-md w-fit border border-primary/10">
                                                     <User className="h-3 w-3 shrink-0" />
                                                     <span className="truncate">Onboarded by: {onboarder.firstName} {onboarder.lastName || ''} <span className="opacity-70">({roleLabel})</span></span>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* GPS Location Status Indicator */}
+                                        {(() => {
+                                            const lat = property.latitude != null ? Number(property.latitude) : null;
+                                            const lng = property.longitude != null ? Number(property.longitude) : null;
+                                            const isOffice = isOfficeLocation(lat, lng);
+                                            const hasCoords = lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng);
+
+                                            if (!hasCoords) {
+                                                return (
+                                                    <div className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 mt-2 font-semibold bg-rose-50 dark:bg-rose-950/40 px-2 py-1 rounded-md w-fit border border-rose-200 dark:border-rose-900/50">
+                                                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                                                        <span>⚠️ Missing Location Coords</span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            if (isOffice) {
+                                                return (
+                                                    <div className="flex items-center justify-between gap-1.5 text-xs text-amber-800 dark:text-amber-300 mt-2 font-bold bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1 rounded-md border border-amber-300 dark:border-amber-700">
+                                                        <span className="flex items-center gap-1">
+                                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 animate-pulse" />
+                                                            <span>🔴 Office Coords (Wrong GPS)</span>
+                                                        </span>
+                                                        <a
+                                                            href={`https://www.google.com/maps?q=${lat},${lng}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="underline text-[11px] text-amber-700 dark:text-amber-400 hover:text-amber-900 ml-1.5 font-semibold"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            View Map ↗
+                                                        </a>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="flex items-center justify-between gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 mt-2 font-medium bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-900/50">
+                                                    <span className="flex items-center gap-1">
+                                                        <MapPin className="h-3 w-3 shrink-0 text-emerald-600" />
+                                                        <span>📍 {lat.toFixed(4)}, {lng.toFixed(4)}</span>
+                                                    </span>
+                                                    <a
+                                                        href={`https://www.google.com/maps?q=${lat},${lng}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="underline text-[11px] text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 ml-1.5 font-semibold"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        View Map ↗
+                                                    </a>
                                                 </div>
                                             );
                                         })()}

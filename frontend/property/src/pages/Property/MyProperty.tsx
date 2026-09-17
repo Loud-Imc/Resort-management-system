@@ -10,10 +10,11 @@ import {
     Building2, MapPin, Phone, Mail, Globe, Save, Loader2,
     Camera, X, CheckCircle, XCircle, Star, Image as ImageIcon,
     Plus, Clock, Percent, ShieldAlert, Trash2, FileText,
-    Users, Navigation, AlertCircle, Lock, Copy, Check, ShieldCheck, Send
+    Users, Navigation, AlertCircle, Lock, Copy, Check, ShieldCheck, Send, ExternalLink
 } from 'lucide-react';
 import { cancellationPoliciesService, type CancellationPolicy, type CancellationRule } from '../../services/cancellationPolicies';
 import clsx from 'clsx';
+import { parseMapUrl, isShortOrExpandableMapLink } from '../../utils/mapsLinkParser';
 
 const GlobalStyles = () => (
     <style>{`
@@ -239,60 +240,44 @@ export default function MyProperty() {
 
     const handleMapsLinkChange = async (value: string) => {
         setGoogleMapsLink(value);
-        if (!value) return;
+        if (!value.trim()) return;
 
-        let urlToMatch = value;
-        // If it's a shortened google maps link, resolve it via backend
-        if (value.includes('goo.gl') || value.includes('maps.app.goo.gl') || value.includes('google.com/maps')) {
+        const trimmed = value.trim();
+
+        // Try direct regex extraction first (instant, no network)
+        const direct = parseMapUrl(trimmed);
+        if (direct) {
+            setLatitude(direct.lat);
+            setLongitude(direct.lng);
+            toast.success('📍 Coordinates extracted successfully!');
+            return;
+        }
+
+        // For short links / google.com/maps links — resolve via backend
+        if (isShortOrExpandableMapLink(trimmed)) {
             try {
-                const res = await propertiesService.expandUrl(value);
+                const res = await propertiesService.expandUrl(trimmed);
                 if (res?.latitude && res?.longitude) {
                     setLatitude(Number(res.latitude));
                     setLongitude(Number(res.longitude));
-                    toast.success('Coordinates extracted!');
+                    toast.success('📍 Coordinates extracted successfully!');
                     return;
                 }
                 if (res?.url) {
-                    urlToMatch = res.url;
+                    const { parseMapUrl: reParse } = await import('../../utils/mapsLinkParser');
+                    const fromExpanded = reParse(res.url);
+                    if (fromExpanded) {
+                        setLatitude(fromExpanded.lat);
+                        setLongitude(fromExpanded.lng);
+                        toast.success('📍 Coordinates extracted successfully!');
+                        return;
+                    }
                 }
+                toast.error('Could not extract coordinates from this link. Try copying the full URL from Google Maps address bar.');
             } catch (error) {
                 console.error('Failed to expand Maps URL', error);
+                toast.error('Could not reach the link. Try copying the full URL from Google Maps.');
             }
-        }
-        
-        // Extract coordinates - Pattern 1: @lat,lng
-        const coordMatch = urlToMatch.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (coordMatch) {
-            setLatitude(parseFloat(coordMatch[1]));
-            setLongitude(parseFloat(coordMatch[2]));
-            toast.success('Coordinates extracted!');
-            return;
-        }
-
-        // Pattern 2: Protobuf !3dlat!4dlng
-        const protoMatch = urlToMatch.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-        if (protoMatch) {
-            setLatitude(parseFloat(protoMatch[1]));
-            setLongitude(parseFloat(protoMatch[2]));
-            toast.success('Coordinates extracted!');
-            return;
-        }
-
-        // Pattern 3: Query params (?ll=, ?q=, ?query=, destination, center)
-        const llMatch = urlToMatch.match(/[?&](?:ll|q|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
-        if (llMatch) {
-            setLatitude(parseFloat(llMatch[1]));
-            setLongitude(parseFloat(llMatch[2]));
-            toast.success('Coordinates extracted!');
-            return;
-        }
-
-        // Pattern 4: Path /place/lat,lng
-        const placeMatch = urlToMatch.match(/\/place\/(-?\d+\.\d+),(-?\d+\.\d+)/i);
-        if (placeMatch) {
-            setLatitude(parseFloat(placeMatch[1]));
-            setLongitude(parseFloat(placeMatch[2]));
-            toast.success('Coordinates extracted!');
         }
     };
 
@@ -1085,75 +1070,140 @@ export default function MyProperty() {
                         : "border-t border-gray-100 dark:border-gray-700"
                 )}>
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Geo-Location</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-1.5">Google Maps Link (for extraction)</label>
-                            {editMode ? (
-                                <div className="space-y-2">
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Globe className="h-4 w-4 text-gray-400" />
+
+                    {editMode ? (
+                        <div className="space-y-4">
+                            {/* Maps link input */}
+                            <div>
+                                <label className="block text-xs font-bold text-primary uppercase tracking-wider mb-1">Paste Google Maps Link to Set Property Location</label>
+                                <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                                    <span className="font-semibold">How to get the link:</span> Open Google Maps → Search the property → Tap <span className="font-semibold">Share</span> or copy the URL from the address bar → Paste below.
+                                </p>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Globe className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="url"
+                                        value={googleMapsLink}
+                                        onChange={(e) => handleMapsLinkChange(e.target.value)}
+                                        placeholder="https://maps.app.goo.gl/... or https://www.google.com/maps/..."
+                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Coordinate fields */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Latitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        value={latitude}
+                                        onChange={(e) => setLatitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
+                                        placeholder="0.000000"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Longitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        value={longitude}
+                                        onChange={(e) => setLongitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
+                                        placeholder="0.000000"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Live map preview (when coords are set) */}
+                            {latitude !== '' && longitude !== '' && (
+                                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl space-y-2">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                                            <span className="text-xs font-bold text-green-700 dark:text-green-400">Coordinates Set</span>
+                                            <span className="text-xs font-mono text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900 px-2 py-0.5 rounded-lg">
+                                                {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+                                            </span>
                                         </div>
-                                        <input
-                                            type="url"
-                                            value={googleMapsLink}
-                                            onChange={(e) => handleMapsLinkChange(e.target.value)}
-                                            placeholder="Paste Google Maps URL to extract coordinates..."
-                                            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium"
-                                        />
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[10px] text-gray-400 font-medium italic">
-                                            * Link is not stored. It's used to automatically fill Latitude and Longitude below.
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={handleFetchLocation}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30 text-primary dark:text-primary-foreground text-xs font-bold rounded-lg transition-colors border border-primary/20 dark:border-primary-800"
+                                        <a
+                                            href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs font-bold text-primary hover:underline"
                                         >
-                                            <Navigation className="h-3.5 w-3.5" />
-                                            Fetch Current Location
-                                        </button>
+                                            <ExternalLink className="h-3 w-3" />
+                                            Verify on Map
+                                        </a>
                                     </div>
+                                    <iframe
+                                        title="Property location preview"
+                                        className="w-full h-40 rounded-lg border border-green-200 dark:border-green-800"
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer-when-downgrade"
+                                        src={`https://maps.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Danger: Fetch Current Location */}
+                            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl">
+                                <p className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1.5">
+                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                    Only use the button below if you are physically standing at the property right now. This uses your current device GPS — clicking it while at the office will save wrong coordinates.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={handleFetchLocation}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-800 dark:hover:bg-amber-700 text-amber-800 dark:text-amber-200 text-xs font-bold rounded-lg transition-colors border border-amber-400 dark:border-amber-600"
+                                >
+                                    <Navigation className="h-3.5 w-3.5" />
+                                    I am at the property — Use My Current Location
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        /* View mode */
+                        <div className="space-y-3">
+                            {latitude !== '' && longitude !== '' ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <MapPin className="h-4 w-4 text-primary shrink-0" />
+                                            <span className="text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-lg">
+                                                {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
+                                            </span>
+                                        </div>
+                                        <a
+                                            href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                                        >
+                                            <ExternalLink className="h-3 w-3" />
+                                            Open in Google Maps
+                                        </a>
+                                    </div>
+                                    <iframe
+                                        title="Property location"
+                                        className="w-full h-40 rounded-xl border border-gray-200 dark:border-gray-700"
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer-when-downgrade"
+                                        src={`https://maps.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`}
+                                    />
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-800">
-                                    <Globe className="h-4 w-4 text-gray-400 shrink-0" />
-                                    {googleMapsLink ? (
-                                        <a href={googleMapsLink} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate">
-                                            {googleMapsLink}
-                                        </a>
-                                    ) : (
-                                        <p className="text-sm text-gray-500 italic">Enter edit mode to update location via Maps link</p>
-                                    )}
+                                    <MapPin className="h-4 w-4 text-gray-400 shrink-0" />
+                                    <p className="text-sm text-gray-500 italic">No location set. Enter edit mode to add coordinates.</p>
                                 </div>
                             )}
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Latitude</label>
-                            <input
-                                type="number"
-                                step="any"
-                                value={latitude}
-                                onChange={(e) => setLatitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                                disabled={!editMode}
-                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-70"
-                                placeholder="0.000000"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Longitude</label>
-                            <input
-                                type="number"
-                                step="any"
-                                value={longitude}
-                                onChange={(e) => setLongitude(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                                disabled={!editMode}
-                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-xl text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-70"
-                                placeholder="0.000000"
-                            />
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 

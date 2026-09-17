@@ -155,6 +155,7 @@ export interface PropertyQueryParams {
     isFeatured?: boolean;
     isVerified?: boolean;
     isActive?: boolean;
+    hasLocation?: boolean;
     status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
     readiness?: 'COMPLETED' | 'INCOMPLETE';
 }

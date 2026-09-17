@@ -140,6 +140,12 @@ export const propertyService = {
     async deactivateV2Occupancy(propertyId: string): Promise<any> {
         const response = await api.patch(`/properties/${propertyId}/occupancy-version/deactivate`);
         return response.data;
+    },
+
+    // Expand a shortened Google Maps URL and extract coordinates
+    async expandUrl(url: string): Promise<{ url: string; latitude?: number | null; longitude?: number | null }> {
+        const response = await api.get('/properties/expand-url', { params: { url } });
+        return response.data;
     }
 };
 

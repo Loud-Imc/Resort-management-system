@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText, ShieldCheck, AlertTriangle, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText, ShieldCheck, AlertTriangle, CheckCircle, XCircle, RotateCcw, Globe, Navigation, ExternalLink, AlertCircle } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import categoryService from '../../services/category';
@@ -9,6 +9,9 @@ import { User } from '../../types/user';
 import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
 import DocumentViewerUpload, { MultiDocumentViewerUpload } from '../../components/DocumentViewerUpload';
+import { parseMapUrl, isShortOrExpandableMapLink } from '../../utils/mapsLinkParser';
+import toast from 'react-hot-toast';
+import clsx from 'clsx';
 
 const mapSlugToPropertyType = (slug: string): PropertyType => {
     const s = slug.toUpperCase();
@@ -21,8 +24,7 @@ const mapSlugToPropertyType = (slug: string): PropertyType => {
 import SearchableSelect from '../../components/SearchableSelect';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
-import toast from 'react-hot-toast';
-import clsx from 'clsx';
+
 
 const defaultAmenities = [
     'WiFi', 'Pool', 'Restaurant', 'Spa', 'Gym', 'Parking',
@@ -42,6 +44,10 @@ export default function PropertyForm() {
     const [propertyOwners, setPropertyOwners] = useState<User[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+
+    // Geo-Location state
+    const [googleMapsLink, setGoogleMapsLink] = useState('');
+    const [isExtractingCoords, setIsExtractingCoords] = useState(false);
 
     // Property status state for edit mode & reversion
     const [propertyStatus, setPropertyStatus] = useState<string>('PENDING');
@@ -159,6 +165,10 @@ export default function PropertyForm() {
             setLoading(true);
             const property = await propertyService.getById(propertyId);
             setPropertyStatus(property.status || 'PENDING');
+            // Set Maps link from existing coords
+            if (property.latitude && property.longitude) {
+                setGoogleMapsLink(`https://www.google.com/maps?q=${property.latitude},${property.longitude}`);
+            }
             setFormData({
                 name: property.name,
                 type: property.type,
@@ -939,6 +949,76 @@ export default function PropertyForm() {
                             />
                         </div>
 
+                        {/* Google Maps Link Extraction */}
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-bold text-muted-foreground mb-1">
+                                Paste Google Maps Link to Set Property Location
+                            </label>
+                            <p className="text-xs text-muted-foreground mb-2 leading-relaxed">
+                                <span className="font-semibold">How to get the link:</span> Open Google Maps → Search the property → Tap <span className="font-semibold">Share</span> or copy the URL from the address bar → Paste below. Coordinates are extracted automatically.
+                            </p>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Globe className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <input
+                                    type="url"
+                                    value={googleMapsLink}
+                                    onChange={async (e) => {
+                                        const value = e.target.value;
+                                        setGoogleMapsLink(value);
+                                        if (!value.trim()) return;
+                                        const trimmed = value.trim();
+                                        // Direct regex extraction
+                                        const direct = parseMapUrl(trimmed);
+                                        if (direct) {
+                                            setFormData(prev => ({ ...prev, latitude: direct.lat, longitude: direct.lng }));
+                                            toast.success('📍 Coordinates extracted successfully!');
+                                            return;
+                                        }
+                                        // Short/expandable link — call backend
+                                        if (isShortOrExpandableMapLink(trimmed)) {
+                                            try {
+                                                setIsExtractingCoords(true);
+                                                const res = await propertyService.expandUrl(trimmed);
+                                                if (res?.latitude && res?.longitude) {
+                                                    setFormData(prev => ({ ...prev, latitude: Number(res.latitude), longitude: Number(res.longitude) }));
+                                                    toast.success('📍 Coordinates extracted successfully!');
+                                                } else if (res?.url) {
+                                                    const { parseMapUrl: reParse } = await import('../../utils/mapsLinkParser');
+                                                    const fromExpanded = reParse(res.url);
+                                                    if (fromExpanded) {
+                                                        setFormData(prev => ({ ...prev, latitude: fromExpanded.lat, longitude: fromExpanded.lng }));
+                                                        toast.success('📍 Coordinates extracted successfully!');
+                                                    } else {
+                                                        toast.error('Could not extract coordinates. Try copying the full URL from Google Maps address bar.');
+                                                    }
+                                                } else {
+                                                    toast.error('Could not extract coordinates. Try copying the full URL from Google Maps address bar.');
+                                                }
+                                            } catch {
+                                                toast.error('Could not reach the link. Try copying the full URL from Google Maps.');
+                                            } finally {
+                                                setIsExtractingCoords(false);
+                                            }
+                                        }
+                                    }}
+                                    placeholder="https://maps.app.goo.gl/... or https://www.google.com/maps/..."
+                                    className="w-full pl-10 pr-10 py-2 bg-background text-foreground border border-border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none transition-all text-sm"
+                                />
+                                {isExtractingCoords && (
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                                    </div>
+                                )}
+                                {!isExtractingCoords && formData.latitude && formData.longitude && (
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <CheckCircle className="h-4 w-4 text-green-500" />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-bold text-muted-foreground mb-1">
                                 Latitude
@@ -969,7 +1049,43 @@ export default function PropertyForm() {
                             />
                         </div>
 
-                        <div className="md:col-span-2">
+                        {/* Live map preview */}
+                        {formData.latitude && formData.longitude && (
+                            <div className="md:col-span-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle className="h-4 w-4 text-green-600" />
+                                        <span className="text-xs font-bold text-green-700">Coordinates Set</span>
+                                        <span className="text-xs font-mono text-green-800 bg-green-100 px-2 py-0.5 rounded-lg">
+                                            {Number(formData.latitude).toFixed(6)}, {Number(formData.longitude).toFixed(6)}
+                                        </span>
+                                    </div>
+                                    <a
+                                        href={`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                                    >
+                                        <ExternalLink className="h-3 w-3" />
+                                        Verify on Map
+                                    </a>
+                                </div>
+                                <iframe
+                                    title="Property location preview"
+                                    className="w-full h-40 rounded-lg border border-green-200"
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer-when-downgrade"
+                                    src={`https://maps.google.com/maps?q=${formData.latitude},${formData.longitude}&z=15&output=embed`}
+                                />
+                            </div>
+                        )}
+
+                        {/* Danger: Fetch Current Location */}
+                        <div className="md:col-span-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl">
+                            <p className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-1.5">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                Only use the button below if you are physically standing at the property right now. This uses your current device GPS — clicking it while at the office will save wrong coordinates.
+                            </p>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -981,20 +1097,22 @@ export default function PropertyForm() {
                                                     latitude: position.coords.latitude,
                                                     longitude: position.coords.longitude
                                                 }));
+                                                setGoogleMapsLink(`https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`);
+                                                toast.success('Coordinates fetched from device!');
                                             },
                                             (error) => {
                                                 console.error('Error getting location:', error);
-                                                alert('Failed to get current location. Please check browser permissions.');
+                                                toast.error('Failed to get current location. Please check browser permissions.');
                                             }
                                         );
                                     } else {
-                                        alert('Geolocation is not supported by this browser.');
+                                        toast.error('Geolocation is not supported by this browser.');
                                     }
                                 }}
-                                className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-bold rounded-lg transition-colors border border-amber-400"
                             >
-                                <MapPin className="h-4 w-4" />
-                                Use current location
+                                <Navigation className="h-4 w-4" />
+                                I am at the property — Use My Current Location
                             </button>
                         </div>
                     </div>
