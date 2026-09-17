@@ -568,8 +568,8 @@ export default function CreateBooking() {
         const pricing = customSol.pricing;
         const solPrice: PriceCalculationResult = {
             baseAmount: pricing.baseAmount,
-            extraAdultAmount: pricing.extraAmount,
-            extraChildAmount: 0,
+            extraAdultAmount: pricing.extraAdultAmount ?? pricing.extraAmount ?? 0,
+            extraChildAmount: pricing.extraChildAmount ?? 0,
             taxAmount: pricing.taxAmount,
             discountAmount: 0,
             offerDiscountAmount: 0,
@@ -579,7 +579,7 @@ export default function CreateBooking() {
             numberOfNights: pricing.numberOfNights,
             pricePerNight: pricing.pricePerNight,
             taxRate: pricing.taxRate,
-            isGstInclusive: false,
+            isGstInclusive: Boolean(pricing.isGstInclusive),
         };
         setPriceDetails(solPrice);
         setOriginalPriceDetails(solPrice);

@@ -344,17 +344,22 @@ export class BookingsService {
 
         // 3. Calculate pricing (standard bookings only — group bookings price after room allocation)
         let pricing: any;
+        let allocationPricingList: any[] = [];
         // Determine room count for pricing
         const roomCount = (selectedRoomIds && selectedRoomIds.length > 0)
             ? selectedRoomIds.length
             : (isGroupBooking ? 1 : requiredRooms);
 
         if (!isGroupBooking) {
-            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 1) {
+            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
                 let accumulatedBaseAmount = 0;
                 let accumulatedExtraAdultAmount = 0;
                 let accumulatedExtraChildAmount = 0;
                 let accumulatedTaxAmount = 0;
+                let accumulatedOfferDiscountAmount = 0;
+                let accumulatedCouponDiscountAmount = 0;
+                let accumulatedReferralDiscountAmount = 0;
+                let accumulatedDiscountAmount = 0;
                 let accumulatedTotalAmount = 0;
                 let pricingRef: any = null;
 
@@ -383,20 +388,35 @@ export class BookingsService {
                     accumulatedExtraAdultAmount += itemPrice.extraAdultAmount;
                     accumulatedExtraChildAmount += itemPrice.extraChildAmount;
                     accumulatedTaxAmount += itemPrice.taxAmount;
+                    accumulatedOfferDiscountAmount += (itemPrice.offerDiscountAmount || 0);
+                    accumulatedCouponDiscountAmount += (itemPrice.couponDiscountAmount || 0);
+                    accumulatedReferralDiscountAmount += (itemPrice.referralDiscountAmount || 0);
+                    accumulatedDiscountAmount += (itemPrice.discountAmount || 0);
                     accumulatedTotalAmount += itemPrice.totalAmount;
                     pricingRef = itemPrice;
+                    allocationPricingList.push(itemPrice);
                 }
+
+                const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
+                const effectiveTaxRate = (totalTaxable > 0 && accumulatedTaxAmount > 0)
+                    ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
+                    : (pricingRef?.taxRate || 0);
 
                 pricing = {
                     ...pricingRef,
-                    baseAmount: accumulatedBaseAmount,
-                    extraAdultAmount: accumulatedExtraAdultAmount,
-                    extraChildAmount: accumulatedExtraChildAmount,
-                    taxAmount: accumulatedTaxAmount,
-                    totalAmount: accumulatedTotalAmount,
-                    convertedTotal: accumulatedTotalAmount,
-                    originalTotal: accumulatedTotalAmount,
-                    originalConvertedTotal: accumulatedTotalAmount,
+                    baseAmount: Number(accumulatedBaseAmount.toFixed(2)),
+                    extraAdultAmount: Number(accumulatedExtraAdultAmount.toFixed(2)),
+                    extraChildAmount: Number(accumulatedExtraChildAmount.toFixed(2)),
+                    taxAmount: Number(accumulatedTaxAmount.toFixed(2)),
+                    taxRate: effectiveTaxRate,
+                    offerDiscountAmount: Number(accumulatedOfferDiscountAmount.toFixed(2)),
+                    couponDiscountAmount: Number(accumulatedCouponDiscountAmount.toFixed(2)),
+                    referralDiscountAmount: Number(accumulatedReferralDiscountAmount.toFixed(2)),
+                    discountAmount: Number(accumulatedDiscountAmount.toFixed(2)),
+                    totalAmount: Number(accumulatedTotalAmount.toFixed(2)),
+                    convertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                    originalTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                    originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
                 };
             } else {
                 pricing = await this.pricingService.calculatePrice(
@@ -550,14 +570,30 @@ export class BookingsService {
             selectedRooms = allocatedRooms;
         } else if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
             selectedRooms = [];
+            const seenRoomIds = new Set<string>();
             for (const alloc of createBookingDto.roomAllocations) {
                 if (alloc.roomId) {
+                    if (seenRoomIds.has(alloc.roomId)) {
+                        throw new BadRequestException(`Duplicate physical room ${alloc.roomId} selected across allocations.`);
+                    }
+                    seenRoomIds.add(alloc.roomId);
+
                     const sr = await this.prisma.room.findUnique({
                         where: { id: alloc.roomId },
                         include: { roomType: true },
                     });
-                    if (!sr || sr.roomTypeId !== alloc.roomTypeId) {
-                        throw new BadRequestException(`Selected physical room ${alloc.roomId} does not match room type ${alloc.roomTypeId}`);
+                    if (!sr) {
+                        throw new NotFoundException(`Selected physical room ${alloc.roomId} not found`);
+                    }
+                    if (sr.roomTypeId !== alloc.roomTypeId) {
+                        throw new BadRequestException(`Selected physical room ${sr.roomNumber || alloc.roomId} does not match room type ${alloc.roomTypeId}`);
+                    }
+                    if (!sr.isEnabled) {
+                        throw new BadRequestException(`Selected physical room ${sr.roomNumber || alloc.roomId} is disabled or not bookable`);
+                    }
+                    const isAvailable = await this.availabilityService.isRoomAvailable(alloc.roomId, checkIn, checkOut);
+                    if (!isAvailable) {
+                        throw new BadRequestException(`Room ${sr.roomNumber || alloc.roomId} is no longer available for the selected dates. Please choose another available room.`);
                     }
                     selectedRooms.push(sr);
                 } else {
@@ -1089,6 +1125,28 @@ export class BookingsService {
                             const totalRooms = (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).length || 1;
                             const nights = pricing.numberOfNights || 1;
 
+                            // Per-allocation pricing fidelity (Fix G4)
+                            const hasAllocPricing = allocationPricingList.length > 0;
+                            const allocPricing = hasAllocPricing
+                                ? (allocationPricingList[idx] || pricing)
+                                : pricing;
+
+                            const roomBasePerNight = hasAllocPricing
+                                ? (allocPricing.baseAmount != null ? (allocPricing.baseAmount / nights) : undefined)
+                                : (pricing.baseAmount != null ? (pricing.baseAmount / (nights * totalRooms)) : undefined);
+
+                            const roomExtraAdultPerNight = hasAllocPricing
+                                ? (allocPricing.extraAdultAmount != null ? (allocPricing.extraAdultAmount / nights) : undefined)
+                                : (pricing.extraAdultAmount != null ? (pricing.extraAdultAmount / (nights * totalRooms)) : undefined);
+
+                            const roomExtraChildPerNight = hasAllocPricing
+                                ? (allocPricing.extraChildAmount != null ? (allocPricing.extraChildAmount / nights) : undefined)
+                                : (pricing.extraChildAmount != null ? (pricing.extraChildAmount / (nights * totalRooms)) : undefined);
+
+                            const roomTotalPerNight = hasAllocPricing
+                                ? (allocPricing.totalAmount != null ? (allocPricing.totalAmount / nights) : undefined)
+                                : (pricing.totalAmount != null ? (pricing.totalAmount / (nights * totalRooms)) : undefined);
+
                             return {
                                 roomId: r.id,
                                 roomTypeId: alloc?.roomTypeId || r.roomTypeId || roomTypeId,
@@ -1100,10 +1158,10 @@ export class BookingsService {
                                 childAges: rChildAges,
                                 freeChildrenCount: rFreeChildren,
                                 paidChildrenCount: rPaidChildren,
-                                basePricePerNight: pricing.baseAmount ? (pricing.baseAmount / (nights * totalRooms)) : undefined,
-                                extraAdultChargePerNight: pricing.extraAdultAmount ? (pricing.extraAdultAmount / (nights * totalRooms)) : undefined,
-                                extraChildChargePerNight: pricing.extraChildAmount ? (pricing.extraChildAmount / (nights * totalRooms)) : undefined,
-                                totalPricePerNight: pricing.totalAmount ? (pricing.totalAmount / (nights * totalRooms)) : undefined,
+                                basePricePerNight: roomBasePerNight != null ? Number(roomBasePerNight.toFixed(2)) : undefined,
+                                extraAdultChargePerNight: roomExtraAdultPerNight != null ? Number(roomExtraAdultPerNight.toFixed(2)) : undefined,
+                                extraChildChargePerNight: roomExtraChildPerNight != null ? Number(roomExtraChildPerNight.toFixed(2)) : undefined,
+                                totalPricePerNight: roomTotalPerNight != null ? Number(roomTotalPerNight.toFixed(2)) : undefined,
                             };
                         }),
                     },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Plus, Trash2, Users, CheckCircle2, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { bookingsService } from '../../services/bookings';
@@ -40,9 +40,13 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
     onApplyCustomSolution,
 }) => {
     const [customRooms, setCustomRooms] = useState<CustomRoomItem[]>([]);
+    const [availableRoomsByRoomType, setAvailableRoomsByRoomType] = useState<Record<string, any[]>>({});
+    const [loadingRoomsByRoomType, setLoadingRoomsByRoomType] = useState<Record<string, boolean>>({});
     const [livePrice, setLivePrice] = useState<{
         baseAmount: number;
         extraAmount: number;
+        extraAdultAmount: number;
+        extraChildAmount: number;
         taxAmount: number;
         totalPrice: number;
         taxRate: number;
@@ -54,21 +58,74 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
     const checkOut = new Date(checkOutDate);
     const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24))) || 1;
 
-    // Filter room types with available rooms
+    // Filter room types
     const availableRoomTypes = useMemo(() => {
-        return (roomTypes || []).filter(rt => (rt.availableCount ?? (rt.rooms?.length || 0)) > 0);
+        return roomTypes || [];
     }, [roomTypes]);
+
+    // Ref to track latest available rooms map for async callbacks
+    const availableRoomsRef = useRef<Record<string, any[]>>({});
+    availableRoomsRef.current = availableRoomsByRoomType;
+
+    // Fix G1: Fetch genuinely available physical rooms for requested dates per room type
+    useEffect(() => {
+        if (!isOpen || !checkInDate || !checkOutDate || availableRoomTypes.length === 0) {
+            setAvailableRoomsByRoomType({});
+            setLoadingRoomsByRoomType({});
+            return;
+        }
+
+        let isCancelled = false;
+
+        const fetchAvailableRooms = async () => {
+            for (const rt of availableRoomTypes) {
+                if (isCancelled) break;
+                setLoadingRoomsByRoomType(prev => ({ ...prev, [rt.id]: true }));
+                try {
+                    const result = await bookingsService.checkAvailability({
+                        roomTypeId: rt.id,
+                        checkInDate,
+                        checkOutDate,
+                    });
+                    if (!isCancelled) {
+                        const roomList = result.roomList || [];
+                        setAvailableRoomsByRoomType(prev => ({
+                            ...prev,
+                            [rt.id]: roomList,
+                        }));
+                    }
+                } catch (err) {
+                    console.error(`Failed to fetch available rooms for room type ${rt.id}:`, err);
+                    if (!isCancelled) {
+                        setAvailableRoomsByRoomType(prev => ({
+                            ...prev,
+                            [rt.id]: [],
+                        }));
+                    }
+                } finally {
+                    if (!isCancelled) {
+                        setLoadingRoomsByRoomType(prev => ({ ...prev, [rt.id]: false }));
+                    }
+                }
+            }
+        };
+
+        fetchAvailableRooms();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [isOpen, checkInDate, checkOutDate, availableRoomTypes]);
 
     // Initialize custom rooms when modal opens
     useEffect(() => {
         if (isOpen && customRooms.length === 0 && availableRoomTypes.length > 0) {
             const firstRt = availableRoomTypes[0];
-            const firstPhysRoom = firstRt.rooms?.find((r: any) => r.isAvailable !== false);
             setCustomRooms([
                 {
                     id: `room_${Date.now()}_1`,
                     roomTypeId: firstRt.id,
-                    physicalRoomId: firstPhysRoom?.id || '',
+                    physicalRoomId: '',
                     adults: Math.min(requiredAdults, firstRt.maxPhysicalAdults ?? firstRt.maxAdults ?? 2),
                     children: Math.min(requiredChildren, firstRt.maxPhysicalChildren ?? firstRt.maxChildren ?? 0),
                     childAges: requiredChildAges.slice(0, Math.min(requiredChildren, firstRt.maxPhysicalChildren ?? 0)),
@@ -78,7 +135,32 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
         }
     }, [isOpen, availableRoomTypes]);
 
-    // Authoritative Live Pricing from backend pricing service
+    // Auto-select first genuinely available physical room once availableRoomsByRoomType is loaded
+    useEffect(() => {
+        if (!isOpen) return;
+        setCustomRooms(prev => {
+            let hasChanges = false;
+            const assignedIds = new Set<string>();
+            const updated = prev.map(cr => {
+                const availableForType = availableRoomsByRoomType[cr.roomTypeId] || [];
+                const isCurrentlyAssignedValid = availableForType.some(pr => pr.id === cr.physicalRoomId);
+                let newPhysId = cr.physicalRoomId;
+
+                if (!isCurrentlyAssignedValid || assignedIds.has(cr.physicalRoomId)) {
+                    const firstUnused = availableForType.find(pr => !assignedIds.has(pr.id));
+                    newPhysId = firstUnused?.id || '';
+                }
+
+                if (newPhysId) assignedIds.add(newPhysId);
+                if (newPhysId !== cr.physicalRoomId) hasChanges = true;
+                return { ...cr, physicalRoomId: newPhysId };
+            });
+
+            return hasChanges ? updated : prev;
+        });
+    }, [availableRoomsByRoomType, isOpen]);
+
+    // Authoritative Live Pricing from backend pricing service (Fix G3 & G5)
     useEffect(() => {
         let isCancelled = false;
         if (!isOpen || !checkInDate || !checkOutDate || customRooms.length === 0) {
@@ -90,11 +172,12 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
             setIsPriceCalculating(true);
             try {
                 let accBase = 0;
-                let accExtra = 0;
+                let accExtraAdult = 0;
+                let accExtraChild = 0;
                 let accTax = 0;
                 let accTotal = 0;
                 let isInclusive = false;
-                let lastTaxRate = 0;
+                const taxRates: number[] = [];
 
                 for (const cr of customRooms) {
                     if (!cr.roomTypeId) continue;
@@ -105,28 +188,38 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                         adultsCount: cr.adults,
                         childrenCount: cr.children,
                         childAges: cr.childAges,
+                        infantsCount: cr.infants,
                         roomCount: 1,
                     });
                     accBase += res.baseAmount;
-                    accExtra += ((res.extraAdultAmount || 0) + (res.extraChildAmount || 0));
+                    accExtraAdult += (res.extraAdultAmount || 0);
+                    accExtraChild += (res.extraChildAmount || 0);
                     accTax += res.taxAmount;
                     accTotal += res.totalAmount;
                     if (res.isGstInclusive) isInclusive = true;
-                    lastTaxRate = res.taxRate;
+                    if (res.taxRate !== undefined && res.taxRate !== null) taxRates.push(res.taxRate);
                 }
+
+                const totalTaxable = accBase + accExtraAdult + accExtraChild;
+                const effectiveTaxRate = totalTaxable > 0 && accTax > 0
+                    ? Number(((accTax / totalTaxable) * 100).toFixed(1))
+                    : (taxRates[0] || 0);
 
                 if (!isCancelled) {
                     setLivePrice({
                         baseAmount: Number(accBase.toFixed(2)),
-                        extraAmount: Number(accExtra.toFixed(2)),
+                        extraAmount: Number((accExtraAdult + accExtraChild).toFixed(2)),
+                        extraAdultAmount: Number(accExtraAdult.toFixed(2)),
+                        extraChildAmount: Number(accExtraChild.toFixed(2)),
                         taxAmount: Number(accTax.toFixed(2)),
                         totalPrice: Number(accTotal.toFixed(2)),
-                        taxRate: lastTaxRate,
+                        taxRate: effectiveTaxRate,
                         isGstInclusive: isInclusive,
                     });
                 }
             } catch (err) {
                 console.error('Failed to calculate custom solution live price', err);
+                if (!isCancelled) setLivePrice(null);
             } finally {
                 if (!isCancelled) setIsPriceCalculating(false);
             }
@@ -155,7 +248,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
     const selectedPhysicalRoomIds = customRooms.map(r => r.physicalRoomId).filter(Boolean);
     const hasDuplicatePhysicalRooms = new Set(selectedPhysicalRoomIds).size !== selectedPhysicalRoomIds.length;
 
-    // Validate per-room physical capacities
+    // Validate per-room physical capacities & physical room selection
     const roomValidationErrors: Record<string, string[]> = {};
     customRooms.forEach((r) => {
         const errors: string[] = [];
@@ -173,17 +266,13 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
             if (r.children > maxPhysChildren) errors.push(`Exceeds max child capacity (${maxPhysChildren}).`);
             if (r.infants > maxPhysInfants) errors.push(`Exceeds max infant capacity (${maxPhysInfants}).`);
             if (r.adults + r.children > totalMax) errors.push(`Exceeds total combined capacity (${totalMax}).`);
-            if (!r.physicalRoomId) errors.push('Please select a physical room number.');
+            if (!r.physicalRoomId) errors.push('Please select an available physical room number.');
         }
         if (errors.length > 0) roomValidationErrors[r.id] = errors;
     });
 
     const isAllRoomsValid = Object.keys(roomValidationErrors).length === 0 && !hasDuplicatePhysicalRooms;
-    const canApply = isPartyFullyAllocated && isAllRoomsValid && customRooms.length > 0;
-
-    // Calculate dynamic pricing for custom arrangement
-    let totalBasePricePerNight = 0;
-    let totalExtraPricePerNight = 0;
+    const canApply = isPartyFullyAllocated && isAllRoomsValid && customRooms.length > 0 && !isPriceCalculating && livePrice !== null;
 
     const enrichedCustomRooms = customRooms.map(cr => {
         const rt = roomTypes.find(t => t.id === cr.roomTypeId);
@@ -202,9 +291,6 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
         const extraAdultCharge = extraAdults * extraAdultPrice;
         const extraChildCharge = extraChildren * extraChildPrice;
         const roomTotalPerNight = basePrice + extraAdultCharge + extraChildCharge;
-
-        totalBasePricePerNight += basePrice;
-        totalExtraPricePerNight += (extraAdultCharge + extraChildCharge);
 
         return {
             ...cr,
@@ -226,56 +312,12 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
         };
     });
 
-
-
-    // Synchronous fallback (aligns with GST inclusive/exclusive mode)
-    const isPropertyGstApplicable = Boolean(roomTypes[0]?.property?.isGstApplicable && roomTypes[0]?.property?.gstNumber);
-    let fallbackTax = 0;
-    let fallbackBase = 0;
-    let fallbackExtra = 0;
-    let fallbackTotal = 0;
-    let fallbackTaxRate = 0;
-    let anyRoomGstInclusive = false;
-
-    enrichedCustomRooms.forEach(r => {
-        const isInclusive = isPropertyGstApplicable && Boolean(r.rt?.isGstInclusive);
-        if (isInclusive) anyRoomGstInclusive = true;
-        const totalTariff = r.totalPricePerNight * nights;
-        const unitTariff = r.totalPricePerNight;
-        const rate = unitTariff > 7500 ? 0.18 : 0.05;
-
-        if (isInclusive) {
-            // Reverse calculate GST so tariff already includes GST
-            const baseForRoom = Number((totalTariff / (1 + rate)).toFixed(2));
-            const taxForRoom = Number((totalTariff - baseForRoom).toFixed(2));
-            fallbackBase += baseForRoom;
-            fallbackExtra += Number((((r.extraAdultChargePerNight + r.extraChildChargePerNight) / (1 + rate)) * nights).toFixed(2));
-            fallbackTax += taxForRoom;
-            fallbackTotal += totalTariff;
-            fallbackTaxRate = Math.round(rate * 100);
-        } else {
-            // Forward calculate GST
-            const taxForRoom = isPropertyGstApplicable ? (totalTariff * rate) : 0;
-            fallbackBase += r.basePricePerNight * nights;
-            fallbackExtra += (r.extraAdultChargePerNight + r.extraChildChargePerNight) * nights;
-            fallbackTax += taxForRoom;
-            fallbackTotal += totalTariff + taxForRoom;
-            fallbackTaxRate = Math.round(rate * 100);
-        }
-    });
-
-    const baseAmount = livePrice ? livePrice.baseAmount : Number(fallbackBase.toFixed(2));
-    const extraAmount = livePrice ? livePrice.extraAmount : Number(fallbackExtra.toFixed(2));
-    const totalTaxAmount = livePrice ? livePrice.taxAmount : Number(fallbackTax.toFixed(2));
-    const totalPrice = livePrice ? livePrice.totalPrice : Number(fallbackTotal.toFixed(2));
-    const effectiveTaxRate = livePrice ? livePrice.taxRate : fallbackTaxRate;
-    const isGstInclusive = livePrice ? livePrice.isGstInclusive : anyRoomGstInclusive;
-
     const handleAddRoom = () => {
         if (availableRoomTypes.length === 0) return;
         const rt = availableRoomTypes[0];
-        const assignedIds = new Set(customRooms.map(r => r.physicalRoomId));
-        const unusedRoom = rt.rooms?.find((r: any) => !assignedIds.has(r.id) && r.isAvailable !== false);
+        const assignedIds = new Set(customRooms.map(r => r.physicalRoomId).filter(Boolean));
+        const availableForType = availableRoomsByRoomType[rt.id] || [];
+        const unusedRoom = availableForType.find((r: any) => !assignedIds.has(r.id));
 
         setCustomRooms(prev => [
             ...prev,
@@ -300,9 +342,9 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
             if (r.id !== id) return r;
             const next = { ...r, ...updates };
             if (updates.roomTypeId && updates.roomTypeId !== r.roomTypeId) {
-                const rt = roomTypes.find(t => t.id === updates.roomTypeId);
-                const assignedIds = new Set(prev.filter(x => x.id !== id).map(x => x.physicalRoomId));
-                const availablePhys = rt?.rooms?.find((pr: any) => !assignedIds.has(pr.id) && pr.isAvailable !== false);
+                const assignedIds = new Set(prev.filter(x => x.id !== id).map(x => x.physicalRoomId).filter(Boolean));
+                const availableForNewType = availableRoomsByRoomType[updates.roomTypeId] || [];
+                const availablePhys = availableForNewType.find((pr: any) => !assignedIds.has(pr.id));
                 next.physicalRoomId = availablePhys?.id || '';
             }
             return next;
@@ -310,7 +352,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
     };
 
     const handleConfirmCustomSolution = () => {
-        if (!canApply) return;
+        if (!canApply || !livePrice) return;
 
         const customSolution = {
             id: `custom_sol_${Date.now()}`,
@@ -322,13 +364,15 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
             badge: 'Custom Staff Arrangement',
             numberOfNights: nights,
             pricing: {
-                baseAmount,
-                extraAmount,
-                taxAmount: totalTaxAmount,
-                taxRate: effectiveTaxRate,
-                isGstInclusive,
-                totalPrice,
-                pricePerNight: Number((totalPrice / nights).toFixed(2)),
+                baseAmount: livePrice.baseAmount,
+                extraAmount: livePrice.extraAmount,
+                extraAdultAmount: livePrice.extraAdultAmount,
+                extraChildAmount: livePrice.extraChildAmount,
+                taxAmount: livePrice.taxAmount,
+                taxRate: livePrice.taxRate,
+                isGstInclusive: livePrice.isGstInclusive,
+                totalPrice: livePrice.totalPrice,
+                pricePerNight: Number((livePrice.totalPrice / nights).toFixed(2)),
                 numberOfNights: nights,
                 currency: 'INR',
             },
@@ -375,7 +419,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                         </div>
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-widest text-primary block">
-                                Secondary Fallback Solution
+                                Staff Manual Arrangement
                             </span>
                             <h2 className="text-base sm:text-lg font-black text-foreground tracking-tight">
                                 CREATE CUSTOM ACCOMMODATION SOLUTION
@@ -412,9 +456,9 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                                     : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
                             )}>
                                 {isPartyFullyAllocated ? (
-                                    <><CheckCircle2 className="h-3.5 w-3.5" /> Fully Allocated ({totalAllocatedAdults}A, {totalAllocatedChildren}C)</>
+                                    <><CheckCircle2 className="h-3.5 w-3.5" /> Fully Allocated ({totalAllocatedAdults}A, {totalAllocatedChildren}C{totalAllocatedInfants > 0 ? `, ${totalAllocatedInfants}I` : ''})</>
                                 ) : (
-                                    <><AlertCircle className="h-3.5 w-3.5" /> Allocated: {totalAllocatedAdults}/{requiredAdults}A, {totalAllocatedChildren}/{requiredChildren}C</>
+                                    <><AlertCircle className="h-3.5 w-3.5" /> Allocated: {totalAllocatedAdults}/{requiredAdults}A, {totalAllocatedChildren}/{requiredChildren}C{requiredInfants > 0 ? `, ${totalAllocatedInfants}/${requiredInfants}I` : ''}</>
                                 )}
                             </span>
                         </div>
@@ -438,8 +482,11 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                         {customRooms.map((roomItem, idx) => {
                             const rt = roomTypes.find(t => t.id === roomItem.roomTypeId);
                             const errors = roomValidationErrors[roomItem.id] || [];
-                            const assignedIds = new Set(customRooms.filter(x => x.id !== roomItem.id).map(x => x.physicalRoomId));
-                            const physicalRooms = (rt?.rooms || []).filter((pr: any) => pr.isAvailable !== false);
+                            const assignedIdsInOtherSlots = new Set(
+                                customRooms.filter(x => x.id !== roomItem.id).map(x => x.physicalRoomId).filter(Boolean)
+                            );
+                            const availablePhysRooms = availableRoomsByRoomType[roomItem.roomTypeId] || [];
+                            const isLoadingPhys = loadingRoomsByRoomType[roomItem.roomTypeId];
 
                             const maxPhysA = rt?.maxPhysicalAdults ?? rt?.maxAdults ?? 2;
                             const maxPhysC = rt?.maxPhysicalChildren ?? rt?.maxChildren ?? 0;
@@ -488,22 +535,31 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
 
                                         <div>
                                             <label className="block text-xs font-bold text-muted-foreground mb-1">
-                                                Physical Room Assignment <span className="text-red-500">*</span>
+                                                Available Physical Room Assignment <span className="text-red-500">*</span>
                                             </label>
                                             <select
                                                 value={roomItem.physicalRoomId}
                                                 onChange={(e) => handleUpdateRoom(roomItem.id, { physicalRoomId: e.target.value })}
                                                 className="w-full border border-input bg-background rounded-xl h-10 px-3 text-xs font-bold cursor-pointer"
+                                                disabled={isLoadingPhys}
                                             >
-                                                <option value="">-- Choose Physical Room --</option>
-                                                {physicalRooms.map((pr: any) => {
-                                                    const isUsedElsewhere = assignedIds.has(pr.id);
-                                                    return (
-                                                        <option key={pr.id} value={pr.id} disabled={isUsedElsewhere}>
-                                                            Room #{pr.roomNumber || pr.name} {isUsedElsewhere ? '(Selected in another room)' : ''}
-                                                        </option>
-                                                    );
-                                                })}
+                                                {isLoadingPhys ? (
+                                                    <option value="" disabled>Loading genuinely available rooms...</option>
+                                                ) : availablePhysRooms.length === 0 ? (
+                                                    <option value="" disabled>No physical rooms available for selected dates</option>
+                                                ) : (
+                                                    <>
+                                                        <option value="">-- Choose Available Physical Room --</option>
+                                                        {availablePhysRooms.map((pr: any) => {
+                                                            const isUsedElsewhere = assignedIdsInOtherSlots.has(pr.id);
+                                                            return (
+                                                                <option key={pr.id} value={pr.id} disabled={isUsedElsewhere}>
+                                                                    Room #{pr.roomNumber || pr.name} {isUsedElsewhere ? '(Selected in another room slot)' : ''}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </>
+                                                )}
                                             </select>
                                         </div>
                                     </div>
@@ -602,42 +658,56 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                         })}
                     </div>
 
-                    {/* Price Breakdown Preview */}
+                    {/* Price Breakdown Preview (Authoritative Backend Result) */}
                     <div className="p-5 rounded-2xl bg-muted/20 border border-border space-y-3">
                         <div className="flex items-center justify-between pb-2 border-b border-border">
                             <span className="text-xs font-black uppercase tracking-wider text-foreground">
                                 Custom Arrangement Pricing ({customRooms.length} Rooms × {nights} Night{nights > 1 ? 's' : ''})
                             </span>
                             <span className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
-                                {isPriceCalculating && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
-                                {isGstInclusive ? 'GST Inclusive Tariff' : 'GST Exclusive Tariff'}
+                                {isPriceCalculating ? (
+                                    <span className="flex items-center gap-1 text-primary">
+                                        <Loader2 className="h-3 w-3 animate-spin" /> Calculating backend price...
+                                    </span>
+                                ) : livePrice ? (
+                                    livePrice.isGstInclusive ? 'GST Inclusive Tariff' : 'GST Exclusive Tariff'
+                                ) : (
+                                    'Pricing unavailable'
+                                )}
                             </span>
                         </div>
 
-                        <div className="space-y-1.5 text-xs">
-                            <div className="flex justify-between text-muted-foreground">
-                                <span>Base Room Charges</span>
-                                <span className="font-semibold text-foreground">₹{baseAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        {isPriceCalculating || !livePrice ? (
+                            <div className="py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                <span>Fetching authoritative pricing from server...</span>
                             </div>
-                            {extraAmount > 0 && (
+                        ) : (
+                            <div className="space-y-1.5 text-xs">
                                 <div className="flex justify-between text-muted-foreground">
-                                    <span>Extra Guest Charges</span>
-                                    <span className="font-semibold text-foreground">+₹{extraAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    <span>Base Room Charges</span>
+                                    <span className="font-semibold text-foreground">₹{livePrice.baseAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
-                            )}
-                            {totalTaxAmount > 0 && (
-                                <div className="flex justify-between text-muted-foreground">
-                                    <span>Dynamic GST ({effectiveTaxRate}%){isGstInclusive ? ' (Included)' : ''}</span>
-                                    <span className="font-semibold text-foreground">
-                                        {isGstInclusive ? '' : '+'}₹{totalTaxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </span>
+                                {livePrice.extraAmount > 0 && (
+                                    <div className="flex justify-between text-muted-foreground">
+                                        <span>Extra Guest Charges</span>
+                                        <span className="font-semibold text-foreground">+₹{livePrice.extraAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                )}
+                                {livePrice.taxAmount > 0 && (
+                                    <div className="flex justify-between text-muted-foreground">
+                                        <span>Dynamic GST ({livePrice.taxRate}%){livePrice.isGstInclusive ? ' (Included)' : ''}</span>
+                                        <span className="font-semibold text-foreground">
+                                            {livePrice.isGstInclusive ? '' : '+'}₹{livePrice.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center pt-2 border-t border-border font-black text-sm text-foreground">
+                                    <span>Calculated Total Price</span>
+                                    <span className="text-lg text-primary">₹{livePrice.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
-                            )}
-                            <div className="flex justify-between items-center pt-2 border-t border-border font-black text-sm text-foreground">
-                                <span>Calculated Total Price</span>
-                                <span className="text-lg text-primary">₹{totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
 
@@ -651,6 +721,10 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                         ) : !isAllRoomsValid ? (
                             <span className="text-red-500 font-bold flex items-center gap-1">
                                 <AlertCircle className="h-4 w-4" /> Please resolve room capacity / physical room selection errors.
+                            </span>
+                        ) : isPriceCalculating ? (
+                            <span className="text-primary font-bold flex items-center gap-1">
+                                <Loader2 className="h-4 w-4 animate-spin" /> Verifying authoritative price calculation...
                             </span>
                         ) : (
                             <span className="text-emerald-600 font-bold flex items-center gap-1">
@@ -683,3 +757,4 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
 };
 
 export default CustomAccommodationModal;
+
