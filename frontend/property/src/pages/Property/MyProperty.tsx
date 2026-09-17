@@ -893,7 +893,7 @@ export default function MyProperty() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 space-y-2">
                                     <label className="block text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
-                                        Group Price / Adult <span className="text-red-500">*</span>
+                                        Group Price / Adult (13+ yrs) <span className="text-red-500">*</span>
                                     </label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-sm">
@@ -920,7 +920,7 @@ export default function MyProperty() {
 
                                 <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-indigo-100 dark:border-indigo-900/30 space-y-2">
                                     <label className="block text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
-                                        Group Price / Child <span className="text-red-500">*</span>
+                                        Group Price / Child (6–12 yrs) <span className="text-red-500">*</span>
                                     </label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-sm">
