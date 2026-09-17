@@ -1579,12 +1579,10 @@ export default function CreateBooking() {
                                     <div className="pt-2">
                                         <PropertyInventoryReference
                                             roomTypesList={sortedRoomTypesList}
-                                            selectedRoomTypeId={!selectedSolution ? watch('roomTypeId') : undefined}
                                             hasValidSolutions={Boolean(accommodationSolutions && accommodationSolutions.length > 0)}
                                             adultsCount={Number(watch('adultsCount')) || 1}
                                             childrenCount={Number(watch('childrenCount')) || 0}
                                             infantsCount={infantsCount}
-                                            onSelectRoomType={handleSelectRoomType}
                                         />
                                     </div>
                                 </>

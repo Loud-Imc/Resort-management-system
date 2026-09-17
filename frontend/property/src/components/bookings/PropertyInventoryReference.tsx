@@ -5,22 +5,20 @@ import { canRoomTypeFitParty } from '../../utils/occupancy';
 
 interface PropertyInventoryReferenceProps {
     roomTypesList: any[];
-    selectedRoomTypeId: string | undefined;
+    selectedRoomTypeId?: string;
     hasValidSolutions: boolean;
     adultsCount: number;
     childrenCount: number;
     infantsCount: number;
-    onSelectRoomType: (roomTypeId: string) => void;
+    onSelectRoomType?: (roomTypeId: string) => void;
 }
 
 export const PropertyInventoryReference: React.FC<PropertyInventoryReferenceProps> = ({
     roomTypesList,
-    selectedRoomTypeId,
     hasValidSolutions,
     adultsCount,
     childrenCount,
     infantsCount,
-    onSelectRoomType,
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [warningId, setWarningId] = useState<string | null>(null);
@@ -63,7 +61,6 @@ export const PropertyInventoryReference: React.FC<PropertyInventoryReferenceProp
                 <div className="p-4 pt-0 border-t border-border/60 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
                         {roomTypesList.map((rt) => {
-                            const isSelected = selectedRoomTypeId === rt.id;
                             const physAdults = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
                             const physChildren = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
                             const canFitSingle = canRoomTypeFitParty(rt, {
@@ -83,15 +80,13 @@ export const PropertyInventoryReference: React.FC<PropertyInventoryReferenceProp
                                     key={rt.id}
                                     className={clsx(
                                         "p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-2.5",
-                                        isSelected
-                                            ? "bg-primary/5 border-primary ring-1 ring-primary/20"
-                                            : isSoldOut
-                                                ? "bg-muted/20 border-rose-500/20 opacity-80"
-                                                : isPartyIncompatible
-                                                    ? "bg-card/70 border-amber-500/25"
-                                                    : !canFitSingle
-                                                        ? "bg-card/70 border-amber-500/30"
-                                                        : "bg-background border-border"
+                                        isSoldOut
+                                            ? "bg-muted/20 border-rose-500/20 opacity-80"
+                                            : isPartyIncompatible
+                                                ? "bg-card/70 border-amber-500/25"
+                                                : !canFitSingle
+                                                    ? "bg-card/70 border-amber-500/30"
+                                                    : "bg-background border-border"
                                     )}
                                 >
                                     <div className="space-y-1.5">
@@ -140,20 +135,6 @@ export const PropertyInventoryReference: React.FC<PropertyInventoryReferenceProp
                                         <div className="text-xs font-bold text-foreground">
                                             ₹{Number(rt.basePrice || 0).toLocaleString()}<span className="text-[9px] text-muted-foreground font-normal">/nt</span>
                                         </div>
-                                        {canFitSingle && !isSoldOut && !isPartyIncompatible && (
-                                            <button
-                                                type="button"
-                                                onClick={() => onSelectRoomType(rt.id)}
-                                                className={clsx(
-                                                    "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer",
-                                                    isSelected
-                                                        ? "bg-primary text-primary-foreground"
-                                                        : "bg-muted hover:bg-primary hover:text-primary-foreground text-foreground"
-                                                )}
-                                            >
-                                                {isSelected ? <><CheckCircle className="h-3 w-3" /> Selected</> : 'Select'}
-                                            </button>
-                                        )}
                                         {(!canFitSingle || isSoldOut || isPartyIncompatible) && (
                                             <button
                                                 type="button"
