@@ -33,6 +33,7 @@ const bookingSchema = z.object({
     checkInDate: z.string().min(1, 'Check-in date is required'),
     checkOutDate: z.string().min(1, 'Check-out date is required'),
     roomTypeId: z.string().optional(),
+    roomsCount: z.number().min(1, 'At least 1 room is required').optional(),
     adultsCount: z.number().min(1, 'At least 1 adult is required'),
     childrenCount: z.number().min(0),
     extraAdultsCount: z.number().min(0).optional(),
@@ -170,6 +171,7 @@ export default function CreateBooking() {
             propertyId: selectedProperty?.id || '',
             checkInDate: preSelectedStartDate || format(new Date(), 'yyyy-MM-dd'),
             checkOutDate: preSelectedEndDate || format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+            roomsCount: 1,
             adultsCount: 1, childrenCount: 0,
             extraAdultsCount: 0, extraChildrenCount: 0,
             roomTypeId: preSelectedRoomTypeId || '',
@@ -213,6 +215,7 @@ export default function CreateBooking() {
     const watchedCheckOutDate = watch('checkOutDate');
     const watchedAdults = watch('adultsCount');
     const watchedChildren = watch('childrenCount');
+    const watchedRoomsCount = watch('roomsCount');
     const watchedIsHistorical = watch('isHistoricalEntry');
     const isGroupMode = !!watch('isGroupBooking');
 
@@ -431,6 +434,7 @@ export default function CreateBooking() {
         setValue('selectedRoomIds', []);
         setValue('roomId', '');
         setValue('roomTypeId', '');
+        setValue('roomsCount', 1);
         setPriceDetails(null);
         setOriginalPriceDetails(null);
         setAvailability(null);
@@ -712,6 +716,7 @@ export default function CreateBooking() {
             } else {
                 const adults = Number(watchedAdults) || 1;
                 const children = Number(watchedChildren) || 0;
+                const rooms = Math.max(1, Number(watchedRoomsCount) || 1);
 
                 const searchRes = await bookingsService.searchRooms({
                     propertyId: selectedProperty.id,
@@ -721,6 +726,7 @@ export default function CreateBooking() {
                     children,
                     childAges: childAges.length > 0 ? childAges : undefined,
                     infants: infantsCount > 0 ? infantsCount : undefined,
+                    rooms,
                     includeSoldOut: true,
                 });
 
@@ -746,7 +752,7 @@ export default function CreateBooking() {
                         const nRooms = Math.max(
                             Math.ceil(adults / Math.max(physA, 1)),
                             children > 0 ? Math.ceil(children / Math.max(physC, 1)) : 0,
-                            1
+                            rooms
                         );
                         const totalRooms = rt.rooms?.filter((r: any) => r.isEnabled)?.length ?? rt._count?.rooms ?? 1;
                         return {
@@ -772,6 +778,7 @@ export default function CreateBooking() {
         watchedCheckOutDate,
         watchedAdults,
         watchedChildren,
+        watchedRoomsCount,
         childAges,
         infantsCount,
         isGroupMode,
@@ -795,6 +802,7 @@ export default function CreateBooking() {
         watchedCheckOutDate,
         watchedAdults,
         watchedChildren,
+        watchedRoomsCount,
         childAges,
         infantsCount,
         isGroupMode,
@@ -1025,6 +1033,7 @@ export default function CreateBooking() {
             roomAllocations: roomAllocationsPayload,
             childAges: (!data.isGroupBooking && childAges.length > 0) ? childAges : undefined,
             infants: (!data.isGroupBooking && infantsCount > 0) ? infantsCount : undefined,
+            roomsCount: data.isGroupBooking ? undefined : (Math.max(1, Number(data.roomsCount) || 1)),
             guestName: `${guestFirstName} ${guestLastName || ''}`.trim(),
             guestEmail: guestEmail || undefined,
             guestPhone: guestPhone,
@@ -1216,8 +1225,22 @@ export default function CreateBooking() {
                                         </div>
                                     </div>
 
-                                    {/* SECOND ROW: Party Inputs (Adults, Children, Infants) */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                                    {/* SECOND ROW: Party Inputs (Rooms, Adults, Children, Infants) */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                                        {/* Rooms Count */}
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                                <BedDouble className="h-3.5 w-3.5 text-primary" /> Rooms
+                                            </label>
+                                            <input 
+                                                type="number" 
+                                                min="1" 
+                                                {...register('roomsCount', { valueAsNumber: true })}
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-black focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                                            />
+                                            {errors.roomsCount && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.roomsCount.message}</p>}
+                                        </div>
+
                                         {/* Adults */}
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
