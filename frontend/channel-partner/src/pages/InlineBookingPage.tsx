@@ -603,8 +603,20 @@ const InlineBookingPage: React.FC = () => {
         if (!cIn || !cOut) return;
         setIsPricingLoading(true);
         try {
+            const allocs = selectedSolution?.rooms && selectedSolution.rooms.length > 0
+                ? selectedSolution.rooms.map((r: any) => ({
+                    roomTypeId: r.roomTypeId,
+                    adults: r.adults,
+                    children: r.children || 0,
+                    infants: r.infants || 0,
+                    childAges: r.childAges,
+                }))
+                : undefined;
+
             const res: any = await api.post('/bookings/calculate-price', {
-                roomTypeId: room.id,
+                propertyId: selectedProperty?.id,
+                roomTypeId: !allocs ? room?.id : undefined,
+                roomAllocations: allocs,
                 checkInDate: cIn,
                 checkOutDate: cOut,
                 adultsCount: ad,

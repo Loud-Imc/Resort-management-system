@@ -1014,8 +1014,28 @@ export default function CreateBooking() {
                 return;
             }
             try {
+                const solutionAllocations = selectedSolution?.allocatedRooms && selectedSolution.allocatedRooms.length > 0
+                    ? selectedSolution.allocatedRooms.map((r: any) => ({
+                        roomTypeId: r.roomTypeId,
+                        adults: r.adults,
+                        children: r.children || 0,
+                        infants: r.infants || 0,
+                        childAges: r.childAges,
+                    }))
+                    : (selectedSolution?.rooms && selectedSolution.rooms.length > 0
+                        ? selectedSolution.rooms.map((r: any) => ({
+                            roomTypeId: r.roomTypeId,
+                            adults: r.adults,
+                            children: r.children || 0,
+                            infants: r.infants || 0,
+                            childAges: r.childAges,
+                        }))
+                        : undefined);
+
                 const priceParams = {
-                    roomTypeId: isGroup ? (availability?.allocationPreview?.[0]?.roomTypeId || targetRoomTypeId) : (targetRoomTypeId || selectedSolution?.allocatedRooms?.[0]?.roomTypeId || selectedSolution?.rooms?.[0]?.roomTypeId),
+                    propertyId: selectedProperty?.id,
+                    roomTypeId: !solutionAllocations ? (isGroup ? (availability?.allocationPreview?.[0]?.roomTypeId || targetRoomTypeId) : targetRoomTypeId) : undefined,
+                    roomAllocations: solutionAllocations,
                     checkInDate: currentValues.checkInDate,
                     checkOutDate: currentValues.checkOutDate,
                     adultsCount: Number(currentValues.adultsCount),
