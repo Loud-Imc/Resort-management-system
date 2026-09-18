@@ -113,16 +113,16 @@ export class PropertiesController {
         const extractCoords = (targetUrl: string): { latitude: number | null; longitude: number | null } => {
             if (!targetUrl) return { latitude: null, longitude: null };
 
-            // Pattern 1: Standard @lat,lng
-            const atMatch = targetUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-            if (atMatch) return { latitude: parseFloat(atMatch[1]), longitude: parseFloat(atMatch[2]) };
-
-            // Pattern 2: Protobuf !3dlat!4dlng (very common in Google Maps place links)
+            // Pattern 1: Protobuf !3dlat!4dlng (highest precision — exact place pin)
             const protoMatch = targetUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
             if (protoMatch) return { latitude: parseFloat(protoMatch[1]), longitude: parseFloat(protoMatch[2]) };
 
-            // Pattern 3: Query parameters ?q=lat,lng or ?ll=lat,lng or ?query=lat,lng or destination/center
-            const queryMatch = targetUrl.match(/[?&](?:q|ll|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
+            // Pattern 2: Standard @lat,lng (camera/map view)
+            const atMatch = targetUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (atMatch) return { latitude: parseFloat(atMatch[1]), longitude: parseFloat(atMatch[2]) };
+
+            // Pattern 3: Query parameters ?q=lat,lng or ?ll=lat,lng or ?query=lat,lng or destination=lat,lng
+            const queryMatch = targetUrl.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
             if (queryMatch) return { latitude: parseFloat(queryMatch[1]), longitude: parseFloat(queryMatch[2]) };
 
             // Pattern 4: Path /place/lat,lng
@@ -135,7 +135,7 @@ export class PropertiesController {
         // Try extracting directly first
         const directCoords = extractCoords(ensureProtocolUrl);
         if (directCoords.latitude !== null && directCoords.longitude !== null) {
-            return { url: ensureProtocolUrl, ...directCoords };
+            return { url: ensureProtocolUrl, ...directCoords, noCoordinatesFound: false };
         }
 
         // 2. Fetch and follow redirects securely
@@ -166,17 +166,50 @@ export class PropertiesController {
                     }
                 }
 
-                // 2. Direct regex patterns in HTML
+                // 2. Direct regex patterns in HTML (excluding client viewport center=)
                 if (coords.latitude === null || coords.longitude === null) {
-                    const metaMatch = response.data.match(/content="[^"]*@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                                      response.data.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) ||
-                                      response.data.match(/center=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                                      response.data.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ||
+                    const metaMatch = response.data.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ||
+                                      response.data.match(/content="[^"]*@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
                                       response.data.match(/APP_INITIALIZATION_STATE=\[\[\[\d+,\d+,(-?\d+\.\d+),(-?\d+\.\d+)\]/) ||
                                       response.data.match(/window\.APP_INITIALIZATION_STATE\s*=\s*\[\[\[\d+,\d+,(-?\d+\.\d+),(-?\d+\.\d+)\]/) ||
                                       response.data.match(/\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]/);
                     if (metaMatch) {
                         coords = { latitude: parseFloat(metaMatch[1]), longitude: parseFloat(metaMatch[2]) };
+                    }
+                }
+            }
+
+            // 3. Fallback: If URL has place name / address in path but no coords (e.g. data-only URL), geocode address
+            if (coords.latitude === null || coords.longitude === null) {
+                const placePathMatch = finalUrl.match(/\/place\/([^/@?]+)/);
+                if (placePathMatch) {
+                    const rawPlace = decodeURIComponent(placePathMatch[1].replace(/\+/g, ' '));
+                    const parts = rawPlace.split(',').map(s => s.trim()).filter(Boolean);
+
+                    const candidates: string[] = [rawPlace];
+                    if (parts.length > 2) {
+                        candidates.push(parts.slice(1).join(', '));
+                        candidates.push(parts.slice(2).join(', '));
+                        candidates.push(parts.slice(-3).join(', '));
+                        candidates.push(parts.slice(-2).join(', '));
+                    }
+                    const uniqueCandidates = [...new Set(candidates)];
+
+                    for (const query of uniqueCandidates) {
+                        try {
+                            const geoRes = await axios.get('https://nominatim.openstreetmap.org/search', {
+                                params: { q: query, format: 'json', limit: 1 },
+                                headers: { 'User-Agent': 'ResortManagementSystem/1.0' },
+                                timeout: 3500
+                            });
+                            if (geoRes.data && geoRes.data.length > 0) {
+                                coords = {
+                                    latitude: parseFloat(geoRes.data[0].lat),
+                                    longitude: parseFloat(geoRes.data[0].lon),
+                                };
+                                break;
+                            }
+                        } catch {}
                     }
                 }
             }
